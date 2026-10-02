@@ -371,6 +371,9 @@ pub fn export_bindings() -> anyhow::Result<()> {
 pub fn run() -> anyhow::Result<()> {
     // First: the environment is read once by everything that follows (portable build only).
     let portable = portable_mode::activate()?;
+    // Also before GTK: no session bus (WSLg) means dconf warns on every settings write.
+    #[cfg(target_os = "linux")]
+    portable::quiet_gsettings_without_a_bus();
 
     // Before the builder: without the runtime no window can exist, so the user is told here.
     #[cfg(windows)]

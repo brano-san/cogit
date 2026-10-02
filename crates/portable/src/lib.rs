@@ -299,6 +299,32 @@ fn set_var(name: &str, value: &OsStr) {
     unsafe { std::env::set_var(name, value) }
 }
 
+/// GSettings (GTK's file chooser, themes) writes through dconf. Without a session bus (WSLg,
+/// a bare container) every write logs `dconf-WARNING: failed to commit changes`: the in-memory
+/// backend then keeps the settings for the run and the console quiet. A desktop with a bus,
+/// or a backend the user chose, is left alone.
+#[must_use]
+pub fn needs_memory_gsettings(
+    backend: Option<&OsStr>,
+    bus_address: Option<&OsStr>,
+    bus_socket_exists: bool,
+) -> bool {
+    backend.is_none() && bus_address.is_none() && !bus_socket_exists
+}
+
+/// First thing in `run()`, like `activate`: single-threaded, before GTK reads the environment.
+pub fn quiet_gsettings_without_a_bus() {
+    let bus_socket_exists =
+        std::env::var_os("XDG_RUNTIME_DIR").is_some_and(|dir| Path::new(&dir).join("bus").exists());
+    if needs_memory_gsettings(
+        std::env::var_os("GSETTINGS_BACKEND").as_deref(),
+        std::env::var_os("DBUS_SESSION_BUS_ADDRESS").as_deref(),
+        bus_socket_exists,
+    ) {
+        set_var("GSETTINGS_BACKEND", OsStr::new("memory"));
+    }
+}
+
 #[must_use]
 pub fn layout() -> Option<&'static Layout> {
     ACTIVE.get().map(|active| &active.layout)

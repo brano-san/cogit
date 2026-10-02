@@ -259,3 +259,22 @@ fn nothing_is_created_or_named_outside_the_data_folder() {
     assert!(beside.contains(&DATA_DIR.to_owned()) && beside.contains(&"cogit.exe".to_owned()));
     assert_eq!(std::fs::read_dir(outer.path()).unwrap().count(), 1);
 }
+
+#[test]
+fn the_memory_settings_backend_is_for_a_session_without_a_bus_only() {
+    // WSLg and bare containers: no bus, so dconf cannot be reached and warns on every write.
+    assert!(needs_memory_gsettings(None, None, false));
+    // A real desktop session: the bus exists, in the environment or as the runtime socket.
+    assert!(!needs_memory_gsettings(
+        None,
+        Some(OsStr::new("unix:path=/run/user/1000/bus")),
+        false
+    ));
+    assert!(!needs_memory_gsettings(None, None, true));
+    // The user chose a backend: it stays.
+    assert!(!needs_memory_gsettings(
+        Some(OsStr::new("keyfile")),
+        None,
+        false
+    ));
+}
