@@ -1255,7 +1255,7 @@ ${event.error}`,
       : refs.visible;
     graph.visibleRefs = visibleTips(nodes, ticked);
     await graph.load(id, graph.query);
-    watch.stop(`${graph.total} commits`);
+    watch.stop(`${graph.walkedTotal} commits`);
   }
 
   // Include Tracked Remote Branches changes the tips the walk starts from (F-561).

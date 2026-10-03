@@ -109,6 +109,12 @@ class GraphStore {
     return this.#shown !== null && this.#shown.repo !== repository.current?.repo;
   }
 
+  /** Rows of the newest walk, shown or still waiting behind the last repository's (R-300):
+      what a load reports, where `total` is what the screen counts. */
+  get walkedTotal(): number {
+    return (this.#next ?? this.#shown)?.total ?? 0;
+  }
+
   /** Where a question about a row on screen goes: null while those rows are the last
       repository's, whose commits the one open does not have (R-300). */
   get rowsRepo(): RepoId | null {

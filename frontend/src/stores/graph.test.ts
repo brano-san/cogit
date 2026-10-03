@@ -593,6 +593,20 @@ describe("the rows of the repository left", () => {
 
     expect(graph.rowsRepo).toBe(B);
   });
+
+  // `reload-graph` logged "88 commits", Clippy's count, for cogit's 1284.
+  it("do not stand for the count of the walk loading behind them", async () => {
+    await loaded(A, ["a", "b"]);
+
+    open(B);
+    const load = graph.load(B);
+    last().push(["x", "y", "z"]);
+
+    expect(graph.total).toBe(2);
+    expect(graph.walkedTotal).toBe(3);
+    last().finish();
+    await load;
+  });
 });
 
 // Opening a fold in search results walked the whole search again, for a flat list the view
