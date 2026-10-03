@@ -5,7 +5,7 @@ use app_state::{AppState, OperationKind};
 use git_engine::CloneRequest;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 fn request(source: &str, target: &Path) -> CloneRequest {
     CloneRequest {
@@ -39,7 +39,11 @@ async fn a_clone_waits_in_a_lane_of_its_own_and_is_journalled() {
     assert_eq!(result.unwrap(), target);
     assert!(state.operations().is_empty());
     let entry = &state.command_log()[0];
-    assert!(entry.command.starts_with("git clone"), "{}", entry.command);
+    assert!(
+        entry.command.contains(" clone --progress -- "),
+        "{}",
+        entry.command
+    );
     assert_eq!(Path::new(&entry.repo), target);
 }
 
@@ -60,8 +64,13 @@ fn the_check_lists_what_the_server_has() {
 async fn the_footer_s_cancel_stops_a_clone() {
     let server = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let port = server.local_addr().unwrap().port();
+    let (connected, connection) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
-        let held: Vec<_> = server.incoming().take(4).collect();
+        let mut held = Vec::new();
+        for stream in server.incoming().take(4) {
+            held.push(stream);
+            let _ = connected.send(());
+        }
         std::thread::sleep(Duration::from_secs(120));
         drop(held);
     });
@@ -80,14 +89,9 @@ async fn the_footer_s_cancel_stops_a_clone() {
             let _ = done.send(state.clone_repository(&wanted, None, &stop, |_| {}));
         });
     }
-    let started = Instant::now();
-    while git_engine::children::running() == 0 {
-        assert!(
-            started.elapsed() < test_fixtures::scaled(Duration::from_secs(20)),
-            "git never started"
-        );
-        std::thread::sleep(Duration::from_millis(20));
-    }
+    connection
+        .recv_timeout(test_fixtures::scaled(Duration::from_secs(20)))
+        .expect("git never connected");
 
     assert!(state.cancel_network(operation));
     let result = finished
