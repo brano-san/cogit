@@ -12,7 +12,7 @@ function passes() {
   let seen: () => ReadonlySet<ChangeKind> = () => new Set();
   let running = 0;
   let overlapped = false;
-  const disk = new DiskPasses(120, (kinds, arrived) => {
+  const disk = new DiskPasses(120, 1_000, (kinds, arrived) => {
     runs.push([...kinds].sort());
     seen = arrived;
     running += 1;
@@ -78,6 +78,21 @@ describe("refreshing after changes on disk", () => {
     await vi.advanceTimersByTimeAsync(1_000);
 
     expect(t.runs).toHaveLength(1);
+  });
+});
+
+describe("a stream of events that never pauses", () => {
+  it("is still answered, head included, before it ends", async () => {
+    const { disk, runs } = passes();
+
+    for (let at = 0; at < 3_000; at += 100) {
+      if (at === 500) disk.add("head");
+      disk.add("workingTree");
+      await vi.advanceTimersByTimeAsync(100);
+    }
+
+    expect(runs.length).toBeGreaterThan(0);
+    expect(runs[0]).toContain("head");
   });
 });
 

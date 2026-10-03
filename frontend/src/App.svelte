@@ -937,7 +937,9 @@
   // One `git commit` arrives as four events, so they are collected and answered once, and
   // never while the answer to the last burst is still reading.
   const SETTLE_MS = 120;
-  const diskPasses = new DiskPasses(SETTLE_MS, (kinds, arrived) => applyDiskChanges(kinds, arrived));
+  // A stream that never pauses for SETTLE_MS is still answered this often.
+  const MAX_WAIT_MS = 1_000;
+  const diskPasses = new DiskPasses(SETTLE_MS, MAX_WAIT_MS, (kinds, arrived) => applyDiskChanges(kinds, arrived));
 
   function onDiskChange(change: import("$lib/ipc").RepoChanged) {
     if (change.kind === "refs") {
