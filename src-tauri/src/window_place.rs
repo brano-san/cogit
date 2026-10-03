@@ -169,9 +169,29 @@ pub fn settle<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) {
         "window was off screen; moved it back"
     );
     if now.w != was.w || now.h != was.h {
-        let _ = window.set_size(tauri::PhysicalSize::new(now.w.max(1), now.h.max(1)));
+        set_outer_size(window, now);
     }
     let _ = window.set_position(tauri::PhysicalPosition::new(now.x, now.y));
+}
+
+/// `set_size` sets the client area while `Rect` is the outer frame: the title bar and borders
+/// (outer minus inner size) come off first, or the window ends up larger than the screen.
+#[must_use]
+pub fn inner_for(target: Rect, frame: (i32, i32)) -> (u32, u32) {
+    let side = |outer: i32, frame: i32| u32::try_from((outer - frame).max(1)).unwrap_or(1);
+    (side(target.w, frame.0), side(target.h, frame.1))
+}
+
+fn set_outer_size<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>, target: Rect) {
+    let frame = match (window.outer_size(), window.inner_size()) {
+        (Ok(outer), Ok(inner)) => (
+            i32::try_from(outer.width.saturating_sub(inner.width)).unwrap_or(0),
+            i32::try_from(outer.height.saturating_sub(inner.height)).unwrap_or(0),
+        ),
+        _ => (0, 0),
+    };
+    let (w, h) = inner_for(target, frame);
+    let _ = window.set_size(tauri::PhysicalSize::new(w, h));
 }
 
 /// Window ▸ Reset Window Position: the way out when everything else failed.
@@ -196,7 +216,10 @@ pub fn recentre<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) {
         h: i32::try_from(size.height).unwrap_or(i32::MAX),
     };
     let now = place(wanted, &[], primary);
-    let _ = window.set_size(tauri::PhysicalSize::new(now.w.max(1), now.h.max(1)));
+    // Only a window larger than the monitor is resized: every Reset used to grow it by its frame.
+    if now.w != wanted.w || now.h != wanted.h {
+        set_outer_size(window, now);
+    }
     let _ = window.set_position(tauri::PhysicalPosition::new(now.x, now.y));
 }
 
@@ -249,6 +272,18 @@ pub fn centre_on_monitor_of<R: tauri::Runtime>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_frame_is_taken_off_before_the_size_is_applied() {
+        let target = Rect {
+            x: 0,
+            y: 0,
+            w: 1920,
+            h: 1040,
+        };
+        assert_eq!(inner_for(target, (16, 39)), (1904, 1001));
+        assert_eq!(inner_for(target, (5000, 5000)), (1, 1));
+    }
 
     const LAPTOP: Rect = Rect {
         x: 0,
