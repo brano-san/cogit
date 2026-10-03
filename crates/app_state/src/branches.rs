@@ -77,7 +77,20 @@ impl AppState {
             .branches_without_divergence()?
             .into_iter()
             .find(|branch| branch.name == name);
-        if handle.delete_branch(name, force)? == git_engine::BranchDeletion::NotFullyMerged {
+        if let Some(branch) = &deleted {
+            handle
+                .pin_for_undo(&branch.oid)
+                .map_err(|err| crate::backup_failed("deleting a branch", &err))?;
+        }
+        let unpin = || {
+            if let Some(branch) = &deleted {
+                self.unpin(&handle, repo, &branch.oid, None);
+            }
+        };
+        if handle.delete_branch(name, force).inspect_err(|_| unpin())?
+            == git_engine::BranchDeletion::NotFullyMerged
+        {
+            unpin();
             return Ok(git_engine::BranchDeletion::NotFullyMerged);
         }
 
@@ -118,7 +131,16 @@ impl AppState {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let oid = handle.tag_target(name);
-        handle.delete_tag(name)?;
+        if let Some(oid) = &oid {
+            handle
+                .pin_for_undo(oid)
+                .map_err(|err| crate::backup_failed("deleting a tag", &err))?;
+        }
+        handle.delete_tag(name).inspect_err(|_| {
+            if let Some(oid) = &oid {
+                self.unpin(&handle, repo, oid, None);
+            }
+        })?;
         self.record(
             repo,
             format!("Delete tag {name}"),

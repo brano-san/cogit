@@ -88,7 +88,13 @@ impl AppState {
 
     pub fn stash_drop(&self, repo: RepoId, oid: &str) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
-        let entry = self.handle(repo)?.stash_drop(oid)?;
+        let handle = self.handle(repo)?;
+        handle
+            .pin_for_undo(oid)
+            .map_err(|err| crate::backup_failed("dropping a stash", &err))?;
+        let entry = handle.stash_drop(oid).inspect_err(|_| {
+            self.unpin(&handle, repo, oid, None);
+        })?;
         self.record(
             repo,
             format!("Drop stash@{{{}}} ({})", entry.index, entry.message),

@@ -1183,6 +1183,87 @@ fn backups(f: &test_fixtures::Fixture) -> Vec<String> {
         .collect()
 }
 
+// After a drop or a delete the oid lived only in the journal: `gc` took the objects and
+// Undo failed.
+#[test]
+fn a_dropped_stash_survives_gc_until_undo() {
+    let f = test_fixtures::with_stashes(2).unwrap();
+    let (state, repo) = open(&f);
+    let before = state.stashes(repo).unwrap();
+    let oid = before[0].oid.clone();
+
+    state.stash_drop(repo, &oid).unwrap();
+    assert_eq!(backups(&f), [format!("refs/cogit/backup/{oid}")]);
+    f.git(&["gc", "--prune=now"]).unwrap();
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(state.stashes(repo).unwrap(), before);
+    assert!(backups(&f).is_empty());
+}
+
+#[test]
+fn a_deleted_annotated_tag_survives_gc_until_undo() {
+    let f = test_fixtures::linear(2).unwrap();
+    f.git(&["tag", "--annotate", "v1", "--message", "first release"])
+        .unwrap();
+    let (state, repo) = open(&f);
+
+    state.delete_tag(repo, "v1").unwrap();
+    assert_eq!(backups(&f).len(), 1);
+    f.git(&["gc", "--prune=now"]).unwrap();
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(
+        f.git(&["cat-file", "-t", "refs/tags/v1"]).unwrap().trim(),
+        "tag"
+    );
+    assert!(backups(&f).is_empty());
+}
+
+#[test]
+fn a_deleted_branch_survives_gc_until_undo() {
+    let f = test_fixtures::branched().unwrap();
+    let (state, repo) = open(&f);
+    let tip = f.oid("dev").unwrap();
+
+    state.delete_branch(repo, "dev", true).unwrap();
+    assert_eq!(backups(&f), [format!("refs/cogit/backup/{tip}")]);
+    f.git(&["reflog", "expire", "--expire-unreachable=now", "--all"])
+        .unwrap();
+    f.git(&["gc", "--prune=now"]).unwrap();
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(f.oid("dev").unwrap(), tip);
+    assert!(backups(&f).is_empty());
+}
+
+#[test]
+fn a_branch_refused_as_unmerged_leaves_no_backup() {
+    let f = test_fixtures::branched().unwrap();
+    let (state, repo) = open(&f);
+
+    let outcome = state.delete_branch(repo, "dev", false).unwrap();
+
+    assert_eq!(outcome, git_engine::BranchDeletion::NotFullyMerged);
+    assert!(backups(&f).is_empty());
+}
+
+#[test]
+fn a_backup_two_entries_share_stays_until_both_are_undone() {
+    let f = test_fixtures::linear(1).unwrap();
+    let (state, repo) = open(&f);
+    f.git(&["branch", "first"]).unwrap();
+    f.git(&["branch", "second"]).unwrap();
+    state.delete_branch(repo, "first", false).unwrap();
+    state.delete_branch(repo, "second", false).unwrap();
+
+    state.undo_last(repo).unwrap();
+    assert_eq!(backups(&f).len(), 1, "the other entry still needs it");
+    state.undo_last(repo).unwrap();
+
+    assert!(backups(&f).is_empty());
+}
+
 // The copies Undo puts back were ordinary stashes: they pushed the user's own down the
 // list, `git stash pop` in a terminal took one of them, and after an Undo the same change
 // stayed listed to be applied a second time (BE-039).

@@ -74,8 +74,18 @@ impl RepoHandle {
         let Some(oid) = made else {
             return Ok(None);
         };
+        self.pin_for_undo(&oid)?;
+        if self.stash_top().as_deref() == Some(oid.as_str()) {
+            self.run_git(&["stash", "drop", "--quiet", "stash@{0}"])?;
+        }
+        Ok(Some(oid))
+    }
+
+    /// Keeps `oid` reachable for `gc` until Undo is done with it: a dropped stash or a deleted
+    /// branch or tag would otherwise be gone for good once its objects are pruned.
+    pub fn pin_for_undo(&self, oid: &str) -> Result<()> {
         let id = gix::ObjectId::from_hex(oid.as_bytes())
-            .map_err(|err| GitError::Internal(format!("git gave a stash id {oid}: {err}")))?;
+            .map_err(|err| GitError::Internal(format!("git gave an id {oid}: {err}")))?;
         self.repo
             .reference(
                 format!("{BACKUP_REFS}{oid}").as_str(),
@@ -84,10 +94,7 @@ impl RepoHandle {
                 "cogit: kept for Undo",
             )
             .map_err(|err| GitError::Internal(format!("cannot keep {oid} for Undo: {err}")))?;
-        if self.stash_top().as_deref() == Some(oid.as_str()) {
-            self.run_git(&["stash", "drop", "--quiet", "stash@{0}"])?;
-        }
-        Ok(Some(oid))
+        Ok(())
     }
 
     /// Undo put it back, so nothing is left to keep it for; a failure only leaves it kept.

@@ -102,6 +102,8 @@ impl Recovery {
             Self::Rollback { stash, .. } | Self::Reset { stash, .. } => {
                 stash.as_deref().into_iter().collect()
             }
+            Self::DroppedStash { entry } => vec![entry.oid.as_str()],
+            Self::Branch { oid, .. } | Self::Tag { oid, .. } => vec![oid.as_str()],
             _ => Vec::new(),
         }
     }
@@ -125,6 +127,25 @@ pub(crate) struct Undoable {
 }
 
 impl AppState {
+    /// Lets go of a kept `oid` unless another entry of the journal (not `except`) still
+    /// needs it, as two branches deleted at one commit do.
+    pub(crate) fn unpin(
+        &self,
+        handle: &git_engine::RepoHandle,
+        repo: RepoId,
+        oid: &str,
+        except: Option<u32>,
+    ) {
+        let shared = self.safety.read().iter().any(|held| {
+            held.entry.repo == repo
+                && Some(held.entry.id) != except
+                && held.recovery.backups().contains(&oid)
+        });
+        if !shared {
+            handle.forget_backup(oid);
+        }
+    }
+
     /// Newest first, like the Output panel.
     #[must_use]
     pub fn safety_log(&self) -> Vec<SafetyEntry> {
@@ -258,7 +279,7 @@ impl AppState {
         }
 
         for oid in held.recovery.backups() {
-            handle.forget_backup(oid);
+            self.unpin(&handle, repo, oid, Some(held.entry.id));
         }
         self.safety
             .write()
