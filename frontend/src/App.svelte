@@ -413,7 +413,10 @@
       suppressBrowserNavigation(window);
       taskbar.start();
       const infoRead = getAppInfo()
-        .then((result) => (info = result))
+        .then((result) => {
+          info = result;
+          if (result.legacyNote) notices.inform("Earlier settings left behind", result.legacyNote);
+        })
         .catch((err) => errors.report(err, "Could not read the application info"));
       void remoteOps.detectLfs();
       const settingsRead = settings.load().then(async () => {

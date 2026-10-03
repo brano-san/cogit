@@ -54,6 +54,7 @@ pub struct AppContext {
     pub state: Arc<AppState>,
     pub log_path: PathBuf,
     pub config_dir: PathBuf,
+    pub legacy_note: Option<String>,
 }
 
 /// Before the first git runs: Preferences ▸ Git executable is read once, at startup.
@@ -507,6 +508,7 @@ pub fn run() -> anyhow::Result<()> {
                 state: Arc::clone(&state),
                 log_path,
                 config_dir: config_dir.clone(),
+                legacy_note: app_state::legacy_dirs::leftovers_note(&migrated),
             });
             app.manage(logging::LogGuard::new(guard));
 

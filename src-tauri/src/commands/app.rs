@@ -33,6 +33,8 @@ pub struct AppInfo {
     pub portable_dir: Option<String>,
     /// Whether this build can replace itself (the updater plugin is registered).
     pub self_update: bool,
+    /// Entries of the pre-rename app folder that stayed behind, for the main window to tell.
+    pub legacy_note: Option<String>,
     pub displays: Vec<app_state::environment::DisplayInfo>,
 }
 
@@ -49,6 +51,7 @@ pub async fn app_info(
 ) -> Result<AppInfo, GitError> {
     let log_path = state.log_path.clone();
     let settings_path = app_state::settings::path(&state.config_dir);
+    let legacy_note = state.legacy_note.clone();
     let displays = displays(&window);
 
     blocking("app_info", move || {
@@ -77,6 +80,7 @@ pub async fn app_info(
             settings_path: settings_path.display().to_string(),
             portable_dir: portable::layout().map(|layout| layout.root().display().to_string()),
             self_update: self_updates(portable::layout().is_some(), std::env::consts::OS),
+            legacy_note,
             displays,
         })
     })

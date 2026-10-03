@@ -84,7 +84,7 @@ fn migrate(old: &Path, new: &Path, rename: Rename<'_>, pause: std::time::Duratio
         let name = entry.file_name();
         let label = name.to_string_lossy().into_owned();
         let target = new.join(&name);
-        if target.exists() {
+        if target.exists() && !clear_empty_twin(&target) {
             left.push(label);
         } else if rename_retrying(rename, &entry.path(), &target, pause).is_ok() {
             moved.push(label);
@@ -100,6 +100,56 @@ fn migrate(old: &Path, new: &Path, rename: Rename<'_>, pause: std::time::Duratio
         left,
         failed,
     }
+}
+
+/// A run that could not move an entry still started the app, which made its own empty one
+/// (a fresh settings file, an empty profile folder). Such a twin holds nothing to lose, so it
+/// does not make the old entry a clash for ever. Removed only when it is empty.
+fn clear_empty_twin(target: &Path) -> bool {
+    let Ok(meta) = std::fs::symlink_metadata(target) else {
+        return false;
+    };
+    if meta.is_dir() {
+        std::fs::remove_dir(target).is_ok()
+    } else {
+        meta.is_file() && meta.len() == 0 && std::fs::remove_file(target).is_ok()
+    }
+}
+
+/// What the user is told when an entry of an old folder is still there: nothing moved by
+/// itself is worth a message, and an entry left alone is how a reset-looking start is explained.
+#[must_use]
+pub fn leftovers_note(outcomes: &[(PathBuf, Migration)]) -> Option<String> {
+    let lines: Vec<String> = outcomes
+        .iter()
+        .filter_map(|(old, outcome)| match outcome {
+            Migration::Merged { left, failed, .. } if !left.is_empty() || !failed.is_empty() => {
+                let mut line = format!("{}:", old.display());
+                if !failed.is_empty() {
+                    line += &format!(" could not be moved (in use): {}.", failed.join(", "));
+                }
+                if !left.is_empty() {
+                    line += &format!(
+                        " also exist in the new folder, which wins: {}.",
+                        left.join(", ")
+                    );
+                }
+                Some(line)
+            }
+            Migration::Failed(error) => {
+                Some(format!("{}: could not be moved: {error}", old.display()))
+            }
+            _ => None,
+        })
+        .collect();
+    (!lines.is_empty()).then(|| {
+        format!(
+            "Settings of an earlier version were left in their old folder. Close other Cogit windows and start again to retry, or copy what you need.
+{}",
+            lines.join("
+")
+        )
+    })
 }
 
 /// The folders Tauri derives from the identifier, per platform; duplicates are dropped.

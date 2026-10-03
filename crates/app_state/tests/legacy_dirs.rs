@@ -156,3 +156,70 @@ fn a_failed_rename_leaves_the_old_folder_untouched() {
     assert!(matches!(run(&old, &new), Migration::Failed(_)));
     assert!(old.join("settings.json").is_file());
 }
+
+// A first run that could not move the profile still started the app, which made an empty
+// settings file of its own; the next run saw a clash and left the old entry for ever.
+#[test]
+fn an_empty_twin_made_by_the_app_does_not_keep_the_old_entry_out() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (old, new) = (tmp.path().join("old"), tmp.path().join("Cogit"));
+    fs::create_dir_all(old.join("EBWebView")).unwrap();
+    fs::write(old.join("EBWebView").join("data"), "profile").unwrap();
+    fs::write(old.join("settings.json"), "{}").unwrap();
+    fs::create_dir_all(new.join("EBWebView")).unwrap();
+    fs::write(new.join("settings.json"), "").unwrap();
+
+    let outcome = run(&old, &new);
+    assert!(
+        matches!(&outcome, Migration::Merged { left, failed, .. } if left.is_empty() && failed.is_empty()),
+        "{outcome:?}"
+    );
+    assert_eq!(fs::read_to_string(new.join("settings.json")).unwrap(), "{}");
+    assert!(new.join("EBWebView").join("data").is_file());
+}
+
+#[test]
+fn a_twin_with_content_is_still_a_clash_and_is_never_touched() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (old, new) = (tmp.path().join("old"), tmp.path().join("Cogit"));
+    fs::create_dir_all(&old).unwrap();
+    fs::write(old.join("settings.json"), "{}").unwrap();
+    fs::create_dir_all(&new).unwrap();
+    fs::write(new.join("settings.json"), "{\"theme\":\"light\"}").unwrap();
+
+    let outcome = run(&old, &new);
+    assert!(matches!(&outcome, Migration::Merged { left, .. } if left == &["settings.json"]));
+    assert_eq!(
+        fs::read_to_string(new.join("settings.json")).unwrap(),
+        "{\"theme\":\"light\"}"
+    );
+}
+
+#[test]
+fn what_stays_behind_is_told_to_the_user_and_a_clean_move_says_nothing() {
+    use app_state::legacy_dirs::leftovers_note;
+    let old = std::path::PathBuf::from("/old");
+    let clean = Migration::Merged {
+        moved: vec!["a".into()],
+        left: vec![],
+        failed: vec![],
+    };
+    assert_eq!(
+        leftovers_note(&[(old.clone(), clean), (old.clone(), Migration::Renamed)]),
+        None
+    );
+
+    let stuck = Migration::Merged {
+        moved: vec![],
+        left: vec!["settings.json".into()],
+        failed: vec!["EBWebView".into()],
+    };
+    let note = leftovers_note(&[
+        (old.clone(), stuck),
+        (old, Migration::Failed("denied".into())),
+    ])
+    .unwrap();
+    for part in ["EBWebView", "settings.json", "denied", "in use"] {
+        assert!(note.contains(part), "{part}: {note}");
+    }
+}

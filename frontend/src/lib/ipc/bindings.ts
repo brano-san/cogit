@@ -625,6 +625,8 @@ export type AppInfo = {
 	portableDir: string | null,
 	/**  Whether this build can replace itself (the updater plugin is registered). */
 	selfUpdate: boolean,
+	/**  Entries of the pre-rename app folder that stayed behind, for the main window to tell. */
+	legacyNote: string | null,
 	displays: DisplayInfo[],
 };
 
