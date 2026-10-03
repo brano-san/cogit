@@ -34,12 +34,16 @@ describe("planFor", () => {
     expect(plan.cascade).toBe(true);
   });
 
+  it("lists the files again when the config changed", () => {
+    expect(planFor(["config"]).worktree).toBe(true);
+  });
+
   it("treats an index write as a working-tree change", () => {
     expect(planFor(["index"]).worktree).toBe(true);
   });
 
-  it("runs the cascade for a stash or a config write without touching the file lists", () => {
-    const plan = planFor(["stash", "config"]);
+  it("runs the cascade for a stash write without touching the file lists", () => {
+    const plan = planFor(["stash"]);
     expect(plan.cascade).toBe(true);
     expect(plan.worktree).toBe(false);
     expect(plan.refs).toBe(false);

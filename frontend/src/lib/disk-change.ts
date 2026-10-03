@@ -24,7 +24,8 @@ export function planFor(kinds: Iterable<ChangeKind>): DiskPlan {
   const real = [...seen].filter((kind) => kind !== "hooks");
   return {
     refs: seen.has("head") || seen.has("refs"),
-    worktree: seen.has("index") || seen.has("workingTree"),
+    // `status.showUntrackedFiles`, `core.excludesFile` and the like change what Files lists.
+    worktree: seen.has("index") || seen.has("workingTree") || seen.has("config"),
     hooks: seen.has("hooks"),
     authors: seen.has("mailmap"),
     cascade: real.length > 0,

@@ -102,7 +102,7 @@ impl RepoWatcher {
         }
         for name in crate::WATCHED_GIT_PATHS {
             let mut places = vec![git_dir.join(name)];
-            if linked && *name == "refs" {
+            if linked && matches!(*name, "refs" | "info") {
                 places.push(common_dir.join(name));
             }
             for path in places

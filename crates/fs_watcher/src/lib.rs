@@ -22,6 +22,7 @@ pub const WATCHED_GIT_PATHS: &[&str] = &[
     "REVERT_HEAD",
     "rebase-merge",
     "rebase-apply",
+    "info",
 ];
 
 const EXCLUDED_DIRS: &[&str] = &[
@@ -123,8 +124,13 @@ pub fn classify_git_path(relative: &str) -> Option<ChangeKind> {
     if normalized == "hooks" || normalized.starts_with("hooks/") {
         return Some(ChangeKind::Hooks);
     }
-    if normalized.starts_with("refs/") || normalized == "packed-refs" {
+    // What a shallow clone stops at; `fetch --deepen` can change it with no ref moving.
+    if normalized.starts_with("refs/") || normalized == "packed-refs" || normalized == "shallow" {
         return Some(ChangeKind::Refs);
+    }
+    // They decide what the status lists as untracked or ignored.
+    if normalized == "info/exclude" || normalized == "info/attributes" {
+        return Some(ChangeKind::WorkingTree);
     }
     if normalized.starts_with("MERGE_HEAD")
         || normalized.starts_with("CHERRY_PICK_HEAD")
@@ -191,6 +197,20 @@ mod tests {
             classify_git_path(r"refs\heads\main"),
             Some(ChangeKind::Refs)
         );
+    }
+
+    #[test]
+    fn what_changes_the_status_or_the_history_edge_is_heard() {
+        assert_eq!(
+            classify_git_path("info/exclude"),
+            Some(ChangeKind::WorkingTree)
+        );
+        assert_eq!(
+            classify_git_path("info/attributes"),
+            Some(ChangeKind::WorkingTree)
+        );
+        assert_eq!(classify_git_path("shallow"), Some(ChangeKind::Refs));
+        assert_eq!(classify_git_path("info/refs"), None);
     }
 
     #[test]
