@@ -143,3 +143,21 @@ fn git_can_delete_packs_while_the_repository_is_shared() {
     assert!(old.iter().all(|pack| !pack.exists()), "{old:?} still there");
     assert!(shared.handle().unwrap().commit_details("HEAD~1").is_ok());
 }
+
+// A handle copied the template's slot count, worked out once from the packs on disk at
+// open: past it every lookup failed, loose objects included.
+#[test]
+fn a_handle_reads_objects_after_many_packs_appeared_since_open() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["repack", "-a", "-d", "-q"]).unwrap();
+    let shared = SharedRepo::open(f.path()).unwrap();
+
+    for n in 0..45 {
+        f.commit_file(100 + n, "more.txt", &format!("{n}\n"))
+            .unwrap();
+        f.git(&["repack", "-d", "-q"]).unwrap();
+    }
+
+    let handle = shared.handle().unwrap();
+    assert!(handle.is_ancestor("HEAD", "HEAD").unwrap());
+}

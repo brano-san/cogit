@@ -84,8 +84,19 @@ impl SharedRepo {
     pub fn handle(&self) -> Result<RepoHandle> {
         self.refresh_packed_refs();
         let mut sync = self.template.clone();
-        let store = gix::odb::Store::try_from(&*self.template.objects)
-            .map_err(|err| GitError::Internal(format!("cannot open the object store: {err}")))?;
+        // Not `Store::try_from(&template)`: that copies the slot count counted once, at open,
+        // and every lookup fails once more packs than that exist. Counted anew per handle.
+        let objects = &*self.template.objects;
+        let store = gix::odb::Store::at_opts(
+            objects.path().into(),
+            objects.object_hash(),
+            &mut objects.replacements(),
+            gix::odb::store::init::Options {
+                use_multi_pack_index: objects.use_multi_pack_index(),
+                ..Default::default()
+            },
+        )
+        .map_err(|err| GitError::Internal(format!("cannot open the object store: {err}")))?;
         sync.objects = gix::features::threading::OwnShared::new(store);
         Ok(RepoHandle::from_repo(sync.to_thread_local()))
     }
