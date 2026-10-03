@@ -160,3 +160,28 @@ fn a_remote_branch_beside_a_tag_of_its_name_is_still_protected() {
 fn a_remote_branch_beside_a_tag_of_its_name_is_still_protected_in_process() {
     beside_a_tag_of_the_same_name(true);
 }
+
+/// A commit of another repository, as a stale selection sends it after a switch: a refusal
+/// from gix, never a failed `git rev-parse` for the Errors window.
+#[test]
+fn a_commit_of_another_repository_is_refused_without_running_git() {
+    const ELSEWHERE: &str = "4ac54b3e7950f693bb3609f782e4ce68edddc863";
+    for f in [
+        test_fixtures::with_remote().unwrap(),
+        test_fixtures::linear(1).unwrap(),
+    ] {
+        let repo = open(&f);
+        for result in [
+            repo.protecting_refs(ELSEWHERE).map(|_| ()),
+            repo.is_published(ELSEWHERE).map(|_| ()),
+            repo.is_ancestor(ELSEWHERE, "HEAD").map(|_| ()),
+            repo.commit_details(ELSEWHERE).map(|_| ()),
+        ] {
+            let err = result.unwrap_err();
+            assert!(
+                matches!(err, git_engine::GitError::InvalidState(_)),
+                "{err:?}"
+            );
+        }
+    }
+}

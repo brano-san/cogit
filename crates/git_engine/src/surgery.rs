@@ -228,7 +228,9 @@ impl RepoHandle {
         if let Some(holding) = self.remote_refs_holding(rev) {
             return Ok(holding);
         }
-        let oid = self.rev_parse(rev)?;
+        // Through gix: a commit this repository does not have is a refusal, not a failed
+        // git command for the Errors window.
+        let oid = self.resolve_commit(rev)?.to_string();
         // Parsed in full: the journal's copy of a long listing is cut in the middle.
         let listed = self.read_git(&[
             "for-each-ref",
@@ -254,9 +256,7 @@ impl RepoHandle {
     pub fn protecting_refs(&self, rev: &str) -> Result<Vec<String>> {
         let Some(patterns) = self.protected_set() else {
             // Still resolve the revision: an unknown one is an error, not an empty list.
-            if self.commit_of(rev).is_none() {
-                self.rev_parse(rev)?;
-            }
+            self.resolve_commit(rev)?;
             return Ok(Vec::new());
         };
 
