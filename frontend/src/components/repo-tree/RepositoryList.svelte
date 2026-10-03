@@ -334,6 +334,7 @@
         /></svg
       >
     </button>
+    <span class="separator" aria-hidden="true"></span>
     <button
       type="button"
       class="tool"
@@ -346,6 +347,7 @@
         ><circle cx="11" cy="11" r="6" /><path d="m20 20-4.3-4.3" /></svg
       >
     </button>
+    <span class="separator" aria-hidden="true"></span>
     <button
       type="button"
       class="tool"
@@ -547,6 +549,15 @@
     display: flex;
     gap: var(--sp-1);
     margin: 0 var(--sp-3) var(--sp-2);
+  }
+
+  /* The main toolbar's separator, scaled to these smaller buttons. */
+  .separator {
+    align-self: center;
+    width: 1px;
+    height: 16px;
+    background: var(--divider);
+    margin-inline: var(--sp-1);
   }
 
   .tool {
