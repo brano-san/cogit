@@ -59,6 +59,16 @@ impl Saved {
         self.y = y;
     }
 
+    /// A maximized window is saved with the corner it was maximized at, which is not where
+    /// "Restore" should put it: the position before that move is (the plugin does the same).
+    fn restore_position(&self) -> (i32, i32) {
+        if self.maximized {
+            (self.prev_x, self.prev_y)
+        } else {
+            (self.x, self.y)
+        }
+    }
+
     fn resized(&mut self, width: u32, height: u32) {
         if width > 0 && height > 0 {
             self.width = width;
@@ -86,7 +96,8 @@ fn restore(window: &WebviewWindow, saved: &Saved) -> tauri::Result<()> {
     if !saved.has_geometry() {
         return Ok(());
     }
-    window.set_position(PhysicalPosition::new(saved.x, saved.y))?;
+    let (x, y) = saved.restore_position();
+    window.set_position(PhysicalPosition::new(x, y))?;
     window.set_size(PhysicalSize::new(saved.width, saved.height))?;
     if saved.maximized {
         window.maximize()?;
@@ -116,14 +127,16 @@ pub fn install(window: &WebviewWindow, path: PathBuf) {
         if restoring.load(Ordering::SeqCst) {
             return;
         }
-        let normal = !tracked.is_minimized().unwrap_or_default()
-            && !tracked.is_maximized().unwrap_or_default();
+        let minimized = tracked.is_minimized().unwrap_or_default();
+        let normal = !minimized && !tracked.is_maximized().unwrap_or_default();
         let mut states = states.lock().unwrap_or_else(PoisonError::into_inner);
         let Some(state) = states.get_mut(&label) else {
             return;
         };
         match event {
-            WindowEvent::Moved(position) if normal => state.moved(position.x, position.y),
+            // Not `normal`: tao reports the move that maximizes before it sets the flag, so the
+            // position before it must be shifted into `prev_*` (see `restore_position`).
+            WindowEvent::Moved(position) if !minimized => state.moved(position.x, position.y),
             WindowEvent::Resized(size) if normal => state.resized(size.width, size.height),
             WindowEvent::CloseRequested { .. } => {
                 state.maximized = tracked.is_maximized().unwrap_or_default();
@@ -187,6 +200,24 @@ mod tests {
         assert!(read(&dir.path().join(FILE)).is_empty());
         std::fs::write(dir.path().join(FILE), "not json").unwrap();
         assert!(read(&dir.path().join(FILE)).is_empty());
+    }
+
+    #[test]
+    fn a_window_closed_maximized_comes_back_where_it_was_before() {
+        let mut saved = Saved::default();
+        saved.resized(800, 600);
+        saved.moved(100, 100);
+        saved.moved(-8, -8); // the move that maximizes
+        saved.maximized = true;
+        assert_eq!(saved.restore_position(), (100, 100));
+    }
+
+    #[test]
+    fn a_normal_window_comes_back_at_its_last_position() {
+        let mut saved = Saved::default();
+        saved.moved(100, 100);
+        saved.moved(30, 40);
+        assert_eq!(saved.restore_position(), (30, 40));
     }
 
     #[test]
