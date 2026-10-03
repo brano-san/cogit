@@ -215,14 +215,15 @@
 >
   <div class="panes">
     <nav aria-label="Settings categories">
-      <input
-        type="search"
-        class="search"
-        value={search}
-        oninput={(e) => onsearch(e.currentTarget.value)}
-        placeholder="Search settings"
-        aria-label="Search settings"
-      />
+      <div class="search">
+        <input
+          type="search"
+          value={search}
+          oninput={(e) => onsearch(e.currentTarget.value)}
+          placeholder="Search settings"
+          aria-label="Search settings"
+        />
+      </div>
       <div class="tree">
         <Tree
           {nodes}
@@ -673,21 +674,13 @@
     border-right: 1px solid var(--divider);
   }
 
+  /* The dialog's shared field is 100% wide and border-box (Dialog.svelte), and its rule
+     outranks a scoped one here; the gutter is this wrapper's padding, since a margin on
+     the field itself would push it past the sidebar into the content pane. */
   .search {
     flex: 0 0 auto;
-    height: var(--h-input);
-    margin: var(--sp-4);
-    padding: 0 var(--sp-4);
-    background: var(--surface-input);
-    color: var(--text-primary);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-sm);
-    font-size: var(--fs-dense);
-  }
-
-  /* The shared field is 100% wide; with its margins it would push the pane out. */
-  nav input.search {
-    width: calc(100% - 2 * var(--sp-4));
+    min-width: 0;
+    padding: var(--sp-4);
   }
 
   .tree {
