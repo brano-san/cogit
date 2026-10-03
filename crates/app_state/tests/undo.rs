@@ -1076,6 +1076,30 @@ fn saving_a_merge_over_hand_edits_can_be_undone() {
     assert_eq!(text(&f, "c.txt"), "half resolved by hand\n");
 }
 
+// The checkout after staging failed (a smudge filter that refuses): the conflict was
+// resolved in the index already, and Save answered with an error and no way back.
+#[test]
+fn a_save_that_fails_after_staging_can_still_be_undone() {
+    let f = about_to_conflict();
+    let (state, repo) = open(&f);
+    assert!(merge_side(&state, repo).is_err());
+    f.write_file("c.txt", "half resolved by hand\n").unwrap();
+    f.git(&["config", "filter.fail.clean", "cat"]).unwrap();
+    f.git(&["config", "filter.fail.smudge", "false"]).unwrap();
+    f.git(&["config", "filter.fail.required", "true"]).unwrap();
+    f.write_file(".gitattributes", "c.txt filter=fail\n")
+        .unwrap();
+
+    let saved = state.resolve_conflict_text(repo, "c.txt", "merged\n", None);
+
+    assert!(saved.is_err());
+    assert!(state.working_state(repo).unwrap().conflicted.is_empty());
+    f.write_file(".gitattributes", "").unwrap();
+    state.undo_last(repo).unwrap();
+    assert_eq!(state.working_state(repo).unwrap().conflicted, ["c.txt"]);
+    assert_eq!(text(&f, "c.txt"), "half resolved by hand\n");
+}
+
 /// Stands in for the Recycle Bin: the shell's own move is tested in `src-tauri`.
 fn thrown_away(paths: &[std::path::PathBuf]) -> std::io::Result<()> {
     paths.iter().try_for_each(|path| {
