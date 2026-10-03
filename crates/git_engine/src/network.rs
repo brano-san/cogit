@@ -545,7 +545,7 @@ impl Progress {
                 .to_owned();
             self.pending.drain(..=at);
             if !line.is_empty() {
-                on_line(&line);
+                on_line(&crate::output_text::normalise(&line));
             }
         }
     }
@@ -554,7 +554,7 @@ impl Progress {
     fn finish(self, on_line: &mut impl FnMut(&str)) -> String {
         let rest = String::from_utf8_lossy(&self.pending);
         if !rest.trim().is_empty() {
-            on_line(rest.trim_end());
+            on_line(&crate::output_text::normalise(rest.trim_end()));
         }
         String::from_utf8_lossy(&self.all).into_owned()
     }
@@ -649,6 +649,26 @@ mod tests {
     #![allow(clippy::unwrap_used)]
 
     use super::*;
+
+    // A hook may echo the remote URL; the live line goes to the page, which the journal's
+    // redaction does not reach (GR-07).
+    #[test]
+    fn a_progress_line_never_carries_a_token() {
+        let mut seen = Vec::new();
+        let mut progress = Progress::default();
+        progress.feed(
+            b"Pushing to https://oauth2:glpat-abc@gitlab.com/x.git\n",
+            &mut |l| seen.push(l.to_owned()),
+        );
+        progress.feed(
+            b"tail https://oauth2:glpat-abc@gitlab.com/z.git",
+            &mut |_| {},
+        );
+        progress.finish(&mut |l| seen.push(l.to_owned()));
+        let all = seen.join("\n");
+        assert_eq!(seen.len(), 2, "{all}");
+        assert!(all.contains("***") && !all.contains("glpat-abc"), "{all}");
+    }
 
     // The queue of writes waits for a network command, so one that never ends held every
     // commit and stage of the repository until Cogit exited (03 §3 п.6).
