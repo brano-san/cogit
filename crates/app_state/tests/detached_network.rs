@@ -2,7 +2,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 //! Pull and Push on a detached HEAD (F-710): Pull only fetches, Push sends every branch
-//! ahead of its upstream and every tag the remote lacks.
+//! ahead of its upstream and no tag.
 
 use app_state::{AppState, RepoId};
 use git_engine::{NetworkStop, PullOutcome, Pushed};
@@ -35,7 +35,7 @@ fn on_remote(f: &test_fixtures::Fixture, name: &str) -> Option<String> {
 }
 
 #[test]
-fn push_sends_the_branches_ahead_of_their_upstream_and_the_new_tags() {
+fn push_sends_the_branches_ahead_of_their_upstream_and_no_tags() {
     let (f, state, repo) = detached();
 
     let pushed = state
@@ -46,14 +46,13 @@ fn push_sends_the_branches_ahead_of_their_upstream_and_the_new_tags() {
         pushed,
         Some(Pushed {
             branches: vec!["topic".to_owned()],
-            tags: vec!["v2".to_owned()],
         })
     );
     assert_eq!(
         on_remote(&f, "refs/heads/topic"),
         Some(f.oid("topic").unwrap())
     );
-    assert!(on_remote(&f, "refs/tags/v2").is_some());
+    assert_eq!(on_remote(&f, "refs/tags/v2"), None);
     // Diverged: only a forced push could send it, and none is made.
     assert_ne!(
         on_remote(&f, "refs/heads/main"),

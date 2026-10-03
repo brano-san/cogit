@@ -520,7 +520,9 @@ describe("detached HEAD", () => {
 
   it("states the adapted behavior in the tooltips", () => {
     expect(hint("pull")).toBe("Detached HEAD: Pull will only fetch");
-    expect(hint("push")).toMatch(/^Detached HEAD: Push sends every branch ahead of its upstream/);
+    expect(hint("push")).toBe(
+      "Detached HEAD: Push sends every branch ahead of its upstream; with none, it asks where to push HEAD",
+    );
     expect(hint("sync")).toMatch(/^Detached HEAD: Sync will only fetch/);
     expect(hint("stage")).toBe(actionOf("stage")!.hint);
     expect(hint("pull", NO_MENU_CONTEXT)).toBe(actionOf("pull")!.hint);
@@ -540,9 +542,9 @@ describe("detached HEAD", () => {
     expect(pullDoneText("fetchedDetached")).toBe("Fetched only — HEAD is detached");
     expect(pullDoneText("pulled")).toBe("Pull succeeded");
     expect(pushDoneText(null)).toBe("Push succeeded");
-    expect(pushDoneText({ branches: ["topic"], tags: ["v2"] })).toBe("Pushed topic, tag v2 — HEAD is detached");
-    expect(pushDoneText({ branches: [], tags: [] })).toBeNull();
-    expect(syncDoneText({ branches: [], tags: ["v2"] })).toBe("Fetched only; pushed tag v2 — HEAD is detached");
-    expect(syncDoneText({ branches: [], tags: [] })).toBe("Fetched only, nothing to push — HEAD is detached");
+    expect(pushDoneText({ branches: ["topic"] })).toBe("Pushed topic — HEAD is detached");
+    expect(pushDoneText({ branches: [] })).toBeNull();
+    expect(syncDoneText({ branches: ["topic"] })).toBe("Fetched only; pushed topic — HEAD is detached");
+    expect(syncDoneText({ branches: [] })).toBe("Fetched only, nothing to push — HEAD is detached");
   });
 });

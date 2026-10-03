@@ -182,8 +182,8 @@ export const NO_MENU_CONTEXT: MenuContext = { remotes: [], current: null, prefs:
 export const DETACHED_HINTS: Readonly<Record<string, string>> = {
   pull: "Detached HEAD: Pull will only fetch",
   "pull-defaults": "Detached HEAD: only fetch, no dialog",
-  push: "Detached HEAD: Push sends every branch ahead of its upstream and every tag the remote lacks; with none, it asks where to push HEAD",
-  "push-defaults": "Detached HEAD: send every branch ahead of its upstream and every tag the remote lacks",
+  push: "Detached HEAD: Push sends every branch ahead of its upstream; with none, it asks where to push HEAD",
+  "push-defaults": "Detached HEAD: send every branch ahead of its upstream",
   "push-to": "Detached HEAD: choose the ref on the remote to push HEAD to",
   sync: "Detached HEAD: Sync will only fetch, then push what can be pushed",
 };
@@ -192,7 +192,7 @@ const DETACHED_NOTE = "HEAD is detached";
 
 /** Push on a detached HEAD where nothing qualified, for a repository not on screen. */
 export const NOTHING_PUSHABLE =
-  "HEAD is detached, no branch is ahead of its upstream and the remote has every tag. Open the repository and use Push To to push HEAD.";
+  "HEAD is detached and no branch is ahead of its upstream. Open the repository and use Push To to push HEAD.";
 
 /** The notification after a pull. */
 export function pullDoneText(outcome: PullOutcome): string {
@@ -203,8 +203,7 @@ export function pullDoneText(outcome: PullOutcome): string {
     `Pushed` sent nothing, and gets `null` back: Push then asks where HEAD goes. */
 export function pushDoneText(pushed: Pushed | null): string | null {
   if (!pushed) return "Push succeeded";
-  const sent = [...pushed.branches, ...pushed.tags.map((tag) => `tag ${tag}`)];
-  return sent.length === 0 ? null : `Pushed ${sent.join(", ")} — ${DETACHED_NOTE}`;
+  return pushed.branches.length === 0 ? null : `Pushed ${pushed.branches.join(", ")} — ${DETACHED_NOTE}`;
 }
 
 /** The notification after Sync on a detached HEAD: it fetched, and pushed what could go. */

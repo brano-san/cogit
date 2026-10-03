@@ -106,8 +106,8 @@ impl AppState {
     }
 
     /// On a detached HEAD there is no current branch: every branch ahead of where it
-    /// pushes and every tag `remote` lacks go instead, never forced, and `Some` says what
-    /// went — empty when nothing could, and then nothing ran (F-710).
+    /// pushes goes instead, never forced, and `Some` says what went — empty when nothing
+    /// could, and then nothing ran; tags are not pushed (F-710).
     pub fn push(
         &self,
         repo: RepoId,
@@ -120,7 +120,7 @@ impl AppState {
         let handle = self.handle(repo)?.with_stop(stop.clone());
         if matches!(handle.head()?, git_engine::Head::Detached { .. }) {
             return handle
-                .push_pushable(remote, |url| self.token_for(url), on_line)
+                .push_pushable(|url| self.token_for(url), on_line)
                 .map(Some);
         }
         handle.push(remote, None, force, |url| self.token_for(url), on_line)?;

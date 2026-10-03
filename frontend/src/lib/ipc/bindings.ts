@@ -177,7 +177,6 @@ export const commands = {
 	pull: (repo: RepoId, remote: string, ffOnly: boolean, onProgress: Channel<string>) => typedError<PullOutcome, GitError>(__TAURI_INVOKE("pull", { repo, remote, ffOnly, onProgress })),
 	push: (repo: RepoId, remote: string, force: boolean, onProgress: Channel<string>) => typedError<{
 	branches: string[],
-	tags: string[],
 } | null, GitError>(__TAURI_INVOKE("push", { repo, remote, force, onProgress })),
 	/**  Fetch Only of the Pull dialog; the answer names notes that diverged. */
 	fetchWith: (repo: RepoId, remote: string, options: FetchOptions, onProgress: Channel<string>) => typedError<NotesFetch, GitError>(__TAURI_INVOKE("fetch_with", { repo, remote, options, onProgress })),
@@ -1924,10 +1923,9 @@ export type PushPreview = {
 	hasLocalNotes: boolean,
 };
 
-/**  What went; both empty: nothing qualified and nothing ran. */
+/**  What went; empty: nothing qualified and nothing ran. */
 export type Pushed = {
 	branches: string[],
-	tags: string[],
 };
 
 export type RebaseOptions = {
