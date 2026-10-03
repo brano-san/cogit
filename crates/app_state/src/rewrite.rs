@@ -46,6 +46,14 @@ impl AppState {
         } else {
             named(paths)
         };
+        let collide = handle.untracked_in(rev, paths)?;
+        if !collide.is_empty() {
+            return Err(git_engine::GitError::InvalidState(format!(
+                "{} not tracked here, would be overwritten by {}: move or track it first",
+                named(&collide),
+                short(rev)
+            )));
+        }
         let stashed = backup_rollback(
             &handle,
             paths,

@@ -65,6 +65,8 @@ pub enum Recovery {
         oid: String,
         mode: git_engine::ResetMode,
         stash: Option<String>,
+        /// Untracked files the reset overwrote, kept in the object store.
+        kept: Vec<(String, String)>,
         after: Option<String>,
     },
     Tag {
@@ -209,6 +211,7 @@ impl AppState {
                 oid,
                 mode,
                 stash,
+                kept,
                 after,
             } => {
                 wait_for_the_operation(&handle)?;
@@ -219,7 +222,14 @@ impl AppState {
                     tip.as_deref(),
                     after.as_deref(),
                 )?;
-                undo_reset(&handle, branch.as_deref(), oid, *mode, stash.as_deref())?;
+                undo_reset(
+                    &handle,
+                    branch.as_deref(),
+                    oid,
+                    *mode,
+                    stash.as_deref(),
+                    kept,
+                )?;
                 self.record_undone(repo, &handle, branch.as_deref(), tip, oid);
             }
             Recovery::Tag { name, oid } => handle.create_tag(&git_engine::TagRequest {
@@ -303,6 +313,7 @@ fn undo_reset(
     oid: &str,
     mode: git_engine::ResetMode,
     stash: Option<&str>,
+    kept: &[(String, String)],
 ) -> Result<(), git_engine::GitError> {
     use git_engine::{Head, ResetMode};
     let on_it = match (handle.head()?, branch) {
@@ -310,10 +321,10 @@ fn undo_reset(
         (Head::Detached { .. }, None) => true,
         _ => false,
     };
-    match (on_it, branch, stash) {
+    match (on_it, branch, stash.is_some() || !kept.is_empty()) {
         (true, ..) => {}
-        (false, Some(branch), None) => return handle.move_branch_back(branch, oid),
-        (false, Some(branch), Some(_)) => {
+        (false, Some(branch), false) => return handle.move_branch_back(branch, oid),
+        (false, Some(branch), true) => {
             return Err(git_engine::GitError::InvalidState(format!(
                 "check out {branch} to undo its reset: the changes it saved belong there"
             )));
@@ -330,7 +341,10 @@ fn undo_reset(
         ResetMode::Hard | ResetMode::Keep | ResetMode::Merge => ResetMode::Keep,
     };
     handle.reset(oid, back)?;
-    stash.map_or(Ok(()), |stash| handle.stash_apply(stash))
+    if let Some(stash) = stash {
+        handle.stash_apply(stash)?;
+    }
+    handle.write_back(kept)
 }
 
 /// Where the branch is now; HEAD's commit for `None`.

@@ -137,6 +137,37 @@ impl RepoHandle {
         Ok(kept)
     }
 
+    /// Files of `rev` (within `paths`, or all) that the index does not track but the disk
+    /// holds, ignored ones too: what `reset --hard` or `restore` to `rev` would overwrite.
+    pub fn untracked_in(&self, rev: &str, paths: &[String]) -> Result<Vec<String>> {
+        // `-z`: without it a non-ASCII name comes back quoted and escaped.
+        let base = [
+            "diff",
+            "--cached",
+            "--name-only",
+            "-z",
+            "--no-renames",
+            "--diff-filter=D",
+            rev,
+        ];
+        let mut found = Vec::new();
+        if paths.is_empty() {
+            found.extend(crate::surgery::nul_separated(
+                &self.read_git_literal(&base)?,
+            ));
+        }
+        for batch in crate::runner::command_line_batches(paths) {
+            let mut args = base.to_vec();
+            args.push("--");
+            args.extend(batch.iter().map(String::as_str));
+            found.extend(crate::surgery::nul_separated(
+                &self.read_git_literal(&args)?,
+            ));
+        }
+        found.retain(|path| self.root().join(path).symlink_metadata().is_ok());
+        Ok(found)
+    }
+
     /// What `keep_files` kept, written back — never over a file that is there again.
     pub fn write_back(&self, kept: &[(String, String)]) -> Result<()> {
         if let Some((path, _)) = kept

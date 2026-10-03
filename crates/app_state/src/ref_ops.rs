@@ -44,6 +44,17 @@ impl AppState {
             None
         };
 
+        // `reset --hard` overwrites untracked and ignored files the target tracks.
+        let kept = if mode == ResetMode::Hard {
+            let collide = handle.untracked_in(rev, &[])?;
+            let oids = handle
+                .keep_files(&collide)
+                .map_err(|err| crate::backup_failed("resetting", &err))?;
+            collide.into_iter().zip(oids).collect()
+        } else {
+            Vec::new()
+        };
+
         if let Err(err) = handle.reset(rev, mode) {
             if let Some(oid) = &stashed {
                 // The reset never happened, so the work goes back where it was.
@@ -63,13 +74,14 @@ impl AppState {
             }
             git_engine::Head::Unborn { .. } => true,
         };
-        let recovery = if moved || stashed.is_some() {
+        let recovery = if moved || stashed.is_some() || !kept.is_empty() {
             Recovery::Reset {
                 after: crate::safety::tip_of(&handle, branch.as_deref()),
                 branch,
                 oid: before,
                 mode,
                 stash: stashed,
+                kept,
             }
         } else {
             Recovery::None

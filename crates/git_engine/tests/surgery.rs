@@ -414,3 +414,29 @@ fn file_names_that_look_like_secrets_can_be_split_off() {
     );
     assert_eq!(tree_of(&f, "HEAD"), tree);
 }
+
+#[test]
+fn untracked_in_names_the_files_on_disk_a_commit_would_overwrite() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.commit_file(1, "s.json", "tracked\n").unwrap();
+    f.commit_file(2, "keep.txt", "kept\n").unwrap();
+    f.git(&["rm", "-q", "s.json"]).unwrap();
+    f.commit_staged(3, "drop s.json").unwrap();
+    let first = f.oid("HEAD~2").unwrap();
+    f.write_file("s.json", "PRECIOUS\n").unwrap();
+    f.write_file("elsewhere.txt", "not in the commit\n")
+        .unwrap();
+
+    let repo = open(&f);
+
+    assert_eq!(repo.untracked_in(&first, &[]).unwrap(), ["s.json"]);
+    assert!(
+        repo.untracked_in(&first, &["keep.txt".to_owned()])
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        repo.untracked_in(&first, &["s.json".to_owned()]).unwrap(),
+        ["s.json"]
+    );
+}

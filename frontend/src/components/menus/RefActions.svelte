@@ -791,7 +791,7 @@
         title: "Reset Hard",
         message:
           `Reset ${dialog.moving} to ${shortOid(dialog.oid)} and throw away the uncommitted changes to ` +
-          "tracked files? They are stashed first, so Undo can bring them back.",
+          "tracked files, and overwrite untracked files the commit has? They are saved first, so Undo can bring them back.",
         confirm: "Reset Hard",
         warning: true,
       });

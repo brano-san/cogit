@@ -1335,3 +1335,62 @@ fn a_merge_finished_by_cogit_is_checked_like_any_other() {
 
     assert!(state.undo_last(repo).is_err());
 }
+
+fn drop_then_hold(f: &test_fixtures::Fixture, ignored: bool) -> String {
+    f.commit_file(2, "s.json", "tracked\n").unwrap();
+    let first = f.oid("HEAD").unwrap();
+    f.git(&["rm", "-q", "s.json"]).unwrap();
+    if ignored {
+        f.write_file(".gitignore", "s.json\n").unwrap();
+        f.git(&["add", ".gitignore"]).unwrap();
+    }
+    f.commit_staged(3, "drop s.json").unwrap();
+    f.write_file("s.json", "PRECIOUS\n").unwrap();
+    first
+}
+
+#[test]
+fn a_hard_reset_keeps_an_untracked_file_it_would_overwrite_for_undo() {
+    for ignored in [false, true] {
+        let f = test_fixtures::linear(1).unwrap();
+        let first = drop_then_hold(&f, ignored);
+        let tip = f.oid("HEAD").unwrap();
+        let (state, repo) = open(&f);
+
+        state
+            .reset_to(repo, &first, git_engine::ResetMode::Hard)
+            .unwrap();
+        assert_eq!(text(&f, "s.json"), "tracked\n");
+        state.undo_last(repo).unwrap();
+
+        assert_eq!(text(&f, "s.json"), "PRECIOUS\n", "ignored: {ignored}");
+        assert_eq!(f.oid("HEAD").unwrap(), tip);
+    }
+}
+
+#[test]
+fn a_hard_reset_with_no_collision_records_nothing_to_keep() {
+    let f = test_fixtures::linear(3).unwrap();
+    f.write_file("other.txt", "untouched\n").unwrap();
+    let (state, repo) = open(&f);
+
+    state
+        .reset_to(repo, &f.oid("HEAD~1").unwrap(), git_engine::ResetMode::Hard)
+        .unwrap();
+
+    assert_eq!(text(&f, "other.txt"), "untouched\n");
+    assert_eq!(backups(&f).len(), 0);
+}
+
+#[test]
+fn a_rollback_refuses_to_overwrite_an_untracked_file() {
+    let f = test_fixtures::linear(1).unwrap();
+    let first = drop_then_hold(&f, false);
+    let (state, repo) = open(&f);
+
+    for paths in [vec![], vec!["s.json".to_owned()]] {
+        let err = state.rollback_to(repo, &first, &paths).unwrap_err();
+        assert!(err.to_string().contains("s.json"), "{err}");
+        assert_eq!(text(&f, "s.json"), "PRECIOUS\n");
+    }
+}

@@ -199,7 +199,7 @@ impl RepoHandle {
     }
 }
 
-fn nul_separated(listing: &str) -> Vec<String> {
+pub(crate) fn nul_separated(listing: &str) -> Vec<String> {
     listing
         .split('\0')
         .filter(|name| !name.is_empty())
