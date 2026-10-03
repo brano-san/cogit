@@ -3,6 +3,7 @@
   import AddWorktreeDialog from "$components/repo-tree/AddWorktreeDialog.svelte";
   import RemoveWorktreeDialog from "$components/repo-tree/RemoveWorktreeDialog.svelte";
   import { popupContextMenu, type WorktreeBranch, type WorktreeEntry } from "$lib/ipc";
+  import { revealOnDesktop } from "$lib/ipc/file-menus";
   import type { AddOrigin } from "$lib/worktree-add";
   import { parseWorktreeCommand, worktreeMenu } from "$lib/worktree-menu";
   import { removeWorktree, type RemovalHost } from "$lib/worktree-removal";
@@ -151,9 +152,7 @@
         void worktrees.unlock(entry.path).catch(failed("unlock"));
         break;
       case "reveal":
-        void import("@tauri-apps/plugin-opener").then(({ revealItemInDir }) =>
-          revealItemInDir(entry.path).catch(failed("reveal")),
-        );
+        void revealOnDesktop(entry.path).catch(failed("reveal"));
         break;
     }
     return true;

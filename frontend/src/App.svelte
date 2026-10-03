@@ -2878,8 +2878,9 @@ ${event.error}`,
   }
 
   async function revealPath(path: string) {
-    const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
-    await revealItemInDir(path).catch(() => errors.report({ kind: "internal", data: path }, "Could not open the folder"));
+    // The backend's own reveal: its error carries the reason, and it is the one abstraction
+    // for platform-specific actions.
+    await fileMenus.revealOnDesktop(path).catch((err) => errors.report(err, "Could not open the folder"));
   }
 
   /** The frontend list ships beside the page in a release build; the dev server has none. */

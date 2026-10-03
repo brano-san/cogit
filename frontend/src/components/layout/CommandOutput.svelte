@@ -2,7 +2,8 @@
   import VirtualList from "$components/common/VirtualList.svelte";
   import { CopyFeedback } from "$lib/copy-feedback.svelte";
   import { splitLinks } from "$lib/links";
-  import { commandReport, repoNameOf } from "$lib/notices";
+  import { revealOnDesktop } from "$lib/ipc/file-menus";
+  import { asCogitError, commandReport, repoNameOf } from "$lib/notices";
   import { findMatches, logLines } from "$lib/output-highlight";
   import { outputKey } from "$lib/output-keys";
   import { ON_MAC, primary } from "$lib/platform";
@@ -158,11 +159,13 @@
     else resize(action === "bigger" ? FONT.step : -FONT.step);
   }
 
-  /** Imported here rather than at the top: the opener is one call on one button, and a
-      static import pulls the whole plugin into the first chunk the window is in. */
+  let logProblem = $state("");
+
   async function openLog() {
-    const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
-    await revealItemInDir(logPath).catch(() => {});
+    logProblem = "";
+    await revealOnDesktop(logPath).catch((err) => {
+      logProblem = asCogitError(err)?.message ?? String(err);
+    });
   }
 
   /** A link git printed (the pull request a push offers) opens in the browser (F-028). */
@@ -294,6 +297,7 @@
         Wrap lines
       </button>
       <button type="button" class="btn sm" onclick={() => void openLog()} title={logPath}>Open log</button>
+      {#if logProblem}<span class="problem truncate" title={logProblem}>{logProblem}</span>{/if}
       <span class="grow"></span>
       {#if actions}<span class="extra">{@render actions()}</span>{/if}
       {#if onretry}
@@ -372,6 +376,11 @@
 
   .grow {
     flex: 1 1 auto;
+  }
+
+  .problem {
+    min-width: 0;
+    color: var(--status-delete);
   }
 
   .body {
