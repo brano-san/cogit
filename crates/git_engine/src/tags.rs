@@ -67,7 +67,8 @@ impl RepoHandle {
             return Ok(Some("Enter a name.".to_owned()));
         }
         let full = format!("refs/tags/{name}");
-        let checked = crate::children::output(&mut self.base_git(&["check-ref-format", &full]))?;
+        let checked = crate::children::output(&mut self.base_git(&["check-ref-format", &full]))
+            .map_err(crate::runner::not_started)?;
         if !checked.status.success() {
             return Ok(Some(format!("'{name}' is not a valid tag name.")));
         }

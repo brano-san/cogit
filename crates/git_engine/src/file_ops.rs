@@ -410,13 +410,13 @@ impl RepoHandle {
             input.extend_from_slice(path.as_bytes());
             input.push(0);
         }
-        let output = crate::children::output_fed(&mut command, &input)?;
+        let started = std::time::Instant::now();
+        let output = crate::children::output_fed(&mut command, &input)
+            .map_err(crate::runner::not_started)?;
         // 1 is "nothing ignored", not a failure.
         if !matches!(output.status.code(), Some(0 | 1)) {
-            return Err(GitError::InvalidState(format!(
-                "git check-ignore failed: {}",
-                String::from_utf8_lossy(&output.stderr)
-            )));
+            let shown = crate::redact_command(&["check-ignore", "-v", "-n", "-z", "--stdin"]);
+            return Err(self.failed(shown, &output, started));
         }
         Ok(parse_check_ignore(&String::from_utf8_lossy(&output.stdout)))
     }

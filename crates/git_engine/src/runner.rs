@@ -221,10 +221,19 @@ impl RepoHandle {
         if output.status.success() {
             return Ok(output.stdout);
         }
-        let result = GitOutput::from_process(self.root(), command, &output, started);
-        // The error names this record, so the journal must have it.
+        Err(self.failed(command, &output, started))
+    }
+
+    /// The error names the record, so the journal must have it.
+    pub(crate) fn failed(
+        &self,
+        command: String,
+        output: &Output,
+        started: std::time::Instant,
+    ) -> GitError {
+        let result = GitOutput::from_process(self.root(), command, output, started);
         self.journal_entry(result.clone());
-        Err(result.into())
+        result.into()
     }
 
     pub(crate) fn journal_entry(&self, mut entry: GitOutput) {

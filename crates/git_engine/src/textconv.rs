@@ -1,6 +1,6 @@
 //! `diff.<driver>.textconv`: a program that turns a binary format into text to diff.
 
-use crate::{DiffAttributes, GitError, RepoHandle, Result};
+use crate::{DiffAttributes, RepoHandle, Result};
 use std::io::Write;
 
 impl RepoHandle {
@@ -37,12 +37,11 @@ impl RepoHandle {
         let alias = format!("alias.cogit-textconv=!{command}");
         let target = crate::slash_path(file.path());
         let mut process = self.base_git(&["-c", &alias, "cogit-textconv", &target]);
-        let output = crate::children::output(&mut process)?;
+        let started = std::time::Instant::now();
+        let output = crate::children::output(&mut process).map_err(crate::runner::not_started)?;
         if !output.status.success() {
-            return Err(GitError::InvalidState(format!(
-                "textconv `{command}` failed on {path}: {}",
-                String::from_utf8_lossy(&output.stderr)
-            )));
+            let shown = crate::redact_command(&["-c", &alias, "cogit-textconv", &target]);
+            return Err(self.failed(shown, &output, started));
         }
         Ok(output.stdout)
     }

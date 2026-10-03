@@ -115,6 +115,15 @@ impl RepoHandle {
             &pattern,
         ]);
         match crate::children::output(&mut command) {
+            Ok(output) if !matches!(output.status.code(), Some(0 | 1)) => {
+                // Only stderr: stdout holds the config values (R-155).
+                tracing::warn!(
+                    exit_code = ?output.status.code(),
+                    stderr = %String::from_utf8_lossy(&output.stderr),
+                    context = "config origins for repository settings"
+                );
+                std::collections::HashMap::new()
+            }
             Ok(output) => parse_origins(&String::from_utf8_lossy(&output.stdout)),
             Err(err) => {
                 tracing::warn!(error = ?err, context = "config origins for repository settings");

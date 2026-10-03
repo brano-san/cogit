@@ -442,7 +442,8 @@ impl Streamed<'_> {
                 .stdin(Stdio::null())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped()),
-        )?;
+        )
+        .map_err(crate::runner::not_started)?;
         let stop = self.stop.cloned().unwrap_or_default();
         stop.hold(child.id());
 
