@@ -76,10 +76,10 @@ export function takeLines(hunk: Hunk, action: TakeAction): string[] {
   }
 }
 
-/** A conflict is undecided while the Result holds its base lines. Derived from the text, not
-    remembered: editing the block back to the base, or Undo, makes it undecided again. Only
-    an explicit decision (`decided`, a Take Base) keeps the base lines as the answer. A hunk
-    the merge settled by itself never was one. */
+/** A conflict is undecided while the Result holds its base lines and nobody decided it. Any
+    Take marks it `decided`, and the mark stays when the lines are later edited back to the
+    base by hand: that base is then the answer (Take Base, too). Only Undo of the Take removes
+    the mark (`invertedEffects`). A hunk the merge settled by itself never was one. */
 export function isUnresolved(hunk: Hunk, current: readonly string[], decided = false): boolean {
   return hunk.kind === "conflict" && !decided && equalLines(current, hunk.base);
 }
