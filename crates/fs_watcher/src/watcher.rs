@@ -150,6 +150,10 @@ impl std::fmt::Debug for RepoWatcher {
 /// Our own thin debounce because `notify-debouncer-mini` drops the event kind. notify asks
 /// inotify for `IN_OPEN`, so every refresh reading `.git/HEAD` re-triggered itself forever
 /// on Linux; only events that change something are kept.
+///
+/// The window closes at its deadline even when the channel still has a tail: `recv_timeout`
+/// hands out a ready message before it looks at the clock. A long burst then yields a batch
+/// every window instead of one at the very end.
 fn debounce(
     rx: &mpsc::Receiver<notify::Result<Event>>,
     route: &Route,
@@ -158,28 +162,21 @@ fn debounce(
     let window = Duration::from_millis(DEBOUNCE_MS);
     while let Ok(first) = rx.recv() {
         let deadline = Instant::now() + window;
-        let mut paths: Vec<PathBuf> = Vec::new();
+        let mut seen: Vec<(ChangeKind, PathBuf)> = Vec::new();
         let mut next = Some(first);
         while let Some(received) = next {
-            match received {
-                Ok(event) if changes_something(&event.kind) => {
-                    for path in event.paths {
-                        if !paths.contains(&path) {
-                            paths.push(path);
-                        }
-                    }
-                }
-                Ok(_) => {}
-                // An overflowed ReadDirectoryChangesW buffer lands here: changes were
-                // missed, and the panels are stale until the next event.
-                Err(error) => tracing::warn!(?error, "the file watcher lost events"),
-            }
-            next = rx
-                .recv_timeout(deadline.saturating_duration_since(Instant::now()))
-                .ok();
+            route.absorb(received, &mut seen);
+            let left = deadline.saturating_duration_since(Instant::now());
+            next = if left.is_zero() {
+                None
+            } else {
+                rx.recv_timeout(left).ok()
+            };
         }
-        for change in route.coalesce(&paths) {
-            on_change(change);
+        for (kind, path) in seen {
+            // The first path per kind per batch: a refresh that feeds itself shows here.
+            tracing::info!(?kind, path = %path.display(), "watched path changed");
+            on_change(RepoChanged { kind });
         }
     }
 }
@@ -243,30 +240,48 @@ impl Route {
     /// A single `git commit` rewrites the index, moves HEAD and touches a dozen refs; a
     /// `checkout` rewrites half the working tree. Announcing each path separately made the
     /// panel re-read the repository once per file, which is where the flicker on
-    /// `dtv_device` came from (problem 5). The debounce window is 100 ms, so this also caps
-    /// the rate at ten updates per second per kind, however large the repository.
-    fn coalesce(&self, paths: &[PathBuf]) -> Vec<RepoChanged> {
-        let mut batch: Vec<RepoChanged> = Vec::new();
-        for path in paths {
-            let Some(change) = self.classify(path) else {
+    /// `dtv_device` came from (problem 5). Noise is dropped as events arrive, so a window
+    /// keeps at most one entry per kind, however large the burst.
+    fn absorb(&self, received: notify::Result<Event>, seen: &mut Vec<(ChangeKind, PathBuf)>) {
+        let event = match received {
+            Ok(event) if changes_something(&event.kind) => event,
+            Ok(_) => return,
+            // An overflowed ReadDirectoryChangesW buffer lands here: changes were
+            // missed, and the panels are stale until the next event.
+            Err(error) => {
+                tracing::warn!(?error, "the file watcher lost events");
+                return;
+            }
+        };
+        for path in event.paths {
+            let Some(change) = self.classify(&path) else {
                 continue;
             };
             // The file is also a working-tree change; this says the authors have to be
             // read again as well.
             let mailmap = (change.kind == ChangeKind::WorkingTree
                 && path.strip_prefix(&self.root).ok() == Some(Path::new(".mailmap")))
-            .then_some(RepoChanged {
-                kind: ChangeKind::Mailmap,
-            });
-            for change in std::iter::once(change).chain(mailmap) {
-                if !batch.iter().any(|seen| seen.kind == change.kind) {
-                    // The first path per kind per batch: a refresh that feeds itself shows here.
-                    tracing::info!(kind = ?change.kind, path = %path.display(), "watched path changed");
-                    batch.push(change);
+            .then_some(ChangeKind::Mailmap);
+            for kind in std::iter::once(change.kind).chain(mailmap) {
+                if !seen.iter().any(|(known, _)| *known == kind) {
+                    seen.push((kind, path.clone()));
                 }
             }
         }
-        batch
+    }
+
+    #[cfg(test)]
+    fn coalesce(&self, paths: &[PathBuf]) -> Vec<RepoChanged> {
+        let event = paths
+            .iter()
+            .fold(Event::new(EventKind::Any), |event, path| {
+                event.add_path(path.clone())
+            });
+        let mut seen = Vec::new();
+        self.absorb(Ok(event), &mut seen);
+        seen.into_iter()
+            .map(|(kind, _)| RepoChanged { kind })
+            .collect()
     }
 
     fn classify(&self, path: &Path) -> Option<RepoChanged> {
@@ -425,5 +440,62 @@ mod tests {
         route.paused.store(true, Ordering::Relaxed);
 
         assert!(route.coalesce(&[route.git_dir.join("HEAD")]).is_empty());
+    }
+
+    fn event(kind: EventKind, path: PathBuf) -> notify::Result<Event> {
+        Ok(Event::new(kind).add_path(path))
+    }
+
+    /// Runs `debounce` on a thread and reports each batch's kinds as it leaves.
+    fn spawn_debounce(
+        rx: mpsc::Receiver<notify::Result<Event>>,
+    ) -> mpsc::Receiver<Vec<ChangeKind>> {
+        let (out, batches) = mpsc::channel();
+        std::thread::spawn(move || {
+            let batch = Mutex::new(Vec::new());
+            debounce(&rx, &route(), &|change: RepoChanged| {
+                if let Ok(mut batch) = batch.lock() {
+                    batch.push(change.kind);
+                    let _ = out.send(batch.clone());
+                }
+            });
+        });
+        batches
+    }
+
+    #[test]
+    fn a_hundred_thousand_noise_events_do_not_hold_the_head_back() {
+        let route = route();
+        let (tx, rx) = mpsc::channel();
+        let create = EventKind::Create(notify::event::CreateKind::File);
+        for i in 0..100_000 {
+            let path = route.root.join(format!("node_modules/pkg-{i}/index.js"));
+            tx.send(event(create, path)).unwrap();
+        }
+        tx.send(event(EventKind::Any, route.git_dir.join("HEAD")))
+            .unwrap();
+        drop(tx);
+
+        let batches = spawn_debounce(rx);
+
+        let kinds = batches.recv_timeout(Duration::from_secs(10)).unwrap();
+        assert_eq!(kinds, [ChangeKind::Head]);
+    }
+
+    #[test]
+    fn a_window_closes_at_its_deadline_while_events_keep_coming() {
+        let route = route();
+        let (tx, rx) = mpsc::channel();
+        let batches = spawn_debounce(rx);
+        let started = Instant::now();
+        let mut seen = 0;
+        while started.elapsed() < Duration::from_millis(600) {
+            tx.send(event(EventKind::Any, route.root.join("src/main.rs")))
+                .unwrap();
+            std::thread::sleep(Duration::from_millis(10));
+            seen += batches.try_iter().count();
+        }
+
+        assert!(seen >= 3, "{seen} batches in 600 ms of steady writes");
     }
 }
