@@ -287,3 +287,28 @@ fn a_commit_template_under_the_home_folder_is_found() {
 
     assert_eq!(template.as_deref(), Some("Subject\n\nWhy:\n"));
 }
+
+#[test]
+fn a_hook_that_never_ends_can_be_stopped() {
+    let f = test_fixtures::linear(1).unwrap();
+    write_hook(
+        &f.path().join(".git/hooks"),
+        "pre-commit",
+        "#!/bin/sh\nexec sleep 600\n",
+    );
+    let stop = git_engine::NetworkStop::default();
+    let repo = open(&f).with_stop(stop.clone());
+    let (done, finished) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = done.send(repo.run_hook("pre-commit"));
+    });
+    std::thread::sleep(std::time::Duration::from_millis(700));
+
+    assert!(stop.stop());
+    let run = finished
+        .recv_timeout(test_fixtures::scaled(std::time::Duration::from_secs(20)))
+        .expect("the hook was still running after it was stopped")
+        .unwrap();
+
+    assert_eq!(run.exit_code, None, "{run:?}");
+}

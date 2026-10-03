@@ -240,6 +240,8 @@ fn every_command_that_talks_to_a_remote_can_be_cancelled() {
         "add_submodule",
         "subtree_op",
         "lfs_op",
+        "run_check",
+        "run_hook",
     ]
     .into_iter()
     .filter(|name| {

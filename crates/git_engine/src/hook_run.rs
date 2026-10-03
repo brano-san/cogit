@@ -21,6 +21,80 @@ pub struct HookRun {
 
 const SLOW_MS: u32 = 5_000;
 
+/// What a hook or check printed, as much of it as the window may show: the beginning and
+/// the end, a marker for the rest. A watch-mode test run prints without end, so the whole
+/// of it must not pile up in memory.
+#[derive(Default)]
+struct Capped {
+    head: Vec<u8>,
+    tail: Vec<u8>,
+    omitted: usize,
+}
+
+const HALF: usize = crate::output_text::MAX_BYTES / 2 - 64;
+
+impl Capped {
+    fn push(&mut self, chunk: &[u8]) {
+        let (first, rest) = chunk.split_at(HALF.saturating_sub(self.head.len()).min(chunk.len()));
+        self.head.extend_from_slice(first);
+        self.tail.extend_from_slice(rest);
+        if self.tail.len() > 2 * HALF {
+            self.cut_tail();
+        }
+    }
+
+    fn cut_tail(&mut self) {
+        let excess = self.tail.len().saturating_sub(HALF);
+        self.tail.drain(..excess);
+        self.omitted += excess;
+    }
+
+    fn finish(mut self) -> String {
+        self.cut_tail();
+        let head = String::from_utf8_lossy(&self.head);
+        let tail = String::from_utf8_lossy(&self.tail);
+        if self.omitted == 0 {
+            return format!("{head}{tail}");
+        }
+        format!("{head}\n… {} bytes omitted …\n{tail}", self.omitted)
+    }
+}
+
+struct Finished {
+    /// `None` when the user stopped it: a verdict of "interrupted", not of failure.
+    exit_code: Option<i32>,
+    stdout: String,
+    stderr: String,
+}
+
+impl RepoHandle {
+    /// Runs `command` until it ends or this handle's `stop` is asked to end it.
+    fn run_stoppable(&self, command: &mut std::process::Command) -> std::io::Result<Finished> {
+        command
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+        let (child, _tracked) = crate::children::spawn(command)?;
+        let stop = self.stop.as_ref();
+        if let Some(stop) = stop {
+            stop.hold(child.id());
+        }
+        let (mut stdout, mut stderr) = (Capped::default(), Capped::default());
+        let status = crate::children::collect(child, stop, |is_stderr, chunk| {
+            if is_stderr { &mut stderr } else { &mut stdout }.push(chunk);
+        })?;
+        Ok(Finished {
+            exit_code: if stop.is_some_and(crate::NetworkStop::is_stopped) {
+                None
+            } else {
+                status.code()
+            },
+            stdout: stdout.finish(),
+            stderr: stderr.finish(),
+        })
+    }
+}
+
 impl RepoHandle {
     /// Runs the hook and nothing else: no commit, no checkout, no index change.
     pub fn run_hook(&self, name: &str) -> Result<HookRun> {
@@ -41,16 +115,16 @@ impl RepoHandle {
 
         let started = std::time::Instant::now();
         let output = hook_command(&path, self.root(), &args)
-            .and_then(|mut command| crate::children::output(&mut command));
+            .and_then(|mut command| self.run_stoppable(&mut command));
         let duration_ms = crate::runner::elapsed_ms(started);
         let _ = std::fs::remove_file(&scratch);
         let output = output?;
 
         let run = HookRun {
             name: name.to_owned(),
-            exit_code: output.status.code(),
-            stdout: crate::output_text::shown(&String::from_utf8_lossy(&output.stdout)),
-            stderr: crate::output_text::shown(&String::from_utf8_lossy(&output.stderr)),
+            exit_code: output.exit_code,
+            stdout: crate::output_text::shown(&output.stdout),
+            stderr: crate::output_text::shown(&output.stderr),
             duration_ms,
             slow: duration_ms > SLOW_MS,
         };
@@ -171,28 +245,33 @@ impl RepoHandle {
 
         let started = std::time::Instant::now();
         let output = shell_command(trimmed, self.root())
-            .and_then(|mut command| crate::children::output(&mut command))
+            .and_then(|mut command| self.run_stoppable(&mut command))
             .map_err(|err| GitError::Io(format!("cannot run the check: {err}")))?;
         let duration_ms = crate::runner::elapsed_ms(started);
 
         let run = HookRun {
             name: "check".to_owned(),
-            exit_code: output.status.code(),
-            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+            exit_code: output.exit_code,
+            stdout: crate::output_text::shown(&output.stdout),
+            stderr: crate::output_text::shown(&output.stderr),
             duration_ms,
             slow: duration_ms > SLOW_MS,
         };
 
         if let Some(sink) = self.journal() {
-            sink(crate::GitOutput::record(
+            let mut record = crate::GitOutput::record(
                 self.root(),
                 format!("check: {trimmed}"),
                 run.exit_code,
                 &run.stdout,
                 &run.stderr,
                 duration_ms,
-            ));
+            );
+            if run.exit_code.is_none() {
+                "Canceled by the user".clone_into(&mut record.summary);
+                record.severity = crate::Severity::Warning;
+            }
+            sink(record);
         }
         Ok(run)
     }

@@ -12,12 +12,14 @@ pub async fn run_check(
     command: String,
 ) -> Result<git_engine::HookRun, GitError> {
     let app_state = state.state.clone();
-    mutating(
+    super::network::networking_if(
+        true,
         &state.state,
         repo,
         OperationKind::Other,
+        "Running check",
         "run_check",
-        move || app_state.run_check(repo, &command),
+        move |stop| app_state.run_check(repo, &command, &stop),
     )
     .await
 }
@@ -107,12 +109,14 @@ pub async fn run_hook(
     name: String,
 ) -> Result<git_engine::HookRun, GitError> {
     let app_state = state.state.clone();
-    mutating(
+    super::network::networking_if(
+        true,
         &state.state,
         repo,
         OperationKind::Other,
+        "Running hook",
         "run_hook",
-        move || app_state.run_hook(repo, &name),
+        move |stop| app_state.run_hook(repo, &name, &stop),
     )
     .await
 }

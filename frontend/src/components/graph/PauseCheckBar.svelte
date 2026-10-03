@@ -13,7 +13,8 @@
 
   let { check, oncheck, onrun, verdict, running }: Props = $props();
 
-  const failed = $derived(verdict !== null && verdict.exitCode !== 0);
+  const stopped = $derived(verdict !== null && verdict.exitCode === null);
+  const failed = $derived(verdict !== null && verdict.exitCode !== null && verdict.exitCode !== 0);
 </script>
 
 <div class="bar" aria-label="Rebase in progress">
@@ -30,7 +31,7 @@
     </button>
     {#if verdict}
       <span class="verdict" title={verdict.stderr || verdict.stdout}>
-        {failed ? `failed (${verdict.exitCode ?? "no code"})` : "passed"} ·
+        {stopped ? "stopped" : failed ? `failed (${verdict.exitCode})` : "passed"} ·
         {verdict.durationMs} ms
       </span>
     {/if}

@@ -51,8 +51,9 @@ impl AppState {
         &self,
         repo: RepoId,
         name: &str,
+        stop: &git_engine::NetworkStop,
     ) -> Result<git_engine::HookRun, git_engine::GitError> {
-        self.handle(repo)?.run_hook(name)
+        self.handle(repo)?.with_stop(stop.clone()).run_hook(name)
     }
 
     /// A failing check is a verdict the user reads, so it is tracked like any other run
@@ -61,8 +62,11 @@ impl AppState {
         &self,
         repo: RepoId,
         command: &str,
+        stop: &git_engine::NetworkStop,
     ) -> Result<git_engine::HookRun, git_engine::GitError> {
-        self.handle(repo)?.run_check(command)
+        self.handle(repo)?
+            .with_stop(stop.clone())
+            .run_check(command)
     }
 
     pub fn bypass_log(

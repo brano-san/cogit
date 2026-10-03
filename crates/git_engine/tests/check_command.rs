@@ -83,3 +83,42 @@ fn running_a_check_changes_nothing_in_the_repository() {
     open(&f).run_check("echo nothing to see").unwrap();
     assert_eq!(f.git(&["status", "--porcelain"]).unwrap(), before);
 }
+
+// A check can run for as long as its tests do, so there is no time limit: the user stops it.
+// Until then it held the repository's queue with no way out (C-06).
+#[test]
+fn a_check_that_never_ends_can_be_stopped() {
+    let f = test_fixtures::linear(1).unwrap();
+    let stop = git_engine::NetworkStop::default();
+    let repo = open(&f).with_stop(stop.clone());
+    let (done, finished) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = done.send(repo.run_check("sleep 600"));
+    });
+    std::thread::sleep(std::time::Duration::from_millis(700));
+
+    assert!(stop.stop());
+    let run = finished
+        .recv_timeout(test_fixtures::scaled(std::time::Duration::from_secs(20)))
+        .expect("the check was still running after it was stopped")
+        .unwrap();
+
+    assert_eq!(run.exit_code, None, "{run:?}");
+}
+
+#[test]
+fn a_check_that_prints_a_lot_comes_back_trimmed() {
+    let f = test_fixtures::linear(1).unwrap();
+
+    let run = open(&f)
+        .run_check("head -c 6000000 /dev/zero | tr \"\\0\" x")
+        .unwrap();
+
+    assert_eq!(run.exit_code, Some(0));
+    assert!(run.stdout.contains("bytes omitted"), "{}", run.stdout.len());
+    assert!(
+        run.stdout.len() <= 2 * 1024 * 1024 + 200,
+        "{}",
+        run.stdout.len()
+    );
+}

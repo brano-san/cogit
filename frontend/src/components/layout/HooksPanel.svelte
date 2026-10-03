@@ -178,10 +178,10 @@
   {/if}
 
   {#if lastRun}
-    <div class="result" class:failed={lastRun.exitCode !== 0}>
+    <div class="result" class:failed={lastRun.exitCode !== null && lastRun.exitCode !== 0}>
       <div class="summary">
         <strong>{lastRun.name}</strong>
-        exited {lastRun.exitCode ?? "on a signal"} in {lastRun.durationMs} ms
+        {lastRun.exitCode === null ? "stopped" : `exited ${lastRun.exitCode}`} after {lastRun.durationMs} ms
         {#if lastRun.slow}<span class="warn">— slow enough to be felt on every commit</span>{/if}
       </div>
       {#if lastRun.stdout}<pre>{lastRun.stdout}</pre>{/if}
