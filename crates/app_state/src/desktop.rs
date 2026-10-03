@@ -129,6 +129,7 @@ pub fn reveal_command(platform: Platform, path: &str) -> Launch {
             "dbus-send",
             &[
                 "--session",
+                "--print-reply",
                 "--type=method_call",
                 "--dest=org.freedesktop.FileManager1",
                 "/org/freedesktop/FileManager1",
@@ -282,10 +283,37 @@ pub fn trash_command(platform: Platform, paths: &[PathBuf]) -> Option<Launch> {
     }
 }
 
-/// Detached: the program outlives Cogit, and nothing waits for it. Explorer in particular
-/// exits with 1 on success, so its status would say nothing anyway.
+/// Detached: the program outlives Cogit, so the caller does not wait. A thread collects it
+/// when it ends, or it would stay a zombie until Cogit exits. Explorer in particular exits
+/// with 1 on success, so its status would say nothing anyway.
 pub fn spawn(launch: &Launch, cwd: Option<&Path>) -> std::io::Result<()> {
-    command_for(launch, cwd).spawn().map(drop)
+    let mut child = command_for(launch, cwd).spawn()?;
+    std::thread::spawn(move || {
+        if let Err(err) = child.wait() {
+            tracing::warn!(error = ?err, "cannot collect a desktop program");
+        }
+    });
+    Ok(())
+}
+
+/// Selects the item in the file manager. Without the `FileManager1` service on Linux
+/// `dbus-send` fails, and the folder is opened instead.
+pub fn reveal(platform: Platform, path: &str) -> std::io::Result<()> {
+    let launch = reveal_command(platform, path);
+    if platform != Platform::Linux {
+        return spawn(&launch, None);
+    }
+    run(&launch).or_else(|err| {
+        tracing::warn!(error = ?err, "no file manager service, opening the folder");
+        spawn(&reveal_fallback(platform, path), None).map_err(|_| err)
+    })
+}
+
+/// The parent folder, for a file manager that cannot select an item.
+#[must_use]
+pub fn reveal_fallback(platform: Platform, path: &str) -> Launch {
+    let parent = Path::new(path).parent().and_then(Path::to_str);
+    open_command(platform, parent.filter(|p| !p.is_empty()).unwrap_or(path))
 }
 
 pub fn run(launch: &Launch) -> std::io::Result<()> {

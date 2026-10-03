@@ -43,11 +43,9 @@ pub async fn open_path(path: String) -> Result<(), GitError> {
 #[specta::specta]
 pub async fn reveal_path(path: String) -> Result<(), GitError> {
     blocking("reveal_path", move || {
-        start(
-            "reveal",
-            desktop::reveal_command(Platform::current(), &path),
-            None,
-        )
+        tracing::info!(path = %path, "revealing in the file manager");
+        desktop::reveal(Platform::current(), &path)
+            .map_err(|err| GitError::Io(format!("cannot show {path} in the file manager: {err}")))
     })
     .await
 }

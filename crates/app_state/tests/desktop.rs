@@ -5,7 +5,7 @@
 
 use app_state::desktop::{
     Platform, file_uri, git_shell_command, native_path, open_command, power_shell_command,
-    reveal_command, trash_command,
+    reveal_command, reveal_fallback, trash_command,
 };
 use app_state::terminal::{Terminal, launch_for};
 use std::path::{Path, PathBuf};
@@ -65,6 +65,7 @@ fn linux_opens_with_xdg_open_and_reveals_through_the_file_manager_service() {
 
     let reveal = reveal_command(Platform::Linux, "/home/me/my repo");
     assert_eq!(reveal.program, "dbus-send");
+    assert!(reveal.args.contains(&"--print-reply".to_owned()));
     assert!(
         reveal
             .args
@@ -259,4 +260,24 @@ mod windows {
         );
         assert!(Path::new(names[1]).is_absolute());
     }
+}
+
+#[test]
+fn without_a_file_manager_service_linux_opens_the_parent_folder() {
+    let fallback = reveal_fallback(Platform::Linux, "/home/me/my repo");
+    assert_eq!(fallback.program, "xdg-open");
+    assert_eq!(fallback.args, ["/home/me"]);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_program_that_has_ended_is_not_left_a_zombie() {
+    use app_state::desktop::{Launch, spawn};
+    spawn(&Launch::plain("true", &[]), None).unwrap();
+    std::thread::sleep(std::time::Duration::from_secs(1));
+    let ps = std::process::Command::new("ps")
+        .args(["-o", "stat=", "--ppid", &std::process::id().to_string()])
+        .output()
+        .unwrap();
+    assert!(!String::from_utf8_lossy(&ps.stdout).contains('Z'));
 }
