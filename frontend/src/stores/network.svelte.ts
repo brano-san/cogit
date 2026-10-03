@@ -106,6 +106,13 @@ class NetworkStore {
     successToast.show("Push succeeded");
   }
 
+  /** Operations that ended in an error; the taskbar must not count them as finished well. */
+  #failures = $state(0);
+
+  get failures(): number {
+    return this.#failures;
+  }
+
   async run<T>(
     repo: RepoId | null,
     label: string,
@@ -120,6 +127,9 @@ class NetworkStore {
     };
     try {
       return await operation(onLine);
+    } catch (err) {
+      this.#failures += 1;
+      throw err;
     } finally {
       this.#running = this.#running.filter((entry) => entry.id !== id);
     }

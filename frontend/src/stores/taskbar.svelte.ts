@@ -51,9 +51,13 @@ class TaskbarStore {
 
     const stop = $effect.root(() => {
       let runningBefore = false;
+      let failuresAtStart = 0;
       $effect(() => {
         const running = network.running !== null;
-        if (runningBefore && !running) untrack(() => this.event("success"));
+        const failures = network.failures;
+        if (!runningBefore && running) failuresAtStart = failures;
+        // A failed operation reports its error itself; counting it a success too showed two.
+        if (runningBefore && !running && failures === failuresAtStart) untrack(() => this.event("success"));
         runningBefore = running;
       });
 
