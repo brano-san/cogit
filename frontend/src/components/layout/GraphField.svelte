@@ -215,6 +215,12 @@
       <output>{value.graphLongLinkRows === 0 ? "never" : `${value.graphLongLinkRows} rows`}</output>
     </span>
   </label>
+  {#if value.graphLongLinkRows === 0}
+    <p class="why">
+      Every link is drawn whole, so memory grows with the commits times the lines open at once. A history of
+      hundreds of thousands of commits may not fit; a limit keeps it small.
+    </p>
+  {/if}
 {:else if field.key === "graphStripes" || field.key === "graphShowNotes" || field.key === "graphHighlightChecked" || (GRAPH_SWITCHES as readonly string[]).includes(field.key) || (GRAPH_MODES as readonly string[]).includes(field.key)}
   {@const key = field.key as "graphStripes" | "graphShowNotes" | "graphHighlightChecked" | GraphSwitch | GraphMode}
   <div class="row check">
