@@ -2,7 +2,7 @@ import type { BlockRows } from "./solver-geometry";
 import type { SolverKind, SolverRegion } from "./ipc";
 
 /** What a Take button puts into the Result for one hunk. */
-export type TakeAction = "ours" | "theirs" | "oursTheirs" | "theirsOurs";
+export type TakeAction = "ours" | "theirs" | "oursTheirs" | "theirsOurs" | "base";
 
 /** One stretch of the file that is not the same on every side: the solver's unit of work. */
 export interface Hunk {
@@ -69,16 +69,19 @@ export function takeLines(hunk: Hunk, action: TakeAction): string[] {
       return [...hunk.theirs];
     case "oursTheirs":
       return [...hunk.ours, ...hunk.theirs];
+    case "base":
+      return [...hunk.base];
     case "theirsOurs":
       return [...hunk.theirs, ...hunk.ours];
   }
 }
 
 /** A conflict is undecided while the Result holds its base lines. Derived from the text, not
-    remembered: editing the block back to the base, or Undo, makes it undecided again. A hunk
+    remembered: editing the block back to the base, or Undo, makes it undecided again. Only
+    an explicit decision (`decided`, a Take Base) keeps the base lines as the answer. A hunk
     the merge settled by itself never was one. */
-export function isUnresolved(hunk: Hunk, current: readonly string[]): boolean {
-  return hunk.kind === "conflict" && equalLines(current, hunk.base);
+export function isUnresolved(hunk: Hunk, current: readonly string[], decided = false): boolean {
+  return hunk.kind === "conflict" && !decided && equalLines(current, hunk.base);
 }
 
 export function conflictsLeftLabel(count: number): string {
@@ -103,6 +106,7 @@ export function composeSave(
   spans: readonly Span[],
   hunks: readonly Hunk[],
   labels: Labels,
+  decided: ReadonlySet<number> = new Set(),
 ): string {
   const byId = new Map(hunks.map((hunk) => [hunk.id, hunk]));
   const out: string[] = [];
@@ -111,7 +115,7 @@ export function composeSave(
     const hunk = byId.get(span.id);
     if (!hunk) continue;
     const current = lines.slice(span.start, span.start + span.count);
-    if (!isUnresolved(hunk, current)) continue;
+    if (!isUnresolved(hunk, current, decided.has(span.id))) continue;
     out.push(...lines.slice(at, span.start));
     out.push(`<<<<<<< ${labels.ours}`, ...hunk.ours, "=======", ...hunk.theirs, `>>>>>>> ${labels.theirs}`);
     at = span.start + span.count;

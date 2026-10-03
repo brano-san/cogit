@@ -24,6 +24,24 @@ function mapped(block: Block, changes: { mapPos(pos: number, assoc?: number): nu
   return { id: block.id, from: changes.mapPos(block.from, -1), to: changes.mapPos(block.to, -1) };
 }
 
+/** Marks a conflict as decided, or takes the mark back (Undo). A decision is the one thing the
+    text cannot say: a conflict left as the base has it holds the very lines of an open one. */
+export const setDecided = StateEffect.define<{ id: number; decided: boolean }>();
+
+export const decidedField = StateField.define<ReadonlySet<number>>({
+  create: () => new Set(),
+  update(decided, tr) {
+    const marks = tr.effects.filter((effect) => effect.is(setDecided));
+    if (marks.length === 0) return decided;
+    const next = new Set(decided);
+    for (const { value } of marks) {
+      if (value.decided) next.add(value.id);
+      else next.delete(value.id);
+    }
+    return next;
+  },
+});
+
 export const blockField = StateField.define<readonly Block[]>({
   create: () => [],
   update(blocks, tr) {
@@ -39,6 +57,13 @@ export const blockField = StateField.define<readonly Block[]>({
 export function blockTracker(initial: readonly Block[]): Extension {
   return [
     blockField.init(() => initial),
+    decidedField,
+    invertedEffects.of((tr) => {
+      const before = tr.startState.field(decidedField);
+      return tr.effects
+        .filter((effect) => effect.is(setDecided))
+        .map((effect) => setDecided.of({ id: effect.value.id, decided: before.has(effect.value.id) }));
+    }),
     invertedEffects.of((tr) => {
       const before = tr.startState.field(blockField);
       return tr.effects
@@ -91,7 +116,10 @@ export function takeTransaction(state: EditorState, hunk: Hunk, action: TakeActi
   const insert = linesToText(takeLines(hunk, action));
   return {
     changes: { from: block.from, to: block.to, insert },
-    effects: setBlock.of({ id: block.id, from: block.from, to: block.from + insert.length }),
+    effects: [
+      setBlock.of({ id: block.id, from: block.from, to: block.from + insert.length }),
+      setDecided.of({ id: block.id, decided: true }),
+    ],
     userEvent: "solver.take",
   };
 }

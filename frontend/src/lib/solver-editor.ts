@@ -37,6 +37,7 @@ import {
   blockLines,
   blockRows,
   blockTracker,
+  decidedField,
   blocksOf,
   gitLines,
   initialBlocks,
@@ -147,11 +148,14 @@ export const unresolvedFacet = Facet.define<ReadonlySet<number>, ReadonlySet<num
 });
 
 function unresolvedIds(state: EditorState): ReadonlySet<number> {
+  const decided = state.field(decidedField);
   const hunks = new Map(state.facet(hunksFacet).map((hunk) => [hunk.id, hunk]));
   const ids = new Set<number>();
   for (const block of blocksOf(state)) {
     const hunk = hunks.get(block.id);
-    if (hunk?.kind === "conflict" && isUnresolved(hunk, blockLines(state, block))) ids.add(block.id);
+    if (hunk?.kind === "conflict" && isUnresolved(hunk, blockLines(state, block), decided.has(block.id))) {
+      ids.add(block.id);
+    }
   }
   return ids;
 }
@@ -236,7 +240,7 @@ function resultExtensions(docs: SolverDocs): Extension {
     blockTracker(initialBlocks(docs.resultText, docs.spans)),
     currentField,
     othersField,
-    unresolvedFacet.compute([blockField, "doc"], unresolvedIds),
+    unresolvedFacet.compute([blockField, decidedField, "doc"], unresolvedIds),
     EditorView.decorations.compute([blockField, "doc", currentField, othersField, unresolvedFacet], resultDecorations),
     resultBar,
     history(),
@@ -633,6 +637,11 @@ export class SolverEditors {
   /** The Result as it will be written, markers or not being the caller's business. */
   get resultText(): string {
     return this.views.result.state.doc.toString();
+  }
+
+  /** The conflicts the user decided, among them those left as the base has them. */
+  decided(): ReadonlySet<number> {
+    return this.views.result.state.field(decidedField);
   }
 
   /** Where each hunk is in the Result as it stands, for writing the undecided ones as markers. */

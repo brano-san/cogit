@@ -10,6 +10,7 @@ const TAKE_KEYS: Record<string, TakeAction> = {
   Digit2: "theirs",
   Digit3: "oursTheirs",
   Digit4: "theirsOurs",
+  Digit5: "base",
 };
 
 interface Press {

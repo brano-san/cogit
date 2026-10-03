@@ -24,8 +24,15 @@ describe("the menu of the Conflict Solver", () => {
       "Take Theirs",
       "Take Ours + Theirs",
       "Take Theirs + Ours",
+      "Take Base",
     ]);
-    expect(take.map((entry) => entry.accelerator)).toEqual(["CmdOrCtrl+1", "CmdOrCtrl+2", "CmdOrCtrl+3", "CmdOrCtrl+4"]);
+    expect(take.map((entry) => entry.accelerator)).toEqual([
+      "CmdOrCtrl+1",
+      "CmdOrCtrl+2",
+      "CmdOrCtrl+3",
+      "CmdOrCtrl+4",
+      "CmdOrCtrl+5",
+    ]);
   });
 
   it("keeps a row that does not apply, switched off", () => {

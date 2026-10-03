@@ -25,6 +25,7 @@ export function solverMenu(label: string, state: SolverMenuState): ContextItem[]
     row("solver-take-theirs", "Take Theirs", state.hunk, "CmdOrCtrl+2"),
     row("solver-take-ours-theirs", "Take Ours + Theirs", state.hunk, "CmdOrCtrl+3"),
     row("solver-take-theirs-ours", "Take Theirs + Ours", state.hunk, "CmdOrCtrl+4"),
+    row("solver-take-base", "Take Base", state.hunk, "CmdOrCtrl+5"),
     SEPARATOR,
     row("solver-prev-change", "Previous Change", state.changes, "Shift+F6"),
     row("solver-next-change", "Next Change", state.changes, "F6"),

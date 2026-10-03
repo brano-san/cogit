@@ -93,6 +93,27 @@ describe("take actions", () => {
   it("returns copies, so editing the result never changes a side", () => {
     expect(takeLines(conflict, "ours")).not.toBe(conflict.ours);
   });
+
+  it("can put the base back, which neither side holds", () => {
+    expect(takeLines(conflict, "base")).toEqual(["b"]);
+    expect(takeLines(conflict, "base")).not.toBe(conflict.base);
+  });
+});
+
+describe("a conflict decided to stay as the base has it", () => {
+  const { hunks, spans } = buildResult(REGIONS);
+  const [conflict] = hunks as [Hunk];
+
+  it("is no longer unresolved, though the result holds the base lines", () => {
+    expect(isUnresolved(conflict, ["b"], true)).toBe(false);
+    expect(isUnresolved(conflict, ["b"], false)).toBe(true);
+  });
+
+  it("is written as it stands, with no markers", () => {
+    const decided = new Set([conflict.id]);
+    const text = composeSave(["a", "b", "c", "D"], spans, hunks, { ours: "main", theirs: "feature" }, decided);
+    expect(text).toBe("a\nb\nc\nD\n");
+  });
 });
 
 describe("what is unresolved", () => {

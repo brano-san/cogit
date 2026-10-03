@@ -7,6 +7,7 @@ import {
   blockRows,
   blockTracker,
   blocksOf,
+  decidedField,
   gitLines,
   initialBlocks,
   takeTransaction,
@@ -108,6 +109,21 @@ describe("take actions", () => {
       { id: 1, from: 2, to: 8 },
       { id: 3, from: 10, to: 12 },
     ]);
+  });
+
+  it("Take Base leaves the base lines and decides the conflict; Undo takes the decision back", () => {
+    const { state, hunks } = opened();
+    const [conflict] = hunks;
+    const block = () => blocksOf(taken)[0]!;
+    const taken = state.update(takeTransaction(state, conflict!, "base")).state;
+
+    expect(blockLines(taken, block())).toEqual(["b"]);
+    expect(taken.field(decidedField).has(conflict!.id)).toBe(true);
+    expect(isUnresolved(conflict!, blockLines(taken, block()), taken.field(decidedField).has(conflict!.id))).toBe(false);
+
+    let undone: EditorState = taken;
+    undo({ state: taken, dispatch: (tr) => (undone = tr.state) });
+    expect(undone.field(decidedField).has(conflict!.id)).toBe(false);
   });
 
   it("both sides, in the order asked", () => {

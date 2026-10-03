@@ -85,6 +85,7 @@
       <button type="button" class="btn sm" disabled={locked || !canTake} title="Take Theirs for the current change (Ctrl+2)" onclick={() => ontake("theirs")}>Take Theirs</button>
       <button type="button" class="btn sm" disabled={locked || !canTake} title="Ours, then Theirs (Ctrl+3)" onclick={() => ontake("oursTheirs")}>Ours + Theirs</button>
       <button type="button" class="btn sm" disabled={locked || !canTake} title="Theirs, then Ours (Ctrl+4)" onclick={() => ontake("theirsOurs")}>Theirs + Ours</button>
+      <button type="button" class="btn sm" disabled={locked || !canTake} title="Keep the base lines as the answer (Ctrl+5)" onclick={() => ontake("base")}>Base</button>
     </div>
   {/if}
   {#if deleted}

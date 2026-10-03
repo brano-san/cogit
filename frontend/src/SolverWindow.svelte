@@ -285,7 +285,7 @@
     const left = snapshot?.unresolved.length ?? 0;
     const text =
       left > 0
-        ? composeSave(textToLines(editors.resultText), editors.spans(), docs.hunks, labels())
+        ? composeSave(textToLines(editors.resultText), editors.spans(), docs.hunks, labels(), editors.decided())
         : editors.resultText;
     const result = await saveFlow({
       unresolved: left,
@@ -434,6 +434,7 @@
         "solver-take-theirs": "theirs",
         "solver-take-ours-theirs": "oursTheirs",
         "solver-take-theirs-ours": "theirsOurs",
+        "solver-take-base": "base",
       };
       const taken = takes[action];
       if (taken) take(taken, false);
