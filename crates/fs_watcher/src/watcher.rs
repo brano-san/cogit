@@ -275,14 +275,20 @@ impl Route {
     /// `dtv_device` came from (problem 5). Noise is dropped as events arrive, so a window
     /// keeps at most one entry per kind, however large the burst.
     fn absorb(&self, received: notify::Result<Event>, seen: &mut Vec<(ChangeKind, PathBuf)>) {
+        // Judged when the event is taken off the channel, not when its window closes: a
+        // stranger's write a moment before our own mutation must still get through.
+        if self.paused.load(Ordering::Relaxed) || self.is_quiet() {
+            return;
+        }
         let event = match received {
+            Ok(event) if event.need_rescan() => return everything(seen),
             Ok(event) if changes_something(&event.kind) => event,
             Ok(_) => return,
-            // An overflowed ReadDirectoryChangesW buffer lands here: changes were
-            // missed, and the panels are stale until the next event.
+            // The OS queue overflowed (inotify says so with a flag, not an error): changes
+            // were missed, and the panels are stale until the next event.
             Err(error) => {
                 tracing::warn!(?error, "the file watcher lost events");
-                return;
+                return everything(seen);
             }
         };
         for path in event.paths {
@@ -317,10 +323,6 @@ impl Route {
     }
 
     fn classify(&self, path: &Path) -> Option<RepoChanged> {
-        if self.paused.load(Ordering::Relaxed) || self.is_quiet() {
-            return None;
-        }
-
         // The private directory first: in a linked worktree it lies inside the common one.
         let inside_git = path
             .strip_prefix(&self.git_dir)
@@ -341,6 +343,22 @@ impl Route {
         Some(RepoChanged {
             kind: ChangeKind::WorkingTree,
         })
+    }
+}
+
+/// Events were lost, so anything may have moved.
+fn everything(seen: &mut Vec<(ChangeKind, PathBuf)>) {
+    for kind in [
+        ChangeKind::Head,
+        ChangeKind::Index,
+        ChangeKind::Refs,
+        ChangeKind::WorkingTree,
+        ChangeKind::Stash,
+        ChangeKind::Config,
+    ] {
+        if !seen.iter().any(|(known, _)| *known == kind) {
+            seen.push((kind, PathBuf::new()));
+        }
     }
 }
 
@@ -517,6 +535,53 @@ mod tests {
         route.paused.store(true, Ordering::Relaxed);
 
         assert!(route.coalesce(&[route.git_dir.join("HEAD")]).is_empty());
+    }
+
+    #[test]
+    fn a_lost_queue_marks_everything_as_changed() {
+        let route = route();
+        let overflow = Event::new(EventKind::Other).set_flag(notify::event::Flag::Rescan);
+
+        for received in [Ok(overflow), Err(notify::Error::generic("lost"))] {
+            let mut seen = Vec::new();
+            route.absorb(received, &mut seen);
+            let kinds: Vec<ChangeKind> = seen.iter().map(|(kind, _)| *kind).collect();
+            for kind in [
+                ChangeKind::Head,
+                ChangeKind::Index,
+                ChangeKind::Refs,
+                ChangeKind::WorkingTree,
+            ] {
+                assert!(kinds.contains(&kind), "{kinds:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_lost_queue_is_silent_while_paused_or_quiet() {
+        let route = route();
+        route.paused.store(true, Ordering::Relaxed);
+        let mut seen = Vec::new();
+        route.absorb(Err(notify::Error::generic("lost")), &mut seen);
+        assert!(seen.is_empty());
+
+        route.paused.store(false, Ordering::Relaxed);
+        extend(&route.quiet_until, Duration::from_secs(60));
+        route.absorb(Err(notify::Error::generic("lost")), &mut seen);
+        assert!(seen.is_empty());
+    }
+
+    #[test]
+    fn an_event_taken_before_the_quiet_window_opened_is_kept() {
+        let route = route();
+        let mut seen = Vec::new();
+        route.absorb(event(EventKind::Any, route.root.join("a.rs")), &mut seen);
+
+        extend(&route.quiet_until, Duration::from_secs(60));
+        route.absorb(event(EventKind::Any, route.git_dir.join("HEAD")), &mut seen);
+
+        let kinds: Vec<ChangeKind> = seen.iter().map(|(kind, _)| *kind).collect();
+        assert_eq!(kinds, [ChangeKind::WorkingTree]);
     }
 
     fn event(kind: EventKind, path: PathBuf) -> notify::Result<Event> {
