@@ -73,7 +73,9 @@ pub(crate) fn rooted_at(found: &Path, root: &Path) -> Result<()> {
 pub(crate) fn env_free() -> gix::open::Options {
     let mut options = gix::open::Options::default();
     options.permissions.env.git_prefix = gix::sec::Permission::Deny;
-    options
+    // gix 0.87.1 reads this key upside down: `true` is what keeps replacements out, and
+    // `false` would let the graph mix a replaced object with the commit-graph's parents.
+    options.config_overrides(["core.useReplaceRefs=true"])
 }
 
 pub struct RepoHandle {

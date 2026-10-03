@@ -230,9 +230,9 @@ function describe(issue: HealthIssue): Omit<HealthWarning, "id" | "places"> {
       return {
         title: "Part of this repository's history is replaced",
         body:
-          "refs/replace/ swaps some commits or objects for others, so the graph, diffs and " +
-          "blame show the replacement rather than what is stored. Pushes and clones do not " +
-          "carry replacements unless they are pushed explicitly.",
+          "refs/replace/ swaps some commits or objects for others. Cogit shows the history as " +
+          "stored, while git log, rebase and other Git commands use the replacement. Pushes " +
+          "and clones do not carry replacements unless they are pushed explicitly.",
         docs: DOCS.replace,
         fixes: ["git replace --list", "git --no-replace-objects log"],
       };
