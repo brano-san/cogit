@@ -290,7 +290,7 @@ impl RepoHandle {
             self.hook_path(name, false)?
         };
         let bytes = std::fs::read(&path)?;
-        Ok(String::from_utf8_lossy(&bytes).into_owned())
+        Ok(String::from_utf8_lossy_owned(bytes))
     }
 
     /// Always LF: a CRLF shebang makes the kernel look for an interpreter named `sh\r`.

@@ -337,7 +337,7 @@ fn unquote_path(raw: &str) -> String {
             None => {}
         }
     }
-    String::from_utf8_lossy(&bytes).into_owned()
+    String::from_utf8_lossy_owned(bytes)
 }
 
 #[cfg(test)]

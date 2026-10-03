@@ -184,7 +184,7 @@ impl RepoHandle {
 
     pub(crate) fn read_git_with(&self, args: &[&str], env: &[(&str, &str)]) -> Result<String> {
         let stdout = self.read_bytes_with(args, env)?;
-        Ok(String::from_utf8_lossy(&stdout).into_owned())
+        Ok(String::from_utf8_lossy_owned(stdout))
     }
 
     fn read_bytes_with(&self, args: &[&str], env: &[(&str, &str)]) -> Result<Vec<u8>> {
@@ -194,7 +194,7 @@ impl RepoHandle {
     /// `read_git` with `input` on stdin.
     pub(crate) fn read_git_fed(&self, args: &[&str], input: &[u8]) -> Result<String> {
         let stdout = self.read_bytes_fed(args, &[], Some(input))?;
-        Ok(String::from_utf8_lossy(&stdout).into_owned())
+        Ok(String::from_utf8_lossy_owned(stdout))
     }
 
     fn read_bytes_fed(

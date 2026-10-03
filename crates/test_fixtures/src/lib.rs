@@ -251,10 +251,10 @@ fn run_git(cwd: &Path, args: &[&str], date_index: Option<i64>) -> Result<String>
         return Err(FixtureError::Git {
             args: args.iter().map(|s| (*s).to_owned()).collect(),
             status: output.status.code(),
-            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+            stderr: String::from_utf8_lossy_owned(output.stderr),
         });
     }
-    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    Ok(String::from_utf8_lossy_owned(output.stdout))
 }
 
 pub fn empty() -> Result<Fixture> {
@@ -526,10 +526,10 @@ fn run_git_stdin(cwd: &Path, args: &[&str], input: &str) -> Result<String> {
         return Err(FixtureError::Git {
             args: args.iter().map(|s| (*s).to_owned()).collect(),
             status: output.status.code(),
-            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+            stderr: String::from_utf8_lossy_owned(output.stderr),
         });
     }
-    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    Ok(String::from_utf8_lossy_owned(output.stdout))
 }
 
 pub fn with_submodule() -> Result<Fixture> {

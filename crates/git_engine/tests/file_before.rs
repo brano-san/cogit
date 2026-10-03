@@ -11,7 +11,7 @@ fn open(f: &test_fixtures::Fixture) -> RepoHandle {
 }
 
 fn text(bytes: Option<Vec<u8>>) -> Option<String> {
-    bytes.map(|data| String::from_utf8_lossy(&data).into_owned())
+    bytes.map(String::from_utf8_lossy_owned)
 }
 
 #[test]

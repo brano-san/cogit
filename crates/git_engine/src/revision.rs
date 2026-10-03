@@ -93,6 +93,6 @@ impl RepoHandle {
         Ok(output
             .status
             .success()
-            .then(|| String::from_utf8_lossy(&output.stdout).into_owned()))
+            .then(|| String::from_utf8_lossy_owned(output.stdout)))
     }
 }

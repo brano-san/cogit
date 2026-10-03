@@ -50,7 +50,7 @@ fn header_git_sends(config: &(String, String), url: &str) -> String {
         .args(["config", "--get-urlmatch", "http.extraheader", url])
         .output()
         .unwrap();
-    String::from_utf8_lossy(&output.stdout).into_owned()
+    String::from_utf8_lossy_owned(output.stdout)
 }
 
 #[test]

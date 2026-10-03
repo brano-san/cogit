@@ -256,7 +256,7 @@ impl RepoHandle {
 
         // Lossy on purpose: a file with one bad byte is still worth searching, and the
         // alternative is telling the user their file does not exist.
-        Some(String::from_utf8_lossy(&bytes).into_owned())
+        Some(String::from_utf8_lossy_owned(bytes))
     }
 }
 
