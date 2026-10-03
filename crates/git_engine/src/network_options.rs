@@ -168,8 +168,8 @@ impl RepoHandle {
         } else {
             NotesFetch::default()
         };
-        let header = self.auth_for_fetch(remote, &token);
-        self.stream(&header, &fetch_args(remote, options.tags), &mut on_line)?;
+        let auth = self.auth_for_fetch(remote, &token);
+        self.stream(&auth, &fetch_args(remote, options.tags), &mut on_line)?;
         Ok(notes)
     }
 
@@ -186,8 +186,8 @@ impl RepoHandle {
         } else {
             NotesFetch::default()
         };
-        let header = self.auth_for_fetch(remote, &token);
-        self.stream(&header, &pull_args(remote, &options), &mut on_line)?;
+        let auth = self.auth_for_fetch(remote, &token);
+        self.stream(&auth, &pull_args(remote, &options), &mut on_line)?;
         Ok(notes)
     }
 
@@ -198,10 +198,10 @@ impl RepoHandle {
         token: impl Fn(&str) -> Option<String>,
         mut on_line: impl FnMut(&str),
     ) -> Result<PushOutcome> {
-        let header = self.auth_for_push(&options.remote, &token);
+        let auth = self.auth_for_push(&options.remote, &token);
         let args = push_args(options);
         let args: Vec<&str> = args.iter().map(String::as_str).collect();
-        self.stream(&header, &args, &mut on_line)?;
+        self.stream(&auth, &args, &mut on_line)?;
         if options.notes {
             return self.push_notes(&options.remote, token, on_line);
         }
@@ -224,10 +224,10 @@ impl RepoHandle {
                 notes_rejected: None,
             });
         }
-        let header = self.auth_for_push(remote, &token);
+        let auth = self.auth_for_push(remote, &token);
         let refspec = "refs/notes/*:refs/notes/*";
         let args = ["push", "--progress", remote, refspec];
-        match self.stream(&header, &args, &mut on_line) {
+        match self.stream(&auth, &args, &mut on_line) {
             Ok(()) => {
                 for (name, id) in local {
                     let mirror = format!("{}{}", notes_mirror(remote), &name[LOCAL_NOTES.len()..]);
@@ -253,10 +253,10 @@ impl RepoHandle {
         token: &impl Fn(&str) -> Option<String>,
         on_line: &mut impl FnMut(&str),
     ) -> Result<NotesFetch> {
-        let header = self.auth_for_fetch(remote, token);
+        let auth = self.auth_for_fetch(remote, token);
         let mirror = notes_mirror(remote);
         let spec = format!("+{LOCAL_NOTES}*:{mirror}*");
-        self.stream(&header, &["fetch", "--progress", remote, &spec], on_line)?;
+        self.stream(&auth, &["fetch", "--progress", remote, &spec], on_line)?;
 
         let mut diverged = Vec::new();
         for (name, theirs) in self.refs_under(&mirror) {
@@ -424,30 +424,25 @@ impl RepoHandle {
         &self,
         remote: &str,
         token: &impl Fn(&str) -> Option<String>,
-    ) -> Option<String> {
-        self.auth_arg(remote, gix::remote::Direction::Fetch, token)
+    ) -> Vec<(String, String)> {
+        self.auth_env(remote, gix::remote::Direction::Fetch, token)
     }
 
     fn auth_for_push(
         &self,
         remote: &str,
         token: &impl Fn(&str) -> Option<String>,
-    ) -> Option<String> {
-        self.auth_arg(remote, gix::remote::Direction::Push, token)
+    ) -> Vec<(String, String)> {
+        self.auth_env(remote, gix::remote::Direction::Push, token)
     }
 
     fn stream(
         &self,
-        header: &Option<String>,
+        auth: &[(String, String)],
         args: &[&str],
         on_line: &mut impl FnMut(&str),
     ) -> Result<()> {
-        let mut all: Vec<&str> = Vec::new();
-        if let Some(value) = header {
-            all.extend(["-c", value.as_str()]);
-        }
-        all.extend_from_slice(args);
-        self.run_streaming(&all, |line| on_line(line))
+        self.run_streaming(args, auth, |line| on_line(line))
     }
 
     /// What this repository remembers for the dialogs, from its own config only.

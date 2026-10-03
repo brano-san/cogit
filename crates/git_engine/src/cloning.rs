@@ -1,7 +1,7 @@
 //! Repository ▸ Clone… (F-575): what the server has, asked without writing anything, then
 //! the clone itself through the system git.
 
-use crate::network::{NetworkStop, SILENCE, Streamed, auth_config};
+use crate::network::{NetworkStop, SILENCE, Streamed, auth_config, config_env, login_config};
 use crate::pulse::{BATCH_SSH, STALL_LIMITS};
 use crate::{CommandSink, GitError, GitOutput, Result};
 use serde::{Deserialize, Serialize};
@@ -51,17 +51,17 @@ impl std::fmt::Debug for Login {
 }
 
 /// Git Credential Manager may open its window: the user asked for this. Only the terminal
-/// prompt stays off, as for every git Cogit starts.
-fn login_command(source: &str, login: Option<&Login>) -> Command {
+/// prompt stays off, as for every git Cogit starts. A login and a token go in one
+/// environment config: neither reaches the command line.
+fn login_command(source: &str, login: Option<&Login>, token: Option<&str>) -> Command {
     let mut process = outside_any_repository();
     process.env_remove("GCM_INTERACTIVE");
-    if let Some(login) = login {
-        process.envs(crate::network::login_env(
-            source,
-            &login.username,
-            &login.password,
-        ));
-    }
+    let pairs: Vec<(String, String)> = token
+        .and_then(|token| auth_config(source, token))
+        .into_iter()
+        .chain(login.and_then(|login| login_config(source, &login.username, &login.password)))
+        .collect();
+    process.envs(config_env(&pairs));
     process
 }
 
@@ -99,13 +99,9 @@ pub fn remote_branches(
     journal: Option<&CommandSink>,
 ) -> Result<RemoteBranches> {
     let source = source.trim();
-    let header = token.and_then(|token| auth_config(source, token));
     let mut args: Vec<&str> = STALL_LIMITS.to_vec();
     if !own_ssh_command() {
         args.extend(["-c", BATCH_SSH]);
-    }
-    if let Some(header) = &header {
-        args.extend(["-c", header.as_str()]);
     }
     args.extend([
         "ls-remote",
@@ -119,7 +115,7 @@ pub fn remote_branches(
     let command = crate::redact_command(&args);
     let started = std::time::Instant::now();
     tracing::info!(%command, "running git");
-    let mut process = login_command(source, login);
+    let mut process = login_command(source, login, token);
     process.args(&args);
     let output = crate::children::output(&mut process).map_err(crate::runner::not_started)?;
     if output.status.success() {
@@ -188,15 +184,9 @@ pub fn clone_repository(
         )));
     }
     let before = clone_destination(&target);
-    let header = token.and_then(|token| auth_config(source, token));
-    let args = clone_args(
-        request,
-        source,
-        &target.to_string_lossy(),
-        header.as_deref(),
-    );
+    let args = clone_args(request, source, &target.to_string_lossy());
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
-    let mut process = login_command(source, login);
+    let mut process = login_command(source, login, token);
     process.args(&args);
 
     let to = Streamed {
@@ -227,17 +217,8 @@ fn valid_size_limit(limit: &str) -> bool {
         && digits.bytes().all(|b| b.is_ascii_digit())
 }
 
-fn clone_args(
-    request: &CloneRequest,
-    source: &str,
-    target: &str,
-    header: Option<&str>,
-) -> Vec<String> {
-    let mut args: Vec<String> = Vec::new();
-    if let Some(header) = header {
-        args.extend(["-c".to_owned(), header.to_owned()]);
-    }
-    args.extend(["clone".to_owned(), "--progress".to_owned()]);
+fn clone_args(request: &CloneRequest, source: &str, target: &str) -> Vec<String> {
+    let mut args: Vec<String> = vec!["clone".to_owned(), "--progress".to_owned()];
     if request.submodules {
         args.push("--recurse-submodules".to_owned());
     }
@@ -378,7 +359,7 @@ mod tests {
     }
 
     fn args_of(request: &CloneRequest) -> Vec<String> {
-        clone_args(request, &request.source, &request.target, None)
+        clone_args(request, &request.source, &request.target)
     }
 
     #[test]
@@ -444,7 +425,7 @@ mod tests {
             username: "ann".to_owned(),
             password: "s3cret".to_owned(),
         };
-        let process = login_command("https://example.com/team/app.git", Some(&login));
+        let process = login_command("https://example.com/team/app.git", Some(&login), None);
         let envs: Vec<(String, Option<String>)> = process
             .get_envs()
             .map(|(k, v)| {

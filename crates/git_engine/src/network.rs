@@ -100,10 +100,8 @@ impl RepoHandle {
         token: impl FnOnce(&str) -> Option<String>,
         on_line: impl FnMut(&str),
     ) -> Result<()> {
-        let header = self.auth_arg(remote, gix::remote::Direction::Fetch, token);
-        let mut args = prefix(&header);
-        args.extend(["fetch", "--progress", "--prune", remote]);
-        self.run_streaming(&args, on_line)
+        let auth = self.auth_env(remote, gix::remote::Direction::Fetch, token);
+        self.run_streaming(&["fetch", "--progress", "--prune", remote], &auth, on_line)
     }
 
     /// Every remote, as `git fetch --all` takes them (`remote.<name>.skipFetchAll` skips
@@ -114,10 +112,8 @@ impl RepoHandle {
         token: impl FnOnce(&str) -> Option<String>,
         on_line: impl FnMut(&str),
     ) -> Result<()> {
-        let header = self.auth_arg(token_remote, gix::remote::Direction::Fetch, token);
-        let mut args = prefix(&header);
-        args.extend(["fetch", "--progress", "--prune", "--all"]);
-        self.run_streaming(&args, on_line)
+        let auth = self.auth_env(token_remote, gix::remote::Direction::Fetch, token);
+        self.run_streaming(&["fetch", "--progress", "--prune", "--all"], &auth, on_line)
     }
 
     /// Remote ▸ Fetch More, after SmartGit's: every branch and tag of `remote`, whatever its
@@ -130,11 +126,10 @@ impl RepoHandle {
     ) -> Result<bool> {
         let tracking = format!("refs/remotes/{remote}/");
         let before = self.ref_tips(&[&tracking, "refs/tags/"]);
-        let header = self.auth_arg(remote, gix::remote::Direction::Fetch, token);
+        let auth = self.auth_env(remote, gix::remote::Direction::Fetch, token);
         let heads = format!("+refs/heads/*:{tracking}*");
-        let mut args = prefix(&header);
-        args.extend(["fetch", "--progress", "--tags", remote, &heads]);
-        self.run_streaming(&args, on_line)?;
+        let args = ["fetch", "--progress", "--tags", remote, &heads];
+        self.run_streaming(&args, &auth, on_line)?;
         Ok(self.ref_tips(&[&tracking, "refs/tags/"]) != before)
     }
 
@@ -153,15 +148,13 @@ impl RepoHandle {
                 "The repository is not shallow: it has all of its history already.".to_owned(),
             ));
         }
-        let header = self.auth_arg(remote, gix::remote::Direction::Fetch, token);
+        let auth = self.auth_env(remote, gix::remote::Direction::Fetch, token);
         let depth = if depth == 0 {
             "--unshallow".to_owned()
         } else {
             format!("--depth={depth}")
         };
-        let mut args = prefix(&header);
-        args.extend(["fetch", "--progress", &depth, remote]);
-        self.run_streaming(&args, on_line)
+        self.run_streaming(&["fetch", "--progress", &depth, remote], &auth, on_line)
     }
 
     /// Names and targets of the refs under `prefixes`, sorted; unreadable ones are left out.
@@ -194,11 +187,10 @@ impl RepoHandle {
         token: impl FnOnce(&str) -> Option<String>,
         on_line: impl FnMut(&str),
     ) -> Result<()> {
-        let header = self.auth_arg(remote, gix::remote::Direction::Fetch, token);
-        let mut args = prefix(&header);
-        args.extend(["pull", "--progress", "--prune", remote]);
-        args.push(if ff_only { "--ff-only" } else { "--no-rebase" });
-        self.run_streaming(&args, on_line)
+        let auth = self.auth_env(remote, gix::remote::Direction::Fetch, token);
+        let mode = if ff_only { "--ff-only" } else { "--no-rebase" };
+        let args = ["pull", "--progress", "--prune", remote, mode];
+        self.run_streaming(&args, &auth, on_line)
     }
 
     pub fn push(
@@ -236,9 +228,8 @@ impl RepoHandle {
         token: impl FnOnce(&str) -> Option<String>,
         on_line: impl FnMut(&str),
     ) -> Result<()> {
-        let header = self.auth_arg(remote, gix::remote::Direction::Push, token);
-        let mut args = prefix(&header);
-        args.push("push");
+        let auth = self.auth_env(remote, gix::remote::Direction::Push, token);
+        let mut args = vec!["push"];
         args.push("--progress");
         if track {
             args.push("--set-upstream");
@@ -251,7 +242,7 @@ impl RepoHandle {
         }
         args.push(remote);
         args.extend(refspec);
-        self.run_streaming(&args, on_line)
+        self.run_streaming(&args, &auth, on_line)
     }
 
     /// HEAD is on a branch without an upstream as git decides it, which wants both
@@ -271,24 +262,36 @@ impl RepoHandle {
         remote.is_none() || merge.is_none()
     }
 
-    /// The token of the URL this direction contacts, not of the push URL for all (R-410).
-    pub(crate) fn auth_arg(
+    /// The token of the URL this direction contacts, not of the push URL for all (R-410),
+    /// as the environment git reads it from: an argument sits in the process list.
+    pub(crate) fn auth_env(
         &self,
         remote: &str,
         direction: gix::remote::Direction,
         token: impl FnOnce(&str) -> Option<String>,
-    ) -> Option<String> {
-        let url = self.url_of(remote, direction)?;
-        auth_config(&url, &token(&url)?)
+    ) -> Vec<(String, String)> {
+        let Some(url) = self.url_of(remote, direction) else {
+            return Vec::new();
+        };
+        let Some(token) = token(&url) else {
+            return Vec::new();
+        };
+        config_env(&auth_config(&url, &token).into_iter().collect::<Vec<_>>())
     }
 
-    pub(crate) fn run_streaming(&self, args: &[&str], on_line: impl FnMut(&str)) -> Result<()> {
-        self.run_streaming_within(args, on_line, SILENCE)
+    pub(crate) fn run_streaming(
+        &self,
+        args: &[&str],
+        env: &[(String, String)],
+        on_line: impl FnMut(&str),
+    ) -> Result<()> {
+        self.run_streaming_within(args, env, on_line, SILENCE)
     }
 
     fn run_streaming_within(
         &self,
         args: &[&str],
+        env: &[(String, String)],
         on_line: impl FnMut(&str),
         silence: Duration,
     ) -> Result<()> {
@@ -297,7 +300,9 @@ impl RepoHandle {
             stop: self.stop.as_ref(),
             journal: &|entry| self.journal_entry(entry),
         };
-        to.run(self.base_git(args), args, on_line, silence)
+        let mut process = self.base_git(args);
+        process.envs(env.iter().map(|(key, value)| (key, value)));
+        to.run(process, args, on_line, silence)
     }
 }
 
@@ -528,11 +533,15 @@ pub fn wants_auth(url: &str) -> bool {
     url.starts_with("https://") || url.starts_with("http://")
 }
 
-/// The `-c` argument that hands `token` to git for the host of `url` only. Git passes
-/// every `-c` on to the git processes it starts, a submodule's fetch among them, so a bare
-/// `http.extraHeader` went to every host that fetch contacted.
+/// The config entry (key, value) that hands `token` to git for the host of `url` only. Git
+/// passes its config on to the git processes it starts, a submodule's fetch among them, so
+/// a bare `http.extraHeader` went to every host that fetch contacted.
 #[must_use]
-pub fn auth_config(url: &str, token: &str) -> Option<String> {
+pub fn auth_config(url: &str, token: &str) -> Option<(String, String)> {
+    scoped_header(url, auth_header(token))
+}
+
+fn scoped_header(url: &str, header: String) -> Option<(String, String)> {
     if !wants_auth(url) {
         return None;
     }
@@ -544,37 +553,27 @@ pub fn auth_config(url: &str, token: &str) -> Option<String> {
     if host.is_empty() {
         return None;
     }
-    Some(format!(
-        "http.{scheme}://{host}/.extraHeader={}",
-        auth_header(token)
-    ))
+    Some((format!("http.{scheme}://{host}/.extraHeader"), header))
 }
 
-/// Typed into the Clone wizard: handed over in the environment, so neither the command
-/// line nor the journal ever holds it.
-pub(crate) fn login_env(url: &str, username: &str, password: &str) -> Vec<(String, String)> {
-    let Some(config) = auth_config(url, "") else {
-        return Vec::new();
-    };
-    let Some((key, _)) = config.split_once('=') else {
-        return Vec::new();
-    };
-    let value = format!(
-        "Authorization: Basic {}",
-        base64(format!("{username}:{password}").as_bytes())
-    );
-    vec![
-        ("GIT_CONFIG_COUNT".to_owned(), "1".to_owned()),
-        ("GIT_CONFIG_KEY_0".to_owned(), key.to_owned()),
-        ("GIT_CONFIG_VALUE_0".to_owned(), value),
-    ]
+/// Typed into the Clone wizard.
+pub(crate) fn login_config(url: &str, username: &str, password: &str) -> Option<(String, String)> {
+    let credentials = base64(format!("{username}:{password}").as_bytes());
+    scoped_header(url, format!("Authorization: Basic {credentials}"))
 }
 
-fn prefix(header: &Option<String>) -> Vec<&str> {
-    match header {
-        Some(value) => vec!["-c", value.as_str()],
-        None => Vec::new(),
+/// Config handed over in the environment (`GIT_CONFIG_COUNT`), so that neither the command
+/// line, the process list nor the journal ever holds it.
+pub(crate) fn config_env(pairs: &[(String, String)]) -> Vec<(String, String)> {
+    if pairs.is_empty() {
+        return Vec::new();
     }
+    let mut env = vec![("GIT_CONFIG_COUNT".to_owned(), pairs.len().to_string())];
+    for (index, (key, value)) in pairs.iter().enumerate() {
+        env.push((format!("GIT_CONFIG_KEY_{index}"), key.clone()));
+        env.push((format!("GIT_CONFIG_VALUE_{index}"), value.clone()));
+    }
+    env
 }
 
 #[cfg(test)]
@@ -609,6 +608,7 @@ mod tests {
         std::thread::spawn(move || {
             let result = repo.run_streaming_within(
                 &["fetch", "--progress", "quiet"],
+                &[],
                 |_| {},
                 Duration::from_secs(2),
             );
@@ -627,6 +627,28 @@ mod tests {
             started.elapsed()
         );
         assert!(failure.summary.contains("no output"), "{failure:?}");
+    }
+
+    #[test]
+    fn config_entries_are_numbered_in_one_count() {
+        let env = config_env(&[
+            ("a.b".to_owned(), "1".to_owned()),
+            ("c.d".to_owned(), "2".to_owned()),
+        ]);
+
+        let get = |key: &str| env.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str());
+        assert_eq!(get("GIT_CONFIG_COUNT"), Some("2"));
+        assert_eq!(get("GIT_CONFIG_KEY_1"), Some("c.d"));
+        assert_eq!(get("GIT_CONFIG_VALUE_1"), Some("2"));
+        assert!(config_env(&[]).is_empty());
+    }
+
+    #[test]
+    fn a_token_is_scoped_to_the_host_of_its_url() {
+        let (key, value) = auth_config("https://u:p@h.example:8443/o/r.git", "t").unwrap();
+
+        assert_eq!(key, "http.https://h.example:8443/.extraHeader");
+        assert_eq!(value, auth_header("t"));
     }
 
     #[test]
