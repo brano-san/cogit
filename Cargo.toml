@@ -43,15 +43,15 @@ specta = { version = "=2.0.0-rc.25", features = ["derive", "function"] }
 specta-typescript = "0.0.12"
 
 # --- tauri (only src-tauri consumes these; listed here for a single source of versions) ---
-tauri = { version = "2.11", features = ["specta"] }
-tauri-build = "2.6"
+tauri = { version = "2.12", features = ["specta"] }
+tauri-build = "2.7"
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
-tauri-plugin-opener = "2.5"
-tauri-plugin-dialog = "2.7"
-tauri-plugin-clipboard-manager = "2.3"
-tauri-plugin-window-state = "2.4"
-tauri-plugin-updater = "2.12"
-tauri-plugin-process = "2.3"
+tauri-plugin-opener = "2.7"
+tauri-plugin-dialog = "2.8"
+tauri-plugin-clipboard-manager = "2.4"
+tauri-plugin-window-state = "2.5"
+tauri-plugin-updater = "2.13"
+tauri-plugin-process = "2.4"
 
 # --- logging ---
 tracing = "0.1"
@@ -114,16 +114,16 @@ keyring = "4.2"
 # required — the workspace denies `unsafe_code`, so raw Win32 was not an option (R-86).
 sysinfo = { version = "0.39", default-features = false, features = ["system"] }
 # WebView2 `ProcessFailed`, so the renderer dying never shows Edge's own error page.
-# Versions must match what tauri 2.11 already resolves, or the COM types are two
+# Versions must match what tauri 2.12 already resolves, or the COM types are two
 # incompatible copies of themselves (R-88).
-webview2-com = "0.38"
+webview2-com = "0.39"
 # GtkSettings of the process: the native file chooser follows the Cogit theme (Linux only).
-# The version tauri 2.11 and wry already resolve, so no second GTK is built.
+# The version tauri 2.12 and wry already resolve, so no second GTK is built.
 gtk = "0.18"
-windows-core = "0.61"
+windows-core = "0.62"
 # `GetKeyState`: the accelerator event says which key, never which modifiers. The rest
 # holds a shutdown while operations run: a window subclass and the block reason (R-168).
-windows = { version = "0.61", features = [
+windows = { version = "0.62", features = [
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
