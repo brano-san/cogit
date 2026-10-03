@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { buildManifest } from './updater-manifest.mjs';
+import { buildManifest, staleUpdaterFiles } from './updater-manifest.mjs';
 
 const BASE = 'https://example.test/dl';
 
@@ -39,6 +39,19 @@ test('the deb is keyed linux-x86_64-deb; an unsigned AppImage and the dmg add no
   const m = buildManifest(d, '1.2.3', BASE);
   assert.deepEqual(Object.keys(m.platforms), ['linux-x86_64-deb']);
   assert.equal(m.platforms['linux-x86_64-deb'].url, `${BASE}/Cogit_1.2.3_amd64.deb`);
+});
+
+test('a rerun that drops a signature or latest.json leaves them stale', () => {
+  assert.deepEqual(
+    staleUpdaterFiles(['latest.json', 'A-setup.exe', 'A-setup.exe.sig'], ['A-setup.exe']),
+    ['A-setup.exe.sig', 'latest.json'],
+  );
+});
+
+test('nothing is stale when the signature and latest.json are rebuilt, or the release is new', () => {
+  const existing = ['latest.json', 'A-setup.exe', 'A-setup.exe.sig'];
+  assert.deepEqual(staleUpdaterFiles(existing, ['A-setup.exe', 'A-setup.exe.sig', 'latest.json']), []);
+  assert.deepEqual(staleUpdaterFiles([], ['A-setup.exe']), []);
 });
 
 test('an installer without a signature has no entry', () => {

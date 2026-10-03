@@ -112,6 +112,25 @@ jobs:
         shell: bash
         run: node scripts/ci/check-version.mjs "$VERSION"
 
+      # A rerun without the certificate would replace a signed installer with an unsigned one.
+      # (A draft release is invisible to the read-only token: the guard then has nothing to see.)
+      - name: Keep a signed release signed
+        if: runner.os == 'Windows' && env.HAS_WINDOWS_CERT != 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.meta.outputs.tag }}
+        run: |
+          gh release view $env:TAG *> $null
+          if ($LASTEXITCODE -ne 0) { exit 0 }
+          $old = Join-Path $env:RUNNER_TEMP 'old-release'
+          gh release download $env:TAG -p '*-setup.exe' -D $old
+          $exe = Get-ChildItem $old -Filter '*-setup.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($exe -and (Get-AuthenticodeSignature $exe.FullName).Status -eq 'Valid') {
+            throw "Release $env:TAG has a signed installer and WINDOWS_CERT_BASE64 is missing: restore it and rerun."
+          }
+
       - name: Import the code-signing certificate
         if: runner.os == 'Windows' && env.HAS_WINDOWS_CERT == 'true'
         shell: pwsh
@@ -279,6 +298,9 @@ jobs:
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG exists: keeping its notes and state, replacing assets"
+            # Upload only adds and replaces: a signature or latest.json this run did not rebuild
+            # (the updater key is gone) would stay beside the new installer and fail its check.
+            gh release view "$TAG" --json assets -q '.assets[].name' | node scripts/ci/updater-manifest.mjs stale dist
           else
             # No generated notes on purpose: the body stays empty until it is written by hand.
             flags=(--verify-tag --title "Cogit $VERSION" --notes "")
