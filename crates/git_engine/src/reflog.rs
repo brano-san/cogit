@@ -220,8 +220,8 @@ impl RepoHandle {
         Ok(())
     }
 
-    /// What keeps a commit from being lost: every ref (branches, remotes, tags, `stash`,
-    /// notes, `refs/pull/*`…) and the HEAD of every worktree, detached ones included. Reflogs
+    /// What keeps a commit from being lost: every ref but Cogit's own Undo pins (branches,
+    /// remotes, tags, `stash`, notes, `refs/pull/*`…) and the HEAD of every worktree, detached ones included. Reflogs
     /// do not keep a commit: they are how a lost one is found (R-622).
     fn keeping_tips(&self) -> Result<Vec<gix::ObjectId>> {
         let repo = self.repo.main_repo().unwrap_or_else(|_| self.repo.clone());
@@ -250,6 +250,15 @@ impl RepoHandle {
             .map_err(|err| GitError::Internal(format!("cannot list references: {err}")))?
             .flatten()
         {
+            // What Undo pins is not a ref anybody keeps: the journal that explains it is gone
+            // after a restart, and the commits must stay findable here.
+            if reference
+                .name()
+                .as_bstr()
+                .starts_with(crate::stash::BACKUP_REFS.as_bytes())
+            {
+                continue;
+            }
             // An annotated tag names a tag object; the commit is under it.
             let Ok(id) = reference.peel_to_id() else {
                 continue;

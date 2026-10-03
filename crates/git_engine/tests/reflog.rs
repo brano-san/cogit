@@ -439,6 +439,26 @@ fn a_deleted_branch_loses_its_commits_with_its_reflog() {
     assert_eq!(lost_all(&f), fsck_unreachable(&f));
 }
 
+// The pin that keeps a deleted branch for Undo lives in the repository, and Undo lives in
+// memory: after a restart nothing could show those commits again but the CLI.
+#[test]
+fn a_commit_kept_for_undo_is_still_listed_as_lost() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["switch", "-q", "-c", "topic"]).unwrap();
+    let tip = f
+        .commit_file(
+            2, "a.txt", "a
+",
+        )
+        .unwrap();
+    f.git(&["switch", "-q", "main"]).unwrap();
+    f.git(&["branch", "-D", "topic"]).unwrap();
+    open(&f).pin_for_undo(&tip).unwrap();
+    assert_eq!(f.oid(&format!("refs/cogit/backup/{tip}")).unwrap(), tip);
+
+    assert!(lost_all(&f).contains(&tip));
+}
+
 #[test]
 fn a_dropped_stash_is_lost_with_its_index_commit() {
     let f = test_fixtures::linear(2).unwrap();
