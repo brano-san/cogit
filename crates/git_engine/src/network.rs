@@ -1,6 +1,5 @@
 use crate::{GitError, GitOutput, RepoHandle, Result};
-use std::io::Read as _;
-use std::process::Stdio;
+use std::process::{ExitStatus, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
@@ -42,7 +41,7 @@ impl NetworkStop {
         self.lock().asked
     }
 
-    fn hold(&self, pid: u32) {
+    pub(crate) fn hold(&self, pid: u32) {
         let mut stop = self.lock();
         stop.pid = Some(pid);
         if stop.asked {
@@ -50,7 +49,34 @@ impl NetworkStop {
         }
     }
 
-    fn release(&self) {
+    /// Ends the process tree if it is still unreaped, so its pid is still its own.
+    fn end_held(&self) -> bool {
+        let stop = self.lock();
+        let Some(pid) = stop.pid else {
+            return false;
+        };
+        if let Err(err) = crate::children::stop_tree(pid) {
+            tracing::error!(error = ?err, pid, context = "stopping a silent network command");
+        }
+        true
+    }
+
+    /// `try_wait` and forgetting the pid in one step under the lock: `stop` and the
+    /// watchdog end `pid` only while it is held, so none can hit a process that got it
+    /// after the reaping.
+    pub(crate) fn reap(
+        &self,
+        child: &mut std::process::Child,
+    ) -> std::io::Result<Option<ExitStatus>> {
+        let mut stop = self.lock();
+        let status = child.try_wait()?;
+        if status.is_some() {
+            stop.pid = None;
+        }
+        Ok(status)
+    }
+
+    pub(crate) fn release(&self) {
         self.lock().pid = None;
     }
 
@@ -347,55 +373,37 @@ impl Streamed<'_> {
         let started = Instant::now();
         tracing::info!(command = %command, "running git");
 
-        let (mut child, _tracked) =
-            crate::children::spawn(process.stdout(Stdio::piped()).stderr(Stdio::piped()))?;
-        if let Some(stop) = self.stop {
-            stop.hold(child.id());
-        }
+        let (child, _tracked) = crate::children::spawn(
+            process
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped()),
+        )?;
+        let stop = self.stop.cloned().unwrap_or_default();
+        stop.hold(child.id());
 
         let heard = Arc::new(AtomicU64::new(0));
         let (finished, watching) = std::sync::mpsc::channel::<()>();
         let watchdog = {
-            let (heard, pid) = (Arc::clone(&heard), child.id());
-            std::thread::spawn(move || watch(pid, started, &heard, silence, &watching))
+            let (heard, stop) = (Arc::clone(&heard), stop.clone());
+            std::thread::spawn(move || watch(&stop, started, &heard, silence, &watching))
         };
-        let mut stdout_pipe = child.stdout.take();
-        let stdout_reader = {
-            let heard = Arc::clone(&heard);
-            std::thread::spawn(move || {
-                let mut buffer = Vec::new();
-                if let Some(pipe) = stdout_pipe.as_mut() {
-                    let mut chunk = [0_u8; 4096];
-                    while let Ok(read @ 1..) = pipe.read(&mut chunk) {
-                        mark(&heard, started);
-                        buffer.extend_from_slice(&chunk[..read]);
-                    }
-                }
-                buffer
-            })
-        };
-
-        let mut stderr = Progress::default();
-        if let Some(pipe) = child.stderr.as_mut() {
-            let mut chunk = [0_u8; 4096];
-            while let Ok(read @ 1..) = pipe.read(&mut chunk) {
-                mark(&heard, started);
-                stderr.feed(&chunk[..read], &mut on_line);
+        // The end of the command is git's exit, not the end of its pipes: a hook's
+        // background process keeps them open for as long as it lives (GR-04).
+        let (mut stdout, mut stderr) = (Vec::new(), Progress::default());
+        let status = crate::children::collect(child, Some(&stop), |is_stderr, chunk| {
+            mark(&heard, started);
+            if is_stderr {
+                stderr.feed(chunk, &mut on_line);
+            } else {
+                stdout.extend_from_slice(chunk);
             }
-        }
+        });
         let stderr_text = stderr.finish(&mut on_line);
-        // Before `wait`: an unreaped child keeps its pid, so the watchdog cannot hit another.
         drop(finished);
         let stopped = watchdog.join().unwrap_or(false);
-        if let Some(stop) = self.stop {
-            stop.release();
-        }
-
-        let status = child.wait()?;
-        let stdout = stdout_reader
-            .join()
-            .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
-            .unwrap_or_default();
+        let status = status?;
+        let stdout = String::from_utf8_lossy(&stdout).into_owned();
 
         let duration_ms = crate::runner::elapsed_ms(started);
         let mut result = GitOutput::record(
@@ -434,7 +442,7 @@ fn mark(heard: &AtomicU64, started: Instant) {
 
 /// `true` when it stopped the process tree: nothing heard from it for `silence`.
 fn watch(
-    pid: u32,
+    stop: &NetworkStop,
     started: Instant,
     heard: &AtomicU64,
     silence: Duration,
@@ -444,10 +452,7 @@ fn watch(
         let last = Duration::from_millis(heard.load(Ordering::Relaxed));
         let quiet = started.elapsed().saturating_sub(last);
         if quiet >= silence {
-            if let Err(err) = crate::children::stop_tree(pid) {
-                tracing::error!(error = ?err, pid, context = "stopping a silent network command");
-            }
-            return true;
+            return stop.end_held();
         }
         if !matches!(
             finished.recv_timeout(silence - quiet),
