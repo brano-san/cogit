@@ -6,7 +6,7 @@ import { ACTIONS, commandOf, perspectiveOf } from "./menu";
 /** The menu itself is built in Rust; the page must understand every item it can send. */
 function rustActions(): string[] {
   const source = readFileSync(
-    fileURLToPath(new URL("../../../../src-tauri/src/commands/investigate.rs", import.meta.url)),
+    fileURLToPath(new URL("../../../../src-tauri/src/investigate_window.rs", import.meta.url)),
     "utf8",
   );
   return [...source.matchAll(/item\(\s*"([a-z-]+)"/g)].map((match) => match[1]!);
