@@ -577,6 +577,22 @@ describe("the rows of the repository left", () => {
 
     expect(graph.stale).toBe(false);
   });
+
+  // Hovering a Clippy row while cogit's graph loaded sent the Clippy commit to cogit:
+  // `rev-parse` failed and the Errors window opened twice.
+  it("take no question to the repository opened over them", async () => {
+    await loaded(A, ["a", "b"]);
+    expect(graph.rowsRepo).toBe(A);
+
+    open(B);
+    const load = graph.load(B);
+    expect(graph.rowsRepo).toBeNull();
+    await last().send(["x"], true);
+    last().finish();
+    await load;
+
+    expect(graph.rowsRepo).toBe(B);
+  });
 });
 
 // Opening a fold in search results walked the whole search again, for a flat list the view

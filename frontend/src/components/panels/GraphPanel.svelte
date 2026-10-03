@@ -4,7 +4,7 @@
   import PauseCheckBar from "$components/graph/PauseCheckBar.svelte";
   import StateBanner from "$components/layout/StateBanner.svelte";
   import type { Banner, BannerAction } from "$lib/repo-state";
-  import type { HookRun, RebaseProgress } from "$lib/ipc";
+  import type { HookRun, RebaseProgress, RepoId } from "$lib/ipc";
   import { panelView } from "$lib/repo-phase";
   import { repository } from "$stores/repository.svelte";
   import { settings } from "$stores/settings.svelte";
@@ -21,7 +21,7 @@
     ondrop: (source: string, target: string, x: number, y: number) => void;
     oncontext: (oid: string, x: number, y: number) => void;
     ongroupcontext?: (oids: string[], x: number, y: number) => void;
-    onhover?: (oid: string) => void;
+    onhover?: (repo: RepoId, oid: string) => void;
     /** A merge, rebase or detached HEAD is said above the history, as SmartGit does (#22). */
     banner: Banner | null;
     busy: boolean;

@@ -98,7 +98,8 @@
     oncontext?: (oid: string, x: number, y: number) => void;
     /** Right-click on one of several selected commits: the menu of the group. */
     ongroupcontext?: (oids: string[], x: number, y: number) => void;
-    onhover?: (oid: string) => void;
+    /** With the repository the row was read from: never a commit of the last one (R-300). */
+    onhover?: (repo: RepoId, oid: string) => void;
     onworktreecontext?: (x: number, y: number) => void;
     onrefcontext?: (label: RefLabel, oid: string, x: number, y: number) => void;
     /** Double click on a commit and on a label of it: their Check Out (item 40). */
@@ -228,6 +229,11 @@
 
   /** Answers "why did the panel below take so long?" in the log the user sends back. */
   const measure = measurer((label, ms, detail) => void reportTiming(label, ms, detail));
+
+  function hover(oid: string) {
+    const repo = graph.rowsRepo;
+    if (repo) onhover?.(repo, oid);
+  }
 
   async function pick(repo: RepoId, oid: string | null) {
     // The last repository's rows stay on screen until the new ones arrive (R-300).
@@ -830,7 +836,7 @@
             style:top="{(item.listRow - range.start) * rowHeight}px"
             style:padding-left="{rowTextX(item.entry.layout.width, clipX)}px"
             role="listitem"
-            onpointerenter={() => onhover?.(item.entry.commit.oid)}
+            onpointerenter={() => hover(item.entry.commit.oid)}
           >
             {#if look?.tag}
               <span class="bisect-tag {look.dot ?? "testing"}">{look.tag}</span>

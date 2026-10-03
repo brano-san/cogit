@@ -109,6 +109,12 @@ class GraphStore {
     return this.#shown !== null && this.#shown.repo !== repository.current?.repo;
   }
 
+  /** Where a question about a row on screen goes: null while those rows are the last
+      repository's, whose commits the one open does not have (R-300). */
+  get rowsRepo(): RepoId | null {
+    return this.stale ? null : this.shownRepo;
+  }
+
   /** The walk on screen, for what is fetched beside its rows (paint, #11). */
   get walk(): { repo: RepoId; generation: number | null; base: number | null; kept: number } | null {
     void this.#arrived;

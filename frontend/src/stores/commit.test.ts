@@ -94,6 +94,21 @@ describe("commit store", () => {
     expect(commands.commitDetails).toHaveBeenCalledTimes(1);
   });
 
+  it("drops a reply that lands after the repository was switched", async () => {
+    const late = deferred<ReturnType<typeof details>>();
+    commands.commitDetails.mockReturnValue(late.promise);
+    commands.commitFiles.mockResolvedValue(files("one.txt"));
+    const pending = commit.select(REPO, "abc");
+
+    commit.clear();
+    late.resolve(details("abc"));
+    await pending;
+
+    expect(commit.oid).toBeNull();
+    expect(commit.details).toBeNull();
+    expect(commit.files).toEqual([]);
+  });
+
   it("keeps a backend failure as a structured error", async () => {
     commands.commitDetails.mockResolvedValue({
       status: "error",

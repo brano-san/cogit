@@ -198,18 +198,20 @@
 
   let hovered: ReturnType<typeof setTimeout> | undefined;
 
-  export function prefetch(oid: string | null | undefined) {
+  /** `id` is the repository `oid` was read from; asked only while it is still the one open. */
+  export function prefetch(id: RepoId, oid: string | null | undefined) {
     clearTimeout(hovered);
-    const id = repoId();
-    if (!id || !oid) return;
-    hovered = setTimeout(() => void factsOf(id, oid, true).catch(() => {}), 80);
+    if (!oid || id !== repoId()) return;
+    hovered = setTimeout(() => {
+      if (id === repoId()) void factsOf(id, oid, true).catch(() => {});
+    }, 80);
   }
 
   export function prefetchNode(node: RefNode) {
     const summary = repository.current;
     if (!summary || !claims(node)) return;
     const found = nodeTarget(node, summary.tags);
-    prefetch(found ? found.oid : node.oid);
+    prefetch(summary.repo, found ? found.oid : node.oid);
   }
 
   async function loadFacts(id: RepoId, oid: string, withPublished: boolean): Promise<Loaded> {

@@ -3694,7 +3694,7 @@ ${event.error}`,
               ondrop={onCommitDrop}
               oncontext={(oid, x, y) => void commitContext(oid, x, y)}
               ongroupcontext={(oids, x, y) => void selectionActions?.commitsContext(oids, x, y)}
-              onhover={(oid) => refActions?.prefetch(oid)}
+              onhover={(id, oid) => refActions?.prefetch(id, oid)}
               {banner}
               busy={repository.busy}
               onbanneraction={runBannerAction}
