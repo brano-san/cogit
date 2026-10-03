@@ -4,7 +4,7 @@
   import CommandOutput from "$components/layout/CommandOutput.svelte";
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
   import { installChildWindow } from "$lib/child-window";
-  import { repoNameOf } from "$lib/error-window";
+  import { outputToShow, repoNameOf } from "$lib/error-window";
   import {
     closeThisWindow,
     commandOutcome,
@@ -15,6 +15,8 @@
     type ErrorEntry,
     type GitOutput,
   } from "$lib/ipc";
+  import { revealOnDesktop } from "$lib/ipc/file-menus";
+  import { asCogitError } from "$lib/notices";
   import { followSettings } from "$lib/settings-sync";
   import { settings } from "$stores/settings.svelte";
 
@@ -26,10 +28,17 @@
 
   let entries = $state.raw<ErrorEntry[]>([]);
   let selected = $state<number | null>(null);
-  let record = $state.raw<GitOutput | null>(null);
+  let record = $state.raw<{ id: number; shown: GitOutput | "gone" } | null>(null);
   let logPath = $state("");
+  let logProblem = $state("");
+  /** What the journal gave for an entry, kept while the entry is in the queue: the journal
+      is a ring of 100 commands and may lose it before the user comes back. */
+  const outputs = new Map<number, GitOutput>();
 
   const current = $derived(entries.find((entry) => entry.id === selected) ?? entries[0]);
+  // Keyed by id: every queue update brings new entry objects, and asking again for an
+  // output already received could only get a worse answer.
+  const currentId = $derived(current?.id);
 
   $effect(() => {
     void getAppInfo()
@@ -40,6 +49,8 @@
   $effect(() => {
     const pending = onErrorQueue((next) => {
       entries = next;
+      const alive = new Set(next.map((entry) => entry.id));
+      for (const id of outputs.keys()) if (!alive.has(id)) outputs.delete(id);
       if (next.length === 0) void closeThisWindow();
     });
     void pending.then(() => sendErrorsAction("ready")).catch(() => {});
@@ -55,33 +66,28 @@
   });
 
   $effect(() => {
-    const entry = current;
-    if (!entry) return;
-    const id = entry.id;
+    const id = currentId;
+    if (id === undefined) return;
     void sendErrorsAction("viewed", id).catch(() => {});
+    const cached = outputs.get(id);
+    if (cached) {
+      record = { id, shown: cached };
+      return;
+    }
     void commandOutcome(id)
       .catch(() => null)
       .then((found) => {
-        if (current?.id === id) record = found ?? summary(entry);
+        const shown = outputToShow(found, outputs.get(id));
+        if (shown !== "gone") outputs.set(id, shown);
+        if (currentId === id) record = { id, shown };
       });
   });
 
-  /** The record rotated out of the journal: what the entry knows, said as it is. */
-  function summary(entry: ErrorEntry): GitOutput {
-    return {
-      id: entry.id,
-      repo: entry.repo,
-      command: entry.command,
-      exitCode: null,
-      stdout: "",
-      stderr: entry.summary,
-      durationMs: 0,
-      operation: entry.operation,
-      severity: entry.kind === "error" ? "failure" : "warning",
-      summary: entry.summary,
-      startedAtMs: Date.now(),
-      stoppedOnConflicts: entry.kind === "warning",
-    };
+  async function openLog() {
+    logProblem = "";
+    await revealOnDesktop(logPath).catch((err) => {
+      logProblem = asCogitError(err)?.message ?? String(err);
+    });
   }
 
   async function showConflicts(entry: ErrorEntry) {
@@ -119,9 +125,35 @@
 
   <div class="detail">
     {#if current && record && record.id === current.id}
+      {@const output = record.shown}
+      {#if output === "gone"}
+        <section class="gone">
+          <h2>{current.title}</h2>
+          <dl class="facts">
+            <dt>Repository</dt>
+            <dd class="mono" title={current.repo}>{repoNameOf(current.repo)}</dd>
+            <dt>Command</dt>
+            <dd class="mono">{current.command}</dd>
+          </dl>
+          <p>{current.summary}</p>
+          <p class="note">
+            The full output of this command is no longer in the journal. Open the log file to see it.
+          </p>
+          {#if logProblem}<p class="note">{logProblem}</p>{/if}
+          <div class="buttons">
+            <Button onclick={() => void openLog()} title={logPath}>Open log</Button>
+            {#if current.kind === "warning"}
+              <Button variant="primary" onclick={() => void showConflicts(current)}>Show conflicts</Button>
+            {/if}
+            {#if entries.length > 1}
+              <Button onclick={() => dismiss(current)} title="Remove this entry from the list">Dismiss</Button>
+            {/if}
+          </div>
+        </section>
+      {:else}
       <CommandOutput
         docked
-        entry={record}
+        entry={output}
         {logPath}
         heading={current.title}
         warned={current.kind === "warning"}
@@ -136,6 +168,7 @@
           {/if}
         {/snippet}
       </CommandOutput>
+      {/if}
     {/if}
   </div>
 </main>
@@ -219,5 +252,46 @@
   .detail {
     flex: 1 1 auto;
     min-width: 0;
+  }
+
+  .gone {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+    padding: var(--sp-5);
+  }
+
+  .gone h2 {
+    margin: 0;
+    font-size: var(--fs-header);
+  }
+
+  .gone .facts {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: var(--sp-2) var(--sp-4);
+    margin: 0;
+  }
+
+  .gone dt {
+    color: var(--text-secondary);
+  }
+
+  .gone dd {
+    margin: 0;
+  }
+
+  .gone p {
+    margin: 0;
+    white-space: pre-wrap;
+  }
+
+  .gone .note {
+    color: var(--text-secondary);
+  }
+
+  .gone .buttons {
+    display: flex;
+    gap: var(--sp-3);
   }
 </style>

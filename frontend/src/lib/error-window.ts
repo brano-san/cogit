@@ -6,6 +6,12 @@ export { repoNameOf } from "$lib/notices";
 /** What a finished command tells: enough to title it and to find its record again. */
 type Run = Pick<GitOutput, "id" | "repo" | "operation" | "command" | "summary" | "stoppedOnConflicts">;
 
+/** The output of an entry: what the journal has, else what was received while it had it,
+    else `"gone"`. Never a record made up from the entry: the journal keeps 100 commands. */
+export function outputToShow(found: GitOutput | null, cached: GitOutput | undefined): GitOutput | "gone" {
+  return found ?? cached ?? "gone";
+}
+
 /** What did not work; a command that went as far as it could and left conflicts is named
     for what it did, not for failing. */
 export function titleOf(run: Run): string {

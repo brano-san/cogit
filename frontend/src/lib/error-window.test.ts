@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { entryOf, pushEntry, repoNameOf, startsDrag, titleOf, type ErrorEntry } from "./error-window";
+import { entryOf, outputToShow, pushEntry, repoNameOf, startsDrag, titleOf, type ErrorEntry } from "./error-window";
 
 const run = (id: number, over: Partial<Parameters<typeof entryOf>[0]> = {}) => ({
   id,
@@ -74,6 +74,24 @@ describe("pushEntry", () => {
     list = pushEntry(list, entryOf(run(2)));
     expect(list).toHaveLength(1);
     expect(list[0]).toMatchObject({ id: 2, repeats: 2 });
+  });
+});
+
+describe("outputToShow", () => {
+  const out = (id: number) => ({ id }) as never;
+
+  // A made-up record ("did not start", 0 ms, started now) was shown when the journal had
+  // dropped the command, and Copy output put it into bug reports.
+  it("says the output is gone rather than inventing one", () => {
+    expect(outputToShow(null, undefined)).toBe("gone");
+  });
+
+  it("keeps the output already received when the journal has since lost it", () => {
+    expect(outputToShow(null, out(1))).toEqual(out(1));
+  });
+
+  it("prefers what the journal has now", () => {
+    expect(outputToShow(out(2), out(1))).toEqual(out(2));
   });
 });
 
