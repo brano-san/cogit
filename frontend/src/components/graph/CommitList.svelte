@@ -16,6 +16,10 @@
     GRAPH,
     HEADER_ROWS,
     centreRow,
+    MAX_SCROLL_PX,
+    scrollScale,
+    toVirtual,
+    fromVirtual,
     clickedCommit,
     listRowAt,
     headNode,
@@ -249,7 +253,7 @@
     drawnRowHeight = next;
     if (!scroller) return;
     const after = { rowHeight: next, viewportHeight: untrack(() => viewportHeight), totalRows: untrack(() => listRows) };
-    scroller.scrollTop = anchoredScrollTop(before, after);
+    writeScroll(anchoredScrollTop(before, after));
   });
 
   /** Index and every pending step, sitting between Working Tree and the first commit. */
@@ -286,10 +290,16 @@
     const now = headerRows;
     const moved = now - headerRowsSeen;
     headerRowsSeen = now;
-    if (moved !== 0 && scroller && scroller.scrollTop > 0) scroller.scrollTop += moved * rowHeight;
+    if (moved !== 0 && scroller && scroller.scrollTop > 0) writeScroll(readScroll() + moved * rowHeight);
   });
   const commitCount = $derived(graph.total);
   const listRows = $derived(commitCount + headerRows);
+  /** `scrollTop` and every offset here are the list's own pixels; the element is capped (R-721). */
+  const scale = $derived(scrollScale(listRows * rowHeight, viewportHeight));
+  const readScroll = () => (scroller ? toVirtual(scroller.scrollTop, scale) : 0);
+  function writeScroll(offset: number) {
+    if (scroller) scroller.scrollTop = fromVirtual(offset, scale);
+  }
   const range = $derived(
     visibleRange(scrollTop, viewportHeight, rowHeight, listRows, BUFFER_ROWS),
   );
@@ -402,7 +412,7 @@
   /** The Working Tree row sits at the top, or right above HEAD when HEAD is further down. */
   function showWorkingTreeRow() {
     if (!scroller) return;
-    scroller.scrollTop = workingTreeRow ? centreRow(wtAt, viewportHeight, rowHeight, listRows) : 0;
+    writeScroll(workingTreeRow ? centreRow(wtAt, viewportHeight, rowHeight, listRows) : 0);
   }
 
   /** Another repository's history opens on its Working Tree row, else at its top (R-300). The
@@ -529,12 +539,12 @@
         return pick(id, row.commit.oid);
       });
       const offset = scrollRowIntoView(toListRow(target, headerRows, wtAt), scrollTop, viewportHeight, rowHeight);
-      if (offset !== null && scroller) scroller.scrollTop = offset;
+      if (offset !== null) writeScroll(offset);
     });
   }
 
   function onscroll() {
-    if (scroller) scrollTop = scroller.scrollTop;
+    if (scroller) scrollTop = readScroll();
   }
 
   /** The request already acted on. Without it every arriving chunk would re-centre and
@@ -555,7 +565,7 @@
     void graph.total;
     void graph.indexOf(wanted.oid).then((at) => {
       if (at === null || !scroller || graph.reveal !== wanted || revealed === wanted.request) return;
-      scroller.scrollTop = centreRow(toListRow(at, headerRows, wtAt), viewportHeight, rowHeight, listRows);
+      writeScroll(centreRow(toListRow(at, headerRows, wtAt), viewportHeight, rowHeight, listRows));
       revealed = wanted.request;
     });
   });
@@ -563,7 +573,7 @@
   function commitAt(clientY: number): string | null {
     if (!scroller || graph.stale) return null;
     const y = clientY - scroller.getBoundingClientRect().top;
-    return graphDropTarget(y, scroller.scrollTop, rowHeight, listRows, headerRows, (row) => graph.rowAt(row)?.commit.oid, wtAt);
+    return graphDropTarget(y, readScroll(), rowHeight, listRows, headerRows, (row) => graph.rowAt(row)?.commit.oid, wtAt);
   }
 
   /** A commit dragged onto another (R-450): only from a commit row, never the scrollbar. */
@@ -623,7 +633,7 @@
     event.preventDefault();
     if (graph.stale) return;
     const y = event.clientY - scroller.getBoundingClientRect().top;
-    const row = listRowAt(y, scroller.scrollTop, rowHeight, listRows);
+    const row = listRowAt(y, readScroll(), rowHeight, listRows);
     if (row === null) return;
     const oid = clickedCommit(row, headerRows, (at) => graph.rowAt(at)?.commit.oid, wtAt);
     if (oid === undefined) return;
@@ -664,7 +674,7 @@
       viewportHeight = entry.contentRect.height;
       // The row at the top stays there when the panel changes height (#13).
       const kept = anchoredScrollTop({ scrollTop, rowHeight }, { rowHeight, viewportHeight, totalRows: listRows });
-      if (scroller.scrollTop !== kept) scroller.scrollTop = kept;
+      if (Math.abs(readScroll() - kept) >= scale) writeScroll(kept);
     });
     observer.observe(scroller);
     return () => observer.disconnect();
@@ -751,7 +761,7 @@
 
       <div
         class="rows"
-        style:transform="translateY({-scrollTop}px)"
+        style:transform="translateY({range.start * rowHeight - scrollTop}px)"
         style:--row-h="{rowHeight}px"
         style:--overlap-w="{COLUMN_WIDTH.overlap}px"
       >
@@ -760,7 +770,7 @@
             type="button"
             class="row header"
             class:selected={selection.oid === null && stashView.contents === null}
-            style:top="{wtAt * rowHeight}px"
+            style:top="{(wtAt - range.start) * rowHeight}px"
             style:padding-left="{headerX}px"
             title="Show the working tree in Files and Diff"
             onclick={(event) => {
@@ -776,7 +786,7 @@
           <div
             class="row virtual {row.kind}"
             class:striped={stripes && striped(wtAt + HEADER_ROWS + index)}
-            style:top="{(wtAt + HEADER_ROWS + index) * rowHeight}px"
+            style:top="{(wtAt + HEADER_ROWS + index - range.start) * rowHeight}px"
             style:padding-left="{headerX}px"
           >
             <span class="node" aria-hidden="true">{row.kind === "onto" ? "▶" : "◌"}</span>
@@ -795,7 +805,7 @@
             class:selected={picks.ids.has(item.entry.commit.oid) || comparedFrom === item.entry.commit.oid}
             class:over={over === item.entry.commit.oid}
             class:faded={faded.has(item.entry.commit.oid)}
-            style:top="{item.listRow * rowHeight}px"
+            style:top="{(item.listRow - range.start) * rowHeight}px"
             style:padding-left="{rowTextX(item.entry.layout.width, clipX)}px"
             role="listitem"
             onpointerenter={() => onhover?.(item.entry.commit.oid)}
@@ -835,7 +845,7 @@
     </div>
     <div
       class="spacer"
-      style:height="{Math.max(listRows * rowHeight - viewportHeight, 0)}px"
+      style:height="{Math.max(Math.min(listRows * rowHeight, MAX_SCROLL_PX) - viewportHeight, 0)}px"
     ></div>
   </div>
 {/if}

@@ -18,6 +18,10 @@ import {
   scrollRowIntoView,
   setLaneWidth,
   visibleRange,
+  MAX_SCROLL_PX,
+  scrollScale,
+  toVirtual,
+  fromVirtual,
   HEADER_ROWS,
   listRowAt,
   clickedCommit,
@@ -586,5 +590,38 @@ describe("listRowAt", () => {
     expect(listRowAt(-1, 0, 24, 10)).toBeNull();
     expect(listRowAt(240, 0, 24, 10)).toBeNull();
     expect(listRowAt(10, 0, 0, 10)).toBeNull();
+  });
+});
+
+describe("a list taller than the layout limit", () => {
+  const viewport = 600;
+
+  it("is not scaled while it fits", () => {
+    const k = scrollScale(100_000 * 24, viewport);
+    expect(k).toBe(1);
+    expect(toVirtual(12_345, k)).toBe(12_345);
+    expect(fromVirtual(12_345, k)).toBe(12_345);
+  });
+
+  it("keeps the real height under the cap and still reaches the last row", () => {
+    const rows = 1_500_000;
+    const rowHeight = 28;
+    const virtualPx = rows * rowHeight;
+    const k = scrollScale(virtualPx, viewport);
+
+    expect(k).toBeGreaterThan(1);
+    const furthest = virtualPx - viewport;
+    const realFurthest = fromVirtual(furthest, k);
+    expect(realFurthest + viewport).toBeLessThanOrEqual(MAX_SCROLL_PX);
+    expect(toVirtual(realFurthest, k)).toBeCloseTo(furthest, 3);
+    expect(visibleRange(furthest, viewport, rowHeight, rows, 0).end).toBe(rows);
+    expect(fromVirtual(centreRow(rows - 1, viewport, rowHeight, rows), k)).toBeLessThanOrEqual(
+      realFurthest,
+    );
+  });
+
+  it("round-trips a position", () => {
+    const k = scrollScale(1_500_000 * 24, viewport);
+    expect(toVirtual(fromVirtual(9_876_543, k), k)).toBeCloseTo(9_876_543, 3);
   });
 });

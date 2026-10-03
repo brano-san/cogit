@@ -52,6 +52,28 @@ export function visibleRange(
   return { start, end };
 }
 
+/** Blink and WebKit keep layout in 1/64 px of an int32 and saturate near 33.5M px: a taller
+    list cannot be scrolled to its end. The scroller stays under this; scroll offsets are
+    scaled by `scrollScale` between the element's and the list's own pixels. */
+export const MAX_SCROLL_PX = 8_000_000;
+
+/** How many list pixels one scroller pixel stands for: 1 until the list outgrows the cap. */
+export function scrollScale(listPx: number, viewportHeight: number): number {
+  const real = Math.min(listPx, MAX_SCROLL_PX) - viewportHeight;
+  const range = listPx - viewportHeight;
+  return real > 0 && range > real ? range / real : 1;
+}
+
+/** The list offset an element's `scrollTop` stands for. */
+export function toVirtual(real: number, scale: number): number {
+  return real * scale;
+}
+
+/** The `scrollTop` that shows a list offset. */
+export function fromVirtual(virtual: number, scale: number): number {
+  return virtual / scale;
+}
+
 /** Clamped again here: the canvas must stay drawable whatever the settings file holds. */
 export function setLaneWidth(px: number): void {
   laneWidth = Math.min(Math.max(Math.round(px), LANE_WIDTH.min), LANE_WIDTH.max);
