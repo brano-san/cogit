@@ -765,34 +765,41 @@ impl AppState {
             .handle(repo)
             .inspect_err(|err| tracing::error!(error = ?err, context = "graph window"))
             .ok();
-        // Out of the cache before any text is read from disk: a walk's next chunk waits on
-        // the cache for writing, not on this window.
-        let (laid, texts, complete) = {
+        // The rows are copied under the lock and the texts read after it: a walk's next chunk
+        // waits for neither, and no second `Arc<Laid>` makes its `make_mut` copy the graph.
+        let (total, commits, rows, texts, complete) = {
             let cache = self.graph.read();
             let (shown, complete) = cache.view(repo, generation)?;
-            (Arc::clone(&shown.laid), shown.texts.clone(), complete)
+            let laid = &shown.laid;
+            let len = laid.rows.len();
+            let from = usize::try_from(start).unwrap_or(usize::MAX).min(len);
+            let to = from
+                .saturating_add(usize::try_from(count).unwrap_or(usize::MAX))
+                .min(len);
+            (
+                laid.total(),
+                laid.commits[from..to].to_vec(),
+                laid.rows[from..to].to_vec(),
+                shown.texts.clone(),
+                complete,
+            )
         };
-        let len = laid.rows.len();
-        let from = usize::try_from(start).unwrap_or(usize::MAX).min(len);
-        let to = from
-            .saturating_add(usize::try_from(count).unwrap_or(usize::MAX))
-            .min(len);
         let commits = match &texts {
             Some(texts) => {
                 let mut texts = texts.lock();
-                laid.commits[from..to]
+                commits
                     .iter()
                     .map(|row| texts.fill(row, handle.as_ref()))
                     .collect()
             }
-            None => laid.commits[from..to].to_vec(),
+            None => commits,
         };
         Some(GraphWindow {
             start,
-            total: laid.total(),
+            total,
             complete,
             commits,
-            rows: laid.rows[from..to].to_vec(),
+            rows,
         })
     }
 
@@ -882,6 +889,10 @@ impl AppState {
 #[cfg(test)]
 mod tests {
     use super::evicted;
+    use crate::AppState;
+    use git_engine::CommitQuery;
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
 
     #[test]
     fn nothing_goes_while_everything_fits() {
@@ -897,5 +908,41 @@ mod tests {
     #[test]
     fn the_graph_asked_for_stays_however_large() {
         assert_eq!(evicted(&[(1, 100, 2), (2, 5, 1)], 1, 20), vec![2]);
+    }
+
+    #[test]
+    fn a_window_waiting_for_texts_holds_no_copy_of_the_graph() {
+        let f = test_fixtures::linear(10).unwrap();
+        let state = AppState::new();
+        let repo = state.open_repository(f.path()).unwrap().repo;
+        let generation = state.begin_graph();
+        state
+            .build_graph(repo, &CommitQuery::default(), generation, 4, |_| true)
+            .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while state.graph_texts_read(repo) < 10 && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let (laid, texts) = {
+            let cache = state.graph.read();
+            let (shown, _) = cache.view(repo, generation).unwrap();
+            (Arc::downgrade(&shown.laid), shown.texts.clone().unwrap())
+        };
+        let held = texts.lock();
+        let before = Arc::strong_count(&texts);
+        let window = std::thread::scope(|scope| {
+            let window = scope.spawn(|| state.graph_window(repo, generation, 0, 5));
+            // The window has taken its texts handle, so it is at, or on its way to, the lock.
+            let until = Instant::now() + Duration::from_secs(5);
+            while Arc::strong_count(&texts) == before && Instant::now() < until {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            assert!(Arc::strong_count(&texts) > before);
+            std::thread::sleep(Duration::from_millis(50));
+            assert_eq!(laid.strong_count(), 1);
+            drop(held);
+            window.join().unwrap()
+        });
+        assert_eq!(window.unwrap().commits.len(), 5);
     }
 }
