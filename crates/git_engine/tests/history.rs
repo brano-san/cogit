@@ -266,6 +266,32 @@ fn a_topological_walk_never_puts_a_parent_before_its_child() {
     assert!(at("commit 30") < at("commit 10"));
 }
 
+fn print(f: &Fixture, visible_refs: Option<&[&str]>) -> u64 {
+    let query = git_engine::CommitQuery {
+        visible_refs: visible_refs.map(|refs| refs.iter().map(|r| (*r).to_owned()).collect()),
+        ..git_engine::CommitQuery::default()
+    };
+    open(f).refs_fingerprint(&query).unwrap()
+}
+
+#[test]
+fn a_ref_nobody_ticked_does_not_change_the_print() {
+    let f = test_fixtures::linear(3).unwrap();
+    let before = (print(&f, None), print(&f, Some(&["HEAD"])));
+
+    f.git(&["update-ref", "refs/remotes/origin/x", "HEAD~1"])
+        .unwrap();
+    f.git(&["tag", "v1", "HEAD~1"]).unwrap();
+    let after = (print(&f, None), print(&f, Some(&["HEAD"])));
+
+    assert_ne!(before.0, after.0, "every ref counts when all are drawn");
+    assert_eq!(before.1, after.1, "only HEAD is drawn");
+
+    f.git(&["commit", "--allow-empty", "-q", "-m", "more"])
+        .unwrap();
+    assert_ne!(after.1, print(&f, Some(&["HEAD"])));
+}
+
 #[test]
 fn a_topological_walk_of_a_linear_history_is_the_history() {
     let f = test_fixtures::linear(3).unwrap();

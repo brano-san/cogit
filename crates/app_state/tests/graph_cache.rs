@@ -59,6 +59,29 @@ fn switching_back_answers_from_the_cache_without_a_walk() {
 }
 
 #[test]
+fn a_fetch_that_moved_only_unticked_refs_leaves_a_head_only_graph_as_it_was() {
+    let f = test_fixtures::linear(10).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let query = CommitQuery {
+        visible_refs: Some(vec!["HEAD".to_owned()]),
+        ..CommitQuery::default()
+    };
+    build_with(&state, repo, &query);
+
+    f.git(&["update-ref", "refs/remotes/origin/x", "HEAD~1"])
+        .unwrap();
+    f.git(&["tag", "v1", "HEAD~2"]).unwrap();
+    let (_, same) = build_with(&state, repo, &query);
+    assert_eq!(totals(&same), [10], "answered from the cache");
+
+    f.git(&["commit", "--allow-empty", "-q", "-m", "more"])
+        .unwrap();
+    let (_, moved) = build_with(&state, repo, &query);
+    assert_eq!(totals(&moved), [4, 8, 11, 11], "HEAD moved: walked again");
+}
+
+#[test]
 fn the_graph_on_screen_stays_readable_while_another_is_built() {
     let a = test_fixtures::linear(5).unwrap();
     let b = test_fixtures::linear(3).unwrap();
