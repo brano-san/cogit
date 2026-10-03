@@ -256,15 +256,28 @@ pub fn trash_command(platform: Platform, paths: &[PathBuf]) -> Option<Launch> {
             Some(launch)
         }
         Platform::MacOs => {
-            let files: Vec<String> = names
-                .iter()
-                .map(|name| format!("POSIX file \"{}\"", name.replace('"', "\\\"")))
-                .collect();
-            let script = format!(
-                "tell application \"Finder\" to delete {{{}}}",
-                files.join(", ")
+            // Paths travel as argv of the script, never as its text: no byte of a name is code.
+            let mut launch = Launch::plain(
+                "osascript",
+                &[
+                    "-e",
+                    "on run argv",
+                    "-e",
+                    "set fs to {}",
+                    "-e",
+                    "repeat with p in argv",
+                    "-e",
+                    "set end of fs to POSIX file (contents of p)",
+                    "-e",
+                    "end repeat",
+                    "-e",
+                    "tell application \"Finder\" to delete fs",
+                    "-e",
+                    "end run",
+                ],
             );
-            Some(Launch::plain("osascript", &["-e", &script]))
+            launch.args.extend(names);
+            Some(launch)
         }
     }
 }

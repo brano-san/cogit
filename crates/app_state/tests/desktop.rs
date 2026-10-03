@@ -125,14 +125,38 @@ fn off_windows_the_bin_is_a_command_that_takes_every_path_whole() {
     let mac = trash_command(Platform::MacOs, &paths).expect("Finder");
     assert_eq!(mac.program, "osascript");
     assert!(
-        mac.args[1].contains(r#"POSIX file "/home/me/a b.txt""#),
-        "{:?}",
         mac.args
+            .ends_with(&["/home/me/a b.txt".to_string(), "/home/me/c.txt".to_string()])
     );
     assert!(
         trash_command(Platform::Windows, &paths).is_none(),
         "the shell call does it"
     );
+}
+
+#[test]
+fn a_file_name_never_becomes_applescript_code() {
+    let paths = [
+        PathBuf::from("/r/a\" & (do shell script \"id\") --"),
+        PathBuf::from("/r/notes\\"),
+        PathBuf::from("/r/a\nb"),
+    ];
+    let mac = trash_command(Platform::MacOs, &paths).expect("Finder");
+    let tail = mac.args.len() - paths.len();
+    for (i, arg) in mac.args[..tail].iter().enumerate() {
+        if i % 2 == 0 {
+            assert_eq!(arg, "-e");
+        } else {
+            for p in &paths {
+                assert!(!arg.contains(&*p.to_string_lossy()), "{arg}");
+            }
+        }
+    }
+    let rest: Vec<String> = paths
+        .iter()
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(mac.args[tail..], rest[..]);
 }
 
 #[test]
