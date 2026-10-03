@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Branch, FileEntry, WorktreeEntry } from "$lib/ipc";
 import {
+  changeCounts,
+  shortWorktreePath,
   hasStale,
   linkedCount,
   listedRows,
@@ -28,6 +30,9 @@ function entry(over: Partial<WorktreeEntry> = {}): WorktreeEntry {
     locked: null,
     missing: false,
     dirty: false,
+    changed: 0,
+    untracked: 0,
+    bare: false,
     hasSubmodules: false,
     ...over,
   };
@@ -48,8 +53,23 @@ describe("worktreeWhere", () => {
 });
 
 describe("worktreeTags", () => {
-  it("marks the main copy", () => {
-    expect(worktreeTags(entry({ isMain: true })).map((tag) => tag.id)).toEqual(["main"]);
+  // "main" beside the branch master read as one more branch.
+  it("marks the main copy as primary, not as main", () => {
+    const tags = worktreeTags(entry({ isMain: true }));
+    expect(tags.map((tag) => tag.label)).toEqual(["primary"]);
+    expect(tags[0]?.tooltip).toMatch(/^Main worktree/);
+  });
+
+  it("marks the one open in Cogit and a bare main one", () => {
+    expect(worktreeTags(entry({ isCurrent: true })).map((tag) => tag.id)).toEqual(["open"]);
+    expect(worktreeTags(entry({ isMain: true, bare: true })).map((tag) => tag.id)).toEqual(["primary", "bare"]);
+  });
+
+  it("says a missing one is prunable unless it is locked", () => {
+    expect(worktreeTags(entry({ missing: true }))[0]?.tooltip).toContain("prunable");
+    const locked = worktreeTags(entry({ missing: true, locked: "" })).find((tag) => tag.id === "missing");
+    expect(locked?.tooltip).not.toContain("prunable");
+    expect(locked?.tooltip).toContain("locked");
   });
 
   it("explains missing and says what to do about it", () => {
@@ -65,6 +85,26 @@ describe("worktreeTags", () => {
 
   it("marks uncommitted changes", () => {
     expect(worktreeTags(entry({ dirty: true })).map((tag) => tag.id)).toEqual(["dirty"]);
+  });
+
+  it("counts the changes instead of saying dirty", () => {
+    const [tag] = worktreeTags(entry({ dirty: true, changed: 3, untracked: 2 }));
+    expect(tag?.label).toBe("3 changed, 2 untracked");
+    expect(tag?.tooltip).toContain("3 changed, 2 untracked");
+    expect(changeCounts(entry({ dirty: true, untracked: 1 }))).toBe("1 untracked");
+  });
+});
+
+describe("shortWorktreePath", () => {
+  it("cuts the main worktree's parent folder off", () => {
+    expect(shortWorktreePath("D:/src/cogit-wt", "D:/src/cogit")).toBe("…/cogit-wt");
+    expect(shortWorktreePath("D:/src/wt/feature", "D:/src/cogit")).toBe("…/wt/feature");
+    expect(shortWorktreePath("d:/SRC/x", "D:/src/cogit")).toBe("…/x");
+  });
+
+  it("keeps a path elsewhere whole", () => {
+    expect(shortWorktreePath("E:/other/x", "D:/src/cogit")).toBe("E:/other/x");
+    expect(shortWorktreePath("E:/other/x", undefined)).toBe("E:/other/x");
   });
 });
 

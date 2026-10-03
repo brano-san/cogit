@@ -305,6 +305,9 @@ describe("refLabels for branches held by worktrees", () => {
     locked: null,
     missing: false,
     dirty: false,
+    changed: 0,
+    untracked: 0,
+    bare: false,
     hasSubmodules: false,
     ...over,
   });

@@ -117,6 +117,30 @@ fn a_dirty_worktree_is_told_apart_from_a_clean_one() {
     assert!(!linked.dirty, "{found:?}");
 }
 
+/// The row shows counts instead of a bare `dirty`: a path staged and edited again is one
+/// change, and a new folder is one untracked entry, as in Files.
+#[test]
+fn a_worktree_counts_its_changed_and_untracked_entries() {
+    let f = test_fixtures::with_worktree().unwrap();
+    std::fs::write(f.path().join("file0.txt"), "staged\n").unwrap();
+    f.git(&["add", "file0.txt"]).unwrap();
+    std::fs::write(f.path().join("file0.txt"), "edited again\n").unwrap();
+    std::fs::write(f.path().join("new.txt"), "new\n").unwrap();
+    std::fs::create_dir(f.path().join("fresh")).unwrap();
+    std::fs::write(f.path().join("fresh").join("a.txt"), "a\n").unwrap();
+    std::fs::write(f.path().join("fresh").join("b.txt"), "b\n").unwrap();
+
+    let found = open(&f).worktrees().unwrap();
+    let main = found.iter().find(|entry| entry.is_main).unwrap();
+    assert_eq!((main.changed, main.untracked), (1, 2), "{main:?}");
+    assert!(main.dirty && !main.bare, "{main:?}");
+    let linked = linked(&f);
+    assert_eq!(
+        (linked.changed, linked.untracked, linked.dirty),
+        (0, 0, false)
+    );
+}
+
 #[test]
 fn adding_a_worktree_puts_a_branch_in_it() {
     let f = test_fixtures::linear(2).unwrap();
@@ -494,6 +518,39 @@ fn a_worktree_of_a_bare_repository_lists_the_bare_one_as_main() {
     );
     let main = entries.iter().find(|entry| entry.is_main).unwrap();
     assert!(!main.is_current, "{entries:?}");
+    assert!(main.bare, "{entries:?}");
+    assert!(
+        entries.iter().filter(|entry| entry.bare).count() == 1,
+        "{entries:?}"
+    );
+}
+
+/// Its `core.bare = true` is the bare repository's: the linked worktree still has files,
+/// and their changes count.
+#[test]
+fn a_worktree_of_a_bare_repository_counts_its_changes() {
+    let bare = test_fixtures::bare().unwrap();
+    let place = test_fixtures::tempdir().unwrap();
+    let linked = place.path().join("wt");
+    bare.git(&[
+        "worktree",
+        "add",
+        "-q",
+        "-b",
+        "wtb",
+        &linked.to_string_lossy(),
+    ])
+    .unwrap();
+    std::fs::write(linked.join("new.txt"), "new\n").unwrap();
+
+    let entries = RepoHandle::open(&linked).unwrap().worktrees().unwrap();
+
+    let here = entries.iter().find(|entry| entry.is_current).unwrap();
+    assert_eq!(
+        (here.untracked, here.dirty, here.bare),
+        (1, true, false),
+        "{here:?}"
+    );
 }
 
 /// A worktree of `with_submodule` with its submodule checked out, as `submodule update

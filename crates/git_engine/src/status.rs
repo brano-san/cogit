@@ -117,6 +117,36 @@ impl RepoHandle {
         Ok(false)
     }
 
+    /// Changed paths (staged or not, each once) and untracked entries, folders collapsed as
+    /// in Files. A full walk: unlike `has_changes` it cannot stop at the first change.
+    pub fn change_counts(&self) -> Result<(u32, u32)> {
+        // Not `is_bare()`: a linked worktree of a bare repository reads `core.bare = true`.
+        if self.repo.workdir().is_none() {
+            return Ok((0, 0));
+        }
+        let mut changed = std::collections::HashSet::new();
+        let mut untracked = 0;
+        for item in self.status_items()? {
+            let item = item.map_err(|err| GitError::Internal(format!("status failed: {err}")))?;
+            match &item {
+                Item::IndexWorktree(WorktreeItem::Modification {
+                    status: EntryStatus::NeedsUpdate(_),
+                    ..
+                }) => {}
+                Item::TreeIndex(_) | Item::IndexWorktree(WorktreeItem::Modification { .. }) => {
+                    changed.insert(item.location().to_owned());
+                }
+                Item::IndexWorktree(WorktreeItem::DirectoryContents { entry, .. })
+                    if matches!(entry.status, gix::dir::entry::Status::Untracked) =>
+                {
+                    untracked += 1;
+                }
+                Item::IndexWorktree(_) => {}
+            }
+        }
+        Ok((u32::try_from(changed.len()).unwrap_or(u32::MAX), untracked))
+    }
+
     /// Collapsed, like the Files list: a folder of new files is one entry in both, so the
     /// header counts and the list agree and one walk can serve both (R-316).
     fn status_items(&self) -> Result<gix::status::Iter> {

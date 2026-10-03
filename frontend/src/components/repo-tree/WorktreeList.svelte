@@ -2,7 +2,7 @@
   import KindIcon from "$components/common/KindIcon.svelte";
   import { striped } from "$lib/graph-geometry";
   import type { WorktreeEntry } from "$lib/ipc";
-  import { listedRows, worktreeTags, worktreeWhere } from "$lib/worktree-list";
+  import { listedRows, shortWorktreePath, worktreeTags, worktreeWhere } from "$lib/worktree-list";
   import { pruneBlocked } from "$lib/worktree-menu";
   import { TypeAhead, moveFocus } from "$lib/list-keys";
   import { settings } from "$stores/settings.svelte";
@@ -26,6 +26,7 @@
   const stripes = $derived(settings.current.graphStripes);
   const typing = new TypeAhead();
   const rows = $derived(listedRows(entries));
+  const mainPath = $derived(entries.find((entry) => entry.isMain)?.path);
 
   /** 11 §10: the arrows and typing move the selection; Enter opens, as before. */
   function onkeydown(event: KeyboardEvent) {
@@ -67,6 +68,7 @@
       <KindIcon kind="worktree" title="Worktree — {entry.path}" />
       <span class="name truncate shrink-last">{entry.name}</span>
       {#if where}<span class="where truncate shrink-first">{where}</span>{/if}
+      <span class="path truncate shrink-first">{shortWorktreePath(entry.path, mainPath)}</span>
       {#each worktreeTags(entry) as tag (tag.id)}
         <span class="tag {tag.id}" title={tag.tooltip}>{tag.label}</span>
       {/each}
@@ -146,8 +148,14 @@
     color: var(--text-secondary);
   }
 
+  .path {
+    color: var(--text-secondary);
+    opacity: 0.8;
+  }
+
   .row.missing .name,
-  .row.missing .where {
+  .row.missing .where,
+  .row.missing .path {
     color: var(--text-secondary);
     text-decoration: line-through;
     opacity: 0.75;
@@ -171,6 +179,17 @@
   .tag.dirty {
     color: var(--status-modify);
     border-color: var(--status-modify);
+  }
+
+  /* Filled, unlike a branch name or the outlined states: the main worktree, and the open one. */
+  .tag.primary {
+    background: var(--surface-input);
+    color: var(--text-primary);
+  }
+
+  .tag.open {
+    color: var(--status-ref);
+    border-color: var(--status-ref);
   }
 
   .grow {

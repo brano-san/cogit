@@ -12,6 +12,9 @@ const TARGET: WorktreeEntry = {
   locked: null,
   missing: false,
   dirty: false,
+  changed: 0,
+  untracked: 0,
+  bare: false,
   hasSubmodules: false,
 };
 

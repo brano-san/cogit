@@ -296,6 +296,11 @@ export const commands = {
 	locked: string | null,
 	missing: boolean,
 	dirty: boolean,
+	/**  Changed paths, staged or not, each counted once; with `untracked`, what `dirty` sums. */
+	changed: number,
+	untracked: number,
+	/**  The main entry of a bare repository: a git directory with no files checked out. */
+	bare: boolean,
 	/**
 	 *  Submodules checked out in it: git removes such a worktree only with `--force`, which
 	 *  deletes their repositories too.
@@ -2545,6 +2550,11 @@ export type WorktreeEntry = {
 	locked: string | null,
 	missing: boolean,
 	dirty: boolean,
+	/**  Changed paths, staged or not, each counted once; with `untracked`, what `dirty` sums. */
+	changed: number,
+	untracked: number,
+	/**  The main entry of a bare repository: a git directory with no files checked out. */
+	bare: boolean,
 	/**
 	 *  Submodules checked out in it: git removes such a worktree only with `--force`, which
 	 *  deletes their repositories too.

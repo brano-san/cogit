@@ -2,9 +2,26 @@ import { shortOid } from "$lib/format";
 import type { Branch, FileEntry, WorktreeEntry } from "$lib/ipc";
 
 export interface WorktreeTag {
-  id: "main" | "locked" | "missing" | "dirty";
+  id: "primary" | "open" | "bare" | "locked" | "missing" | "dirty";
   label: string;
   tooltip: string;
+}
+
+/** The folder as the row shows it inline: from the main worktree's parent on, so siblings
+    and nested ones read short; elsewhere in full. The tooltip has the full path. */
+export function shortWorktreePath(path: string, mainPath: string | undefined): string {
+  const cut = mainPath?.lastIndexOf("/") ?? -1;
+  if (mainPath === undefined || cut <= 0) return path;
+  const parent = mainPath.slice(0, cut + 1);
+  return path.toLowerCase().startsWith(parent.toLowerCase()) ? `…/${path.slice(parent.length)}` : path;
+}
+
+/** `3 changed, 2 untracked`: what the bare `dirty` mark used to leave unsaid. */
+export function changeCounts(entry: WorktreeEntry): string {
+  const parts: string[] = [];
+  if (entry.changed > 0) parts.push(`${entry.changed} changed`);
+  if (entry.untracked > 0) parts.push(`${entry.untracked} untracked`);
+  return parts.length > 0 ? parts.join(", ") : "changes";
 }
 
 /** What the row says after the folder name: the branch, or where HEAD is detached. */
@@ -18,13 +35,19 @@ export function worktreeWhere(entry: WorktreeEntry): string {
 
 export function worktreeTags(entry: WorktreeEntry): WorktreeTag[] {
   const tags: WorktreeTag[] = [];
+  // Not "main": beside a branch called main or master it read as one more branch.
   if (entry.isMain) {
     tags.push({
-      id: "main",
-      label: "main",
-      tooltip:
-        "Main working copy: the folder that holds .git. It cannot be removed.",
+      id: "primary",
+      label: "primary",
+      tooltip: "Main worktree: the folder that holds the repository. It cannot be removed or moved.",
     });
+  }
+  if (entry.isCurrent) {
+    tags.push({ id: "open", label: "open", tooltip: "Open in Cogit: the panels show this worktree" });
+  }
+  if (entry.bare) {
+    tags.push({ id: "bare", label: "bare", tooltip: "Bare repository: no files are checked out here" });
   }
   if (entry.locked !== null) {
     tags.push({
@@ -40,15 +63,16 @@ export function worktreeTags(entry: WorktreeEntry): WorktreeTag[] {
       id: "missing",
       label: "missing",
       tooltip:
-        "Missing: the folder is not there. Prune forgets the registration; Repair points it " +
-        "at the folder's new place.",
+        (entry.locked === null
+          ? "Missing (prunable): the folder is not there. Prune forgets the registration; "
+          : "Missing: the folder is not there, and Git keeps a locked one until it is unlocked. ") +
+        "Repair points it at the folder's new place.",
     });
   } else if (entry.dirty) {
     tags.push({
       id: "dirty",
-      label: "dirty",
-      tooltip:
-        "Dirty: uncommitted changes in this worktree. Commit or stash them before removing it.",
+      label: changeCounts(entry),
+      tooltip: `Uncommitted changes: ${changeCounts(entry)}. Commit or stash them before removing it.`,
     });
   }
   return tags;

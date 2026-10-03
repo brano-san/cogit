@@ -17,6 +17,11 @@ pub struct WorktreeEntry {
     pub locked: Option<String>,
     pub missing: bool,
     pub dirty: bool,
+    /// Changed paths, staged or not, each counted once; with `untracked`, what `dirty` sums.
+    pub changed: u32,
+    pub untracked: u32,
+    /// The main entry of a bare repository: a git directory with no files checked out.
+    pub bare: bool,
     /// Submodules checked out in it: git removes such a worktree only with `--force`, which
     /// deletes their repositories too.
     pub has_submodules: bool,
@@ -105,6 +110,9 @@ impl RepoHandle {
                     locked,
                     missing: true,
                     dirty: false,
+                    changed: 0,
+                    untracked: 0,
+                    bare: false,
                     has_submodules: false,
                 },
             };
@@ -414,8 +422,14 @@ impl RepoHandle {
                 crate::Head::Unborn { .. } => {}
             }
         }
-        if let Ok(dirty) = handle.has_changes() {
-            entry.dirty = dirty;
+        // A linked worktree of a bare repository reads `core.bare = true` too.
+        entry.bare = is_main && handle.repo.is_bare();
+        match handle.change_counts() {
+            Ok((changed, untracked)) => {
+                (entry.changed, entry.untracked) = (changed, untracked);
+                entry.dirty = changed > 0 || untracked > 0;
+            }
+            Err(err) => tracing::error!(error = ?err, context = "count a worktree's changes"),
         }
         entry.has_submodules = !is_main && handle.checks_out_submodules();
         entry
@@ -467,6 +481,9 @@ fn unread(
             !path.join(".git").exists()
         },
         dirty: false,
+        changed: 0,
+        untracked: 0,
+        bare: false,
         has_submodules: false,
     }
 }
