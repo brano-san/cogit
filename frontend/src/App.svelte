@@ -3564,7 +3564,6 @@ ${event.error}`,
             oncontext={(entry, x, y) => void worktreeActions?.context(entry, x, y)}
             onprune={(entry) => void worktreeActions?.prune(entry)}
             onrepair={(entry) => void worktreeActions?.repair(entry)}
-            onadd={() => worktreeActions?.openAdd()}
           />
         </Panel>
       </div>

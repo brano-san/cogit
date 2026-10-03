@@ -17,11 +17,9 @@
     oncontext: (entry: WorktreeEntry, x: number, y: number) => void;
     onprune: (entry: WorktreeEntry) => void;
     onrepair: (entry: WorktreeEntry) => void;
-    onadd: () => void;
   }
 
-  let { entries, selected, onselect, onopen, oncontext, onprune, onrepair, onadd }: Props =
-    $props();
+  let { entries, selected, onselect, onopen, oncontext, onprune, onrepair }: Props = $props();
 
   let list: HTMLDivElement | undefined = $state();
   /** One switch for every list's banding, the graph's (#41). */
@@ -101,10 +99,8 @@
   {/each}
 
   {#if rows.length === 0}
-    <div class="empty">
-      <p>No linked worktrees.</p>
-      <button type="button" class="btn" onclick={onadd}>Add Worktree…</button>
-    </div>
+    <!-- One line: the header's Add… is the panel's one way to add (one action, one place). -->
+    <p class="empty truncate">No linked worktrees</p>
   {/if}
 </div>
 
@@ -202,31 +198,11 @@
   }
 
   .empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--sp-3);
-    padding: var(--sp-5);
+    margin: 0;
+    height: var(--h-row-dense);
+    line-height: var(--h-row-dense);
+    padding: 0 var(--sp-5);
     color: var(--text-secondary);
     font-size: var(--fs-dense);
-  }
-
-  .empty p {
-    margin: 0;
-  }
-
-  .btn {
-    height: var(--h-button-sm);
-    padding: 0 var(--sp-4);
-    background: var(--surface-input);
-    color: var(--text-primary);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-sm);
-    font-size: var(--fs-dense);
-    cursor: default;
-  }
-
-  .btn:hover {
-    border-color: var(--status-ref);
   }
 </style>
