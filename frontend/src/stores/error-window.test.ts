@@ -193,6 +193,21 @@ describe("a command that stops on conflicts", () => {
   });
 });
 
+describe("a warning of a repository named with the other slash", () => {
+  // The journal spells the root the way the OS does; the repository list normalizes it.
+  it("goes with the conflicts all the same", async () => {
+    vi.useFakeTimers();
+    commands.commandOutcome.mockResolvedValue(stash(6));
+    await errorWindow.command(event(6, { repo: "C:\\repos\\cogit", stoppedOnConflicts: true }));
+
+    vi.advanceTimersByTime(5_000);
+    errorWindow.conflictsResolved("C:/repos/cogit");
+
+    expect(errorWindow.warningPresent).toBe(false);
+    vi.useRealTimers();
+  });
+});
+
 describe("the queue the window reads and the footer and taskbar watch", () => {
   it("counts what nobody has had on screen yet", async () => {
     await errorWindow.command(event(1, { summary: "a" }));

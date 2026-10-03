@@ -46,6 +46,16 @@ beforeEach(() => {
   conflicts.clear();
 });
 
+describe("which repository the list was read for", () => {
+  it("is known after a read and forgotten when the panels change repository", async () => {
+    await conflicts.refresh(7 as never, []);
+    expect(conflicts.listedFor).toBe(7);
+    conflicts.clear();
+    expect(conflicts.listedFor).toBeNull();
+    expect(conflicts.paths).toEqual([]);
+  });
+});
+
 describe("opening one conflicted file after another", () => {
   it("never shows one file's regions under another file's name", async () => {
     const first = conflicts.open(1 as never, "a.txt");

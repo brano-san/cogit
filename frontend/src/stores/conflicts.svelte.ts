@@ -36,7 +36,9 @@ class ConflictStore {
   unsaved = $state(false);
   /** What rerere did with the conflicts listed; `null` while there are none (D6). */
   rerere = $state.raw<RerereStatus | null>(null);
-  #repo: RepoId | null = null;
+  /** The repository `paths` was read for; `null` until it is: an empty list after `clear()` is
+      "not read yet", not "no conflicts". */
+  listedFor = $state.raw<RepoId | null>(null);
 
   /** Opening a file takes two round trips. Without this, a slow answer for the file the
       user has moved on from lands on the file they are looking at now — and Save would
@@ -56,7 +58,7 @@ class ConflictStore {
     const paths = known ? [...known] : await conflictedPaths(repo);
     if (listing !== this.#listing) return;
     this.paths = paths;
-    this.#repo = repo;
+    this.listedFor = repo;
     const rerere = paths.length > 0 ? await rerereStatus(repo).catch(() => null) : null;
     if (listing !== this.#listing) return;
     this.rerere = rerere;
@@ -149,7 +151,7 @@ class ConflictStore {
 
   /** `git rerere forget`: the recorded resolution goes and the conflict markers come back. */
   async forget(path: string): Promise<void> {
-    const repo = this.#repo;
+    const repo = this.listedFor;
     if (!repo) return;
     try {
       await rerereForget(repo, [path]);
@@ -209,7 +211,7 @@ class ConflictStore {
     this.#cleared += 1;
     this.paths = [];
     this.rerere = null;
-    this.#repo = null;
+    this.listedFor = null;
     this.close();
   }
 }

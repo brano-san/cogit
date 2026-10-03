@@ -100,9 +100,11 @@ class ErrorWindowStore {
   /** Warnings of a repository whose conflicts are all resolved go away with them. */
   conflictsResolved(repo: string): void {
     const now = Date.now();
+    // The journal names the root with the OS's slashes, the repository list with `/`.
+    const same = (a: string, b: string) => a.replace(/\\/g, "/") === b.replace(/\\/g, "/");
     const stale = (entry: ErrorEntry) =>
       entry.kind === "warning" &&
-      entry.repo === repo &&
+      same(entry.repo, repo) &&
       now - (this.#born.get(entry.id) ?? 0) > FRESH_MS;
     if (!this.entries.some(stale)) return;
     this.entries = this.entries.filter((entry) => !stale(entry));

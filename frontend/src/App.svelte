@@ -3242,9 +3242,11 @@ ${event.error}`,
 
   // A warning about conflicts goes with the conflicts.
   $effect(() => {
-    const root = repository.current?.root;
-    const none = conflicts.paths.length === 0;
-    if (root && none) untrack(() => errorWindow.conflictsResolved(root));
+    const shown = repository.current;
+    // Only a list that was read for this repository says "resolved"; right after a switch
+    // the list is empty because it was cleared, and the warning is still true.
+    const none = conflicts.listedFor === shown?.repo && conflicts.paths.length === 0;
+    if (shown && none) untrack(() => errorWindow.conflictsResolved(shown.root));
   });
 
   // A warning is worth a glance, not a dismissal: every commit on Windows produces one
