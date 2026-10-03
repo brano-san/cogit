@@ -6,6 +6,7 @@ mod commit_window;
 mod diagnostics;
 mod errors_window;
 mod events;
+mod fatal;
 mod investigate_window;
 mod key_capture;
 mod logging;
@@ -371,6 +372,11 @@ pub fn export_bindings() -> anyhow::Result<()> {
         .map_err(|err| anyhow::anyhow!("failed to export IPC bindings: {err}"))
 }
 
+/// What `main` does with an error `run` returns; see `fatal`.
+pub fn report_fatal(err: &anyhow::Error) {
+    fatal::report(err.as_ref());
+}
+
 pub fn run() -> anyhow::Result<()> {
     // First: the environment is read once by everything that follows (portable build only).
     let portable = portable_mode::activate()?;
@@ -456,6 +462,9 @@ pub fn run() -> anyhow::Result<()> {
         })
         .invoke_handler(specta_builder.invoke_handler())
         .setup(move |app| {
+            // Tauri turns an `Err` from here into a panic with no window and, before the log
+            // exists, no trace; the reason is shown instead (SP-2).
+            let started = (|| -> Result<(), Box<dyn std::error::Error>> {
             #[cfg(target_os = "linux")]
             gtk::Window::set_default_icon_name(desktop_entry::APP_NAME);
             let (log_dir, config_dir) = match portable {
@@ -538,6 +547,15 @@ pub fn run() -> anyhow::Result<()> {
                 if chrome.web_menus {
                     window_chrome::hide_native_menu(&window);
                 }
+            }
+            Ok(())
+            })();
+            if let Err(err) = started {
+                fatal::report(err.as_ref());
+                if let Some(guard) = app.try_state::<logging::LogGuard>() {
+                    guard.finish();
+                }
+                std::process::exit(1);
             }
             Ok(())
         })
