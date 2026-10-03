@@ -188,6 +188,21 @@ impl RepoHandle {
     }
 
     fn read_bytes_with(&self, args: &[&str], env: &[(&str, &str)]) -> Result<Vec<u8>> {
+        self.read_bytes_fed(args, env, None)
+    }
+
+    /// `read_git` with `input` on stdin.
+    pub(crate) fn read_git_fed(&self, args: &[&str], input: &[u8]) -> Result<String> {
+        let stdout = self.read_bytes_fed(args, &[], Some(input))?;
+        Ok(String::from_utf8_lossy(&stdout).into_owned())
+    }
+
+    fn read_bytes_fed(
+        &self,
+        args: &[&str],
+        env: &[(&str, &str)],
+        input: Option<&[u8]>,
+    ) -> Result<Vec<u8>> {
         let command = redact_command(args);
         let started = std::time::Instant::now();
         let mut process = base_command(self.root(), true);
@@ -195,7 +210,11 @@ impl RepoHandle {
             process.env(key, value);
         }
         process.args(args);
-        let output = crate::children::output(&mut process).map_err(not_started)?;
+        let output = match input {
+            Some(bytes) => crate::children::output_fed(&mut process, bytes),
+            None => crate::children::output(&mut process),
+        }
+        .map_err(not_started)?;
         let duration_ms = elapsed_ms(started);
         tracing::debug!(%command, bytes = output.stdout.len(), duration_ms, "git read");
 

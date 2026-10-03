@@ -143,3 +143,29 @@ fn file_states_follow_gitattributes() {
     assert_eq!(found, [("a.psd", true), ("b.bin", false)]);
     assert!(states.iter().all(|s| s.lock.is_none()));
 }
+
+// The attributes of every path in one output: past the journal's trimming limit, a parse of
+// the journal's copy lost the paths from the middle and shifted the rest (GR-03).
+#[test]
+fn the_lfs_state_of_a_very_long_list_is_read_whole_and_not_journaled() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file(".gitattributes", "last.bin filter=lfs lockable\n")
+        .unwrap();
+    let lines = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let sink = std::sync::Arc::clone(&lines);
+    let repo = open(&f).with_journal(std::sync::Arc::new(move |out: git_engine::GitOutput| {
+        sink.lock().unwrap().push(out.command);
+    }));
+    let mut paths: Vec<String> = (0..30_000)
+        .map(|n| format!("some/long/directory/name/file-{n:05}.txt"))
+        .collect();
+    paths.push("last.bin".to_owned());
+
+    let states = repo.lfs_file_states(&paths).unwrap();
+
+    assert_eq!(states.len(), 1, "{states:?}");
+    assert_eq!(states[0].path, "last.bin");
+    assert!(states[0].lockable);
+    let journaled = lines.lock().unwrap().join("\n");
+    assert!(!journaled.contains("check-attr"), "{journaled}");
+}

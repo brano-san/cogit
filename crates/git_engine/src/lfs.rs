@@ -107,11 +107,11 @@ impl RepoHandle {
             input.extend_from_slice(path.as_bytes());
             input.push(0);
         }
-        let out = self.run_git_fed(
+        let out = self.read_git_fed(
             &["check-attr", "-z", "--stdin", "filter", "lockable"],
             &input,
         )?;
-        let mut states = parse_lfs_attrs(&out.stdout);
+        let mut states = parse_lfs_attrs(&out);
         if states.is_empty() {
             return Ok(states);
         }
