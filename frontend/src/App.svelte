@@ -479,8 +479,12 @@
   const COMMIT_MIN_PX = 126;
   let filesColumnHeight = $state(0);
   /** `--worktrees-panel-min` plus the splitter. */
-  const WORKTREES_MIN_PX = 98;
+  const WORKTREES_MIN_PX = 65;
   let leftColumnHeight = $state(0);
+  let reposColumnEl = $state<HTMLDivElement | null>(null);
+  /** The Repositories and Worktrees panes' minimums together: below them Worktrees slid
+      under Branches, header and all, so the splitter stops there. */
+  const reposColumnMinPx = () => (reposColumnEl ? parseFloat(getComputedStyle(reposColumnEl).minHeight) || 0 : 0);
   const graphMin = graphPanelMinWidth();
   let graphPane = $state<HTMLDivElement | null>(null);
   let topRowWidth = $state(0);
@@ -3463,6 +3467,9 @@ ${event.error}`,
       <div
         class="repos-column"
         class:grow={!shown.refs}
+        class:with-repos={shown.repositories}
+        class:with-worktrees={shown.worktrees}
+        bind:this={reposColumnEl}
         style:flex={shown.refs ? `0 0 ${fractions.repositories * 100}%` : undefined}
       >
       {#if shown.repositories}
@@ -3528,12 +3535,22 @@ ${event.error}`,
         >
           {#snippet actions()}
             {#if repo}
-              <button type="button" class="panel-act" title="Add Worktree…" onclick={() => worktreeActions?.openAdd()}
-                >Add…</button
+              <button
+                type="button"
+                class="panel-act worktrees-more"
+                title="Worktree actions"
+                aria-label="Worktree actions"
+                onclick={(event) => void worktreeActions?.headerMenu(event.currentTarget)}>⋯</button
               >
               <button
                 type="button"
-                class="panel-act"
+                class="panel-act worktrees-wide"
+                title="Add Worktree…"
+                onclick={() => worktreeActions?.openAdd()}>Add…</button
+              >
+              <button
+                type="button"
+                class="panel-act worktrees-wide"
                 disabled={!hasStale(worktrees.entries)}
                 title={hasStale(worktrees.entries)
                   ? "Forget every worktree whose folder is gone"
@@ -3559,7 +3576,8 @@ ${event.error}`,
         direction="horizontal"
         value={fractions.repositories}
         label="Resize repositories panel"
-        onchange={(d) => layout.nudge("repositories", d)}
+        onchange={(d) =>
+          layout.set("repositories", floorFraction(fractions.repositories + d, leftColumnHeight, reposColumnMinPx()))}
         onreset={() => layout.resetOne("repositories")}
       />
       {/if}
@@ -4322,8 +4340,40 @@ ${event.error}`,
     min-height: 0;
   }
 
+  /* The column keeps what its panes keep: squeezed below that, Worktrees slid under
+     Branches, header and all. */
+  .repos-column.with-repos {
+    min-height: calc(var(--h-panel-hdr) + 3 * var(--h-row-dense));
+  }
+
+  .repos-column.with-worktrees {
+    min-height: var(--worktrees-panel-min);
+  }
+
+  .repos-column.with-repos.with-worktrees {
+    min-height: calc(
+      var(--h-panel-hdr) + 3 * var(--h-row-dense) + var(--w-splitter) + var(--worktrees-panel-min)
+    );
+  }
+
   .worktrees-pane {
     min-height: var(--worktrees-panel-min);
+    container: worktrees / inline-size;
+  }
+
+  /* Too narrow for the title and both buttons: they fold into one menu button. */
+  .worktrees-more {
+    display: none;
+  }
+
+  @container worktrees (max-width: 240px) {
+    .worktrees-wide {
+      display: none;
+    }
+
+    .worktrees-more {
+      display: inline-block;
+    }
   }
 
   .panel-act {

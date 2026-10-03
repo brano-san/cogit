@@ -77,7 +77,8 @@
   --tree-next: var(--kind-icon);
   /* Header 28 + two message lines 50 + the Commit row 22 + padding and borders. */
   --commit-panel-min: 122px;
-  --worktrees-panel-min: 94px;
+  /* Header 28 + one row 22 + the list's padding 12 + borders 2: the header always stays. */
+  --worktrees-panel-min: 64px;
   /* The Files table (#33): the columns between the name and the path are fixed, so every
      path starts at one vertical; "Repository" fits the type. */
   --file-type-width: 64px;

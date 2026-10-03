@@ -1,6 +1,6 @@
 import type { ContextItem, WorktreeEntry } from "./ipc";
 import { SEPARATOR, item, offer, tidy } from "./context-menu";
-import { removable } from "./worktree-list";
+import { hasStale, removable } from "./worktree-list";
 
 /** Not `worktree-`: the palette's Remove Worktree… and Prune Obsolete Worktrees… are
     `worktree-remove` and `worktree-prune`, and a menu bar item must not land here. */
@@ -39,6 +39,15 @@ export function worktreeMenu(entry: WorktreeEntry): ContextItem[] {
     lock,
     item(id("remove"), "Remove…", removable(entry)),
   ]);
+}
+
+/** The header's buttons as one menu, for a panel too narrow to show them: the palette's own
+    ids, so the choice runs exactly what the palette runs. */
+export function worktreeHeaderMenu(entries: readonly WorktreeEntry[]): ContextItem[] {
+  return [
+    item("worktree-add", "Add Worktree…"),
+    offer("worktree-prune", "Prune All", hasStale(entries) ? null : "no worktree is missing"),
+  ];
 }
 
 export function parseWorktreeCommand(chosen: string): WorktreeCommand | null {

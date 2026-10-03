@@ -5,7 +5,7 @@
   import { popupContextMenu, type WorktreeBranch, type WorktreeEntry } from "$lib/ipc";
   import { revealOnDesktop } from "$lib/ipc/file-menus";
   import type { AddOrigin } from "$lib/worktree-add";
-  import { parseWorktreeCommand, worktreeMenu } from "$lib/worktree-menu";
+  import { parseWorktreeCommand, worktreeHeaderMenu, worktreeMenu } from "$lib/worktree-menu";
   import { removeWorktree, type RemovalHost } from "$lib/worktree-removal";
   import { commit } from "$stores/commit.svelte";
   import { confirmation } from "$stores/confirm.svelte";
@@ -121,6 +121,12 @@
   export async function context(entry: WorktreeEntry, x: number, y: number) {
     target = entry;
     await popupContextMenu(worktreeMenu(entry), x, y).catch(() => {});
+  }
+
+  /** Under the "⋯" button of a narrow header; the choice comes back as a palette command. */
+  export async function headerMenu(button: HTMLElement) {
+    const at = button.getBoundingClientRect();
+    await popupContextMenu(worktreeHeaderMenu(worktrees.entries), at.left, at.bottom).catch(() => {});
   }
 
   /** Returns true when the id belonged to a Worktrees row's menu and was handled here. */

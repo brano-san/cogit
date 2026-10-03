@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ContextItem, WorktreeEntry } from "./ipc";
-import { parseWorktreeCommand, pruneBlocked, worktreeMenu } from "./worktree-menu";
+import { parseWorktreeCommand, pruneBlocked, worktreeHeaderMenu, worktreeMenu } from "./worktree-menu";
 
 const LINKED: WorktreeEntry = {
   path: "D:/src/wt",
@@ -76,5 +76,20 @@ describe("a missing worktree that is locked", () => {
   it("offers no Unlock while it is not locked", () => {
     expect(find(worktreeMenu({ ...LINKED, missing: true }), "worktree-row-unlock")).toBeUndefined();
     expect(find(worktreeMenu({ ...LINKED, missing: true }), "worktree-row-prune")?.enabled).toBe(true);
+  });
+});
+
+// A narrow panel clipped its header buttons; they fold into one menu that runs the
+// palette's own commands.
+describe("the menu of a narrow Worktrees header", () => {
+  it("holds Add and Prune All as the palette's commands", () => {
+    const items = worktreeHeaderMenu([LINKED]);
+    expect(items.map((item) => item.id)).toEqual(["worktree-add", "worktree-prune"]);
+    expect(items.every((item) => parseWorktreeCommand(item.id) === null)).toBe(true);
+  });
+
+  it("turns Prune All off while nothing is missing", () => {
+    expect(find(worktreeHeaderMenu([LINKED]), "worktree-prune")?.enabled).toBe(false);
+    expect(find(worktreeHeaderMenu([{ ...LINKED, missing: true }]), "worktree-prune")?.enabled).toBe(true);
   });
 });
