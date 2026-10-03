@@ -1880,6 +1880,11 @@ ${event.error}`,
     flow.clear();
     if (!keepWorktrees) worktrees.clear();
     refs.clear();
+    compareView.clear();
+    protection = new Map();
+    headness = new Map();
+    // A path or author filter names the last repository's history, not the next one's.
+    graph.query = parseQuery("");
   }
 
   function forgetPanels() {
