@@ -98,8 +98,10 @@ pub fn read_config(path: &Path) -> Result<ConfigFile> {
 /// Written the way git writes it (R-483): into `config.lock`, taken exclusively, then
 /// renamed over the file. A `git config` in the middle of its own write keeps its lock and
 /// the save fails, instead of one of the two changes being lost. Checked in the lock, beside
-/// the file, so a relative `[include]` resolves as it will for real.
+/// the file, so a relative `[include]` resolves as it will for real. Like git, it writes
+/// through a symbolic link (the lock lies beside the target) and keeps the file's mode.
 pub fn save_config(path: &Path, text: &str, crlf: bool) -> Result<()> {
+    let path = &link_target(path);
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -127,6 +129,16 @@ pub fn save_config(path: &Path, text: &str, crlf: bool) -> Result<()> {
         let _ = std::fs::remove_file(&candidate);
         return Err(err.into());
     }
+    // A chmod after creating: the mode given to `open` is cut by the umask.
+    #[cfg(unix)]
+    if let Ok(meta) = std::fs::metadata(path) {
+        use std::os::unix::fs::PermissionsExt as _;
+        let mode = std::fs::Permissions::from_mode(meta.permissions().mode() & 0o7777);
+        if let Err(err) = std::fs::set_permissions(&candidate, mode) {
+            let _ = std::fs::remove_file(&candidate);
+            return Err(err.into());
+        }
+    }
 
     let checked = bare_git(&["config", "--file", &candidate.to_string_lossy(), "--list"]);
     let refusal = match checked {
@@ -147,6 +159,23 @@ pub fn save_config(path: &Path, text: &str, crlf: bool) -> Result<()> {
         let _ = std::fs::remove_file(&candidate);
         GitError::from(err)
     })
+}
+
+/// What git locks and replaces: the end of a chain of links (it follows five). Not
+/// `canonicalize`, whose `\\?\` path on Windows would go on into `git config --file`.
+fn link_target(path: &Path) -> PathBuf {
+    let mut path = path.to_path_buf();
+    for _ in 0..5 {
+        let is_link = std::fs::symlink_metadata(&path).is_ok_and(|meta| meta.is_symlink());
+        let Some(target) = is_link.then(|| std::fs::read_link(&path).ok()).flatten() else {
+            break;
+        };
+        path = match path.parent() {
+            Some(parent) => parent.join(target),
+            None => target,
+        };
+    }
+    path
 }
 
 /// A `git.exe` reading the file holds it without `FILE_SHARE_DELETE`, and Windows refuses

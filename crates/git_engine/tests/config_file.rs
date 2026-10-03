@@ -238,3 +238,66 @@ fn without_home_windows_falls_back_to_the_user_profile() {
     let path = user_config_by_rules(&|name| vars.get(name).cloned(), &|_| false);
     assert_eq!(path, PathBuf::from("C:/Users/ada/.gitconfig"));
 }
+
+#[cfg(unix)]
+#[test]
+fn a_save_keeps_the_mode_of_the_file() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("config");
+    std::fs::write(&path, "[core]\n\tbare = false\n").unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+
+    save_config(&path, "[core]\n\tbare = true\n", false).unwrap();
+
+    let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o600);
+    assert_eq!(
+        std::fs::read_to_string(&path).unwrap(),
+        "[core]\n\tbare = true\n"
+    );
+}
+
+/// False when the host refuses symbolic links (Windows without developer mode).
+fn link(target: &str, at: &std::path::Path) -> bool {
+    #[cfg(unix)]
+    let made = std::os::unix::fs::symlink(target, at);
+    #[cfg(windows)]
+    let made = std::os::windows::fs::symlink_file(target, at);
+    made.is_ok()
+}
+
+#[test]
+fn a_save_through_a_link_writes_the_target_and_keeps_the_link() {
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("target");
+    let at = dir.path().join("link");
+    std::fs::write(&target, "[core]\n\tbare = false\n").unwrap();
+    if !link("target", &at) {
+        return;
+    }
+
+    save_config(&at, "[core]\n\tbare = true\n", false).unwrap();
+
+    assert!(std::fs::symlink_metadata(&at).unwrap().is_symlink());
+    assert_eq!(
+        std::fs::read_to_string(&target).unwrap(),
+        "[core]\n\tbare = true\n"
+    );
+}
+
+#[test]
+fn a_link_is_locked_where_git_locks_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let at = dir.path().join("link");
+    std::fs::write(dir.path().join("target"), "[core]\n\tbare = false\n").unwrap();
+    std::fs::write(dir.path().join("target.lock"), "").unwrap();
+    if !link("target", &at) {
+        return;
+    }
+
+    let result = save_config(&at, "[core]\n\tbare = true\n", false);
+
+    assert!(result.is_err(), "{result:?}");
+    assert!(!dir.path().join("link.lock").exists());
+}
