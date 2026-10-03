@@ -26,7 +26,7 @@ impl RepoHandle {
         if options.autostash {
             args.push("--autostash");
         }
-        args.push(onto);
+        args.extend(["--end-of-options", onto]);
         self.run_git(&args).map(drop)
     }
 

@@ -30,7 +30,7 @@ impl RepoHandle {
             // The message comes from Cogit's own UI, never from a terminal editor (R-26).
             args.push("--no-edit");
         }
-        args.push(source);
+        args.extend(["--end-of-options", source]);
 
         self.run_git(&args).map(drop)
     }
