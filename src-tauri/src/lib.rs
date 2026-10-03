@@ -65,13 +65,26 @@ fn use_git_from_settings(config_dir: &std::path::Path) {
     git_engine::use_git_program(program.clone());
     // Off the start path: a program on a sleeping network share can hang `CreateProcess` for
     // tens of seconds, and the window waits for `setup`. The probe has its own timeout.
-    let spawned = std::thread::Builder::new()
+    let spawned = check_git_in_background(program, |program| {
+        git_engine::probe_git(
+            &program.to_string_lossy(),
+            std::time::Duration::from_secs(5),
+        )
+    });
+    if let Err(err) = spawned {
+        tracing::warn!(error = ?err, context = "cannot start the git check");
+    }
+}
+
+/// Returns at once; `probe` runs on its own thread and only logs what it finds.
+fn check_git_in_background(
+    program: PathBuf,
+    probe: impl FnOnce(&std::path::Path) -> git_engine::GitProbe + Send + 'static,
+) -> std::io::Result<std::thread::JoinHandle<()>> {
+    std::thread::Builder::new()
         .name("git-check".into())
         .spawn(move || {
-            let probe = git_engine::probe_git(
-                &program.to_string_lossy(),
-                std::time::Duration::from_secs(5),
-            );
+            let probe = probe(&program);
             match (probe.valid, probe.version, probe.error) {
                 (true, version, _) => {
                     tracing::info!(program = %program.display(), ?version, "git from Preferences");
@@ -80,10 +93,7 @@ fn use_git_from_settings(config_dir: &std::path::Path) {
                     tracing::error!(?error, context = "the git set in Preferences does not run");
                 }
             }
-        });
-    if let Err(err) = spawned {
-        tracing::warn!(error = ?err, context = "cannot start the git check");
-    }
+        })
 }
 
 /// Temp copies of an earlier run's merge tool sides: a crash left them behind.
@@ -649,4 +659,42 @@ fn eprintln_fallback(message: &str) {
     use std::io::Write as _;
     let mut stderr = std::io::stderr();
     let _ = writeln!(stderr, "[cogit] {message}");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Arc, mpsc};
+    use std::time::Duration;
+
+    // A git on a sleeping share hung `setup` before the window was shown. If the check ran on
+    // the calling thread, the probe would wait out its timeout for a release that comes only
+    // after the call returns.
+    #[test]
+    fn startup_does_not_wait_for_the_git_probe() {
+        let (release, wait) = mpsc::channel::<()>();
+        let released = Arc::new(AtomicBool::new(false));
+        let seen = Arc::clone(&released);
+        let handle = check_git_in_background(PathBuf::from("git"), move |_| {
+            seen.store(
+                wait.recv_timeout(Duration::from_secs(5)).is_ok(),
+                Ordering::SeqCst,
+            );
+            git_engine::GitProbe {
+                valid: true,
+                version: None,
+                error: None,
+                older_than: None,
+            }
+        })
+        .unwrap();
+
+        release.send(()).unwrap();
+        handle.join().unwrap();
+        assert!(
+            released.load(Ordering::SeqCst),
+            "the probe ran before the call returned"
+        );
+    }
 }
