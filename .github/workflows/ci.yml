@@ -68,6 +68,9 @@ jobs:
       - name: No color literals outside the theme files
         run: npm --prefix frontend run check:colors
 
+      - name: CI script tests
+        run: node --test "scripts/ci/*.test.mjs"
+
       # A failure is also printed as ONE annotation with every failed test and its panic
       # message: the job log needs admin rights to download, the annotations of a public
       # repository do not, and a step shows only 10 of them.

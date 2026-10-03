@@ -227,6 +227,11 @@ jobs:
       VERSION: ${{ needs.meta.outputs.version }}
       PRERELEASE: ${{ needs.meta.outputs.prerelease }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ needs.meta.outputs.tag }}
+          sparse-checkout: scripts/ci
+
       - uses: actions/download-artifact@v4
         with:
           pattern: installers-*
@@ -237,20 +242,8 @@ jobs:
         shell: bash
         working-directory: dist
         run: |
-          # latest.json is what the app's updater endpoint reads; an entry needs its updater signature.
-          win=$(ls *-setup.exe.sig 2>/dev/null | head -n1 || true)
-          lin=$(ls *.AppImage.sig 2>/dev/null | head -n1 || true)
-          if [ -n "$win$lin" ]; then
-            base="https://github.com/$GH_REPO/releases/download/$TAG"
-            jq -n --arg v "$VERSION" --arg d "$(date -u +%FT%TZ)" \
-              --arg ws "$([ -n "$win" ] && cat "$win")" --arg wu "$base/${win%.sig}" \
-              --arg ls "$([ -n "$lin" ] && cat "$lin")" --arg lu "$base/${lin%.sig}" \
-              '{version: $v, notes: "", pub_date: $d, platforms:
-                 ((if $ws != "" then {"windows-x86_64": {signature: $ws, url: $wu}} else {} end) +
-                  (if $ls != "" then {"linux-x86_64": {signature: $ls, url: $lu}} else {} end))}' > latest.json
-          else
-            echo "::notice::No updater signature: latest.json is not published"
-          fi
+          # latest.json is what the app's updater endpoint reads (one key per installer, see the script).
+          node ../scripts/ci/updater-manifest.mjs . "$VERSION" "https://github.com/$GH_REPO/releases/download/$TAG"
           sha256sum -- * > ../SHA256SUMS.txt
           mv ../SHA256SUMS.txt .
           cat SHA256SUMS.txt
