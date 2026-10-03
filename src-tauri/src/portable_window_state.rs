@@ -69,6 +69,13 @@ impl Saved {
         }
     }
 
+    /// What the window is now. Kept up to date by every move and resize, so that a window
+    /// destroyed without a close request (the end of a Windows session) is still saved as it was.
+    fn mode(&mut self, maximized: bool, fullscreen: bool) {
+        self.maximized = maximized;
+        self.fullscreen = fullscreen;
+    }
+
     fn resized(&mut self, width: u32, height: u32) {
         if width > 0 && height > 0 {
             self.width = width;
@@ -90,6 +97,12 @@ pub fn read(path: &Path) -> HashMap<String, Saved> {
 pub fn write(path: &Path, states: &HashMap<String, Saved>) -> std::io::Result<()> {
     let text = serde_json::to_vec_pretty(states).map_err(std::io::Error::other)?;
     std::fs::write(path, text)
+}
+
+fn save(path: &Path, states: &HashMap<String, Saved>) {
+    if let Err(err) = write(path, states) {
+        tracing::error!(error = ?err, path = %path.display(), context = "cannot save the window state");
+    }
 }
 
 fn restore(window: &WebviewWindow, saved: &Saved) -> tauri::Result<()> {
@@ -133,14 +146,28 @@ pub fn install(window: &WebviewWindow, path: PathBuf) {
         let Some(state) = states.get_mut(&label) else {
             return;
         };
+        let (maximized, fullscreen) = (
+            tracked.is_maximized().unwrap_or_default(),
+            tracked.is_fullscreen().unwrap_or_default(),
+        );
         match event {
             // Not `normal`: tao reports the move that maximizes before it sets the flag, so the
             // position before it must be shifted into `prev_*` (see `restore_position`).
-            WindowEvent::Moved(position) if !minimized => state.moved(position.x, position.y),
-            WindowEvent::Resized(size) if normal => state.resized(size.width, size.height),
+            WindowEvent::Moved(position) if !minimized => {
+                state.mode(maximized, fullscreen);
+                state.moved(position.x, position.y);
+            }
+            WindowEvent::Resized(size) if !minimized => {
+                state.mode(maximized, fullscreen);
+                if normal {
+                    state.resized(size.width, size.height);
+                }
+            }
+            // The session of Windows ends with `destroy()`, which sends no close request; the
+            // window can no longer be asked anything here, so what the events kept is written.
+            WindowEvent::Destroyed => save(&path, &states),
             WindowEvent::CloseRequested { .. } => {
-                state.maximized = tracked.is_maximized().unwrap_or_default();
-                state.fullscreen = tracked.is_fullscreen().unwrap_or_default();
+                state.mode(maximized, fullscreen);
                 if normal {
                     if let Ok(size) = tracked.inner_size() {
                         state.resized(size.width, size.height);
@@ -149,9 +176,7 @@ pub fn install(window: &WebviewWindow, path: PathBuf) {
                         state.moved(at.x, at.y);
                     }
                 }
-                if let Err(err) = write(&path, &states) {
-                    tracing::error!(error = ?err, path = %path.display(), context = "cannot save the window state");
-                }
+                save(&path, &states);
             }
             _ => {}
         }
@@ -218,6 +243,25 @@ mod tests {
         saved.moved(100, 100);
         saved.moved(30, 40);
         assert_eq!(saved.restore_position(), (30, 40));
+    }
+
+    // `destroy()` at the end of a Windows session sends no close request: the file is
+    // written from what the move and resize events kept.
+    #[test]
+    fn a_window_maximized_since_its_last_event_is_saved_maximized() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE);
+        let mut saved = Saved::default();
+        saved.resized(800, 600);
+        saved.moved(100, 100);
+        saved.moved(-8, -8);
+        saved.mode(true, false);
+        save(&path, &HashMap::from([("main".to_owned(), saved)]));
+
+        let back = &read(&path)["main"];
+        assert!(back.maximized);
+        assert_eq!(back.restore_position(), (100, 100));
+        assert_eq!((back.width, back.height), (800, 600));
     }
 
     #[test]
