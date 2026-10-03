@@ -330,7 +330,7 @@ describe("relativeDate", () => {
   const at = (seconds: number) => relativeDate(NOW - seconds, 0, NOW);
 
   it("calls the last minute just now", () => {
-    expect(at(30)).toBe("just now");
+    expect(at(30)).toBe("Just now");
   });
 
   it("counts whole minutes", () => {
@@ -350,7 +350,7 @@ describe("relativeDate", () => {
   });
 
   it("does not claim a future commit happened in the past", () => {
-    expect(relativeDate(NOW + 600, 0, NOW)).toBe("just now");
+    expect(relativeDate(NOW + 600, 0, NOW)).toBe("Just now");
   });
 });
 
@@ -413,11 +413,11 @@ describe("smartDate", () => {
   const now = Date.UTC(2026, 8, 17, 12, 0, 0) / 1000;
 
   it("calls the same calendar day today", () => {
-    expect(smartDate(now - 3600, 0, now)).toBe("today");
+    expect(smartDate(now - 3600, 0, now)).toBe("Today");
   });
 
   it("calls the day before yesterday", () => {
-    expect(smartDate(now - DAY, 0, now)).toBe("yesterday");
+    expect(smartDate(now - DAY, 0, now)).toBe("Yesterday");
   });
 
   it("names the weekday inside the last week", () => {
@@ -439,7 +439,7 @@ describe("smartDate", () => {
   it("reads the day boundary in the commit's own timezone", () => {
     // 23:30 in UTC+3 is still the same day there, though it is 20:30 UTC.
     const late = Date.UTC(2026, 8, 17, 20, 30, 0) / 1000;
-    expect(smartDate(late, 180, now)).toBe("today");
+    expect(smartDate(late, 180, now)).toBe("Today");
   });
 });
 
@@ -448,7 +448,7 @@ describe("displayDate", () => {
   const yesterday = now - 86_400;
 
   it("shows the smart form alone", () => {
-    expect(displayDate(yesterday, 0, now, "smart")).toBe("yesterday");
+    expect(displayDate(yesterday, 0, now, "smart")).toBe("Yesterday");
   });
 
   it("shows the elapsed form alone", () => {
@@ -456,7 +456,7 @@ describe("displayDate", () => {
   });
 
   it("shows both, smart first", () => {
-    expect(displayDate(yesterday, 0, now, "both")).toBe("yesterday · 1 day ago");
+    expect(displayDate(yesterday, 0, now, "both")).toBe("Yesterday · 1 day ago");
   });
 });
 

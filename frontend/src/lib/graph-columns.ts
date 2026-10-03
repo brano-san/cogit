@@ -49,7 +49,7 @@ export function moveColumn(rows: readonly ColumnRow[], from: number, to: number)
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-/** `date` is what the column always showed: today, yesterday, the weekday, then DD-MM-YY. */
+/** `date` is what the column always showed: Today, Yesterday, the weekday, then DD-MM-YY. */
 export function graphTime(
   timestamp: number,
   offsetMinutes: number,

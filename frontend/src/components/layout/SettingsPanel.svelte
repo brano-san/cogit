@@ -79,9 +79,9 @@
 
   // Labelled by example: the setting is about what the row will read, not about a term.
   const DATE_FORMATS = [
-    ["smart", "yesterday · Tuesday · 09-09-26"],
+    ["smart", "Yesterday · Tuesday · 09-09-26"],
     ["relative", "3 days ago"],
-    ["both", "yesterday · 1 day ago"],
+    ["both", "Yesterday · 1 day ago"],
   ] as const;
 
   const ALGORITHMS = [

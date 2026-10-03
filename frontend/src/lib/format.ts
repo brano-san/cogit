@@ -156,7 +156,7 @@ const UNITS: [seconds: number, unit: string][] = [
 
 /** Spelled out here, not by `Intl`: the text must not depend on the locale or the ICU data
     the webview has (WebKitGTK under `LANG=C`), and English is all the UI speaks. Always the
-    elapsed time: "yesterday" belongs to the smart format. The offset is ignored: an elapsed
+    elapsed time: "Yesterday" belongs to the smart format. The offset is ignored: an elapsed
     time is the same number in every timezone. */
 export function relativeDate(timestamp: number, _offsetMinutes: number, now: number): string {
   const elapsed = now - timestamp;
@@ -164,7 +164,7 @@ export function relativeDate(timestamp: number, _offsetMinutes: number, now: num
     const count = Math.floor(elapsed / seconds);
     if (count >= 1) return `${count} ${unit}${count === 1 ? "" : "s"} ago`;
   }
-  return "just now";
+  return "Just now";
 }
 
 /** A branch and a tag may share a name on one commit, so the text alone repeats. */
@@ -224,8 +224,8 @@ export function shortDate(timestamp: number, offsetMinutes: number): string {
     machine reading it. Anything older than a week gets a date instead of a weekday. */
 export function smartDate(timestamp: number, offsetMinutes: number, now: number): string {
   const elapsed = dayNumber(now, offsetMinutes) - dayNumber(timestamp, offsetMinutes);
-  if (elapsed === 0) return "today";
-  if (elapsed === 1) return "yesterday";
+  if (elapsed === 0) return "Today";
+  if (elapsed === 1) return "Yesterday";
   if (elapsed > 1 && elapsed < 7) {
     const shifted = new Date((timestamp + offsetMinutes * 60) * 1000);
     return WEEKDAYS[shifted.getUTCDay()] ?? shortDate(timestamp, offsetMinutes);

@@ -76,12 +76,12 @@ describe("graphTime", () => {
   });
 
   it("shows the date the column always showed for date", () => {
-    expect(graphTime(yesterday, 0, now, "date")).toBe("yesterday");
+    expect(graphTime(yesterday, 0, now, "date")).toBe("Yesterday");
     expect(graphTime(old, 0, now, "date")).toBe("09-09-26");
   });
 
   it("adds the clock time in the commit's own timezone for dateTime", () => {
-    expect(graphTime(yesterday, 0, now, "dateTime")).toBe("yesterday 14:05");
+    expect(graphTime(yesterday, 0, now, "dateTime")).toBe("Yesterday 14:05");
     expect(graphTime(old, 120, now, "dateTime")).toBe("09-09-26 10:30");
   });
 });
@@ -112,6 +112,6 @@ describe("graphTime without a usable locale", () => {
     vi.spyOn(Date.prototype, "toLocaleString").mockReturnValue("");
     const actual = formats.map((format) => graphTime(today, 180, now, format));
     expect(actual).toEqual(expected);
-    expect(actual).toEqual(["2 hours ago", "today", "today 12:07"]);
+    expect(actual).toEqual(["2 hours ago", "Today", "Today 12:07"]);
   });
 });

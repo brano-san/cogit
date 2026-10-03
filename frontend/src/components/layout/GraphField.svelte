@@ -29,8 +29,8 @@
 
   const TIME_FORMATS = [
     ["relative", "3 days ago"],
-    ["date", "yesterday · Tuesday · 09-09-26"],
-    ["dateTime", "yesterday 14:05 · 09-09-26 14:05"],
+    ["date", "Yesterday · Tuesday · 09-09-26"],
+    ["dateTime", "Yesterday 14:05 · 09-09-26 14:05"],
   ] as const;
 
   const DENSITIES = [
