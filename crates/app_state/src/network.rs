@@ -1,7 +1,7 @@
 //! The commands that talk to a remote. Credentials never appear here: the system `git`
 //! asks its own helper, and the token this looks up is only for the hosting API.
 
-use crate::{AppState, RepoId, host_of};
+use crate::{AppState, RepoId, token_host};
 use git_engine::NetworkStop;
 
 /// A network command running as one queue operation; `cancel_network` finds it until
@@ -176,12 +176,12 @@ impl AppState {
         handle.push_refspec(remote, refspec, track, |url| self.token_for(url), on_line)
     }
 
-    /// Only for an HTTP remote: SSH already authenticates through the agent, and handing
+    /// Only for an HTTPS remote: SSH already authenticates through the agent, and handing
     /// a token to an unknown host would leak it.
     pub(crate) fn token_for(&self, url: &str) -> Option<String> {
         if !git_engine::wants_auth(url) {
             return None;
         }
-        self.secrets.get(&host_of(url)?)
+        self.secrets.get(&token_host(url)?)
     }
 }

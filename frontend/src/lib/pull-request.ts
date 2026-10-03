@@ -85,8 +85,11 @@ export function needsPush(branch: PullRequestBranch): boolean {
   return branch.upstream === null || branch.ahead > 0;
 }
 
-/** The key a token is stored under. SSH has none: the agent already authenticates it. */
+/**
+ * The key a token is stored under, as `app_state::token_host` reads it. HTTPS only: SSH has
+ * none (the agent authenticates it) and a token is never sent over plain HTTP.
+ */
 export function authHost(url: string | null | undefined): string | null {
-  const match = url?.match(/^https?:\/\/(?:[^@/]+@)?([\w.-]+)(?::\d+)?(?:\/|$)/);
+  const match = url?.match(/^https:\/\/(?:[^/]*@)?([\w.-]+)(?::\d+)?(?:\/|$)/);
   return match?.[1] ?? null;
 }

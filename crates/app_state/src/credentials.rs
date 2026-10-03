@@ -101,6 +101,16 @@ pub fn platform_store() -> Box<dyn SecretStore> {
     }
 }
 
+/// The key a stored token is read under: HTTPS only (over `http://` it would cross the
+/// network in clear), and a short name such as `gitlab` counts as a host.
+pub fn token_host(url: &str) -> Option<String> {
+    let rest = url.strip_prefix("https://")?;
+    let authority = rest.split(['/', '?', '#']).next()?;
+    let host = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
+    let host = host.split_once(':').map_or(host, |(h, _)| h);
+    (!host.is_empty()).then(|| host.to_owned())
+}
+
 /// The key a remote's token is stored under. `None` for a path, which needs no token.
 pub fn host_of(url: &str) -> Option<String> {
     let after_scheme = url.split_once("://").map(|(_, rest)| rest);

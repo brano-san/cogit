@@ -99,6 +99,15 @@ describe("authHost", () => {
     expect(authHost("https://git.example.com:8443/o/r.git")).toBe("git.example.com");
   });
 
+  it("keeps a host without a dot and cuts at the last @", () => {
+    expect(authHost("https://gitlab/g/x.git")).toBe("gitlab");
+    expect(authHost("https://a@b@host/x")).toBe("host");
+  });
+
+  it("has no host for plain HTTP, which never carries a token", () => {
+    expect(authHost("http://git.example.com/o/r.git")).toBeNull();
+  });
+
   it("has no host for SSH, which authenticates through the agent", () => {
     expect(authHost("git@github.com:owner/repo.git")).toBeNull();
     expect(authHost("ssh://git@github.com/o/r.git")).toBeNull();

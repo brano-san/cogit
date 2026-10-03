@@ -1,7 +1,7 @@
 // clippy.toml's allow-unwrap-in-tests does not reach helpers beside `#[test]` fns.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use app_state::{MemoryStore, SecretStore, host_of};
+use app_state::{MemoryStore, SecretStore, host_of, token_host};
 
 #[test]
 fn a_stored_secret_comes_back() {
@@ -90,4 +90,25 @@ fn a_port_is_not_part_of_the_host() {
 fn a_local_path_has_no_host() {
     assert!(host_of("/srv/git/repo.git").is_none());
     assert!(host_of("C:/work/repo").is_none());
+}
+
+#[test]
+fn a_stored_token_is_for_https_only() {
+    assert_eq!(token_host("http://git.corp.example/r.git"), None);
+    assert_eq!(
+        token_host("https://git.corp.example/r.git").as_deref(),
+        Some("git.corp.example")
+    );
+}
+
+#[test]
+fn a_host_without_a_dot_has_a_token_host() {
+    assert_eq!(
+        token_host("https://gitlab/x.git").as_deref(),
+        Some("gitlab")
+    );
+    assert_eq!(token_host("https://tfs:8080/x").as_deref(), Some("tfs"));
+    assert_eq!(token_host("https://a@b@host/x").as_deref(), Some("host"));
+    assert_eq!(token_host("git@github.com:o/r.git"), None);
+    assert_eq!(token_host("ssh://git@github.com/o/r.git"), None);
 }

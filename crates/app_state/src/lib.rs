@@ -50,7 +50,7 @@ mod staging;
 
 pub use avatars::{Author, AvatarRow, Avatars};
 pub use credentials::{
-    KeyringStore, MemoryStore, SecretError, SecretStore, host_of, platform_store,
+    KeyringStore, MemoryStore, SecretError, SecretStore, host_of, platform_store, token_host,
 };
 pub use graph_cache::{GraphProgress, GraphWindow, PROGRESS_EVERY, throttled};
 pub use journal::{CommandNotice, CommandRow, command_log_text, command_rows, is_warning, record};
