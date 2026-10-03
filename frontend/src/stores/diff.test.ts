@@ -58,6 +58,30 @@ describe("diff store", () => {
     expect(commands.diffFile).not.toHaveBeenCalled();
   });
 
+  // The watcher is quiet right after our own writes: an edit by somebody else made during
+  // the mutation reaches an open diff of another file only through this (W-06).
+  it("re-reads the diff of a file the mutation did not touch", async () => {
+    await diff.load(REPO, SPEC, "untouched.txt");
+    commands.diffFile.mockClear();
+
+    await diff.afterWrite(["other.txt"]);
+
+    expect(diff.path).toBe("untouched.txt");
+    expect(commands.diffFile).toHaveBeenCalledOnce();
+  });
+
+  it("re-reads once when the file was one of the paths, and not at all when the pass does it", async () => {
+    await diff.load(REPO, SPEC, "staged.txt");
+    commands.diffFile.mockClear();
+
+    await diff.afterWrite(["staged.txt"]);
+    expect(commands.diffFile).toHaveBeenCalledOnce();
+
+    commands.diffFile.mockClear();
+    await diff.afterWrite(["other.txt"], false);
+    expect(commands.diffFile).not.toHaveBeenCalled();
+  });
+
   it("re-diffs the shown file instead of blanking the panel", async () => {
     await diff.load(REPO, SPEC, "staged.txt");
     commands.diffFile.mockClear();

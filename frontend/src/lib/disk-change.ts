@@ -14,6 +14,11 @@ export type DiskPlan = {
   cascade: boolean;
 };
 
+/** What F5 asks for: the answer to a watcher that lost its queue — every panel is re-read,
+    files and diff included, not only the refs (the set the backend raises for an overflow,
+    W-02). */
+export const EVERYTHING: readonly ChangeKind[] = ["head", "index", "refs", "workingTree", "stash", "config"];
+
 /**
  * One `git commit` writes the index, the working tree, HEAD and a ref, and the watcher
  * reports each separately. Running the whole cascade per event meant three

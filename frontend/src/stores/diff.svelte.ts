@@ -219,6 +219,15 @@ class DiffStore {
     await this.#rediff();
   }
 
+  /** After a mutation: the shown file is re-diffed when it was one of `paths`; any other
+      open diff of the working tree is re-read from disk too (`rereadOthers`), since the
+      watcher is quiet right after our own writes and somebody else's edit made meanwhile
+      would never reach it (W-06). A pass that re-reads the diff itself passes `false`. */
+  afterWrite(paths: readonly string[], rereadOthers = true): Promise<void> {
+    if (this.path !== null && paths.includes(this.path)) return this.dropIfAffected(paths);
+    return rereadOthers ? this.refreshFromDisk() : Promise.resolve();
+  }
+
   /** The watcher saw the working tree, the index or HEAD move: a diff that reads any of
       them is out of date, and Stage would cut its patch from the old hunks. A diff between
       two commits cannot change. */

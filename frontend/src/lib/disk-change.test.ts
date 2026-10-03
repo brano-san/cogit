@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { planFor } from "./disk-change";
+import { EVERYTHING, planFor } from "./disk-change";
+
+describe("F5", () => {
+  it("is a full pass: refs, file lists, diff and the whole cascade", () => {
+    expect(planFor(EVERYTHING)).toEqual({ refs: true, worktree: true, hooks: false, authors: false, cascade: true });
+  });
+});
 
 describe("planFor", () => {
   it("asks for nothing when nothing changed", () => {

@@ -244,6 +244,7 @@
   import { droppedRepositories, openDropped } from "$lib/drop-open";
   import { connect } from "$lib/wiring";
   import { commitFailureTitle } from "$lib/commit-draft";
+  import { EVERYTHING } from "$lib/disk-change";
   import { runDiskPass } from "$lib/disk-pass";
   import { DiskPasses } from "$lib/disk-refresh";
   import { clear as freshen, mark as markStale } from "$lib/staleness";
@@ -606,8 +607,8 @@
   }
 
   /** `state`: the counters from a file-list read made just before, so one walk serves both. */
-  async function afterMutation(paths: string[] = [], state: WorkingState | null = null) {
-    diff.dropIfAffected(paths);
+  async function afterMutation(paths: string[] = [], state: WorkingState | null = null, rereadDiff = true) {
+    void diff.afterWrite(paths, rereadDiff);
     const id = repository.current?.repo;
     const conflicted = state && id ? repository.applyState(id, state) : await repository.refreshStatus();
     // One store that cannot read must not cancel the others, nor the diff and the graph
@@ -724,7 +725,9 @@
     "split-off": () => void openSplit(),
     rollback: () => void rollbackFiles([]),
     close: () => void closeCurrent(),
-    refresh: () => void repository.refresh(),
+    refresh: () => {
+      for (const kind of EVERYTHING) diskPasses.add(kind);
+    },
     branch: () => void runBannerAction("createBranch"),
     "reset-layout": () => layout.reset(),
     overlap: () => overlap.toggle(),
@@ -1014,7 +1017,8 @@ ${event.error}`,
         refreshHooks: (id) => void hooks.refresh(id),
         loadWorktree: (id) => worktree.load(id),
         refreshWorktrees: (id) => void worktrees.refresh(id),
-        afterMutation: (state) => afterMutation([], state),
+        // `refreshDiff` follows and reads the diff itself.
+        afterMutation: (state) => afterMutation([], state, false),
         refreshDiff: () => diff.refreshFromDisk(),
         reselectCommit: (id) => {
           if (commit.oid) void commit.select(id, commit.oid);
