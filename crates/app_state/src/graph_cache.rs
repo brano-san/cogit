@@ -176,6 +176,8 @@ struct Graph {
     complete: bool,
     /// The graph this walk replaces: still served by its generation until this one ends.
     base: Option<Shown>,
+    /// What `base`'s rows count toward the budget; its texts and paint are counted live.
+    base_bytes: usize,
     /// Leading rows equal to `base`'s, and whether a row that differs has come yet.
     kept: u32,
     parted: bool,
@@ -196,6 +198,19 @@ impl Graph {
         self.bytes
             + self.shown.texts.as_ref().map_or(0, |t| t.lock().bytes)
             + self.shown.paint.lock().bytes()
+            + self.base.as_ref().map_or(0, |base| {
+                let texts = base
+                    .texts
+                    .as_ref()
+                    .filter(|t| {
+                        self.shown
+                            .texts
+                            .as_ref()
+                            .is_none_or(|own| !Arc::ptr_eq(t, own))
+                    })
+                    .map_or(0, |t| t.lock().bytes);
+                self.base_bytes + texts + base.paint.lock().bytes()
+            })
             + self
                 .unfiltered
                 .as_ref()
@@ -536,6 +551,7 @@ impl AppState {
             let used = cache.tick();
             let walks = Arc::clone(&cache.walks);
             let mut base = None;
+            let mut base_bytes = 0;
             let mut source = None;
             let mut list = None;
             if let Some(graph) = cache.graphs.get_mut(&repo) {
@@ -567,6 +583,11 @@ impl AppState {
                     return Ok(skipped);
                 }
                 base = graph.reusable();
+                base_bytes = if graph.complete {
+                    graph.bytes
+                } else {
+                    graph.base_bytes
+                };
                 // A filtered list copies little: the graph it keeps holds the whole history.
                 source = graph
                     .unfiltered
@@ -601,6 +622,7 @@ impl AppState {
                 ended: false,
                 complete: false,
                 base,
+                base_bytes,
                 kept: 0,
                 parted,
                 bytes: 0,
@@ -677,6 +699,7 @@ impl AppState {
                 graph.bytes += record.bytes();
                 Arc::make_mut(&mut graph.shown.laid).history = record;
                 graph.base = None;
+                graph.base_bytes = 0;
                 prefill = prefill_of(&graph.shown, &walks, Arc::downgrade(&self.graph));
                 tracing::info!(
                     repo = repo.0,

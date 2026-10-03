@@ -333,6 +333,26 @@ fn texts_read_ahead_push_an_older_graph_out_of_a_full_cache() {
     assert!(evicted_soon(&state, ra, shown_a));
 }
 
+/// A walk stopped after its first chunk still holds the graph it would have copied from.
+#[test]
+fn a_stopped_walk_counts_the_graph_it_replaces() {
+    let a = test_fixtures::linear(300).unwrap();
+    let state = AppState::new();
+    let ra = state.open_repository(a.path()).unwrap().repo;
+    build(&state, ra);
+    assert!(texts_reach(&state, ra, 300));
+    let whole = state.graph_footprint(ra);
+
+    a.commit_file(400, "new.txt", "new\n").unwrap();
+    state
+        .build_graph(ra, &CommitQuery::default(), state.begin_graph(), 4, |_| {
+            false
+        })
+        .unwrap();
+
+    assert!(state.graph_footprint(ra) >= whole);
+}
+
 /// Switching back is answered from the cache, and a cache over its budget is trimmed then.
 #[test]
 fn a_graph_answered_from_the_cache_trims_the_cache_too() {
