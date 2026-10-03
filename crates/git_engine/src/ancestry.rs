@@ -11,6 +11,9 @@ impl RepoHandle {
         if head == target {
             return Ok(true);
         }
+        if let Some(reached) = self.reaches_in_process(head, target) {
+            return Ok(reached);
+        }
         match self.repo.merge_base(target, head) {
             Ok(base) => Ok(base.detach() == target),
             Err(_) => Ok(false),

@@ -26,6 +26,15 @@ impl RepoHandle {
         reaches(&mut walker, tips, target, floor)
     }
 
+    /// Whether `head` reaches `target`, pruned by generation numbers. `None` without a
+    /// commit-graph, where `merge_base` serves better than the walk from the floor.
+    pub(crate) fn reaches_in_process(&self, head: ObjectId, target: ObjectId) -> Option<bool> {
+        let cache = self.commit_graph()?;
+        let mut walker: Walker<'_, '_> = self.repo.revision_graph(Some(&cache));
+        let floor = generation_floor(&mut walker, target)?;
+        reaches(&mut walker, vec![head], target, floor)
+    }
+
     /// `git for-each-ref --format=%(refname:short) --contains <rev> refs/remotes/` without
     /// spawning git: the same refs, in its order, under its short names. `None` on the
     /// terms of [`RepoHandle::published_in_process`].

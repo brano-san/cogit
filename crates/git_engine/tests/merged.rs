@@ -34,6 +34,22 @@ fn a_branch_merged_earlier_is_in_head() {
     assert!(open(&f).is_merged_into_head("dev").unwrap());
 }
 
+/// With a commit-graph the answer comes from the generation-pruned walk; it must stay git's.
+#[test]
+fn with_a_commit_graph_every_commit_is_judged_as_git_judges_it() {
+    let f = test_fixtures::branched().unwrap();
+    f.git(&["merge", "--no-ff", "-m", "merge dev~1", "dev~1"])
+        .unwrap();
+    f.git(&["commit-graph", "write", "--reachable"]).unwrap();
+    let repo = open(&f);
+    let all = f.git(&["rev-list", "--all"]).unwrap();
+    assert_eq!(all.lines().count(), 5);
+    for oid in all.lines() {
+        let git_says = f.git(&["merge-base", "--is-ancestor", oid, "HEAD"]).is_ok();
+        assert_eq!(repo.is_merged_into_head(oid).unwrap(), git_says, "{oid}");
+    }
+}
+
 #[test]
 fn an_unknown_revision_is_an_error() {
     let f = test_fixtures::branched().unwrap();
