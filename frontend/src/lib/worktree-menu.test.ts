@@ -51,6 +51,7 @@ describe("the menu of a Worktrees row", () => {
   it("offers Unlock instead of Lock once it is locked", () => {
     const items = worktreeMenu({ ...LINKED, locked: "on a USB disk" });
     expect(find(items, "worktree-row-unlock")?.enabled).toBe(true);
+    expect(find(items, "worktree-row-remove")?.enabled).toBe(false);
     expect(find(items, "worktree-row-lock")).toBeUndefined();
   });
 });

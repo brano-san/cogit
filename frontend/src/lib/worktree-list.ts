@@ -11,7 +11,9 @@ export interface WorktreeTag {
 export function worktreeWhere(entry: WorktreeEntry): string {
   if (entry.branch) return entry.branch;
   if (entry.missing && entry.head === "") return "";
-  return entry.head === "" ? "no commit yet" : `detached at ${shortOid(entry.head)}`;
+  return entry.head === ""
+    ? "no commit yet"
+    : `detached at ${shortOid(entry.head)}`;
 }
 
 export function worktreeTags(entry: WorktreeEntry): WorktreeTag[] {
@@ -20,7 +22,8 @@ export function worktreeTags(entry: WorktreeEntry): WorktreeTag[] {
     tags.push({
       id: "main",
       label: "main",
-      tooltip: "Main working copy: the folder that holds .git. It cannot be removed.",
+      tooltip:
+        "Main working copy: the folder that holds .git. It cannot be removed.",
     });
   }
   if (entry.locked !== null) {
@@ -44,7 +47,8 @@ export function worktreeTags(entry: WorktreeEntry): WorktreeTag[] {
     tags.push({
       id: "dirty",
       label: "dirty",
-      tooltip: "Dirty: uncommitted changes in this worktree. Commit or stash them before removing it.",
+      tooltip:
+        "Dirty: uncommitted changes in this worktree. Commit or stash them before removing it.",
     });
   }
   return tags;
@@ -61,9 +65,17 @@ export function othersToWatch(entries: readonly WorktreeEntry[]): boolean {
 }
 
 /** The main copy stays, the one on screen is not pulled out from under the panels, and a
-    missing one is pruned, not removed. */
-export function removable(entry: WorktreeEntry | undefined): entry is WorktreeEntry {
-  return entry !== undefined && !entry.isMain && !entry.isCurrent && !entry.missing;
+    missing one is pruned, not removed. A locked one needs `remove -f -f`, which Cogit never runs. */
+export function removable(
+  entry: WorktreeEntry | undefined,
+): entry is WorktreeEntry {
+  return (
+    entry !== undefined &&
+    !entry.isMain &&
+    !entry.isCurrent &&
+    !entry.missing &&
+    entry.locked === null
+  );
 }
 
 export interface RemovalNeeds {
@@ -79,7 +91,8 @@ export function removalNeeds(
   entry: WorktreeEntry,
   changes: readonly FileEntry[] | null,
 ): RemovalNeeds {
-  if (changes === null) return { dirty: false, submodules: false, force: false };
+  if (changes === null)
+    return { dirty: false, submodules: false, force: false };
   const dirty = changes.length > 0;
   const submodules = entry.hasSubmodules;
   return { dirty, submodules, force: dirty || submodules };
@@ -87,8 +100,14 @@ export function removalNeeds(
 
 /** `[origin/x: gone]`: the config still names the tracking branch, but a pruning fetch
     took its ref, so ahead and behind count against nothing. */
-export function upstreamGone(branch: Branch, branches: readonly Branch[]): boolean {
-  return branch.upstream !== null && !branches.some((other) => other.name === branch.upstream);
+export function upstreamGone(
+  branch: Branch,
+  branches: readonly Branch[],
+): boolean {
+  return (
+    branch.upstream !== null &&
+    !branches.some((other) => other.name === branch.upstream)
+  );
 }
 
 export type WorktreeState = "changes" | "synced" | "unpushed" | "missing";
@@ -106,7 +125,9 @@ export function worktreeMarks(
   branches: readonly Branch[] = [],
 ): Map<string, WorktreeMark> {
   const locals = new Map(
-    branches.filter((branch) => branch.kind === "local").map((branch) => [branch.name, branch]),
+    branches
+      .filter((branch) => branch.kind === "local")
+      .map((branch) => [branch.name, branch]),
   );
   const marks = new Map<string, WorktreeMark>();
   for (const entry of entries) {

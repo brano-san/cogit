@@ -84,18 +84,39 @@ impl AppState {
         );
         // As `worktree_heads()` writes paths.
         let wanted = git_engine::slash_path(std::path::Path::new(path));
-        let checkout = handle
+        let entry = handle
             .worktree_heads()?
             .into_iter()
-            .find(|entry| entry.path == wanted)
-            .map(|entry| entry.branch.unwrap_or(entry.head));
+            .find(|entry| entry.path == wanted);
+        // Cogit passes one `--force`; git wants two for a locked worktree.
+        if force && entry.as_ref().is_some_and(|entry| entry.locked.is_some()) {
+            return Err(git_engine::GitError::InvalidState(format!(
+                "{name} is locked: unlock it first"
+            )));
+        }
+        let checkout = entry.map(|entry| entry.branch.unwrap_or(entry.head));
         let stashed = if force {
             handle
                 .stash_worktree_changes(path, &format!("cogit: before removing worktree {name}"))?
         } else {
             None
         };
-        handle.remove_worktree(path, force)?;
+        let removed = handle.remove_worktree(path, force);
+        if removed.is_err()
+            && let Some(stash) = &stashed
+        {
+            // Still registered: nothing was removed, so the work goes back where it was.
+            let registered = handle
+                .worktree_heads()?
+                .into_iter()
+                .any(|entry| entry.path == wanted && !entry.missing);
+            if registered {
+                git_engine::RepoHandle::open_exact(std::path::Path::new(path))?
+                    .stash_apply(stash)?;
+                handle.forget_backup(stash);
+                return removed;
+            }
+        }
         let recovery = match (stashed, checkout) {
             (Some(stash), Some(checkout)) => Recovery::Worktree {
                 path: path.to_owned(),
@@ -104,8 +125,10 @@ impl AppState {
             },
             _ => Recovery::None,
         };
-        self.record(repo, format!("Remove worktree {name}"), recovery);
-        Ok(())
+        if removed.is_ok() || !matches!(recovery, Recovery::None) {
+            self.record(repo, format!("Remove worktree {name}"), recovery);
+        }
+        removed
     }
 
     pub fn worktree_leftover(

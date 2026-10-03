@@ -243,3 +243,24 @@ fn a_removal_scan_of_a_folder_that_is_no_worktree_fails_before_any_stage() {
     assert!(refused.is_err());
     assert!(!sent.into_inner());
 }
+
+// `--force` once is refused for a locked worktree, after its changes were already stashed.
+#[test]
+fn a_locked_worktree_is_refused_before_its_changes_are_stashed() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let (state, owner) = open(&f);
+    let path = linked(&state, owner).path;
+    f.git(&["worktree", "lock", "--reason", "usb", &path])
+        .unwrap();
+    let file = std::path::Path::new(&path).join("file0.txt");
+    std::fs::write(&file, "work\n").unwrap();
+
+    assert!(state.remove_worktree(owner, &path, true).is_err());
+
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), "work\n");
+    let kept = f
+        .git(&["for-each-ref", "--format=%(refname)", "refs/cogit/backup/"])
+        .unwrap();
+    assert!(kept.trim().is_empty(), "{kept}");
+    assert!(state.safety_log().is_empty());
+}
