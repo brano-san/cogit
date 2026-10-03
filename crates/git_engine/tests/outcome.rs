@@ -158,3 +158,15 @@ fn an_autostash_kept_as_a_new_stash_entry_is_a_warning() {
         Severity::Warning
     );
 }
+
+#[test]
+fn an_argument_with_spaces_does_not_become_the_subcommand() {
+    let line = git_engine::redact_command(&[
+        "-c",
+        "core.sshCommand=ssh -o BatchMode=yes",
+        "ls-remote",
+        "x",
+    ]);
+
+    assert_eq!(operation_label(&line), "Ls-remote");
+}

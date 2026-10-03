@@ -130,4 +130,12 @@ fn only_the_commands_that_stop_halfway_are_candidates() {
     assert!(!stops("git merge theirs", Some(128)));
     assert!(!stops("git merge --abort", Some(1)));
     assert!(!stops("git commit -m x", Some(1)));
+    assert!(stops(
+        "git -c 'core.sshCommand=ssh -o BatchMode=yes' pull origin --no-rebase",
+        Some(1)
+    ));
+    assert!(!stops(
+        "git -c 'core.sshCommand=ssh -o BatchMode=yes' merge --abort",
+        Some(1)
+    ));
 }

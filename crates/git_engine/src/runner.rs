@@ -440,10 +440,22 @@ pub(crate) fn base_command(root: &Path, reading: bool) -> Command {
 
 const HIDDEN: &str = "<redacted>";
 
-/// This string reaches the journal, the log file and the error dialog (INV-05).
+/// This string reaches the journal, the log file and the error dialog (INV-05). An argument
+/// with whitespace or a quote is written in single quotes as sh reads them, so the line
+/// can be pasted into a terminal and `outcome` can tell where each argument ends.
 pub fn redact_command(args: &[&str]) -> String {
-    let parts: Vec<String> = args.iter().map(|arg| redact_arg(arg)).collect();
+    let parts: Vec<String> = args
+        .iter()
+        .map(|arg| shell_word(&redact_arg(arg)))
+        .collect();
     format!("git {}", parts.join(" "))
+}
+
+fn shell_word(arg: &str) -> String {
+    if !arg.is_empty() && !arg.contains(|c: char| c.is_whitespace() || matches!(c, '\'' | '"')) {
+        return arg.to_owned();
+    }
+    format!("'{}'", arg.replace('\'', r"'\''"))
 }
 
 fn redact_arg(arg: &str) -> String {

@@ -47,30 +47,15 @@ pub fn stops_on_conflicts(command_line: &str, exit_code: Option<i32>) -> bool {
     if exit_code != Some(1) {
         return false;
     }
-    let mut words = after_environment(command_line).split_whitespace();
-    let mut subcommand = None;
-    while let Some(word) = words.next() {
-        match word {
-            "git" => {}
-            "-c" | "--git-dir" | "--work-tree" => {
-                words.next();
-            }
-            _ if word.starts_with('-') => {}
-            _ => {
-                subcommand = Some(word);
-                break;
-            }
-        }
-    }
-    let rest: Vec<&str> = words.collect();
-    match subcommand {
+    let (subcommand, rest) = subcommand_of(command_line);
+    match subcommand.as_deref() {
         Some("stash") => rest
             .iter()
             .find(|w| !w.starts_with('-'))
-            .is_some_and(|w| matches!(*w, "apply" | "pop")),
-        Some("merge" | "rebase" | "cherry-pick" | "revert" | "pull" | "am") => {
-            !rest.iter().any(|w| matches!(*w, "--abort" | "--quit"))
-        }
+            .is_some_and(|w| matches!(w.as_str(), "apply" | "pop")),
+        Some("merge" | "rebase" | "cherry-pick" | "revert" | "pull" | "am") => !rest
+            .iter()
+            .any(|w| matches!(w.as_str(), "--abort" | "--quit")),
         _ => false,
     }
 }
@@ -130,37 +115,13 @@ fn clip(line: &str) -> String {
 /// What to call the command in a title, read off the command line itself.
 #[must_use]
 pub fn operation_label(command_line: &str) -> String {
-    let mut words = after_environment(command_line)
-        .split_whitespace()
-        .peekable();
-    if words.peek() == Some(&"git") {
-        words.next();
-    }
-
-    // `-c key=value` and friends come before the subcommand.
-    let mut rest: Vec<&str> = Vec::new();
-    let mut subcommand: Option<&str> = None;
-    while let Some(word) = words.next() {
-        if subcommand.is_none() {
-            if word == "-c" || word == "--git-dir" || word == "--work-tree" {
-                words.next();
-                continue;
-            }
-            if word.starts_with('-') {
-                continue;
-            }
-            subcommand = Some(word);
-            continue;
-        }
-        rest.push(word);
-    }
-
-    let Some(name) = subcommand else {
+    let (subcommand, rest) = subcommand_of(command_line);
+    let Some(name) = subcommand.as_deref() else {
         return "Git".to_owned();
     };
     let flags: Vec<&str> = rest
         .iter()
-        .copied()
+        .map(String::as_str)
         .filter(|w| w.starts_with('-'))
         .collect();
 
@@ -173,6 +134,58 @@ pub fn operation_label(command_line: &str) -> String {
         "push" if flags.iter().any(|f| f.starts_with("--force")) => "Force Push".to_owned(),
         _ => title_case(name),
     }
+}
+
+/// The words of a command line as `redact_command` writes it: split at whitespace, with
+/// `'…'` quoting and `\'` as in sh, so an argument with spaces stays one word.
+fn words(line: &str) -> Vec<String> {
+    let mut words = Vec::new();
+    let mut word = String::new();
+    let (mut started, mut quoted) = (false, false);
+    let mut chars = line.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '\'' => {
+                quoted = !quoted;
+                started = true;
+            }
+            '\\' if !quoted => {
+                word.extend(chars.next());
+                started = true;
+            }
+            c if c.is_whitespace() && !quoted => {
+                if started {
+                    words.push(std::mem::take(&mut word));
+                    started = false;
+                }
+            }
+            c => {
+                word.push(c);
+                started = true;
+            }
+        }
+    }
+    if started {
+        words.push(word);
+    }
+    words
+}
+
+/// The git subcommand of a command line and the words after it; `-c key=value` and the
+/// other options that come before it are skipped.
+fn subcommand_of(command_line: &str) -> (Option<String>, Vec<String>) {
+    let mut words = words(after_environment(command_line)).into_iter();
+    while let Some(word) = words.next() {
+        match word.as_str() {
+            "git" => {}
+            "-c" | "--git-dir" | "--work-tree" => {
+                words.next();
+            }
+            _ if word.starts_with('-') => {}
+            _ => return (Some(word), words.collect()),
+        }
+    }
+    (None, Vec::new())
 }
 
 /// `GIT_INDEX_FILE='…' git commit` → `git commit`; the quoted value may hold spaces.

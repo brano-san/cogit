@@ -136,3 +136,11 @@ fn the_user_of_an_ssh_url_is_not_a_secret() {
     assert!(redact_command(&["push", url]).contains(url));
     assert!(git_engine::output_text::redact_secrets(url).contains(url));
 }
+
+#[test]
+fn an_argument_with_spaces_or_a_quote_is_written_as_sh_reads_it() {
+    assert_eq!(
+        redact_command(&["commit", "-m", "it's ok", "a b", ""]),
+        r"git commit -m 'it'\''s ok' 'a b' ''"
+    );
+}
