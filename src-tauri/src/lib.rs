@@ -513,6 +513,7 @@ pub fn run() -> anyhow::Result<()> {
                 log_dir = %log_dir.display(),
                 "cogit starting"
             );
+            git_engine::warm_up();
 
             let state = Arc::new(AppState::new());
             state.use_preset_dir(config_dir.join("presets"));

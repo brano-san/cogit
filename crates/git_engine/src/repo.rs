@@ -70,6 +70,26 @@ pub(crate) fn rooted_at(found: &Path, root: &Path) -> Result<()> {
     }
 }
 
+/// gix asks `git config --show-origin --show-scope` where the installation config is, once
+/// per process, and every open waits for that answer: five repositories restored at startup
+/// all took its 60-190 ms (R-731). Asked here on a thread of its own, while the window loads.
+pub fn warm_up() {
+    let spawned = std::thread::Builder::new()
+        .name("git-probe".to_owned())
+        .spawn(|| {
+            let started = std::time::Instant::now();
+            let found = gix::path::env::installation_config().is_some();
+            tracing::info!(
+                found,
+                elapsed_ms = started.elapsed().as_millis(),
+                "git installation config probed"
+            );
+        });
+    if let Err(err) = spawned {
+        tracing::error!(error = ?err, context = "git probe warm-up");
+    }
+}
+
 pub(crate) fn env_free() -> gix::open::Options {
     let mut options = gix::open::Options::default();
     options.permissions.env.git_prefix = gix::sec::Permission::Deny;
