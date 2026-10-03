@@ -207,24 +207,14 @@ fn announce(app: &tauri::AppHandle, failure: &Failure, uptime: std::time::Durati
 /// Shown after the reload, never instead of it, so the wording is in the past tense: by
 /// the time the user reads this the interface is already back.
 fn offer_reload(app: &tauri::AppHandle, failure: &Failure) {
-    let lead = if failure.reason == "out-of-memory" {
-        "Не хватило памяти для отображения интерфейса."
-    } else {
-        "Отображение интерфейса аварийно завершилось."
-    };
-
     let handle = app.clone();
     app.dialog()
-        .message(format!(
-            "{lead} Интерфейс перезагружен.\n\n\
-             Ничего из вашей работы не потеряно.\n\
-             Репозиторий и выбранный коммит восстановлены."
-        ))
+        .message(reload_message(failure.reason))
         .title("Cogit")
         .kind(MessageDialogKind::Error)
         .buttons(MessageDialogButtons::OkCancelCustom(
-            "Продолжить".to_owned(),
-            "Открыть лог".to_owned(),
+            RELOAD_BUTTONS.0.to_owned(),
+            RELOAD_BUTTONS.1.to_owned(),
         ))
         .show(move |carry_on| {
             if !carry_on {
@@ -233,18 +223,33 @@ fn offer_reload(app: &tauri::AppHandle, failure: &Failure) {
         });
 }
 
+const RELOAD_BUTTONS: (&str, &str) = ("Continue", "Open Log");
+const WAIT_BUTTONS: (&str, &str) = ("Wait", "Reload Interface");
+const WAIT_MESSAGE: &str = "The interface stopped responding. A heavy operation may still be \
+     running; it is worth waiting for it.\n\nReloading interrupts whatever it is doing.";
+
+fn reload_message(reason: &str) -> String {
+    let lead = if reason == "out-of-memory" {
+        "Cogit ran out of memory while drawing its window."
+    } else {
+        "Cogit's window stopped unexpectedly."
+    };
+    format!(
+        "{lead} The interface has been reloaded.\n\n\
+         None of your work was lost.\n\
+         The repository and the selected commit are back."
+    )
+}
+
 fn offer_wait(app: &tauri::AppHandle) {
     let handle = app.clone();
     app.dialog()
-        .message(
-            "Интерфейс перестал отвечать. Возможно, идёт тяжёлая операция — \
-             её стоит подождать.\n\nПерезагрузка прервёт то, чем он занят.",
-        )
+        .message(WAIT_MESSAGE)
         .title("Cogit")
         .kind(MessageDialogKind::Warning)
         .buttons(MessageDialogButtons::OkCancelCustom(
-            "Подождать".to_owned(),
-            "Перезагрузить интерфейс".to_owned(),
+            WAIT_BUTTONS.0.to_owned(),
+            WAIT_BUTTONS.1.to_owned(),
         ))
         .show(move |wait| {
             if !wait {
@@ -278,6 +283,22 @@ fn reveal_log(app: &tauri::AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_failure_dialogs_are_in_english() {
+        for text in [
+            reload_message("out-of-memory"),
+            reload_message("render-process-exited"),
+            WAIT_MESSAGE.to_owned(),
+            RELOAD_BUTTONS.0.to_owned(),
+            RELOAD_BUTTONS.1.to_owned(),
+            WAIT_BUTTONS.0.to_owned(),
+            WAIT_BUTTONS.1.to_owned(),
+        ] {
+            assert!(text.is_ascii(), "{text}");
+        }
+        assert!(reload_message("out-of-memory").contains("out of memory"));
+    }
 
     #[test]
     fn the_render_process_is_the_one_worth_reloading() {
