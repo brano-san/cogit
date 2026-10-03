@@ -776,6 +776,35 @@ fn undoing_a_rollback_brings_back_the_work_it_replaced() {
 }
 
 #[test]
+fn rolling_back_the_whole_tree_backs_up_and_undo_restores_the_work() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.commit_file(2, "a.txt", "v1\n").unwrap();
+    f.commit_file(3, "a.txt", "v2\n").unwrap();
+    let (state, repo) = open(&f);
+    f.write_file("a.txt", "work in progress\n").unwrap();
+
+    state.rollback_to(repo, "HEAD~1", &[]).unwrap();
+    assert_eq!(text(&f, "a.txt"), "v1\n");
+    assert_eq!(backups(&f).len(), 1);
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(text(&f, "a.txt"), "work in progress\n");
+}
+
+#[test]
+fn a_whole_tree_rollback_of_a_clean_tree_can_be_undone() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.commit_file(2, "a.txt", "v1\n").unwrap();
+    f.commit_file(3, "a.txt", "v2\n").unwrap();
+    let (state, repo) = open(&f);
+
+    state.rollback_to(repo, "HEAD~1", &[]).unwrap();
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(text(&f, "a.txt"), "v2\n");
+}
+
+#[test]
 fn a_rollback_of_a_clean_file_can_be_undone_too() {
     let f = test_fixtures::linear(1).unwrap();
     f.commit_file(2, "a.txt", "v1\n").unwrap();

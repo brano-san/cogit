@@ -44,9 +44,12 @@ impl AppState {
         } else {
             named(paths)
         };
-        let stashed = handle
-            .backup_paths(paths, &format!("cogit: before rollback of {label}"))
-            .map_err(|err| backup_failed("rolling back", &err))?;
+        let stashed = backup_rollback(
+            &handle,
+            paths,
+            &format!("cogit: before rollback of {label}"),
+        )
+        .map_err(|err| backup_failed("rolling back", &err))?;
 
         handle.rollback_to(rev, paths)?;
         self.record(
@@ -264,5 +267,18 @@ impl AppState {
             _ => Recovery::None,
         };
         self.record(repo, what, recovery);
+    }
+}
+
+/// An empty selection is the whole tree: `backup_paths` reads it as "nothing".
+pub(crate) fn backup_rollback(
+    handle: &git_engine::RepoHandle,
+    paths: &[String],
+    message: &str,
+) -> Result<Option<String>, git_engine::GitError> {
+    if paths.is_empty() {
+        handle.backup_before_reset(message)
+    } else {
+        handle.backup_paths(paths, message)
     }
 }

@@ -164,8 +164,7 @@ impl AppState {
             Recovery::Stash { oid } => handle.stash_apply(oid)?,
             Recovery::DroppedStash { entry } => handle.restore_stash(entry)?,
             Recovery::Rollback { paths, stash } => {
-                handle
-                    .backup_paths(paths, "cogit: before undoing a rollback")
+                crate::rewrite::backup_rollback(&handle, paths, "cogit: before undoing a rollback")
                     .map_err(|err| crate::backup_failed("undoing the rollback of", &err))?;
                 if let Some(oid) = stash {
                     handle.stash_apply(oid)?;
