@@ -80,7 +80,8 @@ impl AppState {
         let Some(repo) = self.find_by_root(root) else {
             return pulse;
         };
-        if self.watchers.read().contains_key(&repo) {
+        // `is_watched`, not the map: a watcher of a removed folder is in it and hears nothing.
+        if self.is_watched(repo) {
             return pulse;
         }
         let Some(row) = self.cached_rows.read().rows.get(&repo).cloned() else {

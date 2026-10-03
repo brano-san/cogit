@@ -269,3 +269,78 @@ fn a_repository_recreated_in_its_folder_is_watched_again_after_a_reread() {
         test_fixtures::scaled(Duration::from_secs(5))
     ));
 }
+
+// A watcher whose folder was removed is still in the map but watches nothing: the pulse must
+// treat the repository as not watched, or its row never learns of what happened.
+#[test]
+fn a_pulse_does_not_count_a_dead_watcher_as_watching() {
+    let fixture = test_fixtures::linear(1).unwrap();
+    let root = fixture.path().to_path_buf();
+    let state = AppState::new();
+    let repo = state.open_repository(&root).unwrap().repo;
+    state.show_repository(Some(repo));
+    let branch = |state: &AppState| {
+        state
+            .overviews()
+            .into_iter()
+            .find(|row| row.repo == repo)
+            .and_then(|row| row.branch)
+    };
+    assert_eq!(branch(&state).as_deref(), Some("main"));
+
+    for entry in std::fs::read_dir(&root).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            let _ = std::fs::remove_dir_all(&path);
+        } else {
+            let _ = std::fs::remove_file(&path);
+        }
+    }
+    std::fs::remove_dir(&root).unwrap();
+    std::thread::sleep(SETTLE);
+    std::fs::create_dir(&root).unwrap();
+    let init = std::process::Command::new("git")
+        .args(["init", "-q", "-b", "other"])
+        .current_dir(&root)
+        .status()
+        .unwrap();
+    assert!(init.success());
+    let commit = std::process::Command::new("git")
+        .args([
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@t",
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "x",
+        ])
+        .current_dir(&root)
+        .status()
+        .unwrap();
+    assert!(commit.success());
+
+    // What the deletion told is over; the row is now read from the new repository.
+    std::thread::sleep(SETTLE);
+    assert_eq!(branch(&state).as_deref(), Some("other"));
+    let switched = std::process::Command::new("git")
+        .args(["checkout", "-q", "-b", "third"])
+        .current_dir(&root)
+        .status()
+        .unwrap();
+    assert!(switched.success());
+    std::thread::sleep(SETTLE);
+    // Nothing heard it: that is what a dead watcher is.
+    assert_eq!(branch(&state).as_deref(), Some("other"));
+
+    let pulse = state.pulse(&root);
+
+    assert_eq!(pulse.branch.as_deref(), Some("third"));
+    assert_eq!(
+        branch(&state).as_deref(),
+        Some("third"),
+        "the stale row is retired"
+    );
+}
