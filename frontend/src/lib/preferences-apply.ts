@@ -31,7 +31,9 @@ export interface ApplyHost {
 export async function applyPreferences(next: Settings, keymap: Keymap, host: ApplyHost): Promise<void> {
   const before = host.current();
   const touched = (Object.keys(next) as (keyof Settings)[]).filter((key) => next[key] !== before[key]);
-  await host.apply(next);
+  // The Git executable is saved only once `use_git` has switched to it (App's `switchGit`),
+  // so a typed path that does not work never reaches settings.json.
+  await host.apply({ ...next, gitPath: before.gitPath });
   if (!sameKeymap(keymap, host.keymap())) {
     await host.setKeymap(keymap);
     host.rebuiltMenu();

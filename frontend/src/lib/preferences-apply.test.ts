@@ -54,6 +54,19 @@ describe("the keymap on a change in Preferences", () => {
   });
 });
 
+// A typed Git executable that did not work was written to settings.json letter by letter,
+// and closing Preferences with it kept it for the next start.
+describe("the Git executable on a change in Preferences", () => {
+  it("is never saved from the field: only use_git's switch saves it", async () => {
+    const { fake } = host(false, { ...DEFAULT_SETTINGS, gitPath: "C:/Git/bin/git.exe" });
+
+    await applyPreferences({ ...DEFAULT_SETTINGS, gitPath: "C:/nope/git.exe", laneWidth: 30 }, {}, fake);
+
+    expect(fake.current().gitPath).toBe("C:/Git/bin/git.exe");
+    expect(fake.current().laneWidth).toBe(30);
+  });
+});
+
 // Ignore all whitespace with no file in Diff never reached the diff store, and Cancel put
 // the setting back but left the diff computed with the draft's options.
 describe("applying Preferences", () => {

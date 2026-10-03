@@ -966,6 +966,8 @@
       errors.report(err, "Could not switch to that Git");
       return;
     }
+    // Saved only now that it is accepted; Preferences never saves the field itself.
+    if (settings.current.gitPath !== path) await settings.set("gitPath", path);
     void gitMissing.check(path);
     void remoteOps.detectLfs();
     void getAppInfo()
