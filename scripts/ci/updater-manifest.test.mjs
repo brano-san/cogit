@@ -31,6 +31,16 @@ test('without an MSI only the NSIS key is written', () => {
   assert.deepEqual(Object.keys(buildManifest(d, '1.2.3', BASE).platforms), ['windows-x86_64-nsis']);
 });
 
+test('the deb is keyed linux-x86_64-deb; an unsigned AppImage and the dmg add nothing', () => {
+  const d = dist({
+    'Cogit_1.2.3_amd64.deb': '', 'Cogit_1.2.3_amd64.deb.sig': 'sig-deb',
+    'Cogit_1.2.3_amd64.AppImage': '', 'Cogit_1.2.3_aarch64.dmg': '',
+  });
+  const m = buildManifest(d, '1.2.3', BASE);
+  assert.deepEqual(Object.keys(m.platforms), ['linux-x86_64-deb']);
+  assert.equal(m.platforms['linux-x86_64-deb'].url, `${BASE}/Cogit_1.2.3_amd64.deb`);
+});
+
 test('an installer without a signature has no entry', () => {
   assert.equal(buildManifest(dist({ 'Cogit_1.2.3_x64.msi': '' }), '1.2.3', BASE), null);
 });

@@ -616,6 +616,8 @@ export type AppInfo = {
 	settingsPath: string,
 	/**  The `Cogit-data` folder of the portable build; `None` in a normal one. */
 	portableDir: string | null,
+	/**  Whether this build can replace itself (the updater plugin is registered). */
+	selfUpdate: boolean,
 	displays: DisplayInfo[],
 };
 

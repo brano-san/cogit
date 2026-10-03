@@ -31,6 +31,8 @@ pub struct AppInfo {
     pub settings_path: String,
     /// The `Cogit-data` folder of the portable build; `None` in a normal one.
     pub portable_dir: Option<String>,
+    /// Whether this build can replace itself (the updater plugin is registered).
+    pub self_update: bool,
     pub displays: Vec<app_state::environment::DisplayInfo>,
 }
 
@@ -74,10 +76,31 @@ pub async fn app_info(
             log_path: log_path.display().to_string(),
             settings_path: settings_path.display().to_string(),
             portable_dir: portable::layout().map(|layout| layout.root().display().to_string()),
+            self_update: self_updates(portable::layout().is_some(), std::env::consts::OS),
             displays,
         })
     })
     .await
+}
+
+/// A portable copy swaps its folder by hand; the macOS build is unsigned and ships no updater
+/// artifacts (doc/RELEASING.md), so latest.json has no entry for it.
+pub(crate) fn self_updates(portable: bool, os: &str) -> bool {
+    !portable && os != "macos"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::self_updates;
+
+    #[test]
+    fn only_an_installed_windows_or_linux_build_updates_itself() {
+        assert!(self_updates(false, "windows"));
+        assert!(self_updates(false, "linux"));
+        assert!(!self_updates(true, "windows"));
+        assert!(!self_updates(true, "linux"));
+        assert!(!self_updates(false, "macos"));
+    }
 }
 
 /// The same monitor list `window_place` reads at start-up; read-only.

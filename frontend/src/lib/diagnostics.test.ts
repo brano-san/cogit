@@ -37,6 +37,7 @@ const info: AppInfo = {
   logDir: "C:\\Users\\a\\logs",
   settingsPath: "C:\\Users\\a\\Roaming\\settings.json",
   portableDir: null,
+  selfUpdate: true,
   displays: [
     { name: "\\\\.\\DISPLAY1", width: 2560, height: 1440, scale: 1.5, primary: true },
     { name: null, width: 1920, height: 1080, scale: 1, primary: false },

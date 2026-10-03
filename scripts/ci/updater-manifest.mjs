@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 const INSTALLERS = [
   ['windows-x86_64-nsis', '-setup.exe'],
   ['windows-x86_64-msi', '.msi'],
+  ['linux-x86_64-deb', '.deb'],
 ];
 
 /** The manifest for `dist`, or null when no installer there has a signature. */

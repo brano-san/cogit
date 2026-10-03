@@ -1,5 +1,14 @@
 import { describe as group, expect, it, vi } from "vitest";
-import { checkForUpdates, describe, message, type UpdateHandle, type Updates } from "./updates";
+import {
+  checkForUpdates,
+  describe,
+  message,
+  NO_SELF_UPDATE_NOTE,
+  noSelfUpdateNote,
+  PORTABLE_UPDATE_NOTE,
+  type UpdateHandle,
+  type Updates,
+} from "./updates";
 
 function handle(over: Partial<UpdateHandle> = {}): UpdateHandle {
   return {
@@ -163,6 +172,20 @@ group("the start-up check", () => {
 
 // Install restarted the app past everything Exit asks about: an unsaved hook or merge was
 // lost, and a push running at the time was cut off.
+group("noSelfUpdateNote", () => {
+  it("says nothing for a build that updates itself", () => {
+    expect(noSelfUpdateNote({ portableDir: null, selfUpdate: true })).toBeNull();
+  });
+
+  it("explains the portable build, which keeps its data beside it", () => {
+    expect(noSelfUpdateNote({ portableDir: "D:\\Cogit-data", selfUpdate: false })).toBe(PORTABLE_UPDATE_NOTE);
+  });
+
+  it("points a build without an updater to the releases page", () => {
+    expect(noSelfUpdateNote({ portableDir: null, selfUpdate: false })).toBe(NO_SELF_UPDATE_NOTE);
+  });
+});
+
 group("installing while there is something to lose", () => {
   it("installs nothing when the exit question says to stay", async () => {
     const found = handle();

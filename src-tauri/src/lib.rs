@@ -411,21 +411,22 @@ pub fn run() -> anyhow::Result<()> {
     // Both write to the system's folders (the plugin creates the config folder when it
     // saves; an update replaces the installed binary): a portable build has its own.
     if portable.is_none() {
-        builder = builder
-            .plugin(
-                // Without VISIBLE: the plugin would show the window as it is created, before
-                // `setup` settles its geometry and subscribes to its failures (R-113, R-118).
-                tauri_plugin_window_state::Builder::new()
-                    .with_filter(child_window::is_main)
-                    .with_state_flags(
-                        tauri_plugin_window_state::StateFlags::all()
+        builder = builder.plugin(
+            // Without VISIBLE: the plugin would show the window as it is created, before
+            // `setup` settles its geometry and subscribes to its failures (R-113, R-118).
+            tauri_plugin_window_state::Builder::new()
+                .with_filter(child_window::is_main)
+                .with_state_flags(
+                    tauri_plugin_window_state::StateFlags::all()
                             - tauri_plugin_window_state::StateFlags::VISIBLE
                             // Decided by `window_chrome`, not remembered.
                             - tauri_plugin_window_state::StateFlags::DECORATIONS,
-                    )
-                    .build(),
-            )
-            .plugin(tauri_plugin_updater::Builder::new().build());
+                )
+                .build(),
+        );
+    }
+    if commands::app::self_updates(portable.is_some(), std::env::consts::OS) {
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
     }
     let mut context = tauri::generate_context!();
     if portable.is_some() {
