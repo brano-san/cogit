@@ -83,6 +83,20 @@ describe("output store", () => {
     expect(output.shown).toBeNull();
   });
 
+  it("shows the last row clicked even when an earlier read answers later", async () => {
+    let answerFirst: (value: unknown) => void = () => {};
+    commands.commandOutcome
+      .mockImplementationOnce(() => new Promise((resolve) => (answerFirst = resolve)))
+      .mockImplementationOnce((id: number) => Promise.resolve(record(id)));
+
+    const first = output.openRecord(1);
+    await output.openRecord(2);
+    answerFirst(record(1));
+    await first;
+
+    expect(output.shown?.id).toBe(2);
+  });
+
   it("leaves the windows alone for a warning, which is what makes commits bearable", async () => {
     await output.notice(notice(3, "warning"));
 

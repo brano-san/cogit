@@ -6,9 +6,11 @@ export class CopyFeedback {
   state = $state<"idle" | "copied" | "failed">("idle");
   #timer: ReturnType<typeof setTimeout> | undefined;
 
-  async copy(text: string) {
-    if (text === "") return;
+  /** Takes the text or a read of it, so a failed read shows "Copy failed" too. */
+  async copy(source: string | Promise<string>) {
     try {
+      const text = await source;
+      if (text === "") return;
       const { writeText } = await import("@tauri-apps/plugin-clipboard-manager");
       await writeText(text);
       this.state = "copied";

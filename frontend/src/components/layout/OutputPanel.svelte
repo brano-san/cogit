@@ -27,7 +27,7 @@
     <span class="title">Output</span>
     <span class="problems"><Checkbox bind:checked={output.errorsOnly} label="Problems only" /></span>
     <span class="grow"></span>
-    <button type="button" onclick={() => void commandLogText(output.errorsOnly).then((text) => feedback.copy(text))}>
+    <button type="button" onclick={() => void feedback.copy(commandLogText(output.errorsOnly))}>
       {feedback.label("Copy log")}
     </button>
     <button type="button" onclick={() => void output.clear()}>Clear</button>

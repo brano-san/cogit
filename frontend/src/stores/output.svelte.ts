@@ -32,6 +32,7 @@ class OutputStore {
       retires every read begun before it finished. */
   #logRead = 0;
   #countRead = 0;
+  #recordRead = 0;
 
   async refreshProblems(): Promise<void> {
     const asked = ++this.#countRead;
@@ -75,7 +76,9 @@ class OutputStore {
 
   /** A record that has rotated out of the journal leaves the window closed. */
   async openRecord(id: number): Promise<void> {
-    this.shown = await commandOutcome(id).catch(() => null);
+    const asked = ++this.#recordRead;
+    const record = await commandOutcome(id).catch(() => null);
+    if (asked === this.#recordRead) this.shown = record;
   }
 
   async showWarning(): Promise<void> {
