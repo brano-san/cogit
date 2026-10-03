@@ -50,6 +50,12 @@ pub struct ConflictText {
     pub theirs: Option<String>,
     /// A side is binary or not UTF-8: it is taken whole, never merged or edited as text.
     pub binary: bool,
+    /// Past the solver limit: no side is sent, and none is merged here.
+    pub too_large: bool,
+    /// Ours or theirs lacks the file (deleted there); the text of a side is `None` for that
+    /// and for every side of a file that is too large.
+    pub missing_ours: bool,
+    pub missing_theirs: bool,
     /// The index entries the sides were read from; a resolution names them back.
     pub stages: ConflictStages,
 }
@@ -77,6 +83,9 @@ impl ConflictSides {
             ours: text(&self.ours),
             theirs: text(&self.theirs),
             binary: !self.is_text(),
+            too_large: false,
+            missing_ours: self.ours.is_none(),
+            missing_theirs: self.theirs.is_none(),
             stages: self.stages.clone(),
         }
     }
@@ -126,6 +135,27 @@ impl RepoHandle {
         Ok(paths)
     }
 
+    /// The size of the largest side, from the object headers: no blob is read.
+    pub fn largest_conflict_side(&self, path: &str) -> Result<u64> {
+        if !self.conflicted_paths()?.iter().any(|p| p == path) {
+            return Err(GitError::InvalidState(format!("{path} is not conflicted")));
+        }
+        let stages = self.conflict_stages(path)?;
+        let mut largest = 0;
+        for oid in [stages.base, stages.ours, stages.theirs]
+            .into_iter()
+            .flatten()
+        {
+            let id = gix::ObjectId::from_hex(oid.as_bytes())
+                .map_err(|err| GitError::Internal(format!("bad object {oid}: {err}")))?;
+            // A gitlink's commit is not in this store: it has no size to speak of.
+            if let Ok(header) = self.repo.find_header(id) {
+                largest = largest.max(header.size());
+            }
+        }
+        Ok(largest)
+    }
+
     pub fn conflict_sides(&self, path: &str) -> Result<ConflictSides> {
         if !self.conflicted_paths()?.iter().any(|p| p == path) {
             return Err(GitError::InvalidState(format!("{path} is not conflicted")));
@@ -158,7 +188,7 @@ impl RepoHandle {
         }
     }
 
-    fn conflict_stages(&self, path: &str) -> Result<ConflictStages> {
+    pub fn conflict_stages(&self, path: &str) -> Result<ConflictStages> {
         let index = self.current_index()?;
         let backing = index.path_backing();
         let mut stages = ConflictStages::default();

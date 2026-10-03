@@ -945,6 +945,14 @@ export type ConflictText = {
 	theirs: string | null,
 	/**  A side is binary or not UTF-8: it is taken whole, never merged or edited as text. */
 	binary: boolean,
+	/**  Past the solver limit: no side is sent, and none is merged here. */
+	tooLarge: boolean,
+	/**
+	 *  Ours or theirs lacks the file (deleted there); the text of a side is `None` for that
+	 *  and for every side of a file that is too large.
+	 */
+	missingOurs: boolean,
+	missingTheirs: boolean,
 	/**  The index entries the sides were read from; a resolution names them back. */
 	stages: ConflictStages,
 };

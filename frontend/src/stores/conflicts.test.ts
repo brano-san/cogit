@@ -34,6 +34,9 @@ const sides = (name: string) => ({
   theirs: name,
   binary: false,
   stages: stagesOf(name),
+  tooLarge: false,
+  missingOurs: false,
+  missingTheirs: false,
 });
 const region = (name: string) => [{ kind: "clean", lines: [name], origin: "ours" }];
 
@@ -268,6 +271,29 @@ describe("another commit picked in the graph", () => {
 
 // Take ours, Save resolution and opening a conflicted file failed without a word: the
 // rejected promise reached nobody, and nothing listens for unhandled rejections (INV-05).
+describe("a conflict over the size limit", () => {
+  it("is not merged in the main window, and no side is shown", async () => {
+    vi.mocked(ipc.mergePreview).mockClear();
+    const opening = conflicts.open(1 as never, "big.txt");
+    calls.text.get("big.txt")?.({
+      base: null,
+      ours: null,
+      theirs: null,
+      binary: false,
+      tooLarge: true,
+      missingOurs: false,
+      missingTheirs: true,
+      stages: stagesOf("big.txt"),
+    });
+    await opening;
+
+    expect(ipc.mergePreview).not.toHaveBeenCalled();
+    expect(conflicts.tooLarge).toBe(true);
+    expect(conflicts.missingTheirs).toBe(true);
+    expect(conflicts.regions).toEqual([]);
+  });
+});
+
 describe("a resolution that fails", () => {
   it("reports a refused take and keeps the file open", async () => {
     await opened("a.txt");

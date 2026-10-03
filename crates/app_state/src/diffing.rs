@@ -273,7 +273,13 @@ impl AppState {
         repo: RepoId,
         path: &str,
     ) -> Result<Vec<diff_engine::Region>, git_engine::GitError> {
-        let sides = self.handle(repo)?.conflict_sides(path)?;
+        let handle = self.handle(repo)?;
+        if crate::conflicts::too_large(&handle, path)? {
+            return Err(git_engine::GitError::InvalidState(format!(
+                "{path} is too large to merge here: take one side whole or use the external tool"
+            )));
+        }
+        let sides = handle.conflict_sides(path)?;
         if !sides.is_text() {
             return Err(git_engine::GitError::InvalidState(format!(
                 "{path} is binary or not UTF-8: take one side whole"

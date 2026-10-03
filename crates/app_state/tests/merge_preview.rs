@@ -193,3 +193,27 @@ fn taking_the_side_that_kept_the_file_keeps_it() {
     assert!(state.conflicted_paths(repo).unwrap().is_empty());
     assert_eq!(std::fs::read(f.path().join("f.txt")).unwrap(), b"ours\n");
 }
+
+// The preview sent all three sides over IPC whole and merged them in the main window: a
+// bundle of megabytes froze it. The solver's limit holds for the preview as well.
+#[test]
+fn a_conflict_over_the_limit_is_neither_sent_nor_merged() {
+    let big = "x".repeat(app_state::MAX_SOLVER_BYTES + 1);
+    let f = conflict_of(
+        "big.txt",
+        format!("{big}\nbase\n").as_bytes(),
+        Some(format!("{big}\nours\n").as_bytes()),
+        None,
+    );
+    let (state, repo) = opened(&f);
+
+    let text = state.conflict_text(repo, "big.txt").unwrap();
+
+    assert!(text.too_large && !text.binary);
+    assert_eq!(
+        (&text.base, &text.ours, &text.theirs),
+        (&None, &None, &None)
+    );
+    assert!(text.missing_theirs && !text.missing_ours);
+    assert!(state.merge_preview(repo, "big.txt").is_err());
+}

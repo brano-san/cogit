@@ -13,6 +13,14 @@ fn keep_for_undo(
         .map_err(|err| backup_failed("resolving", &err))
 }
 
+/// Past the solver's limit a conflict is taken whole, in the preview as in the solver.
+pub(crate) fn too_large(
+    handle: &git_engine::RepoHandle,
+    path: &str,
+) -> Result<bool, git_engine::GitError> {
+    Ok(handle.largest_conflict_side(path)? > crate::MAX_SOLVER_BYTES as u64)
+}
+
 impl AppState {
     pub fn conflicted_paths(&self, repo: RepoId) -> Result<Vec<String>, git_engine::GitError> {
         self.handle(repo)?.conflicted_paths()
@@ -23,7 +31,18 @@ impl AppState {
         repo: RepoId,
         path: &str,
     ) -> Result<git_engine::ConflictText, git_engine::GitError> {
-        Ok(self.handle(repo)?.conflict_sides(path)?.to_text())
+        let handle = self.handle(repo)?;
+        if too_large(&handle, path)? {
+            let stages = handle.conflict_stages(path)?;
+            return Ok(git_engine::ConflictText {
+                too_large: true,
+                missing_ours: stages.ours.is_none(),
+                missing_theirs: stages.theirs.is_none(),
+                stages,
+                ..Default::default()
+            });
+        }
+        Ok(handle.conflict_sides(path)?.to_text())
     }
 
     pub fn resolve_conflict(

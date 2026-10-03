@@ -65,6 +65,9 @@
     ours={conflicts.ours}
     theirs={conflicts.theirs}
     binary={conflicts.binary}
+    tooLarge={conflicts.tooLarge}
+    missingOurs={conflicts.missingOurs}
+    missingTheirs={conflicts.missingTheirs}
     onresolve={(side) => onresolve(side)}
     onresolveText={(text) => onresolveText(text)}
     onsolver={onpopoutmerge}

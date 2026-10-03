@@ -25,6 +25,10 @@ class ConflictStore {
   binary = $state(false);
   /** The index entries the sides on screen were read from; a write names them back. */
   stages = $state.raw<ConflictStages | null>(null);
+  /** Over the size limit: no side was sent and none is merged. */
+  tooLarge = $state(false);
+  missingOurs = $state(false);
+  missingTheirs = $state(false);
   /** The three sides already merged; empty until a conflicted file is opened. */
   regions = $state.raw<Region[]>([]);
   /** Sides picked or text edited in the view on screen, not written yet. The views say so
@@ -87,8 +91,11 @@ class ConflictStore {
     this.theirs = sides.theirs;
     this.binary = sides.binary;
     this.stages = sides.stages;
+    this.tooLarge = sides.tooLarge;
+    this.missingOurs = sides.missingOurs;
+    this.missingTheirs = sides.missingTheirs;
     this.regions = [];
-    if (sides.binary) return;
+    if (sides.binary || sides.tooLarge) return;
 
     // A failed merge leaves the three raw sides, which are still worth showing.
     const regions = await mergePreview(repo, path).catch(() => []);
@@ -191,6 +198,9 @@ class ConflictStore {
     this.theirs = null;
     this.binary = false;
     this.stages = null;
+    this.tooLarge = false;
+    this.missingOurs = false;
+    this.missingTheirs = false;
     this.regions = [];
   }
 

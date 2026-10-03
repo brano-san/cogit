@@ -8,6 +8,11 @@
     theirs: string | null;
     /** Binary or not UTF-8: the text above is a rendering, and writing it back corrupts. */
     binary?: boolean;
+    /** Over the size limit: the sides are not sent, so only taking one whole is offered. */
+    tooLarge?: boolean;
+    /** A side that deleted the file; read from the text unless the text was not sent. */
+    missingOurs?: boolean;
+    missingTheirs?: boolean;
     onresolve: (side: ConflictSide) => void;
     onresolveText: (text: string) => void;
     /** Opens the Conflict Solver for this file. */
@@ -16,12 +21,15 @@
     onunsaved?: (unsaved: boolean) => void;
   }
 
-  let { path, base, ours, theirs, binary = false, onresolve, onresolveText, onsolver, onunsaved }: Props = $props();
+  let { path, base, ours, theirs, binary = false, tooLarge = false, missingOurs, missingTheirs, onresolve, onresolveText, onsolver, onunsaved }: Props = $props();
 
   let editing = $state(false);
   let draft = $state("");
 
   $effect(() => onunsaved?.(editing));
+
+  const oursGone = $derived(missingOurs ?? ours === null);
+  const theirsGone = $derived(missingTheirs ?? theirs === null);
 
   const sides: { id: ConflictSide; label: string; text: string | null }[] = $derived([
     { id: "base", label: "Base", text: base },
@@ -55,21 +63,25 @@
       <button
         type="button"
         class="btn sm"
-        disabled={binary}
-        title={binary ? "Binary or not UTF-8: take one side whole" : undefined}
+        disabled={binary || tooLarge}
+        title={tooLarge
+          ? "Too large to edit here: take one side whole"
+          : binary
+            ? "Binary or not UTF-8: take one side whole"
+            : undefined}
         onclick={() => startEditing(ours)}>Edit by hand</button
       >
       <button
         type="button"
         class="btn sm"
-        title={ours === null ? "Ours deleted the file: taking it deletes the file" : undefined}
-        onclick={() => onresolve("ours")}>{ours === null ? "Take ours (delete)" : "Take ours"}</button
+        title={oursGone ? "Ours deleted the file: taking it deletes the file" : undefined}
+        onclick={() => onresolve("ours")}>{oursGone ? "Take ours (delete)" : "Take ours"}</button
       >
       <button
         type="button"
         class="btn sm"
-        title={theirs === null ? "Theirs deleted the file: taking it deletes the file" : undefined}
-        onclick={() => onresolve("theirs")}>{theirs === null ? "Take theirs (delete)" : "Take theirs"}</button
+        title={theirsGone ? "Theirs deleted the file: taking it deletes the file" : undefined}
+        onclick={() => onresolve("theirs")}>{theirsGone ? "Take theirs (delete)" : "Take theirs"}</button
       >
     {/if}
   </div>
@@ -81,7 +93,9 @@
       {#each sides as side (side.id)}
         <div class="column" data-select-text="diff">
           <div class="head">{side.label}</div>
-          {#if side.text === null}
+          {#if tooLarge}
+            <p class="message">Too large to show here — take one side whole or use Resolve….</p>
+          {:else if side.text === null}
             <p class="message">Absent on this side.</p>
           {:else if binary}
             <p class="message">Binary or not UTF-8 — take one side whole.</p>
