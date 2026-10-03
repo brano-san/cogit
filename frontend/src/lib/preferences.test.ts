@@ -7,6 +7,7 @@ import {
   isSetting,
   firstMatch,
   firstPage,
+  fillsPane,
   matchRanges,
   matchingCategories,
   restartFields,
@@ -318,5 +319,18 @@ describe("restoreKeys", () => {
 
   it("leaves the keymap alone on any other page", () => {
     expect(restoreKeys(edited, "graph")).toEqual(edited);
+  });
+});
+
+describe("fillsPane", () => {
+  it("fills the pane only on the pages whose editor scrolls its own list", () => {
+    expect(CATEGORIES.filter(fillsPane).map((category) => category.id)).toEqual(["keymap", "toolbar"]);
+  });
+
+  it("puts nothing else on such a page, so the page itself never needs to scroll", () => {
+    for (const category of CATEGORIES.filter(fillsPane)) {
+      expect(category.groups.flatMap((group) => group.fields), category.id).toHaveLength(1);
+      expect(category.groups[0]?.fields[0]?.hint, category.id).toBeUndefined();
+    }
   });
 });

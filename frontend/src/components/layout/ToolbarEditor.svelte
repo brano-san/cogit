@@ -137,6 +137,13 @@
 </div>
 
 <style>
+  /* Fills the Toolbar page (`fillsPane`): the two lists take the height, the page does not scroll. */
+  .editor {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
   .lead {
     margin: 0 0 var(--sp-4);
     font-size: var(--fs-dense);
@@ -146,8 +153,17 @@
   .columns {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    flex: 1 1 auto;
+    min-height: 0;
     gap: var(--sp-5);
     align-items: stretch;
+  }
+
+  section {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
   }
 
   h4 {
@@ -157,7 +173,8 @@
   }
 
   .list {
-    height: 300px;
+    flex: 1 1 auto;
+    min-height: 0;
     margin: 0;
     padding: var(--sp-1) 0;
     overflow-y: auto;

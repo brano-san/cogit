@@ -9,6 +9,7 @@
     CATEGORIES,
     firstMatch,
     firstPage,
+    fillsPane,
     matchRanges,
     matchingCategories,
     disabledBy,
@@ -307,7 +308,7 @@
       </div>
     </nav>
 
-    <section class="content">
+    <section class="content" class:fill={current !== undefined && fillsPane(current)}>
       <h3>{current?.title ?? "Preferences"}</h3>
 
       {#if current}
@@ -776,6 +777,23 @@
     overflow-x: hidden;
     overflow-y: auto;
     container-type: inline-size;
+  }
+
+  /* A page whose editor scrolls its own list: title, group and the editor's head stay put,
+     the list takes the rest of the height. Never a second scrollbar around the first. */
+  .content.fill {
+    display: flex;
+    flex-direction: column;
+    overflow-y: hidden;
+  }
+
+  .content.fill > :global(*) {
+    flex: 0 0 auto;
+  }
+
+  .content.fill > :global(:last-child) {
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
 

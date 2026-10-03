@@ -134,10 +134,12 @@
     min-height: 0;
   }
 
+  /* The one scroll area of the Keyboard page: it takes what the filter and the hint leave. */
   .rows {
     display: flex;
     flex-direction: column;
-    max-height: 46vh;
+    flex: 1 1 auto;
+    min-height: 0;
     overflow: auto;
   }
 

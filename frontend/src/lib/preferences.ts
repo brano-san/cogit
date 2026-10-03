@@ -507,6 +507,14 @@ export const CATEGORIES: Category[] = [
   },
 ];
 
+/** Editors that scroll their own list. A page holding one fills the content pane and does
+    not scroll itself: one scroll area per page, never one inside another. */
+const SELF_SCROLLING: readonly FieldKey[] = ["keymap", "toolbar"];
+
+export function fillsPane(category: Category): boolean {
+  return category.groups.some((group) => group.fields.some((field) => SELF_SCROLLING.includes(field.key)));
+}
+
 function haystack(category: Category): string {
   const fields = category.groups.flatMap((group) => [
     group.title,
