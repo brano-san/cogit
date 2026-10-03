@@ -47,16 +47,19 @@ impl RepoHandle {
     }
 }
 
-/// The running git as (major, minor), asked once per process.
+/// The running git as (major, minor), asked once per git chosen.
 fn git_release() -> Option<(u32, u32)> {
-    static RELEASE: std::sync::OnceLock<Option<(u32, u32)>> = std::sync::OnceLock::new();
-    *RELEASE.get_or_init(|| match crate::runner::git_version() {
-        Ok(line) => release_of(&line),
-        Err(err) => {
-            tracing::error!(error = ?err, context = "git version for auto maintenance");
-            None
-        }
-    })
+    static RELEASE: crate::runner::PerGit<Option<(u32, u32)>> = crate::runner::PerGit::new();
+    let Ok(release) = RELEASE.get(|| {
+        Ok::<_, std::convert::Infallible>(match crate::runner::git_version() {
+            Ok(line) => release_of(&line),
+            Err(err) => {
+                tracing::error!(error = ?err, context = "git version for auto maintenance");
+                None
+            }
+        })
+    });
+    release
 }
 
 /// `git version 2.51.0.windows.1` → (2, 51).

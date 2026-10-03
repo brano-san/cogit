@@ -15,8 +15,9 @@ export const commands = {
 	/**  The usual places git lives that are not on PATH, each one that runs. */
 	findGitCandidates: () => typedError<GitCandidate[], GitError>(__TAURI_INVOKE("find_git_candidates")),
 	/**
-	 *  Runs git from `path` (empty: the one on PATH) from the next command on, so a git
-	 *  chosen in the missing-git dialog needs no restart.
+	 *  Runs git from `path` (empty: the one on PATH) from the next command on, so a git chosen
+	 *  in the missing-git dialog or in Preferences needs no restart. Probed first, like the
+	 *  startup check; one that does not work is refused and the git in use stays.
 	 */
 	useGit: (path: string) => typedError<null, GitError>(__TAURI_INVOKE("use_git", { path })),
 	/**

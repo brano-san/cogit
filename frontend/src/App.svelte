@@ -945,7 +945,26 @@
     const before = settingsAtOpen;
     settingsOpen = false;
     await toolbar.setLayout(toolbarAtOpen);
+    const git = settings.current.gitPath;
     await applySettings(before ?? settings.current, keymapAtOpen);
+    if (before && before.gitPath !== git) await switchGit(before.gitPath);
+  }
+
+  /** Preferences ▸ Git executable while Cogit runs: the backend probes it and refuses one
+      that does not work, keeping the git in use; what was read from the old git (version in
+      About, LFS, the missing / too-old check) is read again. */
+  async function switchGit(path: string) {
+    try {
+      await useGit(path);
+    } catch (err) {
+      errors.report(err, "Could not switch to that Git");
+      return;
+    }
+    void gitMissing.check(path);
+    void remoteOps.detectLfs();
+    void getAppInfo()
+      .then((result) => (info = result))
+      .catch((err) => errors.report(err, "Could not read the application info"));
   }
 
   const preferencesHost: ApplyHost = {
@@ -3963,6 +3982,7 @@ ${event.error}`,
       onforgettoken={() => void network.forgetToken()}
       onapply={(next, keys) => void applySettings(next, keys)}
       onrevert={() => void revertSettings()}
+      onusegit={(path) => void switchGit(path)}
       onclose={() => (settingsOpen = false)}
       ignored={health.ignored}
       onunignore={(root, warning) => void health.unignore(root, warning)}

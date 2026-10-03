@@ -279,19 +279,14 @@ pub async fn find_git_candidates() -> Result<Vec<git_engine::GitCandidate>, GitE
     .await
 }
 
-/// Runs git from `path` (empty: the one on PATH) from the next command on, so a git
-/// chosen in the missing-git dialog needs no restart.
+/// Runs git from `path` (empty: the one on PATH) from the next command on, so a git chosen
+/// in the missing-git dialog or in Preferences needs no restart. Probed first, like the
+/// startup check; one that does not work is refused and the git in use stays.
 #[tauri::command]
 #[specta::specta]
 pub async fn use_git(path: String) -> Result<(), GitError> {
     blocking("use_git", move || {
-        let path = path.trim();
-        git_engine::use_git_program(std::path::PathBuf::from(if path.is_empty() {
-            "git"
-        } else {
-            path
-        }));
-        Ok(())
+        git_engine::switch_git(&path, std::time::Duration::from_secs(5)).map(drop)
     })
     .await
 }

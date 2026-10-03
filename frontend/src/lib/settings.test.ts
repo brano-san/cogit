@@ -85,8 +85,9 @@ describe("needsRestart", () => {
     expect(needsRestart("logLevel")).toBe(true);
   });
 
-  it("is true for the git executable path", () => {
-    expect(needsRestart("gitPath")).toBe(true);
+  // Switched while Cogit runs, through `use_git`, once the probe accepts it.
+  it("is false for the git executable path", () => {
+    expect(needsRestart("gitPath")).toBe(false);
   });
 });
 

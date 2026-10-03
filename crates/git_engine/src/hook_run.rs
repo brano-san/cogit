@@ -188,20 +188,18 @@ fn bash(root: &Path) -> std::io::Result<std::process::Command> {
 /// WSL's bash (System32 or WindowsApps) or nothing.
 #[cfg(windows)]
 fn git_bash() -> std::io::Result<std::path::PathBuf> {
-    static FOUND: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
-    if let Some(found) = FOUND.get() {
-        return Ok(found.clone());
-    }
-    let exec_path = crate::runner::bare_git(&["--exec-path"])
-        .map_err(|err| std::io::Error::other(err.to_string()))?
-        .stdout;
-    let found = bash_near(Path::new(exec_path.trim())).ok_or_else(|| {
-        std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            format!("no bash.exe of Git for Windows above {}", exec_path.trim()),
-        )
-    })?;
-    Ok(FOUND.get_or_init(|| found).clone())
+    static FOUND: crate::runner::PerGit<std::path::PathBuf> = crate::runner::PerGit::new();
+    FOUND.get(|| {
+        let exec_path = crate::runner::bare_git(&["--exec-path"])
+            .map_err(|err| std::io::Error::other(err.to_string()))?
+            .stdout;
+        bash_near(Path::new(exec_path.trim())).ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("no bash.exe of Git for Windows above {}", exec_path.trim()),
+            )
+        })
+    })
 }
 
 /// `<Git>/mingw64/libexec/git-core` (or `mingw32`, `clangarm64`) → `<Git>/bin/bash.exe`.

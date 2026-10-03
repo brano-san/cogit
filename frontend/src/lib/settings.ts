@@ -164,7 +164,7 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 /** Read once at startup, so changing them needs a restart to take effect. */
-const RESTART_REQUIRED: readonly (keyof Settings)[] = ["logLevel", "gitPath", "uiWebMenus"];
+const RESTART_REQUIRED: readonly (keyof Settings)[] = ["logLevel", "uiWebMenus"];
 
 const ENUMS: Partial<Record<keyof Settings, readonly string[]>> = {
   theme: THEMES.map(([id]) => id),

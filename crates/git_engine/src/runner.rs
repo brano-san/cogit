@@ -396,6 +396,43 @@ fn git_program() -> std::path::PathBuf {
     held.unwrap_or_else(|| std::path::PathBuf::from("git"))
 }
 
+/// Something learned from the git in use (its release, its bash), learned again once
+/// another git is chosen: a `OnceLock` would keep the answer of the first one for good.
+/// Only a success is kept; a failure is asked again next time, as before.
+pub(crate) struct PerGit<T>(std::sync::Mutex<Option<(std::path::PathBuf, T)>>);
+
+impl<T: Clone> PerGit<T> {
+    pub(crate) const fn new() -> Self {
+        Self(std::sync::Mutex::new(None))
+    }
+
+    pub(crate) fn get<E>(
+        &self,
+        learn: impl FnOnce() -> std::result::Result<T, E>,
+    ) -> std::result::Result<T, E> {
+        self.get_for(git_program(), learn)
+    }
+
+    fn get_for<E>(
+        &self,
+        program: std::path::PathBuf,
+        learn: impl FnOnce() -> std::result::Result<T, E>,
+    ) -> std::result::Result<T, E> {
+        let mut held = self
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some((known, value)) = held.as_ref()
+            && *known == program
+        {
+            return Ok(value.clone());
+        }
+        let value = learn()?;
+        *held = Some((program, value.clone()));
+        Ok(value)
+    }
+}
+
 /// A git that does not start says which one: set in Preferences, it may not exist. One
 /// that is not there at all is its own error, so the window can offer to find one.
 pub(crate) fn not_started(err: std::io::Error) -> GitError {
@@ -552,5 +589,23 @@ mod tests {
             "{:?}",
             ids.lock().unwrap()
         );
+    }
+
+    // The auto-maintenance release and the hook bash outlived a git chosen in Preferences.
+    #[test]
+    fn a_value_per_git_is_learned_again_for_another_git() {
+        let cache = super::PerGit::<u32>::new();
+        let mut asked = 0;
+        let mut learn = |value: u32| {
+            asked += 1;
+            Ok::<_, ()>(value)
+        };
+        assert_eq!(cache.get_for("a".into(), || learn(1)), Ok(1));
+        assert_eq!(cache.get_for("a".into(), || learn(9)), Ok(1));
+        assert_eq!(cache.get_for("b".into(), || learn(2)), Ok(2));
+        assert_eq!(asked, 2);
+        assert_eq!(cache.get_for("b".into(), || Err::<u32, ()>(())), Ok(2));
+        assert_eq!(cache.get_for("c".into(), || Err::<u32, ()>(())), Err(()));
+        assert_eq!(cache.get_for("c".into(), || Ok::<_, ()>(3)), Ok(3));
     }
 }

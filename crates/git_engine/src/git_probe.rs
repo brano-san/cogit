@@ -41,6 +41,30 @@ pub fn parse_git_version(stdout: &str) -> Option<String> {
     (!numbers.is_empty()).then(|| numbers.join("."))
 }
 
+/// Preferences ▸ Git executable while Cogit runs: probed as the startup check does, and run
+/// from the next command on only if it works. One that does not leaves the git in use and
+/// says why, in the probe's own words.
+///
+/// # Errors
+///
+/// [`GitError::GitNotFound`] with the probe's reason when `program` is not a working git.
+pub fn switch_git(program: &str, timeout: Duration) -> Result<GitProbe, crate::GitError> {
+    let probe = probe_git(program, timeout);
+    if !probe.valid {
+        return Err(crate::GitError::GitNotFound(
+            probe
+                .error
+                .unwrap_or_else(|| format!("{program} is not a working git")),
+        ));
+    }
+    let program = match program.trim() {
+        "" => "git",
+        trimmed => trimmed,
+    };
+    crate::runner::use_git_program(program.into());
+    Ok(probe)
+}
+
 /// Runs `<program> --version`, never longer than `timeout`. An empty path is the `git` on
 /// PATH. Nothing here throws: a missing or broken program is an invalid probe with a reason.
 #[must_use]

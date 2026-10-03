@@ -48,6 +48,8 @@
     onapply: (next: Settings, keymap: Keymap) => void;
     /** Puts everything back to how it was when the dialog opened, and closes. */
     onrevert: () => void;
+    /** Runs this git from now on: called once the field holds a git the probe accepted. */
+    onusegit: (path: string) => void;
     /** Closes and keeps: everything was applied as it was chosen. */
     onclose: () => void;
     /** Warnings ignored per repository; the exit question comes from the draft itself. */
@@ -72,6 +74,7 @@
     onforgettoken,
     onapply,
     onrevert,
+    onusegit,
     onclose,
     ignored,
     onunignore,
@@ -157,7 +160,16 @@
   const note = $derived(current?.note ?? (restartFields(active).length > 0 ? "* Requires restart" : ""));
 
   let gitCheck = $state.raw<GitCheck>({ state: "idle" });
-  const gitChecker = createGitChecker(probeGit, (next) => (gitCheck = next));
+  // svelte-ignore state_referenced_locally
+  let gitInUse = value.gitPath;
+  /** The checker drops overtaken answers, so an `ok` is about the path in the field now.
+      A bad one only shows its reason: the git in use stays. */
+  const gitChecker = createGitChecker(probeGit, (next) => {
+    gitCheck = next;
+    if (next.state !== "ok" || draft.gitPath === gitInUse) return;
+    gitInUse = draft.gitPath;
+    onusegit(gitInUse);
+  });
   $effect(() => {
     gitChecker.check(untrack(() => draft.gitPath));
     return () => gitChecker.dispose();
@@ -386,7 +398,8 @@
                 {#if gitCheck.state === "ok"}
                   <span class="verdict ok"><span aria-hidden="true">✓</span> {describeCheck(gitCheck)}</span>
                 {:else if gitCheck.state === "bad"}
-                  <button type="button" class="verdict bad" data-tip={gitCheck.reason}><span aria-hidden="true">✗</span> Not a working Git</button>
+                  <!-- The probe's own words; the git in use stays until one works. -->
+                  <span class="verdict bad" role="alert"><span aria-hidden="true">✗</span> {gitCheck.reason}</span>
                 {:else if gitCheck.state === "checking"}
                   <span class="verdict">{describeCheck(gitCheck)}</span>
                 {/if}
@@ -908,10 +921,11 @@
 
   .verdict.bad {
     color: var(--status-delete);
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
   }
 
-  .star,
-  .verdict.bad {
+  .star {
     padding: 0;
     background: none;
     border: 0;
