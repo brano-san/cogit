@@ -6,3 +6,4 @@ Icon={{icon}}
 Terminal=false
 NoDisplay=true
 StartupWMClass=cogit
+Categories=Development;RevisionControl;
