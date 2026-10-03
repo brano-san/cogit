@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { clampFraction, DEFAULT_LAYOUT } from "$lib/perspectives";
+import { layout } from "./layout.svelte";
 
 describe("clampFraction", () => {
   it("leaves sensible values untouched", () => {
@@ -32,8 +33,7 @@ describe("clampFraction", () => {
 // Shift+F11 on Diff, then Ctrl+3: the tick of Graph read unticked, the click hid it
 // unseen, and Shift+F11 came back to a window without a graph.
 describe("View ▸ <Panel> while another panel is maximised", () => {
-  it("shows the panel it names, as its unticked box promised", async () => {
-    const { layout } = await import("./layout.svelte");
+  it("shows the panel it names, as its unticked box promised", () => {
     layout.reset();
     layout.toggleMaximized("diff");
     expect(layout.visible("graph")).toBe(false);
@@ -45,8 +45,7 @@ describe("View ▸ <Panel> while another panel is maximised", () => {
     expect(layout.visible("diff")).toBe(true);
   });
 
-  it("hides the maximised panel it names and brings the others back", async () => {
-    const { layout } = await import("./layout.svelte");
+  it("hides the maximised panel it names and brings the others back", () => {
     layout.reset();
     layout.toggleMaximized("diff");
 
@@ -57,8 +56,7 @@ describe("View ▸ <Panel> while another panel is maximised", () => {
     expect(layout.visible("graph")).toBe(true);
   });
 
-  it("still toggles a panel when none is maximised", async () => {
-    const { layout } = await import("./layout.svelte");
+  it("still toggles a panel when none is maximised", () => {
     layout.reset();
 
     layout.togglePanel("graph");
