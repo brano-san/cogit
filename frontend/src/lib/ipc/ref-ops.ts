@@ -40,8 +40,8 @@ export async function renameTag(repo: RepoId, from: string, to: string) {
   return unwrap(await commands.renameTag(repo, from, to));
 }
 
-export async function renameStash(repo: RepoId, index: number, message: string) {
-  return unwrap(await commands.renameStash(repo, index, message));
+export async function renameStash(repo: RepoId, oid: string, message: string) {
+  return unwrap(await commands.renameStash(repo, oid, message));
 }
 
 export async function editAuthor(repo: RepoId, rev: string, name: string, email: string) {

@@ -352,6 +352,10 @@ mod tag_rename {
 mod stash_rename {
     use super::*;
 
+    fn oid_at(repo: &RepoHandle, index: u32) -> String {
+        repo.stashes().unwrap()[index as usize].oid.clone()
+    }
+
     fn listing(repo: &RepoHandle) -> Vec<(String, String)> {
         repo.stashes()
             .unwrap()
@@ -366,7 +370,7 @@ mod stash_rename {
         let repo = open(&f);
         let before = listing(&repo);
 
-        repo.rename_stash(1, "renamed").unwrap();
+        repo.rename_stash(&oid_at(&repo, 1), "renamed").unwrap();
 
         let after = listing(&repo);
         assert_eq!(after.len(), 3);
@@ -386,7 +390,7 @@ mod stash_rename {
         let repo = open(&f);
         let before = listing(&repo);
 
-        repo.rename_stash(0, "top").unwrap();
+        repo.rename_stash(&oid_at(&repo, 0), "top").unwrap();
 
         let after = listing(&repo);
         assert_eq!(after[0], (before[0].0.clone(), "top".to_owned()));
@@ -399,7 +403,7 @@ mod stash_rename {
         let repo = open(&f);
         let before = listing(&repo);
 
-        assert!(repo.rename_stash(5, "nope").is_err());
+        assert!(repo.rename_stash(&"0".repeat(40), "nope").is_err());
         assert_eq!(listing(&repo), before);
     }
 
@@ -409,7 +413,7 @@ mod stash_rename {
         let repo = open(&f);
         let before = listing(&repo);
 
-        assert!(repo.rename_stash(0, "   ").is_err());
+        assert!(repo.rename_stash(&oid_at(&repo, 0), "   ").is_err());
         assert_eq!(listing(&repo), before);
     }
 }

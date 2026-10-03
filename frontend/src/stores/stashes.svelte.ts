@@ -36,12 +36,12 @@ class StashStore {
     });
   }
 
-  async apply(repo: RepoId, index: number, pop: boolean, restoreIndex = false): Promise<void> {
-    await this.#then(repo, () => stashApply(repo, index, pop, restoreIndex));
+  async apply(repo: RepoId, oid: string, pop: boolean, restoreIndex = false): Promise<void> {
+    await this.#then(repo, () => stashApply(repo, oid, pop, restoreIndex));
   }
 
-  async drop(repo: RepoId, index: number): Promise<void> {
-    await this.#then(repo, () => stashDrop(repo, index));
+  async drop(repo: RepoId, oid: string): Promise<void> {
+    await this.#then(repo, () => stashDrop(repo, oid));
   }
 
   clear(): void {

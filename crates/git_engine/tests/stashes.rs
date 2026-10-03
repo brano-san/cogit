@@ -3,6 +3,10 @@
 
 use git_engine::{RepoHandle, StashOptions};
 
+fn oid_at(repo: &RepoHandle, index: u32) -> String {
+    repo.stashes().unwrap()[index as usize].oid.clone()
+}
+
 fn open(f: &test_fixtures::Fixture) -> RepoHandle {
     RepoHandle::open(f.path()).unwrap()
 }
@@ -138,7 +142,8 @@ fn applying_a_stash_keeps_it_in_the_list() {
     let f = test_fixtures::with_stashes(2).unwrap();
     let repo = open(&f);
 
-    repo.stash_apply_index(0, false, false).unwrap();
+    repo.stash_apply_index(&oid_at(&repo, 0), false, false)
+        .unwrap();
 
     assert_eq!(repo.stashes().unwrap().len(), 2);
 }
@@ -148,7 +153,8 @@ fn popping_a_stash_removes_it_from_the_list() {
     let f = test_fixtures::with_stashes(2).unwrap();
     let repo = open(&f);
 
-    repo.stash_apply_index(0, true, false).unwrap();
+    repo.stash_apply_index(&oid_at(&repo, 0), true, false)
+        .unwrap();
 
     assert_eq!(repo.stashes().unwrap().len(), 1);
 }
@@ -173,7 +179,8 @@ fn restore_index_brings_staged_changes_back_staged() {
     let f = staged_then_stashed();
     let repo = open(&f);
 
-    repo.stash_apply_index(0, false, true).unwrap();
+    repo.stash_apply_index(&oid_at(&repo, 0), false, true)
+        .unwrap();
 
     assert_eq!(staged_paths(&repo), ["file0.txt"]);
     assert_eq!(repo.stashes().unwrap().len(), 1);
@@ -184,7 +191,8 @@ fn without_restore_index_staged_changes_come_back_unstaged() {
     let f = staged_then_stashed();
     let repo = open(&f);
 
-    repo.stash_apply_index(0, false, false).unwrap();
+    repo.stash_apply_index(&oid_at(&repo, 0), false, false)
+        .unwrap();
 
     assert!(staged_paths(&repo).is_empty());
     let unstaged = repo.worktree_files().unwrap().unstaged;
@@ -199,7 +207,8 @@ fn apply_and_drop_restoring_the_index_removes_the_stash() {
     let f = staged_then_stashed();
     let repo = open(&f);
 
-    repo.stash_apply_index(0, true, true).unwrap();
+    repo.stash_apply_index(&oid_at(&repo, 0), true, true)
+        .unwrap();
 
     assert_eq!(staged_paths(&repo), ["file0.txt"]);
     assert!(repo.stashes().unwrap().is_empty());
@@ -211,7 +220,7 @@ fn dropping_a_stash_removes_it_without_touching_the_working_tree() {
     let repo = open(&f);
     let before = repo.worktree_files().unwrap();
 
-    repo.stash_drop(0).unwrap();
+    repo.stash_drop(&oid_at(&repo, 0)).unwrap();
 
     assert_eq!(repo.stashes().unwrap().len(), 1);
     let after = repo.worktree_files().unwrap();
@@ -224,7 +233,7 @@ fn dropping_reports_the_entry_so_undo_can_bring_it_back() {
     let repo = open(&f);
     let entry = repo.stashes().unwrap()[0].clone();
 
-    let dropped = repo.stash_drop(0).unwrap();
+    let dropped = repo.stash_drop(&oid_at(&repo, 0)).unwrap();
 
     assert_eq!(dropped, entry);
 }
@@ -235,7 +244,7 @@ fn a_dropped_stash_goes_back_to_its_place_in_the_list() {
     let repo = open(&f);
     let before = repo.stashes().unwrap();
 
-    let dropped = repo.stash_drop(1).unwrap();
+    let dropped = repo.stash_drop(&oid_at(&repo, 1)).unwrap();
     repo.restore_stash(&dropped).unwrap();
 
     assert_eq!(repo.stashes().unwrap(), before);
@@ -246,8 +255,39 @@ fn an_index_that_does_not_exist_is_a_typed_error() {
     let f = test_fixtures::with_stashes(1).unwrap();
     let repo = open(&f);
 
-    assert!(repo.stash_drop(7).is_err());
-    assert!(repo.stash_apply_index(7, false, false).is_err());
+    let missing = "0".repeat(40);
+    assert!(matches!(
+        repo.stash_drop(&missing),
+        Err(git_engine::GitError::InvalidState(_))
+    ));
+    assert!(repo.stash_apply_index(&missing, false, false).is_err());
+    assert_eq!(repo.stashes().unwrap().len(), 1);
+}
+
+#[test]
+fn a_stash_made_after_the_list_was_read_does_not_shift_the_target() {
+    let f = test_fixtures::with_stashes(2).unwrap();
+    let repo = open(&f);
+    let old = repo.stashes().unwrap()[0].clone();
+    dirty(&f, "late.txt", "late\n");
+    repo.stash_push(&StashOptions {
+        message: "late".to_owned(),
+        include_untracked: true,
+        keep_index: false,
+    })
+    .unwrap();
+
+    repo.stash_drop(&old.oid).unwrap();
+
+    let left: Vec<String> = repo
+        .stashes()
+        .unwrap()
+        .into_iter()
+        .map(|e| e.message)
+        .collect();
+    assert_eq!(left.len(), 2);
+    assert!(!left.contains(&old.message), "{left:?}");
+    assert!(left[0].contains("late"), "{left:?}");
 }
 
 // Entries whose commit is gone are left out of the list, and the rest were numbered after
@@ -326,7 +366,8 @@ fn asked_for_untracked_with_none_there_the_edits_go_in_a_plain_push() {
 
     assert_eq!(*commands.lock().unwrap(), ["git stash push --message wip"]);
     assert!(repo.worktree_files().unwrap().unstaged.is_empty());
-    repo.stash_apply_index(0, true, false).unwrap();
+    repo.stash_apply_index(&oid_at(&repo, 0), true, false)
+        .unwrap();
     assert_eq!(
         std::fs::read_to_string(f.path().join("file0.txt")).unwrap(),
         "work in progress\n"

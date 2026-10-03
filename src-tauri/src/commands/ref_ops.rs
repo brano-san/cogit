@@ -143,7 +143,7 @@ pub async fn set_note(
 pub async fn rename_stash(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,
-    index: u32,
+    oid: String,
     message: String,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
@@ -152,7 +152,7 @@ pub async fn rename_stash(
         repo,
         OperationKind::Stash,
         "rename_stash",
-        move || app_state.rename_stash(repo, index, &message),
+        move || app_state.rename_stash(repo, &oid, &message),
     )
     .await
 }

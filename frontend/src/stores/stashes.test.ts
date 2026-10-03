@@ -19,14 +19,14 @@ beforeEach(() => {
 // Item 40: the Apply Stash dialog's Apply & Drop and Restore Index reach git.
 describe("applying a stash", () => {
   it("hands Apply & Drop and Restore Index to the backend", async () => {
-    await stashes.apply(A, 2, true, true);
+    await stashes.apply(A, "abc", true, true);
 
-    expect(ipc.stashApply).toHaveBeenCalledWith(A, 2, true, true);
+    expect(ipc.stashApply).toHaveBeenCalledWith(A, "abc", true, true);
   });
 
   it("leaves the index as git applies it unless asked", async () => {
-    await stashes.apply(A, 0, false);
+    await stashes.apply(A, "def", false);
 
-    expect(ipc.stashApply).toHaveBeenCalledWith(A, 0, false, false);
+    expect(ipc.stashApply).toHaveBeenCalledWith(A, "def", false, false);
   });
 });

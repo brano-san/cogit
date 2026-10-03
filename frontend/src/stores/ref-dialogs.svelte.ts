@@ -12,7 +12,7 @@ class RefDialogs {
   note = $state.raw<{ oid: string; text: string } | null>(null);
   upstream = $state.raw<{ branch: string; current: string | null } | null>(null);
   checkout = $state.raw<CheckoutOffer | null>(null);
-  applyStash = $state.raw<{ index: number; message: string } | null>(null);
+  applyStash = $state.raw<{ index: number; oid: string; message: string } | null>(null);
   reflog = $state.raw<{ branch: string } | null>(null);
 
   close(): void {

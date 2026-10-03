@@ -144,7 +144,7 @@
     ref: RefTarget | null;
     branch: Branch | null;
     tag: Tag | null;
-    stash: { index: number; message: string } | null;
+    stash: { index: number; oid: string; message: string } | null;
     node: RefNode | null;
     /** What the graph had selected when the menu opened. */
     selected: string | null;
@@ -339,8 +339,11 @@
 
       if (node.kind === "stash") {
         const index = Number(node.id.slice("stash:".length));
-        const message = stashes.entries.find((entry) => entry.index === index)?.message ?? "";
-        await show({ ...base, stash: { index, message } }, branchesStashMenu(facts, at), x, y);
+        const entry = stashes.entries.find((entry) => entry.index === index);
+        const message = entry?.message ?? "";
+        const stashOid = entry?.oid ?? node.oid;
+        if (!stashOid) return;
+        await show({ ...base, stash: { index, oid: stashOid, message } }, branchesStashMenu(facts, at), x, y);
       } else if (node.kind === "tag") {
         if (!tag || !found?.ref) return;
         await show({ ...base, ref: found.ref, tag }, branchesTagMenu(facts, { ...at, annotated: tag.isAnnotated }), x, y);
@@ -589,8 +592,8 @@
         return;
       case "pop-stash":
         if (at.stash) {
-          const index = at.stash.index;
-          await attempt("Could not pop the stash", () => stashes.apply(id, index, true));
+          const oid = at.stash.oid;
+          await attempt("Could not pop the stash", () => stashes.apply(id, oid, true));
         }
         return;
       case "rename-stash":
@@ -661,7 +664,7 @@
       menu's Apply Stash. */
   function openApplyStash(index: number) {
     const entry = stashes.entries.find((stash) => stash.index === index);
-    if (entry) refDialogs.applyStash = { index, message: entry.message };
+    if (entry) refDialogs.applyStash = { index, oid: entry.oid, message: entry.message };
   }
 
   export function applyStashNode(node: RefNode) {
@@ -675,7 +678,7 @@
     if (!id || !stash) return;
     // A conflicted apply still changed the working tree: `attempt` reads back either way.
     await attempt(drop ? "Could not apply and drop the stash" : "Could not apply the stash", () =>
-      stashes.apply(id, stash.index, drop, restoreIndex),
+      stashes.apply(id, stash.oid, drop, restoreIndex),
     );
   }
 
@@ -961,7 +964,7 @@
       validate: textProblem,
     });
     if (message === null || message === stash.message) return;
-    await attempt("Could not rename the stash", () => renameStash(id, stash.index, message), afterMutation);
+    await attempt("Could not rename the stash", () => renameStash(id, stash.oid, message), afterMutation);
   }
 
   async function dropStashTarget(id: RepoId, at: Target) {
@@ -973,7 +976,7 @@
       confirm: "Drop",
       warning: true,
     });
-    if (go) await attempt("Could not drop the stash", () => stashes.drop(id, stash.index), afterMutation);
+    if (go) await attempt("Could not drop the stash", () => stashes.drop(id, stash.oid), afterMutation);
   }
 
   async function tickNode(node: RefNode) {

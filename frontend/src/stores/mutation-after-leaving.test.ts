@@ -64,7 +64,7 @@ beforeEach(() => {
 // B's Files, the worktree commands sent to A.
 describe("a write that finishes after the panels have left its repository", () => {
   it("does not put A's stashes in B's list", async () => {
-    const write = stashes.apply(A, 0, false);
+    const write = stashes.apply(A, "abc", false);
     stashes.clear();
     await stashes.refresh(B);
     reads.length = 0;
@@ -124,7 +124,7 @@ describe("a write that finishes after the panels have left its repository", () =
 
 describe("a write that finishes in the repository still shown", () => {
   it("reads the list back", async () => {
-    const write = stashes.apply(A, 0, false);
+    const write = stashes.apply(A, "abc", false);
     reads.length = 0;
     answer("apply:1");
     await write;

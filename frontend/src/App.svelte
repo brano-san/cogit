@@ -1659,9 +1659,10 @@ ${event.error}`,
       panels reload either way; Git's output reaches the notification window. */
   async function applyNewestStash() {
     const id = repository.current?.repo;
-    if (!id) return;
+    const newest = stashes.entries.find((entry) => entry.index === 0);
+    if (!id || !newest) return;
     await stashes
-      .apply(id, 0, false)
+      .apply(id, newest.oid, false)
       .catch((err) => errors.report(err, "Could not apply stash@{0}"));
     await afterRefChange(id);
   }

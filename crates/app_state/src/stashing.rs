@@ -56,13 +56,13 @@ impl AppState {
     pub fn stash_apply(
         &self,
         repo: RepoId,
-        index: u32,
+        oid: &str,
         pop: bool,
         restore_index: bool,
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         self.handle(repo)?
-            .stash_apply_index(index, pop, restore_index)
+            .stash_apply_index(oid, pop, restore_index)
     }
 
     /// Stash, check out, apply: one call, which the command runs as one operation (R-521,
@@ -86,12 +86,12 @@ impl AppState {
         Ok(outcome)
     }
 
-    pub fn stash_drop(&self, repo: RepoId, index: u32) -> Result<(), git_engine::GitError> {
+    pub fn stash_drop(&self, repo: RepoId, oid: &str) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
-        let entry = self.handle(repo)?.stash_drop(index)?;
+        let entry = self.handle(repo)?.stash_drop(oid)?;
         self.record(
             repo,
-            format!("Drop stash@{{{index}}}"),
+            format!("Drop stash@{{{}}} ({})", entry.index, entry.message),
             Recovery::DroppedStash { entry },
         );
         Ok(())

@@ -71,7 +71,7 @@ pub async fn stash_push(
 pub async fn stash_apply(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,
-    index: u32,
+    oid: String,
     pop: bool,
     restore_index: bool,
 ) -> Result<(), GitError> {
@@ -81,7 +81,7 @@ pub async fn stash_apply(
         repo,
         OperationKind::Stash,
         "stash_apply",
-        move || app_state.stash_apply(repo, index, pop, restore_index),
+        move || app_state.stash_apply(repo, &oid, pop, restore_index),
     )
     .await
 }
@@ -91,7 +91,7 @@ pub async fn stash_apply(
 pub async fn stash_drop(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,
-    index: u32,
+    oid: String,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
     mutating(
@@ -99,7 +99,7 @@ pub async fn stash_drop(
         repo,
         OperationKind::Stash,
         "stash_drop",
-        move || app_state.stash_drop(repo, index),
+        move || app_state.stash_drop(repo, &oid),
     )
     .await
 }

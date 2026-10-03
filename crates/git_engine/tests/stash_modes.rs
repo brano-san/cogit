@@ -3,6 +3,10 @@
 
 use git_engine::RepoHandle;
 
+fn oid_at(repo: &RepoHandle, index: u32) -> String {
+    repo.stashes().unwrap()[index as usize].oid.clone()
+}
+
 fn open(f: &test_fixtures::Fixture) -> RepoHandle {
     RepoHandle::open(f.path()).unwrap()
 }
@@ -74,7 +78,9 @@ fn applying_the_newest_stash_over_a_conflicting_commit_fails_with_git_s_output()
     f.git(&["checkout", "--", "file0.txt"]).unwrap();
     f.commit_file(30, "file0.txt", "committed side\n").unwrap();
 
-    let err = repo.stash_apply_index(0, false, false).unwrap_err();
+    let err = repo
+        .stash_apply_index(&oid_at(&repo, 0), false, false)
+        .unwrap_err();
 
     let git_engine::GitError::Command(failure) = err else {
         panic!("expected a command failure, got {err:?}");

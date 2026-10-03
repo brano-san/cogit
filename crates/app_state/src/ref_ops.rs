@@ -202,9 +202,9 @@ impl AppState {
         self.handle(repo)?.set_note(rev, text)
     }
 
-    pub fn rename_stash(&self, repo: RepoId, index: u32, message: &str) -> Result<(), GitError> {
+    pub fn rename_stash(&self, repo: RepoId, oid: &str, message: &str) -> Result<(), GitError> {
         let _quiet = self.quiet(repo);
-        self.handle(repo)?.rename_stash(index, message)
+        self.handle(repo)?.rename_stash(oid, message)
     }
 
     pub fn edit_author(

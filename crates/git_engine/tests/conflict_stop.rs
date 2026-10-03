@@ -7,6 +7,10 @@ use git_engine::{GitOutput, RepoHandle};
 
 type Log = Arc<Mutex<Vec<GitOutput>>>;
 
+fn oid_at(repo: &RepoHandle, index: u32) -> String {
+    repo.stashes().unwrap()[index as usize].oid.clone()
+}
+
 fn journaled(f: &test_fixtures::Fixture) -> (RepoHandle, Log) {
     let log: Log = Arc::default();
     let sink = Arc::clone(&log);
@@ -51,7 +55,10 @@ fn a_stash_apply_that_conflicts_is_marked() {
     f.commit_file(12, "file0.txt", "committed\n").unwrap();
     let (repo, log) = journaled(&f);
 
-    assert!(repo.stash_apply_index(0, false, false).is_err());
+    assert!(
+        repo.stash_apply_index(&oid_at(&repo, 0), false, false)
+            .is_err()
+    );
 
     assert!(last(&log).stopped_on_conflicts);
 }

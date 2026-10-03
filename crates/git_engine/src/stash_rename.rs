@@ -2,7 +2,7 @@ use crate::{GitError, RepoHandle, Result, StashEntry};
 
 impl RepoHandle {
     /// Drop and store back every entry down to `index`, so none moves (R-252).
-    pub fn rename_stash(&self, index: u32, message: &str) -> Result<()> {
+    pub fn rename_stash(&self, oid: &str, message: &str) -> Result<()> {
         let message = message.trim();
         if message.is_empty() {
             return Err(GitError::InvalidState("an empty stash message".to_owned()));
@@ -10,9 +10,9 @@ impl RepoHandle {
         let entries = self.stashes()?;
         let target = entries
             .iter()
-            .find(|entry| entry.index == index)
-            .ok_or_else(|| GitError::InvalidState(format!("no stash at index {index}")))?;
-        let newer = newer_than(&entries, index);
+            .find(|entry| entry.oid == oid)
+            .ok_or_else(crate::stash::gone)?;
+        let newer = newer_than(&entries, target.index);
 
         restack(message, target.oid.as_str(), &newer, true, |args| {
             self.run_git(args).map(|_| ())

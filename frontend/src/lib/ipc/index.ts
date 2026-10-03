@@ -842,12 +842,12 @@ export async function stashKeepingWorktree(repo: RepoId, message: string) {
 }
 
 /** `restoreIndex`: `--index`, the staged side comes back staged. */
-export async function stashApply(repo: RepoId, index: number, pop: boolean, restoreIndex = false) {
-  return unwrap(await commands.stashApply(repo, index, pop, restoreIndex));
+export async function stashApply(repo: RepoId, oid: string, pop: boolean, restoreIndex = false) {
+  return unwrap(await commands.stashApply(repo, oid, pop, restoreIndex));
 }
 
-export async function stashDrop(repo: RepoId, index: number) {
-  return unwrap(await commands.stashDrop(repo, index));
+export async function stashDrop(repo: RepoId, oid: string) {
+  return unwrap(await commands.stashDrop(repo, oid));
 }
 
 export async function abortOperation(repo: RepoId) {

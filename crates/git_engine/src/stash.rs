@@ -49,6 +49,10 @@ pub enum AutostashOutcome {
 /// numbers and `git stash pop` never meet them (R-514).
 pub const BACKUP_REFS: &str = "refs/cogit/backup/";
 
+pub(crate) fn gone() -> GitError {
+    GitError::InvalidState("the stash list changed; that stash is no longer there".to_owned())
+}
+
 impl RepoHandle {
     /// `stash_paths` whose stash is kept as a backup for Undo instead of listed.
     pub fn backup_paths(&self, paths: &[String], message: &str) -> Result<Option<String>> {
@@ -369,8 +373,8 @@ impl RepoHandle {
 
     /// `pop` drops the entry only after it applied cleanly: git keeps it on a conflict.
     /// `restore_index` puts the staged side back staged, where git can (`--index`).
-    pub fn stash_apply_index(&self, index: u32, pop: bool, restore_index: bool) -> Result<()> {
-        let reference = self.stash_ref(index)?;
+    pub fn stash_apply_index(&self, oid: &str, pop: bool, restore_index: bool) -> Result<()> {
+        let reference = format!("stash@{{{}}}", self.stash_by_oid(oid)?.index);
         let verb = if pop { "pop" } else { "apply" };
         let mut args = vec!["stash", verb];
         if restore_index {
@@ -444,21 +448,18 @@ impl RepoHandle {
     }
 
     /// Returns the dropped entry so Undo can put it back (`restore_stash`).
-    pub fn stash_drop(&self, index: u32) -> Result<StashEntry> {
-        let entry = self
-            .stashes()?
-            .into_iter()
-            .find(|entry| entry.index == index)
-            .ok_or_else(|| GitError::InvalidState(format!("no stash at index {index}")))?;
-        self.run_git(&["stash", "drop", &self.stash_ref(index)?])?;
+    pub fn stash_drop(&self, oid: &str) -> Result<StashEntry> {
+        let entry = self.stash_by_oid(oid)?;
+        self.run_git(&["stash", "drop", &format!("stash@{{{}}}", entry.index)])?;
         Ok(entry)
     }
 
-    fn stash_ref(&self, index: u32) -> Result<String> {
-        if !self.stashes()?.iter().any(|entry| entry.index == index) {
-            return Err(GitError::InvalidState(format!("no stash at index {index}")));
-        }
-        Ok(format!("stash@{{{index}}}"))
+    /// `stash@{n}` is a position that shifts when another stash is made; the oid is not.
+    pub(crate) fn stash_by_oid(&self, oid: &str) -> Result<StashEntry> {
+        self.stashes()?
+            .into_iter()
+            .find(|entry| entry.oid == oid)
+            .ok_or_else(gone)
     }
     /// Reads a stash through `gix`: applying it to look at it would be the one thing the
     /// user did not ask for (T5.2).

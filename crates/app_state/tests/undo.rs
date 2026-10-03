@@ -826,7 +826,8 @@ fn undoing_a_stash_drop_lists_the_stash_again_in_its_place() {
     let (state, repo) = open(&f);
     let before = state.stashes(repo).unwrap();
 
-    state.stash_drop(repo, 1).unwrap();
+    let oid = before[1].oid.clone();
+    state.stash_drop(repo, &oid).unwrap();
     state.undo_last(repo).unwrap();
 
     assert_eq!(state.stashes(repo).unwrap(), before);
