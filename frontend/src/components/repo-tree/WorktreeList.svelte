@@ -2,7 +2,7 @@
   import KindIcon from "$components/common/KindIcon.svelte";
   import { striped } from "$lib/graph-geometry";
   import type { WorktreeEntry } from "$lib/ipc";
-  import { worktreeTags, worktreeWhere } from "$lib/worktree-list";
+  import { listedRows, worktreeTags, worktreeWhere } from "$lib/worktree-list";
   import { pruneBlocked } from "$lib/worktree-menu";
   import { TypeAhead, moveFocus } from "$lib/list-keys";
   import { settings } from "$stores/settings.svelte";
@@ -27,6 +27,7 @@
   /** One switch for every list's banding, the graph's (#41). */
   const stripes = $derived(settings.current.graphStripes);
   const typing = new TypeAhead();
+  const rows = $derived(listedRows(entries));
 
   /** 11 §10: the arrows and typing move the selection; Enter opens, as before. */
   function onkeydown(event: KeyboardEvent) {
@@ -40,7 +41,7 @@
 <!-- Roving focus: the rows take it one at a time, the list itself never does. -->
 <!-- svelte-ignore a11y_interactive_supports_focus -->
 <div class="list key-list" role="listbox" aria-label="Worktrees" bind:this={list} {onkeydown}>
-  {#each entries as entry, at (entry.path)}
+  {#each rows as entry, at (entry.path)}
     {@const where = worktreeWhere(entry)}
     <div
       class="row"
@@ -99,7 +100,7 @@
     </div>
   {/each}
 
-  {#if entries.length <= 1}
+  {#if rows.length === 0}
     <div class="empty">
       <p>No linked worktrees.</p>
       <button type="button" class="btn" onclick={onadd}>Add Worktree…</button>

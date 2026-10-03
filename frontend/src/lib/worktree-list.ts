@@ -54,6 +54,11 @@ export function worktreeTags(entry: WorktreeEntry): WorktreeTag[] {
   return tags;
 }
 
+/** The rows to show: the main worktree alone is no list, just the empty state. */
+export function listedRows(entries: readonly WorktreeEntry[]): readonly WorktreeEntry[] {
+  return entries.some((entry) => !entry.isMain) ? entries : [];
+}
+
 export function hasStale(entries: readonly WorktreeEntry[]): boolean {
   return entries.some((entry) => entry.missing);
 }

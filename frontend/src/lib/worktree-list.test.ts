@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Branch, FileEntry, WorktreeEntry } from "$lib/ipc";
 import {
   hasStale,
+  listedRows,
   othersToWatch,
   removable,
   removalNeeds,
@@ -61,6 +62,21 @@ describe("worktreeTags", () => {
 
   it("marks uncommitted changes", () => {
     expect(worktreeTags(entry({ dirty: true })).map((tag) => tag.id)).toEqual(["dirty"]);
+  });
+});
+
+// The main worktree alone was a row and an empty state under it, saying two things at once.
+describe("listedRows", () => {
+  const main = entry({ isMain: true, isCurrent: true });
+
+  it("shows nothing while the main worktree is the only one", () => {
+    expect(listedRows([main])).toEqual([]);
+    expect(listedRows([])).toEqual([]);
+  });
+
+  it("shows the main one too once there is a linked one", () => {
+    const linked = entry({ path: "E:/w/x" });
+    expect(listedRows([main, linked])).toEqual([main, linked]);
   });
 });
 
