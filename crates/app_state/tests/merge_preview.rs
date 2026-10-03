@@ -203,7 +203,7 @@ fn a_conflict_over_the_limit_is_neither_sent_nor_merged() {
         "big.txt",
         format!("{big}\nbase\n").as_bytes(),
         Some(format!("{big}\nours\n").as_bytes()),
-        None,
+        Some(format!("{big}\ntheirs\n").as_bytes()),
     );
     let (state, repo) = opened(&f);
 
@@ -214,6 +214,8 @@ fn a_conflict_over_the_limit_is_neither_sent_nor_merged() {
         (&text.base, &text.ours, &text.theirs),
         (&None, &None, &None)
     );
-    assert!(text.missing_theirs && !text.missing_ours);
-    assert!(state.merge_preview(repo, "big.txt").is_err());
+    assert!(!text.missing_theirs && !text.missing_ours);
+    // Both sides are there and text: only the size can refuse it.
+    let refused = state.merge_preview(repo, "big.txt").unwrap_err();
+    assert!(refused.to_string().contains("too large"), "{refused}");
 }

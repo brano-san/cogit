@@ -17,6 +17,10 @@ fn a_tag_named_like_an_option_is_not_run_as_a_rebase_option() {
     let f = diverged();
     f.git(&["update-ref", "refs/tags/--exec=touch${IFS}pwned", "theirs"])
         .unwrap();
+    // With an upstream, `rebase --exec=…` replays main's commit and runs the command after
+    // it; without one it fails on "no tracking information" before running anything.
+    f.git(&["branch", "--set-upstream-to=theirs", "main"])
+        .unwrap();
     let repo = RepoHandle::open(f.path()).unwrap();
 
     repo.rebase(&RebaseOptions {
@@ -26,6 +30,7 @@ fn a_tag_named_like_an_option_is_not_run_as_a_rebase_option() {
     .unwrap();
 
     assert!(!f.path().join("pwned").exists());
+    assert!(f.path().join("theirs.txt").exists(), "rebased onto the tag");
 }
 
 #[test]

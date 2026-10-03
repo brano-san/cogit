@@ -457,20 +457,41 @@ fn a_commit_path_that_climbs_out_is_not_written_outside_the_folder() {
         .export_read_only(commit, "../../evil.txt", &cache)
         .unwrap_err();
 
-    assert!(matches!(err, GitError::InvalidState(_)), "{err:?}");
+    assert!(is_refused_as_a_path(&err), "{err:?}");
     assert!(!dir.path().join("evil.txt").exists());
     assert!(!dir.path().join("a").join("evil.txt").exists());
 }
 
+/// The path check said no, not "the commit has no such file": the entries exist.
+fn is_refused_as_a_path(err: &GitError) -> bool {
+    matches!(err, GitError::InvalidState(why) if why.contains("is not a path inside the commit"))
+}
+
+// The names are in the commit's tree (built with `mktree`), so only the check can refuse them.
 #[cfg(windows)]
 #[test]
 fn a_commit_path_with_backslashes_or_a_device_name_is_refused() {
     let f = test_fixtures::linear(1).unwrap();
-    let dir = tempfile::tempdir().unwrap();
-    for path in [r"a\..\..\x", "CON", "file0.txt:stream"] {
-        let err = open(&f)
-            .export_read_only("HEAD", path, dir.path())
-            .unwrap_err();
-        assert!(matches!(err, GitError::InvalidState(_)), "{path}: {err:?}");
+    let blob = f.oid("HEAD:file0.txt").unwrap();
+    let names = ["CON", "a:b", r"a\..\..\x"];
+    let entries: String = names
+        .iter()
+        .map(|name| format!("100644 blob {blob}\t{name}\n"))
+        .collect();
+    let top = mktree(&f, &entries);
+    let commit = f.git(&["commit-tree", &top, "-m", "names"]).unwrap();
+    let commit = commit.trim();
+    let listed = f.git(&["ls-tree", "-z", "--name-only", commit]).unwrap();
+    for name in names {
+        assert!(listed.contains(name), "{name} is in the tree: {listed}");
     }
+    let dir = tempfile::tempdir().unwrap();
+
+    for path in names {
+        let err = open(&f)
+            .export_read_only(commit, path, dir.path())
+            .unwrap_err();
+        assert!(is_refused_as_a_path(&err), "{path}: {err:?}");
+    }
+    assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
 }

@@ -112,6 +112,14 @@ pub(crate) struct Quiet<'a> {
     _held: Option<fs_watcher::QuietHold>,
 }
 
+impl Quiet<'_> {
+    /// Held to the end of the mutation, not only silenced for a window after it starts.
+    #[cfg(test)]
+    pub(crate) fn is_held(&self) -> bool {
+        self._held.is_some()
+    }
+}
+
 impl Drop for Quiet<'_> {
     fn drop(&mut self) {
         self.state.silence(self.repo);

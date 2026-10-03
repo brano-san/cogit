@@ -413,6 +413,34 @@ fn utf16_conflict() -> (test_fixtures::Fixture, String) {
     (f, "a.rc".to_owned())
 }
 
+// The resolution is staged with `--cacheinfo <mode>`: a script that was executable stays so,
+// on a platform where the file mode on disk says nothing about it.
+#[test]
+fn a_text_resolution_keeps_the_executable_bit() {
+    let f = test_fixtures::linear(1).unwrap();
+    let commit = |content: &str, index: i64, message: &str| {
+        f.write_file("run.sh", content).unwrap();
+        f.git(&["add", "--", "run.sh"]).unwrap();
+        f.git(&["update-index", "--chmod=+x", "--", "run.sh"])
+            .unwrap();
+        f.commit_staged(index, message).unwrap();
+    };
+    commit("echo base\n", 10, "base");
+    f.git(&["switch", "-c", "theirs"]).unwrap();
+    commit("echo theirs\n", 11, "theirs");
+    f.git(&["switch", "main"]).unwrap();
+    commit("echo ours\n", 12, "ours");
+    assert!(f.git(&["merge", "theirs"]).is_err());
+    let repo = open(&f);
+
+    repo.resolve_with_text("run.sh", "echo merged\n", None)
+        .unwrap();
+
+    let staged = f.git(&["ls-files", "-s", "run.sh"]).unwrap();
+    assert!(staged.starts_with("100755 "), "{staged}");
+    assert!(repo.conflicted_paths().unwrap().is_empty());
+}
+
 // The sides are the repository's UTF-8 already; a second pass through the clean filter
 // read them as UTF-16 and staged noise, or refused after the file was overwritten.
 #[test]
