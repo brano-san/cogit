@@ -10,7 +10,7 @@
 set -euo pipefail
 
 mode="${1:-all}"
-NODE_MAJOR=22
+NODE_MAJOR=24
 
 say() { printf '\033[36m[wsl-setup]\033[0m %s\n' "$1"; }
 
