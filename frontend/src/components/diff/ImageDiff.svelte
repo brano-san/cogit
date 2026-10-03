@@ -92,7 +92,8 @@
     flex: 1 1 auto;
   }
 
-  .active {
+  .active,
+  .active:hover:not(:disabled) {
     border-color: var(--status-ref);
     color: var(--status-ref);
   }
