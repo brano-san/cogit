@@ -187,6 +187,26 @@ pub async fn lock_worktree(
     .await
 }
 
+/// `git worktree move <path> <to>`; git's refusal (main, locked, submodules) as it says it.
+#[tauri::command]
+#[specta::specta]
+pub async fn move_worktree(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    path: String,
+    to: String,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Worktree,
+        "move_worktree",
+        move || app_state.move_worktree(repo, &path, &to),
+    )
+    .await
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn unlock_worktree(

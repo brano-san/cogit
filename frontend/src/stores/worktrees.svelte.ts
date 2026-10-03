@@ -2,6 +2,7 @@ import {
   addWorktree,
   listWorktrees,
   lockWorktree,
+  moveWorktree,
   pruneWorktree,
   pruneWorktrees,
   removeWorktree,
@@ -89,6 +90,10 @@ class WorktreesStore {
 
   async unlock(path: string): Promise<void> {
     await this.#act((repo) => unlockWorktree(repo, path));
+  }
+
+  async move(path: string, to: string): Promise<void> {
+    await this.#act((repo) => moveWorktree(repo, path, to));
   }
 
   /** A folder git could not finish deleting after it dropped the registration. */

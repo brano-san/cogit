@@ -244,25 +244,43 @@ fn a_removal_scan_of_a_folder_that_is_no_worktree_fails_before_any_stage() {
     assert!(!sent.into_inner());
 }
 
-// `--force` once is refused for a locked worktree, after its changes were already stashed.
+// A forced removal gets past the lock (git's `--force` twice), and the changes still go
+// into a backup first, with Undo in the journal.
 #[test]
-fn a_locked_worktree_is_refused_before_its_changes_are_stashed() {
+fn a_locked_worktree_removed_by_force_keeps_its_changes_for_undo() {
     let f = test_fixtures::with_worktree().unwrap();
     let (state, owner) = open(&f);
     let path = linked(&state, owner).path;
     f.git(&["worktree", "lock", "--reason", "usb", &path])
         .unwrap();
-    let file = std::path::Path::new(&path).join("file0.txt");
-    std::fs::write(&file, "work\n").unwrap();
+    std::fs::write(std::path::Path::new(&path).join("file0.txt"), "work\n").unwrap();
 
-    assert!(state.remove_worktree(owner, &path, true).is_err());
+    assert!(state.remove_worktree(owner, &path, false).is_err());
+    state.remove_worktree(owner, &path, true).unwrap();
 
-    assert_eq!(std::fs::read_to_string(&file).unwrap(), "work\n");
+    assert_eq!(state.worktrees(owner).unwrap().len(), 1);
     let kept = f
-        .git(&["for-each-ref", "--format=%(refname)", "refs/cogit/backup/"])
+        .git(&["for-each-ref", "--format=%(subject)", "refs/cogit/backup/"])
         .unwrap();
-    assert!(kept.trim().is_empty(), "{kept}");
-    assert!(state.safety_log().is_empty());
+    assert!(kept.contains("before removing worktree linked"), "{kept}");
+    assert!(state.safety_log()[0].undoable);
+}
+
+#[test]
+fn a_worktree_moves_to_a_new_folder() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let (state, owner) = open(&f);
+    let path = linked(&state, owner).path;
+    let aux = test_fixtures::tempdir().unwrap();
+    let to = aux
+        .path()
+        .join("moved")
+        .to_string_lossy()
+        .replace('\\', "/");
+
+    state.move_worktree(owner, &path, &to).unwrap();
+
+    assert_eq!(linked(&state, owner).name, "moved");
 }
 
 /// An ignored file that cannot be deleted, so `git worktree remove --force` fails after

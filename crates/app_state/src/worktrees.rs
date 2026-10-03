@@ -88,12 +88,6 @@ impl AppState {
             .worktree_heads()?
             .into_iter()
             .find(|entry| entry.path == wanted);
-        // Cogit passes one `--force`; git wants two for a locked worktree.
-        if force && entry.as_ref().is_some_and(|entry| entry.locked.is_some()) {
-            return Err(git_engine::GitError::InvalidState(format!(
-                "{name} is locked: unlock it first"
-            )));
-        }
         let checkout = entry.map(|entry| entry.branch.unwrap_or(entry.head));
         let stashed = if force {
             handle
@@ -162,6 +156,16 @@ impl AppState {
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         self.handle(repo)?.lock_worktree(path, reason)
+    }
+
+    pub fn move_worktree(
+        &self,
+        repo: RepoId,
+        path: &str,
+        to: &str,
+    ) -> Result<(), git_engine::GitError> {
+        let _quiet = self.quiet(repo);
+        self.handle(repo)?.move_worktree(path, to)
     }
 
     pub fn unlock_worktree(&self, repo: RepoId, path: &str) -> Result<(), git_engine::GitError> {

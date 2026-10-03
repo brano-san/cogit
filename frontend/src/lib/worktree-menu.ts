@@ -1,12 +1,23 @@
 import type { ContextItem, WorktreeEntry } from "./ipc";
 import { SEPARATOR, item, offer, tidy } from "./context-menu";
-import { pruneAllButton, removable } from "./worktree-list";
+import { moveBlocked, pruneAllButton, removeBlocked } from "./worktree-list";
 
 /** Not `worktree-`: the palette's Remove Worktree… and Prune Obsolete Worktrees… are
     `worktree-remove` and `worktree-prune`, and a menu bar item must not land here. */
 const PREFIX = "worktree-row-";
 
-const COMMANDS = ["open", "reveal", "copy", "lock", "unlock", "remove", "prune", "repair"] as const;
+const COMMANDS = [
+  "open",
+  "folder",
+  "terminal",
+  "copy",
+  "lock",
+  "unlock",
+  "move",
+  "remove",
+  "prune",
+  "repair",
+] as const;
 export type WorktreeCommand = (typeof COMMANDS)[number];
 
 const id = (command: WorktreeCommand) => `${PREFIX}${command}`;
@@ -17,10 +28,10 @@ export function pruneBlocked(entry: WorktreeEntry): string | null {
 }
 
 /** The chosen item comes back as a `menu-command`, like every popup menu (R-260). */
-export function worktreeMenu(entry: WorktreeEntry): ContextItem[] {
+export function worktreeMenu(entry: WorktreeEntry, fileManager: string): ContextItem[] {
   const lock =
     entry.locked === null
-      ? item(id("lock"), "Lock", !entry.isMain)
+      ? offer(id("lock"), "Lock…", entry.isMain ? "the main worktree" : null)
       : item(id("unlock"), "Unlock", true);
   if (entry.missing) {
     return tidy([
@@ -32,12 +43,14 @@ export function worktreeMenu(entry: WorktreeEntry): ContextItem[] {
     ]);
   }
   return tidy([
-    item(id("open"), "Open", !entry.isCurrent),
-    item(id("reveal"), "Reveal in File Manager"),
+    offer(id("open"), "Open", entry.isCurrent ? "already open" : null, "Enter"),
+    item(id("folder"), `Open in ${fileManager}`),
+    item(id("terminal"), "Open in Terminal"),
     item(id("copy"), "Copy Path"),
     SEPARATOR,
     lock,
-    item(id("remove"), "Remove…", removable(entry)),
+    offer(id("move"), "Move…", moveBlocked(entry)),
+    offer(id("remove"), "Remove…", removeBlocked(entry), "Delete"),
   ]);
 }
 
@@ -49,6 +62,18 @@ export function worktreeHeaderMenu(entries: readonly WorktreeEntry[]): ContextIt
     item("worktree-add", "Add Worktree…"),
     offer("worktree-prune", prune.label, prune.disabled ? "nothing to prune" : null),
   ];
+}
+
+/** The Move… field: a new folder, slashes as git lists them. */
+export function moveTarget(typed: string): string {
+  return typed.trim().replace(/\\/g, "/").replace(/\/+$/, "");
+}
+
+export function moveTargetProblem(typed: string, from: string): string | null {
+  const to = moveTarget(typed);
+  if (to === "") return "Enter the new folder";
+  if (to.toLowerCase() === from.toLowerCase()) return "That is where it is now";
+  return null;
 }
 
 export function parseWorktreeCommand(chosen: string): WorktreeCommand | null {

@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { ContextItem, WorktreeEntry } from "./ipc";
-import { parseWorktreeCommand, pruneBlocked, worktreeHeaderMenu, worktreeMenu } from "./worktree-menu";
+import {
+  moveTarget,
+  moveTargetProblem,
+  parseWorktreeCommand,
+  pruneBlocked,
+  worktreeHeaderMenu,
+  worktreeMenu,
+} from "./worktree-menu";
 
 const LINKED: WorktreeEntry = {
   path: "D:/src/wt",
@@ -18,6 +25,7 @@ const LINKED: WorktreeEntry = {
   hasSubmodules: false,
 };
 
+const menu = (entry: WorktreeEntry) => worktreeMenu(entry, "Explorer");
 const find = (items: ContextItem[], id: string) => items.find((item) => item.id === id);
 const labels = (items: ContextItem[]) => items.map((item) => (item.separator ? "—" : item.label));
 
@@ -26,7 +34,7 @@ const labels = (items: ContextItem[]) => items.map((item) => (item.separator ? "
 describe("the menu of a Worktrees row", () => {
   it("names every item so that it comes back as a worktree command", () => {
     for (const entry of [LINKED, { ...LINKED, missing: true }, { ...LINKED, locked: "" }]) {
-      for (const item of worktreeMenu(entry)) {
+      for (const item of menu(entry)) {
         if (item.separator) continue;
         expect(parseWorktreeCommand(item.id)).not.toBeNull();
       }
@@ -39,23 +47,60 @@ describe("the menu of a Worktrees row", () => {
     }
   });
 
-  it("offers Open, Reveal, Copy Path, Lock and Remove for a linked worktree", () => {
-    expect(labels(worktreeMenu(LINKED))).toEqual([
+  it("offers the open, folder, terminal, lock, move and remove items for a linked worktree", () => {
+    expect(labels(menu(LINKED))).toEqual([
       "Open",
-      "Reveal in File Manager",
+      "Open in Explorer",
+      "Open in Terminal",
       "Copy Path",
       "—",
-      "Lock",
+      "Lock…",
+      "Move…",
       "Remove…",
     ]);
-    expect(parseWorktreeCommand(find(worktreeMenu(LINKED), "worktree-row-open")!.id)).toBe("open");
+    expect(parseWorktreeCommand(find(menu(LINKED), "worktree-row-open")!.id)).toBe("open");
+    expect(find(menu(LINKED), "worktree-row-open")?.accelerator).toBe("Enter");
+    expect(find(menu(LINKED), "worktree-row-remove")?.accelerator).toBe("Delete");
   });
 
-  it("offers Unlock instead of Lock once it is locked", () => {
-    const items = worktreeMenu({ ...LINKED, locked: "on a USB disk" });
+  it("names the platform's file manager", () => {
+    expect(find(worktreeMenu(LINKED, "Finder"), "worktree-row-folder")?.label).toBe("Open in Finder");
+  });
+
+  // A locked worktree goes with --force (git's two); it cannot move until unlocked.
+  it("offers Unlock instead of Lock once it is locked, and still Remove", () => {
+    const items = menu({ ...LINKED, locked: "on a USB disk" });
     expect(find(items, "worktree-row-unlock")?.enabled).toBe(true);
-    expect(find(items, "worktree-row-remove")?.enabled).toBe(false);
+    expect(find(items, "worktree-row-remove")?.enabled).toBe(true);
+    expect(find(items, "worktree-row-move")?.enabled).toBe(false);
     expect(find(items, "worktree-row-lock")).toBeUndefined();
+  });
+
+  it("turns off Remove, Move and Lock on the main worktree, and says why", () => {
+    const items = menu({ ...LINKED, isMain: true });
+    for (const off of ["worktree-row-remove", "worktree-row-move", "worktree-row-lock"]) {
+      expect(find(items, off)?.enabled).toBe(false);
+      expect(find(items, off)?.label).toContain("main worktree");
+    }
+  });
+
+  it("turns off Open, Remove and Move on the one open in Cogit", () => {
+    const items = menu({ ...LINKED, isCurrent: true });
+    for (const off of ["worktree-row-open", "worktree-row-remove", "worktree-row-move"]) {
+      expect(find(items, off)?.enabled).toBe(false);
+    }
+  });
+});
+
+describe("the Move… field", () => {
+  it("takes a new folder with slashes as git lists them", () => {
+    expect(moveTarget("  D:\\src\\moved\\ ")).toBe("D:/src/moved");
+    expect(moveTargetProblem("D:\\src\\moved", "D:/src/wt")).toBeNull();
+  });
+
+  it("refuses nothing and the folder it is in now", () => {
+    expect(moveTargetProblem("  ", "D:/src/wt")).not.toBeNull();
+    expect(moveTargetProblem("d:\\SRC\\wt\\", "D:/src/wt")).not.toBeNull();
   });
 });
 
@@ -65,11 +110,11 @@ describe("a missing worktree that is locked", () => {
   const gone = { ...LINKED, missing: true, locked: "" };
 
   it("can be unlocked from its menu", () => {
-    expect(find(worktreeMenu(gone), "worktree-row-unlock")?.enabled).toBe(true);
+    expect(find(menu(gone), "worktree-row-unlock")?.enabled).toBe(true);
   });
 
   it("cannot be pruned until it is, and says why", () => {
-    const prune = find(worktreeMenu(gone), "worktree-row-prune");
+    const prune = find(menu(gone), "worktree-row-prune");
     expect(prune?.enabled).toBe(false);
     expect(prune?.label).toContain("unlock");
     expect(pruneBlocked(gone)).not.toBeNull();
@@ -77,8 +122,8 @@ describe("a missing worktree that is locked", () => {
   });
 
   it("offers no Unlock while it is not locked", () => {
-    expect(find(worktreeMenu({ ...LINKED, missing: true }), "worktree-row-unlock")).toBeUndefined();
-    expect(find(worktreeMenu({ ...LINKED, missing: true }), "worktree-row-prune")?.enabled).toBe(true);
+    expect(find(menu({ ...LINKED, missing: true }), "worktree-row-unlock")).toBeUndefined();
+    expect(find(menu({ ...LINKED, missing: true }), "worktree-row-prune")?.enabled).toBe(true);
   });
 });
 

@@ -2,17 +2,27 @@
   import { open as openFolderDialog } from "@tauri-apps/plugin-dialog";
   import AddWorktreeDialog from "$components/repo-tree/AddWorktreeDialog.svelte";
   import RemoveWorktreeDialog from "$components/repo-tree/RemoveWorktreeDialog.svelte";
-  import { popupContextMenu, type WorktreeBranch, type WorktreeEntry } from "$lib/ipc";
-  import { revealOnDesktop } from "$lib/ipc/file-menus";
+  import { openInTerminal, popupContextMenu, type WorktreeBranch, type WorktreeEntry } from "$lib/ipc";
+  import { openOnDesktop } from "$lib/ipc/file-menus";
+  import { optional } from "$lib/names";
   import type { AddOrigin } from "$lib/worktree-add";
-  import { parseWorktreeCommand, worktreeHeaderMenu, worktreeMenu } from "$lib/worktree-menu";
+  import {
+    moveTarget,
+    moveTargetProblem,
+    parseWorktreeCommand,
+    worktreeHeaderMenu,
+    worktreeMenu,
+  } from "$lib/worktree-menu";
   import { prunable } from "$lib/worktree-list";
   import { removeWorktree, type RemovalHost } from "$lib/worktree-removal";
   import { commit } from "$stores/commit.svelte";
   import { confirmation } from "$stores/confirm.svelte";
+  import { desktop } from "$stores/desktop.svelte";
   import { errors } from "$stores/errors.svelte";
+  import { prompt } from "$stores/prompt.svelte";
   import { repository } from "$stores/repository.svelte";
   import { safety } from "$stores/safety.svelte";
+  import { settings } from "$stores/settings.svelte";
   import { worktrees } from "$stores/worktrees.svelte";
 
   /** The Worktrees panel's menu, header buttons and palette entries, with the Add and Remove
@@ -121,7 +131,35 @@
 
   export async function context(entry: WorktreeEntry, x: number, y: number) {
     target = entry;
-    await popupContextMenu(worktreeMenu(entry), x, y).catch(() => {});
+    await popupContextMenu(worktreeMenu(entry, desktop.info.fileManager), x, y).catch(() => {});
+  }
+
+  /** Git keeps the reason; an empty one locks without it. */
+  async function lock(entry: WorktreeEntry) {
+    const reason = await prompt.ask({
+      title: "Lock Worktree",
+      label: "Reason (optional)",
+      confirm: "Lock",
+      validate: optional,
+    });
+    if (reason === null) return;
+    await worktrees
+      .lock(entry.path, reason === "" ? null : reason)
+      .catch((err) => errors.report(err, "Could not lock the worktree"));
+  }
+
+  async function move(entry: WorktreeEntry) {
+    const typed = await prompt.ask({
+      title: "Move Worktree",
+      label: "New folder",
+      value: entry.path,
+      confirm: "Move",
+      validate: (value) => moveTargetProblem(value, entry.path),
+    });
+    if (typed === null) return;
+    await worktrees
+      .move(entry.path, moveTarget(typed))
+      .catch((err) => errors.report(err, "Could not move the worktree"));
   }
 
   /** Under the "⋯" button of a narrow header; the choice comes back as a palette command. */
@@ -153,13 +191,21 @@
         void repair(entry);
         break;
       case "lock":
-        void worktrees.lock(entry.path, null).catch(failed("lock"));
+        void lock(entry);
         break;
       case "unlock":
         void worktrees.unlock(entry.path).catch(failed("unlock"));
         break;
-      case "reveal":
-        void revealOnDesktop(entry.path).catch(failed("reveal"));
+      case "move":
+        void move(entry);
+        break;
+      case "folder":
+        void openOnDesktop(entry.path).catch((err) => errors.report(err, "Could not open the folder"));
+        break;
+      case "terminal":
+        void openInTerminal(entry.path, settings.current.terminal).catch((err) =>
+          errors.report(err, "Could not open a terminal"),
+        );
         break;
     }
     return true;

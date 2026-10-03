@@ -284,6 +284,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::worktrees::repair_worktree,
             commands::worktrees::lock_worktree,
             commands::worktrees::unlock_worktree,
+            commands::worktrees::move_worktree,
             commands::flow::flow_status,
             commands::flow::flow_init,
             commands::flow::flow_start,

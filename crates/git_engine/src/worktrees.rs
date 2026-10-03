@@ -367,13 +367,27 @@ impl RepoHandle {
             .map_err(|err| GitError::Io(format!("cannot delete {path}: {err}")))
     }
 
+    /// `force` on a locked worktree passes `--force` twice, git's way past the lock.
     pub fn remove_worktree(&self, path: &str, force: bool) -> Result<()> {
         let mut args = vec!["worktree", "remove"];
         if force {
             args.push("--force");
+            let wanted = normalise(std::path::Path::new(path));
+            if self
+                .worktree_heads()?
+                .iter()
+                .any(|entry| entry.path == wanted && entry.locked.is_some())
+            {
+                args.push("--force");
+            }
         }
         args.push(path);
         self.run_git(&args).map(drop)
+    }
+
+    /// Git refuses the main worktree, a locked one and one with submodules checked out.
+    pub fn move_worktree(&self, path: &str, to: &str) -> Result<()> {
+        self.run_git(&["worktree", "move", path, to]).map(drop)
     }
 
     pub fn prune_worktrees(&self) -> Result<()> {

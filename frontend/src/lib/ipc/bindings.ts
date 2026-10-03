@@ -329,6 +329,8 @@ export const commands = {
 	repairWorktree: (repo: RepoId, path: string) => typedError<null, GitError>(__TAURI_INVOKE("repair_worktree", { repo, path })),
 	lockWorktree: (repo: RepoId, path: string, reason: string | null) => typedError<null, GitError>(__TAURI_INVOKE("lock_worktree", { repo, path, reason })),
 	unlockWorktree: (repo: RepoId, path: string) => typedError<null, GitError>(__TAURI_INVOKE("unlock_worktree", { repo, path })),
+	/**  `git worktree move <path> <to>`; git's refusal (main, locked, submodules) as it says it. */
+	moveWorktree: (repo: RepoId, path: string, to: string) => typedError<null, GitError>(__TAURI_INVOKE("move_worktree", { repo, path, to })),
 	flowStatus: (repo: RepoId) => typedError<FlowStatus, GitError>(__TAURI_INVOKE("flow_status", { repo })),
 	flowInit: (repo: RepoId, config: FlowConfig) => typedError<null, GitError>(__TAURI_INVOKE("flow_init", { repo, config })),
 	flowStart: (repo: RepoId, kind: FlowKind, name: string) => typedError<string, GitError>(__TAURI_INVOKE("flow_start", { repo, kind, name })),

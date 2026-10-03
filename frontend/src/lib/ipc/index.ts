@@ -616,6 +616,10 @@ export async function unlockWorktree(repo: RepoId, path: string) {
   return unwrap(await commands.unlockWorktree(repo, path));
 }
 
+export async function moveWorktree(repo: RepoId, path: string, to: string) {
+  return unwrap(await commands.moveWorktree(repo, path, to));
+}
+
 export async function terminalChoices() {
   return await commands.terminalChoices();
 }

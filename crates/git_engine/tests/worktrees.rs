@@ -228,6 +228,49 @@ fn pruning_keeps_a_missing_worktree_that_is_locked() {
 }
 
 #[test]
+fn a_moved_worktree_is_listed_at_its_new_folder() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let from = linked(&f).path;
+    let aux = test_fixtures::tempdir().unwrap();
+    let to = slashed(&aux.path().join("moved"));
+
+    open(&f).move_worktree(&from, &to).unwrap();
+
+    let moved = linked(&f);
+    assert!(!moved.missing, "{moved:?}");
+    assert_eq!(moved.name, "moved");
+    assert!(!std::path::Path::new(&from).exists());
+}
+
+#[test]
+fn moving_the_main_worktree_is_refused_by_git() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let aux = test_fixtures::tempdir().unwrap();
+    let main = slashed(f.path());
+
+    let refused = open(&f).move_worktree(&main, &slashed(&aux.path().join("main")));
+
+    assert!(
+        matches!(refused, Err(git_engine::GitError::Command(_))),
+        "{refused:?}"
+    );
+}
+
+/// Git wants `--force` twice for a locked worktree; the one force the dialog asks for
+/// is that.
+#[test]
+fn a_locked_worktree_is_removed_only_when_forced() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let path = linked(&f).path;
+    open(&f).lock_worktree(&path, Some("kept")).unwrap();
+
+    assert!(open(&f).remove_worktree(&path, false).is_err());
+    open(&f).remove_worktree(&path, true).unwrap();
+
+    assert_eq!(open(&f).worktrees().unwrap().len(), 1);
+}
+
+#[test]
 fn the_branch_a_worktree_holds_can_be_found_by_name() {
     let f = test_fixtures::with_worktree().unwrap();
     let repo = open(&f);

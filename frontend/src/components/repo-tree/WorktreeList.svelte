@@ -2,7 +2,7 @@
   import KindIcon from "$components/common/KindIcon.svelte";
   import { striped } from "$lib/graph-geometry";
   import type { WorktreeEntry } from "$lib/ipc";
-  import { listedRows, shortWorktreePath, worktreeTags, worktreeWhere } from "$lib/worktree-list";
+  import { listedRows, shortWorktreePath, worktreeRowKey, worktreeTags, worktreeWhere } from "$lib/worktree-list";
   import { pruneBlocked } from "$lib/worktree-menu";
   import { TypeAhead, moveFocus } from "$lib/list-keys";
   import { settings } from "$stores/settings.svelte";
@@ -17,9 +17,11 @@
     oncontext: (entry: WorktreeEntry, x: number, y: number) => void;
     onprune: (entry: WorktreeEntry) => void;
     onrepair: (entry: WorktreeEntry) => void;
+    /** Delete on a row: the Remove dialog, which confirms. */
+    onremove: (entry: WorktreeEntry) => void;
   }
 
-  let { entries, selected, onselect, onopen, oncontext, onprune, onrepair }: Props = $props();
+  let { entries, selected, onselect, onopen, oncontext, onprune, onrepair, onremove }: Props = $props();
 
   let list: HTMLDivElement | undefined = $state();
   /** One switch for every list's banding, the graph's (#41). */
@@ -57,7 +59,11 @@
       onclick={() => onselect(entry)}
       ondblclick={() => !entry.missing && onopen(entry)}
       onkeydown={(event) => {
-        if (event.key === "Enter" && !entry.missing) onopen(entry);
+        const action = worktreeRowKey(event.key, entry);
+        if (action === null) return;
+        event.preventDefault();
+        if (action === "open") onopen(entry);
+        else onremove(entry);
       }}
       oncontextmenu={(event) => {
         event.preventDefault();

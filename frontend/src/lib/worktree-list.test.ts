@@ -6,8 +6,11 @@ import {
   hasStale,
   linkedCount,
   listedRows,
+  moveBlocked,
   othersToWatch,
   prunable,
+  removeBlocked,
+  worktreeRowKey,
   pruneAllButton,
   removable,
   removalNeeds,
@@ -164,17 +167,39 @@ describe("what the panel offers", () => {
     expect(removable(entry({ isCurrent: true }))).toBe(false);
     expect(removable(undefined)).toBe(false);
   });
+
+  it("removes a locked one, with --force", () => {
+    expect(removable(entry({ locked: "usb" }))).toBe(true);
+    expect(removalNeeds(entry({ locked: "usb" }), null)).toMatchObject({ locked: true, force: true });
+    expect(moveBlocked(entry({ locked: "usb" }))).toContain("unlock");
+    expect(moveBlocked(entry())).toBeNull();
+    expect(removeBlocked(entry({ isMain: true }))).toBe("the main worktree");
+  });
+});
+
+describe("worktreeRowKey", () => {
+  it("opens on Enter unless the folder is gone", () => {
+    expect(worktreeRowKey("Enter", entry())).toBe("open");
+    expect(worktreeRowKey("Enter", entry({ missing: true }))).toBeNull();
+  });
+
+  it("asks to remove on Delete only what can be removed", () => {
+    expect(worktreeRowKey("Delete", entry())).toBe("remove");
+    expect(worktreeRowKey("Delete", entry({ isMain: true }))).toBeNull();
+    expect(worktreeRowKey("Delete", entry({ isCurrent: true }))).toBeNull();
+    expect(worktreeRowKey("x", entry())).toBeNull();
+  });
 });
 
 describe("the Remove Worktree dialog", () => {
   const change = { path: "a.txt", status: "modified" } as FileEntry;
 
   it("waits for the changes before it asks anything", () => {
-    expect(removalNeeds(entry(), null)).toEqual({ dirty: false, submodules: false, force: false });
+    expect(removalNeeds(entry(), null)).toEqual({ dirty: false, submodules: false, locked: false, force: false });
   });
 
   it("asks for --force when there are uncommitted changes", () => {
-    expect(removalNeeds(entry(), [change])).toEqual({ dirty: true, submodules: false, force: true });
+    expect(removalNeeds(entry(), [change])).toEqual({ dirty: true, submodules: false, locked: false, force: true });
   });
 
   // Git refuses a clean worktree with submodules checked out unless forced.
@@ -182,12 +207,13 @@ describe("the Remove Worktree dialog", () => {
     expect(removalNeeds(entry({ hasSubmodules: true }), [])).toEqual({
       dirty: false,
       submodules: true,
+      locked: false,
       force: true,
     });
   });
 
   it("removes a clean worktree without submodules plainly", () => {
-    expect(removalNeeds(entry(), [])).toEqual({ dirty: false, submodules: false, force: false });
+    expect(removalNeeds(entry(), [])).toEqual({ dirty: false, submodules: false, locked: false, force: false });
   });
 });
 

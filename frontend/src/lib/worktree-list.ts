@@ -54,8 +54,8 @@ export function worktreeTags(entry: WorktreeEntry): WorktreeTag[] {
       id: "locked",
       label: "locked",
       tooltip:
-        `Locked${entry.locked ? `: ${entry.locked}` : ""}. Prune and Remove leave it alone ` +
-        "until it is unlocked.",
+        `Locked${entry.locked ? `: ${entry.locked}` : ""}. Prune and Move leave it alone until ` +
+        "it is unlocked; Remove needs --force.",
     });
   }
   if (entry.missing) {
@@ -131,38 +131,50 @@ export function othersToWatch(entries: readonly WorktreeEntry[]): boolean {
   return entries.some((entry) => !entry.isCurrent && !entry.missing);
 }
 
-/** The main copy stays, the one on screen is not pulled out from under the panels, and a
-    missing one is pruned, not removed. A locked one needs `remove -f -f`, which Cogit never runs. */
-export function removable(
-  entry: WorktreeEntry | undefined,
-): entry is WorktreeEntry {
-  return (
-    entry !== undefined &&
-    !entry.isMain &&
-    !entry.isCurrent &&
-    !entry.missing &&
-    entry.locked === null
-  );
+/** Why Remove… is off: the main copy stays, the one on screen is not pulled out from under
+    the panels, and a missing one is pruned, not removed. A locked one goes with `--force`. */
+export function removeBlocked(entry: WorktreeEntry): string | null {
+  if (entry.isMain) return "the main worktree";
+  if (entry.isCurrent) return "open in Cogit";
+  if (entry.missing) return "missing: prune it";
+  return null;
+}
+
+export function removable(entry: WorktreeEntry | undefined): entry is WorktreeEntry {
+  return entry !== undefined && removeBlocked(entry) === null;
+}
+
+/** Why Move… is off. Git also refuses one with submodules checked out, and says so. */
+export function moveBlocked(entry: WorktreeEntry): string | null {
+  return removeBlocked(entry) ?? (entry.locked === null ? null : "locked: unlock it first");
+}
+
+/** A row's own keys (11 §10): Enter opens it, Delete asks to remove it. */
+export function worktreeRowKey(key: string, entry: WorktreeEntry): "open" | "remove" | null {
+  if (key === "Enter") return entry.missing ? null : "open";
+  if (key === "Delete") return removable(entry) ? "remove" : null;
+  return null;
 }
 
 export interface RemovalNeeds {
   dirty: boolean;
   submodules: boolean;
+  locked: boolean;
   /** Git removes the worktree only with `--force`, which the dialog asks for separately. */
   force: boolean;
 }
 
 /** `changes` is `null` while they are still being read. Git refuses a worktree with
-    submodules checked out however clean it is, so that takes `--force` too. */
+    submodules checked out however clean it is, or a locked one, so those take `--force` too. */
 export function removalNeeds(
   entry: WorktreeEntry,
   changes: readonly FileEntry[] | null,
 ): RemovalNeeds {
-  if (changes === null)
-    return { dirty: false, submodules: false, force: false };
+  const locked = entry.locked !== null;
+  if (changes === null) return { dirty: false, submodules: false, locked, force: locked };
   const dirty = changes.length > 0;
   const submodules = entry.hasSubmodules;
-  return { dirty, submodules, force: dirty || submodules };
+  return { dirty, submodules, locked, force: dirty || submodules || locked };
 }
 
 /** `[origin/x: gone]`: the config still names the tracking branch, but a pruning fetch

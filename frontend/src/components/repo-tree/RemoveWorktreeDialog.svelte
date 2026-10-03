@@ -48,7 +48,7 @@
   );
   const unpushed = $derived(scan.unpushed.status === "done" ? scan.unpushed.value : []);
   const button = $derived(removeButton(entry, scan, force));
-  const showForce = $derived(settled ? needs.force : entry.dirty || entry.hasSubmodules);
+  const showForce = $derived(settled ? needs.force : entry.dirty || entry.hasSubmodules || needs.locked);
 
   const rows = $derived.by(() => {
     const list: CardRow[] = [{ label: "Worktree", value: entry.name }];
@@ -108,6 +108,13 @@
       {#if list === null}This worktree has uncommitted changes.{:else}{list.length === 1
           ? "1 uncommitted change"
           : `${list.length} uncommitted changes`} will be lost from the folder.{/if}
+    </Callout>
+  {/if}
+
+  {#if needs.locked}
+    <Callout kind="warning">
+      This worktree is locked{entry.locked ? `: ${entry.locked}` : ""}. Removing it needs --force, which
+      gets past the lock.
     </Callout>
   {/if}
 

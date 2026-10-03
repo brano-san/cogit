@@ -8,9 +8,10 @@
     oncontext: (entry: WorktreeEntry, x: number, y: number) => void;
     onprune: (entry: WorktreeEntry) => void;
     onrepair: (entry: WorktreeEntry) => void;
+    onremove: (entry: WorktreeEntry) => void;
   }
 
-  let { onopen, oncontext, onprune, onrepair }: Props = $props();
+  let { onopen, oncontext, onprune, onrepair, onremove }: Props = $props();
 </script>
 
 <WorktreeList
@@ -21,4 +22,5 @@
   {oncontext}
   {onprune}
   {onrepair}
+  {onremove}
 />
