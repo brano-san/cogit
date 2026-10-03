@@ -14,6 +14,15 @@ pub struct RepoChanged {
     pub kind: fs_watcher::ChangeKind,
 }
 
+/// Mirrors `app_state::AppEvent::WatchLimited`: the working tree is not watched, so
+/// changes made outside Cogit appear only on a manual refresh.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
+#[serde(rename_all = "camelCase")]
+pub struct WatchLimited {
+    pub repo: app_state::RepoId,
+    pub error: String,
+}
+
 /// A conflicted file was resolved in its own window; the main one refreshes on it.
 /// The page emits it itself, like `RevealCommit`.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
@@ -108,6 +117,9 @@ pub(crate) fn forward_repo_changes(app: tauri::AppHandle, state: &Arc<AppState>)
             match event {
                 app_state::AppEvent::RepoChanged { repo, kind } => {
                     let _ = RepoChanged { repo, kind }.emit(&app);
+                }
+                app_state::AppEvent::WatchLimited { repo, error } => {
+                    let _ = WatchLimited { repo, error }.emit(&app);
                 }
                 app_state::AppEvent::CommandRecorded(notice) => {
                     let _ = CommandRecorded(notice).emit(&app);

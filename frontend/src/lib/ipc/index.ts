@@ -37,6 +37,7 @@ import type {
   RebaseOptions,
   RendererMemory,
   RepoChanged,
+  WatchLimited,
   RepoId,
   ScanHit,
   ScanChunk,
@@ -168,6 +169,7 @@ export type {
   UnpushedInSubmodule,
   RevisionCheck,
   RepoChanged,
+  WatchLimited,
   RepoId,
   RepoOverview,
   RepoState,
@@ -481,6 +483,11 @@ export async function deleteRemoteBranch(repo: RepoId, remote: string, branch: s
 /** Fires when the watcher sees the repository change on disk; returns an unlisten fn. */
 export async function onRepoChanged(handler: (change: RepoChanged) => void) {
   return await counted(events.repoChanged.listen((event) => handler(event.payload)));
+}
+
+/** The working tree is not watched (the OS refused it): the reason, raw. */
+export async function onWatchLimited(handler: (event: WatchLimited) => void) {
+  return await counted(events.watchLimited.listen((event) => handler(event.payload)));
 }
 
 export async function commandLog() {

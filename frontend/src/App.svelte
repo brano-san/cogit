@@ -956,6 +956,15 @@
     diskPasses.add(change.kind);
   }
 
+  function onWatchLimited(event: import("$lib/ipc").WatchLimited) {
+    notices.inform(
+      "Working Tree Not Watched",
+      `Changes made outside Cogit appear only after a refresh (F5). On Linux this is usually the inotify limit: raise fs.inotify.max_user_watches.
+
+${event.error}`,
+    );
+  }
+
   async function applyDiskChanges(
     kinds: ReadonlySet<import("$lib/ipc").ChangeKind>,
     arrived: () => ReadonlySet<import("$lib/ipc").ChangeKind>,
@@ -3165,6 +3174,7 @@
   $effect(() =>
     connect({
       repoChanged: onDiskChange,
+      watchLimited: onWatchLimited,
       operationChanged: (event) => {
         running = applyOperation(running, event);
         networkOps = trackCancellable(networkOps, event);

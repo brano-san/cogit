@@ -133,6 +133,12 @@ impl AppState {
                     drop(watchers);
                     drop(watcher);
                 } else {
+                    if let Some(error) = watcher.degraded() {
+                        let _ = self.events.send(AppEvent::WatchLimited {
+                            repo,
+                            error: error.to_owned(),
+                        });
+                    }
                     watchers.insert(repo, watcher);
                 }
             }

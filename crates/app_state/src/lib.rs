@@ -148,6 +148,12 @@ pub enum AppEvent {
         repo: RepoId,
         kind: fs_watcher::ChangeKind,
     },
+    /// The working tree could not be watched; only the git directory is. Sent once, when
+    /// the repository's watcher starts.
+    WatchLimited {
+        repo: RepoId,
+        error: String,
+    },
     /// Queued, started or finished — the phase is inside.
     Operation(Operation),
     AvatarReady {

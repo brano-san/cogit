@@ -19,6 +19,8 @@ pub struct RepoWatcher {
     paused: Arc<AtomicBool>,
     quiet_until: Arc<Mutex<Option<Instant>>>,
     held: Arc<AtomicUsize>,
+    /// Why the working tree is not watched, when the watch of the root was refused.
+    degraded: Option<String>,
     /// Dropping the watcher closes the channel, which ends the debounce thread.
     _watcher: RecommendedWatcher,
 }
@@ -31,6 +33,18 @@ impl RepoWatcher {
         git_dir: &Path,
         common_dir: &Path,
         on_change: impl Fn(RepoChanged) + Send + 'static,
+    ) -> Result<Self, WatchError> {
+        Self::start_with(root, git_dir, common_dir, on_change, |watcher, root| {
+            watch(watcher, root, RecursiveMode::Recursive)
+        })
+    }
+
+    fn start_with(
+        root: &Path,
+        git_dir: &Path,
+        common_dir: &Path,
+        on_change: impl Fn(RepoChanged) + Send + 'static,
+        watch_root: impl FnOnce(&mut RecommendedWatcher, &Path) -> Result<(), WatchError>,
     ) -> Result<Self, WatchError> {
         let paused = Arc::new(AtomicBool::new(false));
         let quiet_until = Arc::new(Mutex::new(None));
@@ -45,9 +59,14 @@ impl RepoWatcher {
         };
 
         let (tx, rx) = mpsc::channel::<notify::Result<Event>>();
-        let mut debouncer = notify::recommended_watcher(move |event| {
-            let _ = tx.send(event);
-        })
+        // Not through symlinks: a link to `$HOME` or a data set would be walked as part of
+        // the tree and eat the inotify budget (W-05).
+        let mut debouncer = RecommendedWatcher::new(
+            move |event| {
+                let _ = tx.send(event);
+            },
+            notify::Config::default().with_follow_symlinks(false),
+        )
         .map_err(|source| WatchError::Start {
             path: root.display().to_string(),
             source,
@@ -61,12 +80,18 @@ impl RepoWatcher {
             })?;
 
         // The INV-06 noise is filtered when routing, not by narrowing the watch.
-        watch(&mut debouncer, root, RecursiveMode::Recursive)?;
+        //
+        // A root that cannot be watched (the inotify limit, a folder nobody may read) must
+        // not take the git directory down with it: refs, HEAD and the index are still heard.
+        let degraded = watch_root(&mut debouncer, root).err().map(|error| {
+            tracing::warn!(%error, root = %root.display(), "the working tree is not watched");
+            error.to_string()
+        });
         // Inside the root the recursive watch already hears the git directory; a submodule's
         // and a linked worktree's are elsewhere. A watch of its own inside the root would
         // hold a folder open there, and Windows refuses to rename or move a folder with a
-        // handle open anywhere below it (R-438).
-        let outside = |path: &Path| !path.starts_with(root);
+        // handle open anywhere below it (R-438). Without the root watch they are needed.
+        let outside = |path: &Path| degraded.is_some() || !path.starts_with(root);
         if outside(git_dir) {
             watch(&mut debouncer, git_dir, RecursiveMode::NonRecursive)?;
         }
@@ -102,8 +127,15 @@ impl RepoWatcher {
             paused,
             quiet_until,
             held,
+            degraded,
             _watcher: debouncer,
         })
+    }
+
+    /// The reason the working tree is not watched; only the git directory is.
+    #[must_use]
+    pub fn degraded(&self) -> Option<&str> {
+        self.degraded.as_deref()
     }
 
     /// Only ever extends: a second mutation must not cut the first one's window short.
@@ -432,6 +464,51 @@ mod tests {
         ];
 
         assert!(route.coalesce(&paths).is_empty());
+    }
+
+    #[test]
+    fn a_refused_root_still_leaves_the_git_directory_watched() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let git_dir = root.join(".git");
+        std::fs::create_dir_all(git_dir.join("refs")).unwrap();
+        std::fs::write(
+            git_dir.join("HEAD"),
+            "ref: refs/heads/main
+",
+        )
+        .unwrap();
+        let (tx, heard) = mpsc::channel();
+
+        let watcher = RepoWatcher::start_with(
+            root,
+            &git_dir,
+            &git_dir,
+            move |change| {
+                let _ = tx.send(change.kind);
+            },
+            |_, root| {
+                Err(WatchError::Start {
+                    path: root.display().to_string(),
+                    source: notify::Error::new(notify::ErrorKind::MaxFilesWatch),
+                })
+            },
+        )
+        .unwrap();
+        std::thread::sleep(Duration::from_millis(300));
+        while heard.try_recv().is_ok() {}
+        std::fs::write(
+            git_dir.join("HEAD"),
+            "ref: refs/heads/other
+",
+        )
+        .unwrap();
+
+        assert!(watcher.degraded().is_some());
+        assert_eq!(
+            heard.recv_timeout(Duration::from_secs(5)).ok(),
+            Some(ChangeKind::Head)
+        );
     }
 
     #[test]

@@ -7,12 +7,14 @@ import {
   onMergeResolved,
   onOperationChanged,
   onRepoChanged,
+  onWatchLimited,
   onRevealCommit,
   onSessionEnding,
   type CommandNotice,
   type MergeResolved,
   type OperationChanged,
   type RepoChanged,
+  type WatchLimited,
   type RevealCommit,
 } from "$lib/ipc";
 import { counted } from "$lib/listener-count";
@@ -21,6 +23,7 @@ import { counted } from "$lib/listener-count";
     which is the one shape every Tauri listener has, so they unsubscribe together. */
 export interface Handlers {
   repoChanged: (event: RepoChanged) => void;
+  watchLimited: (event: WatchLimited) => void;
   operationChanged: (event: OperationChanged) => void;
   avatarReady: (email: string) => void;
   mergeResolved: (event: MergeResolved) => void;
@@ -46,6 +49,7 @@ type Stop = () => void;
 export function connect(handlers: Handlers): Stop {
   const pending: Promise<Stop>[] = [
     onRepoChanged(handlers.repoChanged),
+    onWatchLimited(handlers.watchLimited),
     onOperationChanged(handlers.operationChanged),
     onAvatarReady((event) => handlers.avatarReady(event.email)),
     onMergeResolved(handlers.mergeResolved),

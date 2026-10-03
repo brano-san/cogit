@@ -34,7 +34,7 @@ use app_state::AppState;
 pub use events::{
     AvatarReady, CommandRecorded, ErrorQueue, ErrorReported, ErrorsAction, MenuCommand,
     MergeResolved, MergeToolFinished, OpenModule, OperationChanged, RepoChanged, RevealCommit,
-    SessionEnding, SettingsChanged, TreeChanged,
+    SessionEnding, SettingsChanged, TreeChanged, WatchLimited,
 };
 use specta_typescript::Typescript;
 use std::path::PathBuf;
@@ -87,6 +87,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
         .typ::<graph_engine::GraphRow>()
         .events(collect_events![
             RepoChanged,
+            WatchLimited,
             MenuCommand,
             OperationChanged,
             AvatarReady,

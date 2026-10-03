@@ -576,6 +576,7 @@ export const events = {
 	repoChanged: makeEvent<RepoChanged>("repo-changed"),
 	revealCommit: makeEvent<RevealCommit>("reveal-commit"),
 	sessionEnding: makeEvent<SessionEnding>("session-ending"),
+	watchLimited: makeEvent<WatchLimited>("watch-limited"),
 };
 
 /* Types */
@@ -2438,6 +2439,15 @@ export type UnpushedInSubmodule = {
 	path: string,
 	total: number,
 	commits: PushCommit[],
+};
+
+/**
+ *  Mirrors `app_state::AppEvent::WatchLimited`: the working tree is not watched, so
+ *  changes made outside Cogit appear only on a manual refresh.
+ */
+export type WatchLimited = {
+	repo: RepoId,
+	error: string,
 };
 
 /**
