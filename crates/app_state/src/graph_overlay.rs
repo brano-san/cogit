@@ -66,6 +66,16 @@ pub(crate) struct PaintMemo {
     /// What `index` and `parents` hold, kept as they grow: the cache counts it (R-300).
     index_bytes: usize,
     parents_bytes: usize,
+    /// `pending` too: parents a shallow or filtered history never shows wait there for good.
+    pending_bytes: usize,
+}
+
+/// What `oid` waited for by `waiting` commits costs in `PaintMemo::pending`; none costs nothing.
+fn pending_cost(oid: &str, waiting: usize) -> usize {
+    if waiting == 0 {
+        return 0;
+    }
+    size_of::<(String, Vec<(usize, usize)>)>() + oid.len() + waiting * size_of::<(usize, usize)>()
 }
 
 fn row_index(n: usize) -> u32 {
@@ -91,8 +101,11 @@ impl PaintMemo {
                     self.index_bytes += size_of::<(String, u32)>() + commit.oid.len();
                 }
                 // A parent that arrived with this chunk resolves rows laid out before it.
-                for (child, slot) in self.pending.remove(&commit.oid).unwrap_or_default() {
-                    self.parents[child][slot] = Some(row_index(at));
+                if let Some(waiting) = self.pending.remove(&commit.oid) {
+                    self.pending_bytes -= pending_cost(&commit.oid, waiting.len());
+                    for (child, slot) in waiting {
+                        self.parents[child][slot] = Some(row_index(at));
+                    }
                 }
             }
             for (at, commit) in commits.iter().enumerate().skip(known) {
@@ -103,10 +116,10 @@ impl PaintMemo {
                     .map(|(slot, parent)| {
                         let row = self.index.get(parent).copied();
                         if row.is_none() {
-                            self.pending
-                                .entry(parent.clone())
-                                .or_default()
-                                .push((at, slot));
+                            let waiting = self.pending.entry(parent.clone()).or_default();
+                            self.pending_bytes -= pending_cost(parent, waiting.len());
+                            waiting.push((at, slot));
+                            self.pending_bytes += pending_cost(parent, waiting.len());
                         }
                         row
                     })
@@ -162,7 +175,11 @@ impl PaintMemo {
         let paint = &self.paint;
         let lanes = paint.node_lane.len() + paint.segment_first.len() + paint.segment_lane.len();
         let styles = paint.node_style.len() + paint.segment_style.len();
-        self.index_bytes + self.parents_bytes + lanes * size_of::<u32>() + styles
+        self.index_bytes
+            + self.parents_bytes
+            + self.pending_bytes
+            + lanes * size_of::<u32>()
+            + styles
     }
 
     fn window(&self, start: u32, count: u32) -> GraphOverlay {
@@ -280,6 +297,34 @@ mod tests {
         assert_eq!(chunked.paint, whole.paint);
         assert!(chunked.pending.is_empty());
         assert_eq!(chunked.bytes(), whole.bytes());
+    }
+
+    // A parent the walk never shows (a shallow cut, a filter) waits in `pending` for as long as
+    // the graph lives: the cache that counts bytes has to see it.
+    #[test]
+    fn parents_still_waited_for_are_counted_in_the_budget() {
+        let (commits, rows) = history();
+        let mut memo = PaintMemo::default();
+        memo.refresh(&commits[..2], &rows[..2], &request(), true);
+        assert!(
+            !memo.pending.is_empty(),
+            "the fixture must leave a parent out"
+        );
+        let floor: usize = memo
+            .pending
+            .iter()
+            .map(|(oid, w)| pending_cost(oid, w.len()))
+            .sum();
+        assert!(
+            floor > 0 && memo.bytes() >= floor,
+            "{} < {floor}",
+            memo.bytes()
+        );
+        assert_eq!(memo.pending_bytes, floor);
+
+        memo.refresh(&commits, &rows, &request(), true);
+        assert!(memo.pending.is_empty());
+        assert_eq!(memo.pending_bytes, 0);
     }
 
     #[test]
