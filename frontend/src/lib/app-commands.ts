@@ -101,6 +101,8 @@ export interface AppCommandFacts {
   flow: { initialised: boolean; current: boolean };
   /** Branches that already hold the selected commit. */
   protectedBy: readonly string[];
+  /** The selected commit is on the checked-out branch; unknown counts as yes, the engine refuses. */
+  onHead: boolean;
   worktrees: { removable: boolean; stale: boolean };
   conflicts: number;
   prReason: string | undefined;
@@ -117,6 +119,7 @@ export function appCommands(facts: AppCommandFacts, run: AppCommandActions): Pal
   const noRemote = reasonFor({ remote: true }, facts.context);
   const toolbar = (id: string) => reasonOf(id, facts.toolbar);
   const noCommit = facts.commitOid ? undefined : SELECT_COMMIT;
+  const notOnHead = facts.onHead ? undefined : "Not on the current branch";
 
   return [
     { id: "open", title: "Open Repository…", run: run.open },
@@ -178,7 +181,7 @@ export function appCommands(facts: AppCommandFacts, run: AppCommandActions): Pal
       id: "rebase-i",
       title: "Rebase Commits After This One…",
       synonyms: ["interactive rebase", "squash", "reorder"],
-      unavailable: noCommit,
+      unavailable: noCommit ?? notOnHead,
       run: run["rebase-i"],
     },
     {
@@ -207,7 +210,9 @@ export function appCommands(facts: AppCommandFacts, run: AppCommandActions): Pal
       title: "Split Off Files…",
       synonyms: ["split commit", "surgery"],
       unavailable:
-        noCommit ?? (facts.protectedBy.length > 0 ? `Already on ${facts.protectedBy.join(", ")}` : undefined),
+        noCommit ??
+        notOnHead ??
+        (facts.protectedBy.length > 0 ? `Already on ${facts.protectedBy.join(", ")}` : undefined),
       run: run["split-off"],
     },
     {

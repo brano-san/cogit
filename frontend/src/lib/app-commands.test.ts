@@ -37,6 +37,7 @@ const OPEN: AppCommandFacts = {
   commitOid: "abc",
   flow: { initialised: true, current: true },
   protectedBy: [],
+  onHead: true,
   worktrees: { removable: true, stale: true },
   conflicts: 1,
   prReason: undefined,
@@ -171,6 +172,12 @@ describe("app commands", () => {
     expect(reason({ ...OPEN, commitOid: null }, "split-off")).toBe("Select a commit first");
     expect(reason({ ...OPEN, protectedBy: ["main", "dev"] }, "split-off")).toBe("Already on main, dev");
     expect(reason(OPEN, "split-off")).toBeUndefined();
+  });
+
+  it("rewrites history only at a commit of the checked-out branch", () => {
+    const elsewhere = { ...OPEN, onHead: false };
+    expect(reason(elsewhere, "split-off")).toBe("Not on the current branch");
+    expect(reason(elsewhere, "rebase-i")).toBe("Not on the current branch");
   });
 
   it("starts Git-Flow branches only once it is set up", () => {

@@ -440,3 +440,27 @@ fn untracked_in_names_the_files_on_disk_a_commit_would_overwrite() {
         ["s.json"]
     );
 }
+
+#[test]
+fn splitting_off_a_commit_of_another_branch_is_refused() {
+    let f = wide();
+    f.git(&["switch", "-c", "topic", "HEAD~1"]).unwrap();
+    f.write_file("t1.txt", "one\n").unwrap();
+    f.write_file("t2.txt", "two\n").unwrap();
+    f.git(&["add", "--", "t1.txt", "t2.txt"]).unwrap();
+    f.commit_staged(5, "topic work").unwrap();
+    let topic_commit = f.oid("HEAD").unwrap();
+    f.git(&["switch", "main"]).unwrap();
+    let main_before = f.oid("main").unwrap();
+
+    let err = open(&f)
+        .split_off(&topic_commit, &["t1.txt".to_owned()], "split", true)
+        .unwrap_err();
+
+    assert!(
+        matches!(err, git_engine::GitError::InvalidState(_)),
+        "{err:?}"
+    );
+    assert_eq!(f.oid("main").unwrap(), main_before);
+    assert_eq!(f.oid("topic").unwrap(), topic_commit);
+}

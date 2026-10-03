@@ -109,7 +109,7 @@
   import { compareView } from "$stores/compare-view.svelte";
   import { confirmation } from "$stores/confirm.svelte";
   import { undoRewriteQuestion } from "$lib/undo-rewrite";
-  import { undoRewrite, undoRewriteInfo } from "$lib/ipc/ref-ops";
+  import { isAncestor, undoRewrite, undoRewriteInfo } from "$lib/ipc/ref-ops";
   import { effective, withShortcuts } from "$lib/keymap";
   import { binName, ON_MAC, OS, primary } from "$lib/platform";
   import { menuCommandRuns, modals } from "$lib/modal-stack";
@@ -335,6 +335,9 @@
       remote ref, so it is asked when the user opens a menu, not on every selection. */
   let protection = $state.raw<ReadonlyMap<string, readonly string[]>>(new Map());
   const protectedBy = $derived(protection.get(commit.oid ?? "") ?? []);
+  /** Whether a commit is on the checked-out branch, once asked; same lifetime as `protection`. */
+  let headness = $state.raw<ReadonlyMap<string, boolean>>(new Map());
+  const onHead = $derived(headness.get(commit.oid ?? "") ?? true);
 
   /** Help ▸ Check for Updates, and the start-up check when the setting is on. The
       plugin is loaded on demand: nobody pays for the updater until it is wanted. */
@@ -363,6 +366,11 @@
   async function learnProtection(oid: string): Promise<readonly string[]> {
     const id = repository.current?.repo;
     if (!id) return [];
+    if (!headness.has(oid)) {
+      void isAncestor(id, oid, "HEAD")
+        .catch(() => true)
+        .then((on) => (headness = new Map(headness).set(oid, on)));
+    }
     const known = protection.get(oid);
     if (known) return known;
     const refs = await protectingRefs(id, oid).catch(() => [] as string[]);
@@ -765,6 +773,7 @@
         commitOid: commit.oid,
         flow: { initialised: flow.status.initialised, current: Boolean(flow.current) },
         protectedBy,
+        onHead,
         worktrees: { removable: removable(worktrees.current), stale: hasStale(worktrees.entries) },
         conflicts: conflicts.paths.length,
         prReason,
@@ -963,6 +972,7 @@
 
     if (plan.refs) {
       protection = new Map();
+      headness = new Map();
       await repository.refresh();
       if (left()) return;
     }
@@ -1127,6 +1137,7 @@
     if (!id || worked !== id) return;
     const epoch = repository.epoch;
     protection = new Map();
+    headness = new Map();
     await repository.refreshRefs();
     if (repository.epoch !== epoch) return;
     await afterMutation();

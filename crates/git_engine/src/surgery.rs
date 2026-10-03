@@ -29,6 +29,11 @@ impl RepoHandle {
         let target = self.rev_parse(rev)?;
         let parent = self.only_parent(&target)?;
         let branch = self.current_branch()?;
+        if !self.is_merged_into_head(&target)? {
+            return Err(GitError::InvalidState(format!(
+                "{rev} is not on the checked-out branch"
+            )));
+        }
         self.check_clean()?;
         self.check_subset(&target, paths)?;
 
