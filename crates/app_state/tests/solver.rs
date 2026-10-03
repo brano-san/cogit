@@ -33,6 +33,36 @@ fn a_both_modified_file_comes_with_regions_and_the_names_of_its_sides() {
 }
 
 #[test]
+fn the_stages_the_solver_was_given_are_the_ones_in_the_index() {
+    let f = test_fixtures::conflicted().unwrap();
+    let (state, repo) = opened(&f);
+
+    let data = state.solver_data(repo, "conflict.txt").unwrap();
+
+    let listed = f.git(&["ls-files", "-u", "conflict.txt"]).unwrap();
+    let oid = |stage: &str| {
+        let line = listed
+            .lines()
+            .find(|line| line.contains(&format!(" {stage}\t")))
+            .unwrap();
+        line.split_whitespace().nth(1).unwrap().to_owned()
+    };
+    assert_eq!(data.stages.base, Some(oid("1")));
+    assert_eq!(data.stages.ours, Some(oid("2")));
+    assert_eq!(data.stages.theirs, Some(oid("3")));
+    let stale = git_engine::ConflictStages {
+        ours: Some("0".repeat(40)),
+        ..data.stages.clone()
+    };
+    assert!(
+        state
+            .resolve_conflict_text(repo, "conflict.txt", "x\n", Some(&stale))
+            .is_err()
+    );
+    assert_eq!(state.conflicted_paths(repo).unwrap(), ["conflict.txt"]);
+}
+
+#[test]
 fn a_file_that_is_not_conflicted_is_an_error() {
     let f = test_fixtures::conflicted().unwrap();
     let (state, repo) = opened(&f);
@@ -329,7 +359,7 @@ fn a_saved_resolution_keeps_the_crlf_of_the_file() {
     let (state, repo) = opened(&f);
 
     state
-        .resolve_conflict_text(repo, "win.txt", "a\nresolved\n")
+        .resolve_conflict_text(repo, "win.txt", "a\nresolved\n", None)
         .unwrap();
 
     let bytes = std::fs::read(f.path().join("win.txt")).unwrap();
@@ -349,7 +379,7 @@ fn a_saved_resolution_keeps_a_file_without_a_final_newline_as_it_was() {
     let (state, repo) = opened(&f);
 
     state
-        .resolve_conflict_text(repo, "bare.txt", "a\nresolved\n")
+        .resolve_conflict_text(repo, "bare.txt", "a\nresolved\n", None)
         .unwrap();
 
     assert_eq!(
@@ -365,7 +395,7 @@ fn a_resolution_written_with_conflict_markers_is_still_staged() {
     let text = "<<<<<<< main\nchanged by main\n=======\nchanged by dev\n>>>>>>> dev\n";
 
     state
-        .resolve_conflict_text(repo, "conflict.txt", text)
+        .resolve_conflict_text(repo, "conflict.txt", text, None)
         .unwrap();
 
     assert!(state.conflicted_paths(repo).unwrap().is_empty());
@@ -388,7 +418,7 @@ fn a_modify_delete_file_kept_with_edited_text_is_written_and_staged() {
     let (state, repo) = opened(&f);
 
     state
-        .resolve_conflict_text(repo, PLATE, "int a = 2;\n")
+        .resolve_conflict_text(repo, PLATE, "int a = 2;\n", None)
         .unwrap();
 
     assert!(state.conflicted_paths(repo).unwrap().is_empty());

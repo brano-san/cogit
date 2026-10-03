@@ -35,6 +35,7 @@ pub async fn resolve_conflict(
     repo: RepoId,
     path: String,
     side: ConflictSide,
+    stages: Option<git_engine::ConflictStages>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
     mutating(
@@ -42,7 +43,7 @@ pub async fn resolve_conflict(
         repo,
         OperationKind::Merge,
         "resolve_conflict",
-        move || app_state.resolve_conflict(repo, &path, side),
+        move || app_state.resolve_conflict(repo, &path, side, stages.as_ref()),
     )
     .await
 }
@@ -54,6 +55,7 @@ pub async fn resolve_conflict_text(
     repo: RepoId,
     path: String,
     text: String,
+    stages: Option<git_engine::ConflictStages>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
     mutating(
@@ -61,7 +63,7 @@ pub async fn resolve_conflict_text(
         repo,
         OperationKind::Merge,
         "resolve_conflict_text",
-        move || app_state.resolve_conflict_text(repo, &path, &text),
+        move || app_state.resolve_conflict_text(repo, &path, &text, stages.as_ref()),
     )
     .await
 }

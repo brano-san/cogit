@@ -31,11 +31,12 @@ impl AppState {
         repo: RepoId,
         path: &str,
         side: git_engine::ConflictSide,
+        expected: Option<&git_engine::ConflictStages>,
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let kept = keep_for_undo(&handle, path)?;
-        handle.resolve_with(path, side)?;
+        handle.resolve_with(path, side, expected)?;
         let taken = format!("{side:?}").to_lowercase();
         self.record_resolution(repo, format!("Take {taken} for {path}"), path, kept);
         Ok(())
@@ -46,11 +47,12 @@ impl AppState {
         repo: RepoId,
         path: &str,
         text: &str,
+        expected: Option<&git_engine::ConflictStages>,
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let kept = keep_for_undo(&handle, path)?;
-        handle.resolve_with_text(path, text)?;
+        handle.resolve_with_text(path, text, expected)?;
         self.record_resolution(repo, format!("Resolve {path}"), path, kept);
         Ok(())
     }

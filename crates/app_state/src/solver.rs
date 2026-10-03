@@ -17,6 +17,8 @@ pub struct SolverData {
     pub missing_ours: bool,
     pub missing_theirs: bool,
     pub has_base: bool,
+    /// The index entries these sides were read from: Save names them back.
+    pub stages: git_engine::ConflictStages,
     pub crlf: bool,
     /// LF-normalized text of the sides; `None` for a side without the file, and for every
     /// side of a binary or oversized file.
@@ -58,6 +60,7 @@ impl AppState {
             missing_ours,
             missing_theirs,
             has_base: sides.base.is_some(),
+            stages: sides.stages.clone(),
             crlf,
             base: None,
             ours: None,

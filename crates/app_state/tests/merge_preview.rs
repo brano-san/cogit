@@ -55,7 +55,7 @@ fn resolving_with_the_merged_text_clears_the_conflict() {
         .join("\n");
 
     state
-        .resolve_conflict_text(repo, "conflict.txt", &format!("{text}\n"))
+        .resolve_conflict_text(repo, "conflict.txt", &format!("{text}\n"), None)
         .unwrap();
 
     assert!(state.conflicted_paths(repo).unwrap().is_empty());
@@ -129,7 +129,7 @@ fn a_binary_conflict_refuses_a_text_resolution() {
     );
     let (state, repo) = opened(&f);
 
-    let written = state.resolve_conflict_text(repo, "pic.bin", "ours\u{FFFD}\n");
+    let written = state.resolve_conflict_text(repo, "pic.bin", "ours\u{FFFD}\n", None);
 
     assert!(written.is_err(), "{written:?}");
     assert_eq!(state.conflicted_paths(repo).unwrap(), vec!["pic.bin"]);
@@ -146,7 +146,7 @@ fn a_binary_conflict_is_still_resolved_by_taking_a_side_whole() {
     let (state, repo) = opened(&f);
 
     state
-        .resolve_conflict(repo, "pic.bin", git_engine::ConflictSide::Theirs)
+        .resolve_conflict(repo, "pic.bin", git_engine::ConflictSide::Theirs, None)
         .unwrap();
 
     assert_eq!(
@@ -173,7 +173,7 @@ fn taking_the_side_that_deleted_the_file_deletes_it() {
     let (state, repo) = opened(&f);
 
     state
-        .resolve_conflict(repo, "f.txt", git_engine::ConflictSide::Ours)
+        .resolve_conflict(repo, "f.txt", git_engine::ConflictSide::Ours, None)
         .unwrap();
 
     assert!(state.conflicted_paths(repo).unwrap().is_empty());
@@ -187,7 +187,7 @@ fn taking_the_side_that_kept_the_file_keeps_it() {
     let (state, repo) = opened(&f);
 
     state
-        .resolve_conflict(repo, "f.txt", git_engine::ConflictSide::Ours)
+        .resolve_conflict(repo, "f.txt", git_engine::ConflictSide::Ours, None)
         .unwrap();
 
     assert!(state.conflicted_paths(repo).unwrap().is_empty());

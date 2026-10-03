@@ -1052,7 +1052,7 @@ fn taking_one_side_of_a_conflict_can_be_undone_hand_edits_and_all() {
     f.write_file("c.txt", "half resolved by hand\n").unwrap();
 
     state
-        .resolve_conflict(repo, "c.txt", git_engine::ConflictSide::Ours)
+        .resolve_conflict(repo, "c.txt", git_engine::ConflictSide::Ours, None)
         .unwrap();
     assert_eq!(text(&f, "c.txt"), "main\n");
     state.undo_last(repo).unwrap();
@@ -1069,7 +1069,7 @@ fn saving_a_merge_over_hand_edits_can_be_undone() {
     f.write_file("c.txt", "half resolved by hand\n").unwrap();
 
     state
-        .resolve_conflict_text(repo, "c.txt", "merged\n")
+        .resolve_conflict_text(repo, "c.txt", "merged\n", None)
         .unwrap();
     state.undo_last(repo).unwrap();
 

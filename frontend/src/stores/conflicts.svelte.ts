@@ -7,6 +7,7 @@ import {
   rerereForget,
   rerereStatus,
   type ConflictSide,
+  type ConflictStages,
   type RerereStatus,
   type Region,
   type RepoId,
@@ -22,6 +23,8 @@ class ConflictStore {
   theirs = $state<string | null>(null);
   /** A side is binary or not UTF-8: only taking one side whole can resolve it. */
   binary = $state(false);
+  /** The index entries the sides on screen were read from; a write names them back. */
+  stages = $state.raw<ConflictStages | null>(null);
   /** The three sides already merged; empty until a conflicted file is opened. */
   regions = $state.raw<Region[]>([]);
   /** Sides picked or text edited in the view on screen, not written yet. The views say so
@@ -83,6 +86,7 @@ class ConflictStore {
     this.ours = sides.ours;
     this.theirs = sides.theirs;
     this.binary = sides.binary;
+    this.stages = sides.stages;
     this.regions = [];
     if (sides.binary) return;
 
@@ -93,23 +97,30 @@ class ConflictStore {
   }
 
   async take(repo: RepoId, side: ConflictSide): Promise<void> {
-    await this.#resolve(repo, (path) => resolveConflict(repo, path, side));
+    await this.#resolve(repo, (path, stages) => resolveConflict(repo, path, side, stages));
   }
 
   async write(repo: RepoId, text: string): Promise<void> {
-    await this.#resolve(repo, (path) => resolveConflictText(repo, path, text));
+    await this.#resolve(repo, (path, stages) => resolveConflictText(repo, path, text, stages));
   }
 
   /** A refusal keeps the file open with its picks and reaches the notification window:
-      the callers only reload the list after it. */
-  async #resolve(repo: RepoId, step: (path: string) => Promise<unknown>): Promise<void> {
+      the callers only reload the list after it. A conflict redone since the view was
+      built closes it, so the next click reads the file again. */
+  async #resolve(
+    repo: RepoId,
+    step: (path: string, stages: ConflictStages | null) => Promise<unknown>,
+  ): Promise<void> {
     const path = this.path;
     if (!path) return;
+    const stages = this.stages;
     const cleared = this.#cleared;
     try {
-      await step(path);
+      await step(path, stages);
     } catch (err) {
       notices.report(err, "Could not resolve the conflict");
+      const said = err instanceof Error ? err.message : JSON.stringify(err);
+      if (said.includes("changed since") && this.path === path) this.close();
       return;
     }
     if (cleared !== this.#cleared) return;
@@ -179,6 +190,7 @@ class ConflictStore {
     this.ours = null;
     this.theirs = null;
     this.binary = false;
+    this.stages = null;
     this.regions = [];
   }
 

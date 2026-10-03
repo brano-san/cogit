@@ -18,6 +18,8 @@ pub struct ConflictSides {
     pub theirs: Option<Vec<u8>>,
     #[serde(skip)]
     pub kind: EntryKind,
+    #[serde(skip)]
+    pub stages: ConflictStages,
 }
 
 /// What the sides are: a link or a submodule is taken whole, whatever its bytes look like.
@@ -29,6 +31,16 @@ pub enum EntryKind {
     Submodule,
 }
 
+/// The object ids (hex) of a path's index stages: what a resolution was made from.
+/// Named rather than a tuple: positional optional strings reorder silently across IPC.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ConflictStages {
+    pub base: Option<String>,
+    pub ours: Option<String>,
+    pub theirs: Option<String>,
+}
+
 /// Named rather than a tuple: positional optional strings reorder silently across IPC.
 #[derive(Debug, Clone, Default, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -38,6 +50,8 @@ pub struct ConflictText {
     pub theirs: Option<String>,
     /// A side is binary or not UTF-8: it is taken whole, never merged or edited as text.
     pub binary: bool,
+    /// The index entries the sides were read from; a resolution names them back.
+    pub stages: ConflictStages,
 }
 
 impl ConflictSides {
@@ -63,6 +77,7 @@ impl ConflictSides {
             ours: text(&self.ours),
             theirs: text(&self.theirs),
             binary: !self.is_text(),
+            stages: self.stages.clone(),
         }
     }
 }
@@ -128,13 +143,50 @@ impl RepoHandle {
                 }
             }
         }
+        sides.stages = self.conflict_stages(path)?;
         Ok(sides)
+    }
+
+    /// Refuses a resolution made from stages the path no longer has: the conflict was
+    /// redone (another rebase step) since the solver was opened.
+    fn check_stages(&self, path: &str, expected: Option<&ConflictStages>) -> Result<()> {
+        match expected {
+            Some(expected) if *expected != self.conflict_stages(path)? => Err(
+                GitError::InvalidState(format!("{path} changed since it was opened: reload it")),
+            ),
+            _ => Ok(()),
+        }
+    }
+
+    fn conflict_stages(&self, path: &str) -> Result<ConflictStages> {
+        let index = self.current_index()?;
+        let backing = index.path_backing();
+        let mut stages = ConflictStages::default();
+        for entry in index.entries() {
+            if entry.path_in(backing) != gix::bstr::BStr::new(path.as_bytes()) {
+                continue;
+            }
+            let slot = match entry.stage() as u8 {
+                1 => &mut stages.base,
+                2 => &mut stages.ours,
+                3 => &mut stages.theirs,
+                _ => continue,
+            };
+            *slot = Some(entry.id.to_string());
+        }
+        Ok(stages)
     }
 
     /// Checked out by git, not written from the blob: the eol and smudge filters (LFS)
     /// apply to a stage as they do to any checkout. Ours or theirs missing is the side that
     /// deleted the file, and taking it deletes the file.
-    pub fn resolve_with(&self, path: &str, side: ConflictSide) -> Result<()> {
+    pub fn resolve_with(
+        &self,
+        path: &str,
+        side: ConflictSide,
+        expected: Option<&ConflictStages>,
+    ) -> Result<()> {
+        self.check_stages(path, expected)?;
         let entry = self.stage_entry(path, side)?;
         if entry.is_none() {
             if side == ConflictSide::Base || !self.conflicted_paths()?.iter().any(|p| p == path) {
@@ -163,7 +215,13 @@ impl RepoHandle {
 
     /// Staged and checked out in one step, or `git merge --continue` refuses a file that
     /// looks done; the checkout applies the eol, encoding and smudge filters as to any file.
-    pub fn resolve_with_text(&self, path: &str, text: &str) -> Result<()> {
+    pub fn resolve_with_text(
+        &self,
+        path: &str,
+        text: &str,
+        expected: Option<&ConflictStages>,
+    ) -> Result<()> {
+        self.check_stages(path, expected)?;
         let sides = self.conflict_sides(path)?;
         if sides.kind != EntryKind::Regular {
             return Err(GitError::InvalidState(format!(

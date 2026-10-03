@@ -27,7 +27,14 @@ vi.mock("$stores/notices.svelte", () => ({ notices: { report } }));
 const ipc = await import("$lib/ipc");
 const { conflicts } = await import("./conflicts.svelte");
 
-const sides = (name: string) => ({ base: name, ours: name, theirs: name, binary: false });
+const stagesOf = (name: string) => ({ base: `b-${name}`, ours: `o-${name}`, theirs: `t-${name}` });
+const sides = (name: string) => ({
+  base: name,
+  ours: name,
+  theirs: name,
+  binary: false,
+  stages: stagesOf(name),
+});
 const region = (name: string) => [{ kind: "clean", lines: [name], origin: "ours" }];
 
 beforeEach(() => {
@@ -281,6 +288,24 @@ describe("a resolution that fails", () => {
     await conflicts.write(1 as never, "text");
 
     expect(report).toHaveBeenCalledWith(refused, "Could not resolve the conflict");
+  });
+
+  it("names the stages the view was read from, and drops a view they no longer fit", async () => {
+    await opened("a.txt");
+
+    await conflicts.write(1 as never, "text");
+    expect(ipc.resolveConflictText).toHaveBeenLastCalledWith(1, "a.txt", "text", stagesOf("a.txt"));
+
+    await opened("b.txt");
+    await conflicts.take(1 as never, "ours");
+    expect(ipc.resolveConflict).toHaveBeenLastCalledWith(1, "b.txt", "ours", stagesOf("b.txt"));
+
+    await opened("c.txt");
+    vi.mocked(ipc.resolveConflict).mockRejectedValueOnce(
+      new Error("c.txt changed since it was opened: reload it"),
+    );
+    await conflicts.take(1 as never, "ours");
+    expect(conflicts.path).toBeNull();
   });
 
   it("reports a file that cannot be read", async () => {

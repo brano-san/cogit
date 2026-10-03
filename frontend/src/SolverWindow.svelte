@@ -279,6 +279,7 @@
   async function save() {
     if (!editors || !request || !docs || saving || toolRunning) return;
     const { repo, path } = request;
+    const stages = data?.stages;
     saving = true;
     saveFailed = null;
     const left = snapshot?.unresolved.length ?? 0;
@@ -295,7 +296,7 @@
           confirm: "Save",
           warning: true,
         }),
-      write: () => resolveConflictText(repo, path, text),
+      write: () => resolveConflictText(repo, path, text, stages),
       announce: () => mergeResolved(repo, path),
       saved: () => (saved = true),
       close: () => closeThisWindow(),
@@ -309,7 +310,7 @@
     if (!request) return;
     saveFailed = null;
     try {
-      await resolveConflict(request.repo, request.path, side);
+      await resolveConflict(request.repo, request.path, side, data?.stages);
       await announceAndClose();
     } catch (err) {
       saveFailed = failureText(err);
@@ -534,6 +535,9 @@
     {#if saveFailed}
       <div class="banner failure" role="alert">
         <pre>{saveFailed}</pre>
+        {#if saveFailed.includes("changed since")}
+          <button type="button" class="btn sm" onclick={() => void load()}>Reload</button>
+        {/if}
       </div>
     {/if}
     {#if note}

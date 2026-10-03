@@ -146,7 +146,8 @@ fn keeping_the_surviving_side_of_a_modify_delete_checks_it_out_and_stages_it() {
     let f = modify_delete();
     let repo = open(&f);
 
-    repo.resolve_with(NAVBOARD, ConflictSide::Theirs).unwrap();
+    repo.resolve_with(NAVBOARD, ConflictSide::Theirs, None)
+        .unwrap();
 
     assert!(repo.conflicted_paths().unwrap().is_empty());
     assert_eq!(
@@ -161,7 +162,8 @@ fn taking_the_missing_side_deletes_the_file() {
     let f = modify_delete();
     let repo = open(&f);
 
-    repo.resolve_with(NAVBOARD, ConflictSide::Ours).unwrap();
+    repo.resolve_with(NAVBOARD, ConflictSide::Ours, None)
+        .unwrap();
 
     assert!(repo.conflicted_paths().unwrap().is_empty());
     assert!(!f.path().join(NAVBOARD).exists());

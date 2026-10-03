@@ -246,8 +246,16 @@ export const commands = {
 	imageSides: (repo: RepoId, spec: DiffSpec, path: string) => typedError<[string | null, string | null], GitError>(__TAURI_INVOKE("image_sides", { repo, spec, path })),
 	conflictedPaths: (repo: RepoId) => typedError<string[], GitError>(__TAURI_INVOKE("conflicted_paths", { repo })),
 	conflictText: (repo: RepoId, path: string) => typedError<ConflictText, GitError>(__TAURI_INVOKE("conflict_text", { repo, path })),
-	resolveConflict: (repo: RepoId, path: string, side: ConflictSide) => typedError<null, GitError>(__TAURI_INVOKE("resolve_conflict", { repo, path, side })),
-	resolveConflictText: (repo: RepoId, path: string, text: string) => typedError<null, GitError>(__TAURI_INVOKE("resolve_conflict_text", { repo, path, text })),
+	resolveConflict: (repo: RepoId, path: string, side: ConflictSide, stages: {
+	base: string | null,
+	ours: string | null,
+	theirs: string | null,
+} | null) => typedError<null, GitError>(__TAURI_INVOKE("resolve_conflict", { repo, path, side, stages })),
+	resolveConflictText: (repo: RepoId, path: string, text: string, stages: {
+	base: string | null,
+	ours: string | null,
+	theirs: string | null,
+} | null) => typedError<null, GitError>(__TAURI_INVOKE("resolve_conflict_text", { repo, path, text, stages })),
 	findObject: (repo: RepoId, query: string, limit: number) => typedError<Found[], GitError>(__TAURI_INVOKE("find_object", { repo, query, limit })),
 	renameBranch: (repo: RepoId, from: string, to: string, force: boolean) => typedError<null, GitError>(__TAURI_INVOKE("rename_branch", { repo, from, to, force })),
 	branchReflog: (repo: RepoId, branch: string) => typedError<ReflogEntry[], GitError>(__TAURI_INVOKE("branch_reflog", { repo, branch })),
@@ -920,6 +928,16 @@ export type ConflictOperation = "merge" | "cherryPick" | "revert" | "rebase" | "
 
 export type ConflictSide = "base" | "ours" | "theirs";
 
+/**
+ *  The object ids (hex) of a path's index stages: what a resolution was made from.
+ *  Named rather than a tuple: positional optional strings reorder silently across IPC.
+ */
+export type ConflictStages = {
+	base: string | null,
+	ours: string | null,
+	theirs: string | null,
+};
+
 /**  Named rather than a tuple: positional optional strings reorder silently across IPC. */
 export type ConflictText = {
 	base: string | null,
@@ -927,6 +945,8 @@ export type ConflictText = {
 	theirs: string | null,
 	/**  A side is binary or not UTF-8: it is taken whole, never merged or edited as text. */
 	binary: boolean,
+	/**  The index entries the sides were read from; a resolution names them back. */
+	stages: ConflictStages,
 };
 
 export type ContentMatch = {
@@ -2187,6 +2207,8 @@ export type SolverData = {
 	missingOurs: boolean,
 	missingTheirs: boolean,
 	hasBase: boolean,
+	/**  The index entries these sides were read from: Save names them back. */
+	stages: ConflictStages,
 	crlf: boolean,
 	/**
 	 *  LF-normalized text of the sides; `None` for a side without the file, and for every

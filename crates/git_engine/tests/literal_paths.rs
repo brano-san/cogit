@@ -53,7 +53,7 @@ fn resolving_a_conflict_stages_only_that_file() {
     std::fs::write(f.path().join("test1.txt"), "edited, not to be staged\n").unwrap();
 
     open(&f)
-        .resolve_with("test[1].txt", ConflictSide::Ours)
+        .resolve_with("test[1].txt", ConflictSide::Ours, None)
         .unwrap();
 
     let staged = f.git(&["diff", "--cached", "--name-only"]).unwrap();

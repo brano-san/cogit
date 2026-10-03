@@ -16,6 +16,7 @@ import type {
   CommitRequest,
   ConfigScope,
   ConflictSide,
+  ConflictStages,
   ContextItem,
   DiffOptions,
   DiffSpec,
@@ -95,6 +96,7 @@ export type {
   CommandRow,
   CommitRow,
   ConflictSide,
+  ConflictStages,
   Author,
   AvatarReady,
   AvatarRow,
@@ -644,12 +646,23 @@ export async function conflictText(repo: RepoId, path: string) {
   return unwrap(await commands.conflictText(repo, path));
 }
 
-export async function resolveConflict(repo: RepoId, path: string, side: ConflictSide) {
-  return unwrap(await commands.resolveConflict(repo, path, side));
+/** `stages` are those the sides on screen were read from; a conflict redone since is refused. */
+export async function resolveConflict(
+  repo: RepoId,
+  path: string,
+  side: ConflictSide,
+  stages: ConflictStages | null = null,
+) {
+  return unwrap(await commands.resolveConflict(repo, path, side, stages));
 }
 
-export async function resolveConflictText(repo: RepoId, path: string, text: string) {
-  return unwrap(await commands.resolveConflictText(repo, path, text));
+export async function resolveConflictText(
+  repo: RepoId,
+  path: string,
+  text: string,
+  stages: ConflictStages | null = null,
+) {
+  return unwrap(await commands.resolveConflictText(repo, path, text, stages));
 }
 
 export async function imageSides(repo: RepoId, spec: DiffSpec, path: string) {

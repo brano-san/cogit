@@ -81,7 +81,7 @@ fn taking_our_side_resolves_the_file_with_our_content() {
     let (f, path) = three_sided();
     let repo = open(&f);
 
-    repo.resolve_with(&path, git_engine::ConflictSide::Ours)
+    repo.resolve_with(&path, git_engine::ConflictSide::Ours, None)
         .unwrap();
 
     assert_eq!(
@@ -96,7 +96,7 @@ fn taking_their_side_resolves_the_file_with_their_content() {
     let (f, path) = three_sided();
     let repo = open(&f);
 
-    repo.resolve_with(&path, git_engine::ConflictSide::Theirs)
+    repo.resolve_with(&path, git_engine::ConflictSide::Theirs, None)
         .unwrap();
 
     assert_eq!(
@@ -112,7 +112,7 @@ fn a_resolved_file_lets_the_merge_finish() {
     let (f, path) = three_sided();
     let repo = open(&f);
 
-    repo.resolve_with(&path, git_engine::ConflictSide::Ours)
+    repo.resolve_with(&path, git_engine::ConflictSide::Ours, None)
         .unwrap();
     repo.continue_operation().unwrap();
 
@@ -125,7 +125,7 @@ fn writing_a_hand_edited_resolution_stages_exactly_that_text() {
     let (f, path) = three_sided();
     let repo = open(&f);
 
-    repo.resolve_with_text(&path, "merged by hand\nkeep\n")
+    repo.resolve_with_text(&path, "merged by hand\nkeep\n", None)
         .unwrap();
 
     assert_eq!(
@@ -141,7 +141,7 @@ fn resolving_a_path_that_is_not_conflicted_is_refused() {
 
     assert!(
         open(&f)
-            .resolve_with("file0.txt", git_engine::ConflictSide::Ours)
+            .resolve_with("file0.txt", git_engine::ConflictSide::Ours, None)
             .is_err()
     );
 }
@@ -178,7 +178,7 @@ fn taking_a_side_writes_the_file_as_a_checkout_would() {
     let (f, path) = three_sided_crlf();
     let repo = open(&f);
 
-    repo.resolve_with(&path, git_engine::ConflictSide::Theirs)
+    repo.resolve_with(&path, git_engine::ConflictSide::Theirs, None)
         .unwrap();
 
     assert_eq!(
@@ -197,7 +197,7 @@ fn taking_the_base_writes_it_as_a_checkout_would() {
     let (f, path) = three_sided_crlf();
     let repo = open(&f);
 
-    repo.resolve_with(&path, git_engine::ConflictSide::Base)
+    repo.resolve_with(&path, git_engine::ConflictSide::Base, None)
         .unwrap();
 
     assert_eq!(
@@ -235,7 +235,8 @@ fn a_text_resolution_keeps_the_line_endings_of_our_side() {
     );
     let repo = open(&f);
 
-    repo.resolve_with_text(&path, "merged\nkeep\n").unwrap();
+    repo.resolve_with_text(&path, "merged\nkeep\n", None)
+        .unwrap();
 
     assert_eq!(
         std::fs::read(f.path().join(&path)).unwrap(),
@@ -249,7 +250,8 @@ fn a_text_resolution_keeps_our_side_without_a_final_newline() {
     let (f, path) = conflict_of(b"base\nkeep", b"ours\nkeep", b"theirs\nkeep");
     let repo = open(&f);
 
-    repo.resolve_with_text(&path, "merged\nkeep\n").unwrap();
+    repo.resolve_with_text(&path, "merged\nkeep\n", None)
+        .unwrap();
 
     assert_eq!(f.git(&["show", ":f.txt"]).unwrap(), "merged\nkeep");
 }
@@ -259,7 +261,8 @@ fn a_text_resolution_is_checked_out_as_the_attributes_ask() {
     let (f, path) = three_sided_crlf();
     let repo = open(&f);
 
-    repo.resolve_with_text(&path, "merged\nkeep\n").unwrap();
+    repo.resolve_with_text(&path, "merged\nkeep\n", None)
+        .unwrap();
 
     assert_eq!(
         std::fs::read(f.path().join(&path)).unwrap(),
@@ -314,7 +317,7 @@ fn a_gitlink_conflict_has_all_its_sides_and_is_not_text() {
 
     assert!(sides.base.is_some() && sides.ours.is_some() && sides.theirs.is_some());
     assert!(!sides.is_text());
-    assert!(repo.resolve_with_text("sub", "x").is_err());
+    assert!(repo.resolve_with_text("sub", "x", None).is_err());
 }
 
 #[test]
@@ -322,7 +325,7 @@ fn taking_a_side_of_a_gitlink_conflict_keeps_the_gitlink_at_that_commit() {
     let f = special_conflict("160000", "sub", [OID_A, OID_B, OID_C]);
     let repo = open(&f);
 
-    repo.resolve_with("sub", git_engine::ConflictSide::Theirs)
+    repo.resolve_with("sub", git_engine::ConflictSide::Theirs, None)
         .unwrap();
 
     let staged = f.git(&["ls-files", "-s", "sub"]).unwrap();
@@ -341,11 +344,50 @@ fn a_symlink_conflict_is_taken_whole_and_never_edited_as_text() {
     let sides = repo.conflict_sides("cfg").unwrap();
 
     assert!(!sides.is_text());
-    assert!(repo.resolve_with_text("cfg", "../c/config").is_err());
-    repo.resolve_with("cfg", git_engine::ConflictSide::Theirs)
+    assert!(repo.resolve_with_text("cfg", "../c/config", None).is_err());
+    repo.resolve_with("cfg", git_engine::ConflictSide::Theirs, None)
         .unwrap();
     let staged = f.git(&["ls-files", "-s", "cfg"]).unwrap();
     assert!(staged.starts_with("120000 "), "{staged}");
+}
+
+// A solver opened for the first conflict of a path must not write into a later one.
+#[test]
+fn a_resolution_of_stages_that_are_gone_is_refused() {
+    let (f, path) = three_sided();
+    let repo = open(&f);
+    let old = repo.conflict_sides(&path).unwrap().stages;
+    assert!(old.base.is_some() && old.ours.is_some() && old.theirs.is_some());
+
+    f.git(&["merge", "--abort"]).unwrap();
+    f.git(&["switch", "theirs"]).unwrap();
+    f.write_file("shared.txt", "their other line\nkeep\n")
+        .unwrap();
+    f.git(&["add", "--", "shared.txt"]).unwrap();
+    f.commit_staged(13, "their second change").unwrap();
+    f.git(&["switch", "main"]).unwrap();
+    let _ = f.git(&["merge", "theirs"]);
+    let now = repo.conflict_sides(&path).unwrap().stages;
+    assert_ne!(old, now);
+
+    let before = std::fs::read(f.path().join(&path)).unwrap();
+    let err = repo
+        .resolve_with_text(&path, "merged\n", Some(&old))
+        .unwrap_err();
+    assert!(err.to_string().contains("changed since"), "{err}");
+    assert!(
+        repo.resolve_with(&path, git_engine::ConflictSide::Theirs, Some(&old))
+            .is_err()
+    );
+    assert_eq!(std::fs::read(f.path().join(&path)).unwrap(), before);
+    assert_eq!(
+        repo.conflicted_paths().unwrap(),
+        std::slice::from_ref(&path)
+    );
+
+    repo.resolve_with_text(&path, "merged\n", Some(&now))
+        .unwrap();
+    assert!(repo.conflicted_paths().unwrap().is_empty());
 }
 
 fn utf16le(text: &str) -> Vec<u8> {
@@ -379,7 +421,7 @@ fn a_text_resolution_of_an_encoded_file_is_staged_as_utf8_and_written_as_the_fil
         let (f, path) = utf16_conflict();
         let repo = open(&f);
 
-        repo.resolve_with_text(&path, text).unwrap();
+        repo.resolve_with_text(&path, text, None).unwrap();
 
         assert_eq!(f.git(&["show", ":a.rc"]).unwrap(), text);
         assert_eq!(
