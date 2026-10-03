@@ -918,6 +918,81 @@ fn an_interactive_rebase_finished_after_its_conflict_can_be_undone() {
     assert_eq!(head_oid(&state, repo), tip);
 }
 
+// A commit made while the rebase waits (an `edit` stop) is not its end: the branch has not
+// moved yet, so the entry kept the old tip as "where it ended" and Undo refused afterwards.
+#[test]
+fn a_rebase_finished_after_a_commit_made_while_it_waited_can_be_undone() {
+    let f = test_fixtures::linear(1).unwrap();
+    let base = f.commit_file(2, "a.txt", "a\n").unwrap();
+    let middle = f.commit_file(3, "b.txt", "b\n").unwrap();
+    let tip = f.commit_file(4, "c.txt", "c\n").unwrap();
+    let (state, repo) = open(&f);
+    let plan = [
+        git_engine::TodoEntry {
+            oid: middle,
+            action: git_engine::TodoAction::Edit,
+            message: None,
+        },
+        git_engine::TodoEntry {
+            oid: tip.clone(),
+            action: git_engine::TodoAction::Pick,
+            message: None,
+        },
+    ];
+    let _ = state.interactive_rebase(repo, &base, &plan, false);
+    f.write_file("extra.txt", "x\n").unwrap();
+    f.git(&["add", "extra.txt"]).unwrap();
+    state
+        .commit(
+            repo,
+            &git_engine::CommitRequest {
+                message: "extra".to_owned(),
+                amend: false,
+                no_verify: false,
+                signoff: false,
+                only: Vec::new(),
+            },
+        )
+        .unwrap();
+    state.continue_operation(repo).unwrap();
+    assert_ne!(head_oid(&state, repo), tip);
+
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(head_oid(&state, repo), tip);
+}
+
+// The branch is not checked out, so it moves with `branch --force`, not `reset --keep`.
+#[test]
+fn restoring_a_branch_that_is_not_checked_out_can_be_undone() {
+    let f = test_fixtures::branched().unwrap();
+    let (state, repo) = open(&f);
+    let tip = f.git(&["rev-parse", "dev"]).unwrap().trim().to_owned();
+    let older = f.git(&["rev-parse", "dev~1"]).unwrap().trim().to_owned();
+
+    state.restore_branch(repo, "dev", &older).unwrap();
+    assert_eq!(f.git(&["rev-parse", "dev"]).unwrap().trim(), older);
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(f.git(&["rev-parse", "dev"]).unwrap().trim(), tip);
+}
+
+#[test]
+fn undoing_the_restore_of_a_branch_is_refused_once_it_moved_on() {
+    let f = test_fixtures::branched().unwrap();
+    let (state, repo) = open(&f);
+    let older = f.git(&["rev-parse", "dev~1"]).unwrap().trim().to_owned();
+    state.restore_branch(repo, "dev", &older).unwrap();
+    f.git(&["branch", "--force", "dev", "main"]).unwrap();
+
+    assert!(state.undo_last(repo).is_err());
+
+    assert_eq!(
+        f.git(&["rev-parse", "dev"]).unwrap().trim(),
+        f.git(&["rev-parse", "main"]).unwrap().trim()
+    );
+}
+
 #[test]
 fn an_author_edit_can_be_undone() {
     let f = test_fixtures::linear(3).unwrap();

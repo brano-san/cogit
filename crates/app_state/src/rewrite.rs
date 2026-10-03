@@ -267,10 +267,10 @@ impl AppState {
         what: String,
         result: &Result<T, git_engine::GitError>,
     ) {
-        let stopped = result.is_err()
-            && handle
-                .state()
-                .is_ok_and(|state| state.is_interrupted_operation());
+        // An `edit` stop is not an error, yet the branch has not reached its end either.
+        let stopped = handle
+            .state()
+            .is_ok_and(|state| state.is_interrupted_operation());
         if result.is_err() && !stopped {
             return;
         }

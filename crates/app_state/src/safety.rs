@@ -411,6 +411,14 @@ impl AppState {
         let Ok(handle) = self.handle(repo) else {
             return;
         };
+        // The branch has not reached its end while the operation waits (a rebase moves it
+        // last); the entry keeps `after: None` until a commit or Continue finishes it.
+        if handle
+            .state()
+            .is_ok_and(|state| state.is_interrupted_operation())
+        {
+            return;
+        }
         let mut safety = self.safety.write();
         let waiting = safety.iter_mut().rev().find(|held| {
             held.entry.repo == repo && matches!(held.recovery, Recovery::Moved { after: None, .. })
