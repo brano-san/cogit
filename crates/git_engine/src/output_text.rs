@@ -249,9 +249,59 @@ pub fn shown(text: &str) -> String {
     trim(&normalise(text))
 }
 
+/// Text of a process's output: UTF-8 as is, otherwise the console code page of Windows
+/// (a hook run under `CREATE_NO_WINDOW` writes OEM bytes), otherwise lossy.
+#[must_use]
+pub fn decode(bytes: &[u8]) -> String {
+    decode_with(bytes, oem_code_page())
+}
+
+fn decode_with(bytes: &[u8], code_page: Option<u32>) -> String {
+    // A cut inside a character at the very end is still UTF-8 (the head of a trimmed hook output).
+    if std::str::from_utf8(bytes).is_ok() || incomplete_at_end(bytes) {
+        return String::from_utf8_lossy(bytes).into_owned();
+    }
+    code_page
+        .and_then(|page| encoding_rs::Encoding::for_label(format!("cp{page}").as_bytes()))
+        .map_or_else(
+            || String::from_utf8_lossy(bytes).into_owned(),
+            |encoding| encoding.decode_without_bom_handling(bytes).0.into_owned(),
+        )
+}
+
+fn incomplete_at_end(bytes: &[u8]) -> bool {
+    std::str::from_utf8(bytes).is_err_and(|err| err.error_len().is_none())
+}
+
+#[cfg(windows)]
+fn oem_code_page() -> Option<u32> {
+    static PAGE: std::sync::OnceLock<Option<u32>> = std::sync::OnceLock::new();
+    *PAGE.get_or_init(|| {
+        let key = windows_registry::LOCAL_MACHINE
+            .open(r"SYSTEM\CurrentControlSet\Control\Nls\CodePage")
+            .ok()?;
+        key.get_string("OEMCP").ok()?.parse().ok()
+    })
+}
+
+#[cfg(not(windows))]
+fn oem_code_page() -> Option<u32> {
+    None
+}
+
 #[cfg(test)]
 mod tests {
-    use super::redact_authority;
+    use super::{decode_with, redact_authority};
+
+    #[test]
+    fn output_that_is_not_utf8_is_read_in_the_console_code_page() {
+        assert_eq!(
+            decode_with(&[0x8E, 0xE8, 0xA8, 0xA1, 0xAA, 0xA0], Some(866)),
+            "Ошибка"
+        );
+        assert_eq!(decode_with("Ошибка".as_bytes(), Some(1251)), "Ошибка");
+        assert_eq!(decode_with(&[0x8E, 0x41], None), "\u{fffd}A");
+    }
 
     #[test]
     fn redact_authority_hides_only_secrets() {

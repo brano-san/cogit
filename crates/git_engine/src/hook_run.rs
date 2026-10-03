@@ -51,8 +51,8 @@ impl Capped {
 
     fn finish(mut self) -> String {
         self.cut_tail();
-        let head = String::from_utf8_lossy(&self.head);
-        let tail = String::from_utf8_lossy(&self.tail);
+        let head = crate::output_text::decode(&self.head);
+        let tail = crate::output_text::decode(&self.tail);
         if self.omitted == 0 {
             return format!("{head}{tail}");
         }

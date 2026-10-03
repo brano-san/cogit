@@ -468,7 +468,7 @@ impl Streamed<'_> {
         drop(finished);
         let stopped = watchdog.join().unwrap_or(false);
         let status = status?;
-        let stdout = String::from_utf8_lossy(&stdout).into_owned();
+        let stdout = crate::output_text::decode(&stdout);
 
         let duration_ms = crate::runner::elapsed_ms(started);
         let mut result = GitOutput::record(
@@ -541,7 +541,7 @@ impl Progress {
         self.all.extend_from_slice(chunk);
         self.pending.extend_from_slice(chunk);
         while let Some(at) = self.pending.iter().position(|b| matches!(b, b'\r' | b'\n')) {
-            let line = String::from_utf8_lossy(&self.pending[..at])
+            let line = crate::output_text::decode(&self.pending[..at])
                 .trim_end()
                 .to_owned();
             self.pending.drain(..=at);
@@ -553,11 +553,11 @@ impl Progress {
 
     /// The last unterminated line, and everything as one text.
     fn finish(self, on_line: &mut impl FnMut(&str)) -> String {
-        let rest = String::from_utf8_lossy(&self.pending);
+        let rest = crate::output_text::decode(&self.pending);
         if !rest.trim().is_empty() {
             on_line(&crate::output_text::normalise(rest.trim_end()));
         }
-        String::from_utf8_lossy(&self.all).into_owned()
+        crate::output_text::decode(&self.all)
     }
 }
 

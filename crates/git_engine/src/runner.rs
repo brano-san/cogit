@@ -107,8 +107,8 @@ impl GitOutput {
             repo,
             command,
             output.status.code(),
-            &String::from_utf8_lossy(&output.stdout),
-            &String::from_utf8_lossy(&output.stderr),
+            &crate::output_text::decode(&output.stdout),
+            &crate::output_text::decode(&output.stderr),
             elapsed_ms(started),
         )
     }
@@ -515,8 +515,8 @@ pub(crate) fn bare_git(args: &[&str]) -> Result<BareOutput> {
     tracing::debug!(command = %redact_command(args), exit_code = ?output.status.code(), "git without a repository");
     Ok(BareOutput {
         exit_code: output.status.code(),
-        stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-        stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        stdout: crate::output_text::decode(&output.stdout),
+        stderr: crate::output_text::decode(&output.stderr),
     })
 }
 
