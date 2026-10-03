@@ -146,7 +146,7 @@ export function refLabels(
   return byOid;
 }
 
-const UNITS: [seconds: number, unit: Intl.RelativeTimeFormatUnit][] = [
+const UNITS: [seconds: number, unit: string][] = [
   [31_536_000, "year"],
   [2_592_000, "month"],
   [86_400, "day"],
@@ -154,17 +154,15 @@ const UNITS: [seconds: number, unit: Intl.RelativeTimeFormatUnit][] = [
   [60, "minute"],
 ];
 
-/** Pinned to English, like every other string in the UI: the default follows the system
-    locale and would leave half the window in another language. `always`, not `auto`:
-    "yesterday" belongs to the smart format, this one always spells the elapsed time. */
-const RELATIVE = new Intl.RelativeTimeFormat("en", { numeric: "always" });
-
-/** The offset is ignored: an elapsed time is the same number in every timezone. */
+/** Spelled out here, not by `Intl`: the text must not depend on the locale or the ICU data
+    the webview has (WebKitGTK under `LANG=C`), and English is all the UI speaks. Always the
+    elapsed time: "yesterday" belongs to the smart format. The offset is ignored: an elapsed
+    time is the same number in every timezone. */
 export function relativeDate(timestamp: number, _offsetMinutes: number, now: number): string {
   const elapsed = now - timestamp;
   for (const [seconds, unit] of UNITS) {
     const count = Math.floor(elapsed / seconds);
-    if (count >= 1) return RELATIVE.format(-count, unit);
+    if (count >= 1) return `${count} ${unit}${count === 1 ? "" : "s"} ago`;
   }
   return "just now";
 }

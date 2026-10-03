@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   columnRows,
   graphTime,
@@ -83,5 +83,35 @@ describe("graphTime", () => {
   it("adds the clock time in the commit's own timezone for dateTime", () => {
     expect(graphTime(yesterday, 0, now, "dateTime")).toBe("yesterday 14:05");
     expect(graphTime(old, 120, now, "dateTime")).toBe("09-09-26 10:30");
+  });
+});
+
+/** The Linux report: `LANG=C`, a webview whose `Intl` has no English data or leaves the
+    hour out, another `TZ`. The column must read as on Windows, so nothing goes through them. */
+describe("graphTime without a usable locale", () => {
+  const now = Date.UTC(2026, 8, 24, 12, 0) / 1000;
+  const today = Date.UTC(2026, 8, 24, 9, 7) / 1000;
+  const formats = ["relative", "date", "dateTime"] as const;
+  const zone = process.env.TZ;
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    process.env.TZ = zone;
+  });
+
+  it("formats every mode the same as with a full locale", () => {
+    const expected = formats.map((format) => graphTime(today, 180, now, format));
+    process.env.TZ = "Pacific/Kiritimati";
+    const broken = () => {
+      throw new RangeError("Incorrect locale information provided");
+    };
+    vi.stubGlobal("Intl", { RelativeTimeFormat: broken, DateTimeFormat: broken, NumberFormat: broken });
+    vi.spyOn(Date.prototype, "toLocaleTimeString").mockReturnValue("");
+    vi.spyOn(Date.prototype, "toLocaleDateString").mockReturnValue("");
+    vi.spyOn(Date.prototype, "toLocaleString").mockReturnValue("");
+    const actual = formats.map((format) => graphTime(today, 180, now, format));
+    expect(actual).toEqual(expected);
+    expect(actual).toEqual(["2 hours ago", "today", "today 12:07"]);
   });
 });
