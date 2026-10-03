@@ -3,7 +3,7 @@ use rayon::prelude::*;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
 /// Directories that hold thousands of files and never the repository the user meant.
 /// A backstop under `.gitignore`, for the folders nobody writes a rule about.
@@ -72,7 +72,26 @@ pub fn scan_cancellable(
         stopped: AtomicBool::new(false),
         cancelled,
     };
-    walk(root, 0, options, &sink, &[]);
+    match pool() {
+        Some(pool) => pool.install(|| walk(root, 0, options, &sink, &[])),
+        None => walk(root, 0, options, &sink, &[]),
+    }
+}
+
+/// Folder scans have a pool of their own: a walk that waits on the disk would otherwise keep
+/// the global one from the short reads of the UI. `None` falls back to the global pool.
+fn pool() -> Option<&'static rayon::ThreadPool> {
+    static POOL: OnceLock<Option<rayon::ThreadPool>> = OnceLock::new();
+    POOL.get_or_init(|| {
+        // ponytail: I/O-bound, more threads than this buys nothing on a local disk.
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(4)
+            .thread_name(|i| format!("repo-scan-{i}"))
+            .build()
+            .inspect_err(|err| tracing::error!(error = ?err, context = "repo scan pool"))
+            .ok()
+    })
+    .as_ref()
 }
 
 struct Sink<F, C> {

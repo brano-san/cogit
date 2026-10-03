@@ -28,6 +28,36 @@ fn collect(root: &Path, options: &ScanOptions) -> Vec<String> {
     paths
 }
 
+/// The walk has its own pool: the global one stays free for short reads.
+#[test]
+fn the_walk_runs_in_its_own_pool_not_the_global_one() {
+    let dir = tempfile::tempdir().unwrap();
+    for i in 0..64 {
+        fs::create_dir_all(dir.path().join(format!("d{i}/inner"))).unwrap();
+    }
+    let names = std::sync::Mutex::new(Vec::new());
+    scan_cancellable(
+        dir.path(),
+        &ScanOptions::default(),
+        || {
+            names
+                .lock()
+                .unwrap()
+                .push(std::thread::current().name().map(str::to_owned));
+            false
+        },
+        |_| true,
+    );
+    let names = names.into_inner().unwrap();
+    assert!(!names.is_empty());
+    assert!(
+        names
+            .iter()
+            .all(|n| n.as_deref().is_some_and(|n| n.starts_with("repo-scan-"))),
+        "{names:?}"
+    );
+}
+
 #[test]
 fn a_repository_directly_inside_the_folder_is_found() {
     let dir = tempfile::tempdir().unwrap();
