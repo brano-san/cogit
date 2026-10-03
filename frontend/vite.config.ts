@@ -116,7 +116,23 @@ export default defineConfig({
   },
 
   test: {
-    environment: "node",
-    include: ["src/**/*.{test,spec}.ts"],
+    projects: [
+      {
+        extends: true,
+        test: { name: "node", environment: "node", include: ["src/**/*.{test,spec}.ts"], exclude: ["**/*.svelte.test.ts"] },
+      },
+      {
+        // Node, transformed for the client: Svelte compiles `$effect` to a no-op for the
+        // server, and store tests that run effects need the real one.
+        extends: true,
+        resolve: { conditions: ["browser"] },
+        test: {
+          name: "runes",
+          environment: "./src/test-env-runes.ts",
+          include: ["src/**/*.svelte.test.ts"],
+          server: { deps: { inline: [/svelte/] } },
+        },
+      },
+    ],
   },
 });
