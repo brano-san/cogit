@@ -405,7 +405,7 @@ impl TextMatch {
                     Change::Rewrite { .. } => (None, None),
                 };
                 if old.is_none() && new.is_none() {
-                    return Ok::<_, std::convert::Infallible>(ControlFlow::Continue(()));
+                    return Ok::<_, gix::Exn>(ControlFlow::Continue(()));
                 }
                 if self.fields.name {
                     let path = lower(&change.location().to_str_lossy());

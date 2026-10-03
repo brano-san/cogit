@@ -41,7 +41,7 @@ fn changed_paths_in(repo: &gix::Repository, rev: &str) -> Result<Vec<String>> {
             if !change.entry_mode().is_tree() {
                 paths.push(change.location().to_string().replace('\\', "/"));
             }
-            Ok::<_, std::convert::Infallible>(ControlFlow::Continue(()))
+            Ok::<_, gix::Exn>(ControlFlow::Continue(()))
         })
         .map_err(|err| GitError::Internal(format!("tree diff failed: {err}")))?;
 

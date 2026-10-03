@@ -61,7 +61,7 @@ impl RepoHandle {
                     {
                         all.push(source_location.to_string());
                     }
-                    Ok::<_, std::convert::Infallible>(std::ops::ControlFlow::Continue(()))
+                    Ok::<_, gix::Exn>(std::ops::ControlFlow::Continue(()))
                 },
             )
             .map_err(|err| {

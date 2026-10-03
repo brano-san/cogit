@@ -317,7 +317,7 @@ impl RepoHandle {
                 if let Some(entry) = to_entry(&change) {
                     files.push(entry);
                 }
-                Ok::<_, std::convert::Infallible>(ControlFlow::Continue(()))
+                Ok::<_, gix::Exn>(ControlFlow::Continue(()))
             })
             .map_err(|err| GitError::Internal(format!("tree diff failed: {err}")))?;
 

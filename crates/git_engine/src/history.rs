@@ -156,9 +156,7 @@ impl RepoHandle {
 }
 
 fn collect_tips<'a>(
-    references: impl Iterator<
-        Item = std::result::Result<gix::Reference<'a>, Box<dyn std::error::Error + Send + Sync>>,
-    >,
+    references: impl Iterator<Item = gix::Result<gix::Reference<'a>>>,
     tips: &mut Vec<gix::ObjectId>,
 ) {
     for reference in references.flatten() {

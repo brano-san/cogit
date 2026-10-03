@@ -63,7 +63,7 @@ chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 # --- git ---
 # Default features omit everything we need; see doc/02-tech-stack.md and doc/12-risks.md (D-05).
 # Network features are deliberately absent: all network work goes through the system `git`.
-gix = { version = "0.87", default-features = false, features = [
+gix = { version = "0.88", default-features = false, features = [
   "max-performance-safe",
   "sha1",             # mandatory: gix-hash refuses to build without sha1 or sha256
   "auto-chain-error", # full error chains in Display, which INV-05 depends on

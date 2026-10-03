@@ -73,7 +73,7 @@ pub(crate) fn rooted_at(found: &Path, root: &Path) -> Result<()> {
 pub(crate) fn env_free() -> gix::open::Options {
     let mut options = gix::open::Options::default();
     options.permissions.env.git_prefix = gix::sec::Permission::Deny;
-    // gix 0.87.1 reads this key upside down: `true` is what keeps replacements out, and
+    // gix 0.87-0.88 reads this key upside down: `true` is what keeps replacements out, and
     // `false` would let the graph mix a replaced object with the commit-graph's parents.
     options.config_overrides(["core.useReplaceRefs=true"])
 }
@@ -360,9 +360,7 @@ impl RepoHandle {
 }
 
 fn collect<'a>(
-    references: impl Iterator<
-        Item = std::result::Result<gix::Reference<'a>, Box<dyn std::error::Error + Send + Sync>>,
-    >,
+    references: impl Iterator<Item = gix::Result<gix::Reference<'a>>>,
     kind: BranchKind,
     head_name: Option<&gix::refs::FullName>,
     out: &mut Vec<Branch>,

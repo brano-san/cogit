@@ -1,7 +1,7 @@
 // clippy.toml's allow-unwrap-in-tests does not reach helpers beside `#[test]` fns.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-//! gix 0.87.1 reads `core.useReplaceRefs` upside down: with the key missing or true it
+//! gix 0.87-0.88 reads `core.useReplaceRefs` upside down: with the key missing or true it
 //! ignores `refs/replace/`, with false it applies them. Cogit pins "ignore" (R-720 on
 //! replaced history), so the graph shows the stored history whatever the user's config says.
 //! When gix is fixed these fail: the pin, the health card and the risk entry go together.
