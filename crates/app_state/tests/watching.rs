@@ -181,8 +181,10 @@ fn a_pulse_that_contradicts_the_row_of_a_repository_not_watched_retires_it() {
     let b = test_fixtures::linear(1).unwrap();
     let state = AppState::new();
     let repo = state.open_repository(a.path()).unwrap().repo;
-    let other = state.open_repository(b.path()).unwrap().repo;
-    state.show_repository(Some(other));
+    state.open_repository(b.path()).unwrap();
+    // Nothing shown, so nothing is watched: the watcher of a shown repository hears the
+    // reads of its own row (an index refresh, `.git/hooks`) and drops it at a random moment.
+    state.show_repository(None);
     let branch = |state: &AppState| {
         state
             .overviews()
