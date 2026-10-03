@@ -31,19 +31,19 @@ runs:
 
     # Reads rust-toolchain.toml and caches ~/.cargo and target/ (Swatinem/rust-cache inside).
     # rustflags is emptied: the action defaults to "-D warnings", clippy already enforces it.
-    - uses: actions-rust-lang/setup-rust-toolchain@v1
+    - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
       with:
         rustflags: ""
         # Bump to drop a poisoned cache: a restored target/ whose rlibs were pruned makes clippy
         # report "can't find crate" for crates cargo thinks are fresh.
         cache-key: v2
 
-    - uses: taiki-e/install-action@v2
+    - uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2.87.22
       if: inputs.nextest == 'true'
       with:
         tool: cargo-nextest
 
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
       with:
         node-version: 22
         cache: npm

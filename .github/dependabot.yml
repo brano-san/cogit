@@ -33,3 +33,9 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+
+  # Actions are pinned by SHA; Dependabot moves the pins. The composite action needs its own entry.
+  - package-ecosystem: github-actions
+    directories: ["/", "/.github/actions/setup"]
+    schedule:
+      interval: weekly

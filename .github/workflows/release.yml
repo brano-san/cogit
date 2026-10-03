@@ -96,13 +96,13 @@ jobs:
       # linuxdeploy (AppImage): no FUSE on the runner, and strip chokes on newer ELF sections.
       APPIMAGE_EXTRACT_AND_RUN: "1"
       NO_STRIP: "true"
-      # Optional secrets: with them empty the build is unsigned.
-      WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
-      WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
-      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_UPDATER_KEY }}
-      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_UPDATER_KEY_PASSWORD }}
+      # Optional secrets: with them empty the build is unsigned. Only whether they exist is here;
+      # the values go to the steps that sign, so npm scripts and build.rs never see them.
+      HAS_WINDOWS_CERT: ${{ secrets.WINDOWS_CERT_BASE64 != '' }}
+      # macOS builds no updater artifacts, so it gets no key.
+      HAS_UPDATER_KEY: ${{ secrets.TAURI_UPDATER_KEY != '' && matrix.name != 'macos-arm64' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: refs/tags/${{ needs.meta.outputs.tag }}
 
@@ -113,8 +113,11 @@ jobs:
         run: node scripts/ci/check-version.mjs "$VERSION"
 
       - name: Import the code-signing certificate
-        if: runner.os == 'Windows' && env.WINDOWS_CERT_BASE64 != ''
+        if: runner.os == 'Windows' && env.HAS_WINDOWS_CERT == 'true'
         shell: pwsh
+        env:
+          WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
         run: |
           $pfx = Join-Path $env:RUNNER_TEMP 'cogit.pfx'
           [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERT_BASE64))
@@ -127,7 +130,7 @@ jobs:
         shell: bash
         run: |
           updater=false
-          [ -n "$TAURI_SIGNING_PRIVATE_KEY" ] && updater=true
+          [ "$HAS_UPDATER_KEY" = true ] && updater=true
           [ "$updater" = true ] || echo "::notice::No TAURI_UPDATER_KEY: updater signatures are skipped"
           [ -n "${CERT_THUMBPRINT:-}" ] || [ "$RUNNER_OS" != Windows ] || echo "::notice::No WINDOWS_CERT_BASE64: Windows files are unsigned"
           # Full config for the installers/packages; the plain one for the portable exe (no bundler runs).
@@ -179,6 +182,9 @@ jobs:
 
       - name: Build installers and packages
         shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ matrix.name != 'macos-arm64' && secrets.TAURI_UPDATER_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ matrix.name != 'macos-arm64' && secrets.TAURI_UPDATER_KEY_PASSWORD || '' }}
         run: |
           if [ "$RUNNER_OS" = Windows ]; then
             npm run tauri build -- --ci --bundles "$BUNDLES" --config "$RELEASE_CONF"
@@ -228,7 +234,7 @@ jobs:
           fi
           ls -l dist
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: installers-${{ matrix.name }}
           path: dist/*
@@ -247,12 +253,12 @@ jobs:
       VERSION: ${{ needs.meta.outputs.version }}
       PRERELEASE: ${{ needs.meta.outputs.prerelease }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: refs/tags/${{ needs.meta.outputs.tag }}
           sparse-checkout: scripts/ci
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: installers-*
           merge-multiple: true
