@@ -91,6 +91,17 @@ class NoticeStore {
     this.#index = wanted;
   }
 
+  /** Takes back an error that turned out not to be one (an open that was only slow). */
+  withdraw(title: string, body: string): void {
+    untrack(() => {
+      const at = this.at;
+      const kept = this.#errors.filter((held) => !(held.title === title && held.body === body));
+      if (kept.length === this.#errors.length) return;
+      this.#errors = kept;
+      this.#follow(at);
+    });
+  }
+
   /** Closes the entry on screen and shows the one after it; the last one closes the window.
       A repository warning closed this way comes back on the next open (Remind me later). */
   dismiss(): void {

@@ -200,6 +200,25 @@ describe("repository store, as a state machine", () => {
     expect(repository.error?.message).toMatch(/still/i);
   });
 
+  // A slow open is a normal state of a repository, not an Internal error, and its notice is
+  // withdrawn once the answer comes.
+  it("names the timeout plainly and hands it back when the answer arrives late", async () => {
+    vi.useFakeTimers();
+    const answer = pending<unknown>();
+    commands.openRepository.mockReturnValue(answer.promise);
+
+    const open = repository.open("C:/repos/slow");
+    await vi.advanceTimersByTimeAsync(repository.openTimeoutMs + 1);
+    const timeout = repository.error;
+    expect(timeout?.detail.kind).toBe("invalidState");
+    expect(timeout?.message).not.toMatch(/internal error/i);
+
+    answer.settle({ status: "ok", data: summary("C:/repos/slow") });
+    await open;
+
+    expect(repository.recovered).toBe(timeout);
+  });
+
   it("lets a late answer overrule the timeout it already reported", async () => {
     vi.useFakeTimers();
     const answer = pending<unknown>();

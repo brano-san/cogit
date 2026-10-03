@@ -204,6 +204,20 @@ describe("the notification window", () => {
   });
 });
 
+describe("withdrawing an error", () => {
+  it("removes that one and leaves the next current", () => {
+    notices.dismissAll();
+    errors.report(refusal("first"), "Could not load the repository");
+    errors.report(refusal("second"), "Could not load the repository");
+
+    notices.withdraw("Could not load the repository", "first");
+
+    expect(notices.all.filter((n) => n.severity === "error").map((notice) => notice.body)).toEqual(["second"]);
+    expect(notices.current?.body).toBe("second");
+    notices.dismissAll();
+  });
+});
+
 describe("a git command and the notification window", () => {
   beforeEach(async () => {
     notices.dismissAll();

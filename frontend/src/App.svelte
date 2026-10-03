@@ -541,6 +541,11 @@
   // sees exactly what Git said, not a summary of it.
   $effect(() => errors.report(worktree.error, "Could not read the working tree"));
   $effect(() => errors.report(repository.error, "Could not load the repository"));
+  // An open that only took long: its timeout notice does not outlive the success.
+  $effect(() => {
+    const slow = repository.recovered;
+    if (slow) notices.withdraw("Could not load the repository", slow.message);
+  });
   $effect(() => errors.report(commit.error, "Could not load the commit"));
   $effect(() => errors.report(diff.error, "Could not show the diff", diff.path ?? undefined));
   $effect(() => errors.report(graph.error, "Could not load the graph"));

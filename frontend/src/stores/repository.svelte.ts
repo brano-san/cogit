@@ -56,6 +56,10 @@ class RepositoryStore {
   /** Only the newest open may write the phase; an older one that finishes late is
       dropped, whichever way it ends. */
   #ticket = 0;
+  /** The error the open timer put in the phase, until the open ends or another begins. */
+  #timedOut: CogitError | null = null;
+  /** The timeout error of an open that then succeeded after all. */
+  recovered = $state.raw<CogitError | null>(null);
   #timer: ReturnType<typeof setTimeout> | null = null;
   /** What a listed repository looked like when a submodule or worktree of it replaced it
       in the panels, so clicking it again switches back without reopening it (#50). */
@@ -138,6 +142,7 @@ class RepositoryStore {
 
   #begin(root: string): number {
     const ticket = ++this.#ticket;
+    this.#timedOut = null;
     this.#leaving(root);
     this.#disarm();
     this.phase = { kind: "opening", root, repo: this.current };
@@ -147,15 +152,12 @@ class RepositoryStore {
     this.#timer = setTimeout(() => {
       if (this.#ticket !== ticket || this.phase.kind !== "opening") return;
       trace(`open:${root}`, `phase → failed, timed out after ${OPEN_TIMEOUT_MS}ms`);
-      this.phase = {
-        kind: "failed",
-        root,
-        error: new CogitError({
-          kind: "internal",
-          data: `Opening ${root} is taking longer than ${Math.round(OPEN_TIMEOUT_MS / 1000)}s. It may still be running; the log says how far it got.`,
-        }),
-        repo: this.current,
-      };
+      // `invalidState`, not `internal`: a slow open is a normal state, not a bug of Cogit.
+      this.#timedOut = new CogitError({
+        kind: "invalidState",
+        data: `Opening ${root} is taking longer than ${Math.round(OPEN_TIMEOUT_MS / 1000)}s. It may still be running; the log says how far it got.`,
+      });
+      this.phase = { kind: "failed", root, error: this.#timedOut, repo: this.current };
     }, OPEN_TIMEOUT_MS);
     return ticket;
   }
@@ -166,6 +168,9 @@ class RepositoryStore {
       return false;
     }
     this.#disarm();
+    // The timeout was a preliminary outcome: its notice is withdrawn by whoever reported it.
+    if (phase.kind === "open" && this.#timedOut) this.recovered = this.#timedOut;
+    this.#timedOut = null;
     this.phase = phase;
     trace("open", `phase → ${phase.kind}, ticket ${ticket}`);
     return true;
