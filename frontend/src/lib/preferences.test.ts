@@ -46,8 +46,10 @@ describe("CATEGORIES", () => {
     const placed = CATEGORIES.flatMap((category) =>
       category.groups.flatMap((group) => group.fields.map((field) => field.key)),
     ).filter(isSetting);
+    // Hidden confirmations have no checkbox: the "Don't show again" list brings them back.
+    const viaSuppressions: (keyof Settings)[] = ["confirmExit", "confirmLocalCheckout"];
     const keys = (Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]).filter(
-      (key) => !INTERNAL_SETTINGS.includes(key),
+      (key) => !INTERNAL_SETTINGS.includes(key) && !viaSuppressions.includes(key),
     );
 
     expect([...placed].sort()).toEqual([...keys].sort());
@@ -96,6 +98,11 @@ describe("firstMatch", () => {
   it("picks a leaf, never a heading", () => {
     const picked = firstMatch("lane width");
     expect(picked).toBe("graph");
+  });
+
+  it("finds a hidden confirmation on the page that resets it", () => {
+    expect(firstMatch("exit")).toBe("behaviour");
+    expect(firstMatch("check out")).toBe("behaviour");
   });
 
   it("is null when nothing matched", () => {

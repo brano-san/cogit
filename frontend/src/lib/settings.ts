@@ -61,7 +61,8 @@ export interface Settings {
   autoUpdate: boolean;
   /** The Welcome dialog at startup when no repository is open; nothing else opens it. */
   startupShowWelcome: boolean;
-  /** The Exit dialog's "Don't show again" and this checkbox are the same value (R-151). */
+  /** Off through the Exit dialog's "Don't show again"; back on through Preferences → Behavior →
+      Don't show again (R-151). */
   confirmExit: boolean;
   /** The Checkout dialog for a local branch; its "Don't show again" turns it off (item 40). */
   confirmLocalCheckout: boolean;
