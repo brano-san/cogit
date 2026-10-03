@@ -7,10 +7,11 @@ import {
   blockRows,
   blockTracker,
   blocksOf,
+  gitLines,
   initialBlocks,
   takeTransaction,
 } from "./solver-blocks";
-import { buildResult, isUnresolved } from "./solver-model";
+import { buildResult, composeSave, isUnresolved, textToLines } from "./solver-model";
 
 function region(kind: SolverRegion["kind"], parts: Partial<Omit<SolverRegion, "kind">> = {}): SolverRegion {
   return { kind, base: [], ours: [], theirs: [], result: [], ...parts };
@@ -149,5 +150,65 @@ describe("take actions", () => {
     const next = state.update(takeTransaction(state, built.hunks[0]!, "ours")).state;
     expect(next.doc.toString()).toBe("a\nx\nz\n");
     expect(blocksOf(next)).toEqual([{ id: 1, from: 2, to: 4 }]);
+  });
+});
+
+// A block that starts or ends in the middle of a line (a newline deleted beside it) was
+// counted unresolved by its characters yet written as edited by its lines: the dialog
+// promised markers and the base went out.
+describe("a block whose edge a deleted newline moved into a line", () => {
+  const spans = (state: EditorState) =>
+    blockRows(state).map((row, at) => ({ id: blocksOf(state)[at]!.id, start: row.start, count: row.count }));
+  const saved = (state: EditorState, built: ReturnType<typeof buildResult>) =>
+    composeSave(textToLines(state.doc.toString()), spans(state), built.hunks, { ours: "o", theirs: "t" });
+
+  for (const [name, from, to] of [
+    ["before it", 1, 2],
+    ["after it", 3, 4],
+  ] as const) {
+    it(`counts it as edited once the newline ${name} is deleted, and writes no markers`, () => {
+      const { state, hunks, built } = opened();
+      const next = typed(state, from, to, "");
+
+      expect(isUnresolved(hunks[0]!, blockLines(next, blocksOf(next)[0]!))).toBe(false);
+      expect(saved(next, built)).not.toContain("<<<<<<<");
+    });
+  }
+
+  it("is unresolved while it is untouched, and then gets markers", () => {
+    const { state, hunks, built } = opened();
+    expect(isUnresolved(hunks[0]!, blockLines(state, blocksOf(state)[0]!))).toBe(true);
+    expect(saved(state, built)).toContain("<<<<<<< o");
+  });
+});
+
+// CodeMirror splits on a lone CR by default; the engine and the block offsets do not.
+describe("a line with a lone CR in it", () => {
+  it("stays one line, and its conflict stays unresolved", () => {
+    const built = buildResult([
+      same("a"),
+      region("conflict", { base: ["x\ry"], ours: ["X"], theirs: ["Y"], result: ["x\ry"] }),
+    ]);
+    const state = EditorState.create({
+      doc: built.text,
+      extensions: [gitLines, history(), blockTracker(initialBlocks(built.text, built.spans))],
+    });
+
+    expect(state.doc.toString()).toContain("\r");
+    expect(state.doc.lines).toBe(3);
+    expect(isUnresolved(built.hunks[0]!, blockLines(state, blocksOf(state)[0]!))).toBe(true);
+  });
+
+  it("does not move the block offsets when a line ends in CR", () => {
+    const built = buildResult([
+      same("a\r"),
+      region("conflict", { base: ["b"], ours: ["B"], theirs: ["C"], result: ["b"] }),
+    ]);
+    const state = EditorState.create({
+      doc: built.text,
+      extensions: [gitLines, blockTracker(initialBlocks(built.text, built.spans))],
+    });
+
+    expect(blockRows(state)).toEqual([{ start: 1, count: 1 }]);
   });
 });

@@ -38,6 +38,7 @@ import {
   blockRows,
   blockTracker,
   blocksOf,
+  gitLines,
   initialBlocks,
   takeTransaction,
 } from "./solver-blocks";
@@ -309,7 +310,7 @@ export async function languageExtension(path: string): Promise<Extension | null>
   }
 }
 
-const common: Extension = [theme, lineNumbers(), syntaxHighlighting(classHighlighter)];
+const common: Extension = [gitLines, theme, lineNumbers(), syntaxHighlighting(classHighlighter)];
 
 export interface EditorOptions {
   aligned: boolean;

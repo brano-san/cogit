@@ -1,7 +1,7 @@
 import { invertedEffects } from "@codemirror/commands";
-import { StateEffect, StateField, type EditorState, type Extension, type TransactionSpec } from "@codemirror/state";
+import { EditorState, StateEffect, StateField, type Extension, type TransactionSpec } from "@codemirror/state";
 import type { BlockRows } from "./solver-geometry";
-import { linesToText, takeLines, textToLines, type Hunk, type Span, type TakeAction } from "./solver-model";
+import { linesToText, takeLines, type Hunk, type Span, type TakeAction } from "./solver-model";
 
 /** A hunk's place in the Result document, in characters. It covers whole lines, newlines
     included, so a block of no lines is an empty range. */
@@ -55,8 +55,18 @@ export function blocksOf(state: EditorState): readonly Block[] {
   return state.field(blockField);
 }
 
+/** A line ends at LF only, as it does for the engine and `initialBlocks`; CodeMirror also
+    splits on CR, which cuts a line with a lone CR in two. */
+export const gitLines: Extension = EditorState.lineSeparator.of("\n");
+
+/** The lines the block touches, whole: a newline deleted beside it moves its edge into a
+    line, and Save writes that line, so the count must read it the same way. */
 export function blockLines(state: EditorState, block: Block): string[] {
-  return textToLines(state.sliceDoc(block.from, block.to));
+  const { doc } = state;
+  if (block.to <= block.from) return [];
+  const first = doc.lineAt(block.from).number;
+  const last = doc.lineAt(block.to - 1).number;
+  return Array.from({ length: last - first + 1 }, (_, at) => doc.line(first + at).text);
 }
 
 export function blockRows(state: EditorState): BlockRows[] {
