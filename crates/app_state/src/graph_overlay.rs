@@ -55,6 +55,12 @@ pub(crate) struct PaintMemo {
     rows: usize,
     index: HashMap<String, u32>,
     parents: Vec<Vec<Option<u32>>>,
+    /// Parents not seen yet, with the commit and slot of each that waits for it.
+    pending: HashMap<String, Vec<(usize, usize)>>,
+    /// The rows changed since `paint`.
+    stale: bool,
+    painted: Option<std::time::Instant>,
+    cost: std::time::Duration,
     request: Option<GraphPaintRequest>,
     paint: Paint,
     /// What `index` and `parents` hold, kept as they grow: the cache counts it (R-300).
@@ -67,10 +73,16 @@ fn row_index(n: usize) -> u32 {
 }
 
 impl PaintMemo {
-    fn refresh(&mut self, commits: &[CommitRow], rows: &[GraphRow], request: &GraphPaintRequest) {
+    fn refresh(
+        &mut self,
+        commits: &[CommitRow],
+        rows: &[GraphRow],
+        request: &GraphPaintRequest,
+        complete: bool,
+    ) {
         if self.rows != rows.len() {
-            for (at, commit) in commits.iter().enumerate().skip(self.rows) {
-                // Commits past the rows laid out come again with the next chunk (R-330).
+            let known = self.parents.len();
+            for (at, commit) in commits.iter().enumerate().skip(known) {
                 if self
                     .index
                     .insert(commit.oid.clone(), row_index(at))
@@ -78,25 +90,43 @@ impl PaintMemo {
                 {
                     self.index_bytes += size_of::<(String, u32)>() + commit.oid.len();
                 }
+                // A parent that arrived with this chunk resolves rows laid out before it.
+                for (child, slot) in self.pending.remove(&commit.oid).unwrap_or_default() {
+                    self.parents[child][slot] = Some(row_index(at));
+                }
             }
-            // A parent that arrived with this chunk resolves rows laid out before it.
-            let mut links = 0;
-            self.parents = commits
-                .iter()
-                .map(|c| {
-                    links += c.parents.len();
-                    c.parents
-                        .iter()
-                        .map(|p| self.index.get(p).copied())
-                        .collect()
-                })
-                .collect();
-            self.parents_bytes =
-                commits.len() * size_of::<Vec<Option<u32>>>() + links * size_of::<Option<u32>>();
+            for (at, commit) in commits.iter().enumerate().skip(known) {
+                let resolved = commit
+                    .parents
+                    .iter()
+                    .enumerate()
+                    .map(|(slot, parent)| {
+                        let row = self.index.get(parent).copied();
+                        if row.is_none() {
+                            self.pending
+                                .entry(parent.clone())
+                                .or_default()
+                                .push((at, slot));
+                        }
+                        row
+                    })
+                    .collect();
+                self.parents.push(resolved);
+                self.parents_bytes +=
+                    size_of::<Vec<Option<u32>>>() + commit.parents.len() * size_of::<Option<u32>>();
+            }
             self.rows = rows.len();
-            self.request = None;
+            self.stale = true;
         }
-        if self.request.as_ref() == Some(request) {
+        if !self.stale && self.request.as_ref() == Some(request) {
+            return;
+        }
+        // While the walk goes on the rows change at every request and a repaint costs the
+        // whole graph: none is taken before five times the last one has gone by.
+        if !complete
+            && self.request.as_ref() == Some(request)
+            && self.painted.is_some_and(|at| at.elapsed() < self.cost * 5)
+        {
             return;
         }
         let spec = PaintSpec {
@@ -116,6 +146,9 @@ impl PaintMemo {
         let watch = std::time::Instant::now();
         let row_of = |oid: &str| self.index.get(oid).copied();
         self.paint = graph_engine::paint(rows, &self.parents, &row_of, &spec);
+        self.cost = watch.elapsed();
+        self.painted = Some(std::time::Instant::now());
+        self.stale = false;
         tracing::debug!(
             rows = rows.len(),
             elapsed_us = watch.elapsed().as_micros(),
@@ -172,9 +205,9 @@ impl AppState {
         count: u32,
         request: &GraphPaintRequest,
     ) -> Option<GraphOverlay> {
-        self.read_graph(repo, generation, |commits, rows, folds, memo| {
+        self.read_graph(repo, generation, |commits, rows, folds, memo, complete| {
             let mut memo = memo.lock();
-            memo.refresh(commits, rows, request);
+            memo.refresh(commits, rows, request, complete);
             let mut window = memo.window(start, count);
             window.folds = folds
                 .range(start..start.saturating_add(count))
@@ -182,5 +215,85 @@ impl AppState {
                 .collect();
             window
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use graph_engine::{CommitNode, LayoutCursor};
+    use std::time::{Duration, Instant};
+
+    /// A merge of two branches over a root, newest first: `m`, `a`, `b`, `r`.
+    fn history() -> (Vec<CommitRow>, Vec<GraphRow>) {
+        let shape = [
+            ("m", &["a", "b"][..]),
+            ("a", &["r"]),
+            ("b", &["r"]),
+            ("r", &[]),
+        ];
+        let commits: Vec<CommitRow> = shape
+            .iter()
+            .map(|(oid, parents)| CommitRow {
+                oid: (*oid).to_owned(),
+                parents: parents.iter().map(|p| (*p).to_owned()).collect(),
+                summary: String::new(),
+                author_name: String::new(),
+                author_email: String::new(),
+                timestamp: 0,
+                tz_offset_minutes: 0,
+            })
+            .collect();
+        let nodes: Vec<CommitNode> = commits
+            .iter()
+            .map(|c| CommitNode {
+                oid: c.oid.clone(),
+                parents: c.parents.clone(),
+                hidden: Vec::new(),
+            })
+            .collect();
+        let rows = graph_engine::layout(&nodes, &mut LayoutCursor::default());
+        (commits, rows)
+    }
+
+    fn request() -> GraphPaintRequest {
+        GraphPaintRequest {
+            tips: vec![PaintTip {
+                oid: "m".to_owned(),
+                slot: 3,
+            }],
+            ..GraphPaintRequest::default()
+        }
+    }
+
+    #[test]
+    fn a_graph_given_in_chunks_paints_as_the_whole_graph_does() {
+        let (commits, rows) = history();
+        let mut chunked = PaintMemo::default();
+        chunked.refresh(&commits[..2], &rows[..2], &request(), true);
+        chunked.refresh(&commits[..3], &rows[..3], &request(), true);
+        chunked.refresh(&commits, &rows, &request(), true);
+        let mut whole = PaintMemo::default();
+        whole.refresh(&commits, &rows, &request(), true);
+
+        assert_eq!(chunked.parents, whole.parents);
+        assert_eq!(chunked.paint, whole.paint);
+        assert!(chunked.pending.is_empty());
+        assert_eq!(chunked.bytes(), whole.bytes());
+    }
+
+    #[test]
+    fn a_repaint_during_the_walk_waits_five_times_the_last_one() {
+        let (commits, rows) = history();
+        let mut memo = PaintMemo::default();
+        memo.refresh(&commits[..2], &rows[..2], &request(), false);
+        memo.cost = Duration::from_secs(3600);
+        memo.painted = Some(Instant::now());
+
+        memo.refresh(&commits, &rows, &request(), false);
+        assert_eq!(memo.window(0, 10).total, 2);
+
+        memo.refresh(&commits, &rows, &request(), true);
+        assert_eq!(memo.window(0, 10).total, 4);
     }
 }

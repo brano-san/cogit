@@ -844,12 +844,18 @@ impl AppState {
         &self,
         repo: RepoId,
         generation: u32,
-        read: impl FnOnce(&[CommitRow], &[GraphRow], &BTreeMap<u32, u32>, &Mutex<PaintMemo>) -> R,
+        read: impl FnOnce(&[CommitRow], &[GraphRow], &BTreeMap<u32, u32>, &Mutex<PaintMemo>, bool) -> R,
     ) -> Option<R> {
         let cache = self.graph.read();
-        let (shown, _) = cache.view(repo, generation)?;
+        let (shown, complete) = cache.view(repo, generation)?;
         let laid = &shown.laid;
-        Some(read(&laid.commits, &laid.rows, &laid.folds, &shown.paint))
+        Some(read(
+            &laid.commits,
+            &laid.rows,
+            &laid.folds,
+            &shown.paint,
+            complete,
+        ))
     }
 
     /// How many commits of `repo` have their subject and author read: a count for tests.
