@@ -34,6 +34,8 @@ allow = [
   "CC0-1.0",
   "Unlicense",
   "BSL-1.0",
+  # The Mozilla root certificate data (webpki-roots, via ureq in `avatars`): data, not copyleft.
+  "CDLA-Permissive-2.0",
 ]
 confidence-threshold = 0.9
 

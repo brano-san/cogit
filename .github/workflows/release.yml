@@ -51,9 +51,22 @@ jobs:
             echo "prerelease=$pre"; echo "bundles_windows=$bundles"
           } >> "$GITHUB_OUTPUT"
 
+  # Same job as in ci.yml (needs cannot cross workflows): no release with a known advisory.
+  deny:
+    needs: meta
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: refs/tags/${{ needs.meta.outputs.tag }}
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          command: check
+
   build:
     name: Build (${{ matrix.name }})
-    needs: meta
+    needs: [meta, deny]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     # A job marked experimental may fail without blocking the release: its files are simply
