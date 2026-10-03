@@ -74,12 +74,7 @@ fn an_index_rewritten_within_the_same_mtime_is_read_again() {
     shared.handle().unwrap().worktree_files().unwrap();
 
     f.git(&["add", "--", "b.txt"]).unwrap();
-    std::fs::File::options()
-        .write(true)
-        .open(&index)
-        .unwrap()
-        .set_modified(first)
-        .unwrap();
+    std::fs::set_times(&index, std::fs::FileTimes::new().set_modified(first)).unwrap();
 
     let files = shared.handle().unwrap().worktree_files().unwrap();
     let staged: Vec<&str> = files.staged.iter().map(|file| file.path.as_str()).collect();

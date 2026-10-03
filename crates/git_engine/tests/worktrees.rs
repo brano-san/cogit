@@ -342,14 +342,10 @@ fn repairing_a_worktree_moved_to_another_disk_leaves_its_index_fresh() {
     // creation time on Windows and by modification time elsewhere, as a real move does.
     let hour_ago = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
     for name in ["file0.txt", "file1.txt", "file2.txt"] {
-        let file = std::fs::File::options()
-            .write(true)
-            .open(std::path::Path::new(&old).join(name))
-            .unwrap();
         let times = std::fs::FileTimes::new().set_modified(hour_ago);
         #[cfg(windows)]
         let times = std::os::windows::fs::FileTimesExt::set_created(times, hour_ago);
-        file.set_times(times).unwrap();
+        std::fs::set_times(std::path::Path::new(&old).join(name), times).unwrap();
     }
     f.git_in(
         std::path::Path::new(&old),

@@ -595,22 +595,13 @@ mod unstaged {
         let f = test_fixtures::linear(1).unwrap();
         let path = f.path().join("racy.txt");
         let ahead = std::time::SystemTime::now() + std::time::Duration::from_secs(3600);
+        let times = std::fs::FileTimes::new().set_modified(ahead);
         std::fs::write(&path, "aaaa\n").unwrap();
-        std::fs::File::options()
-            .write(true)
-            .open(&path)
-            .unwrap()
-            .set_modified(ahead)
-            .unwrap();
+        std::fs::set_times(&path, times).unwrap();
         f.git(&["add", "--", "racy.txt"]).unwrap();
         f.commit_staged(2, "racy").unwrap();
         std::fs::write(&path, "bbbb\n").unwrap();
-        std::fs::File::options()
-            .write(true)
-            .open(&path)
-            .unwrap()
-            .set_modified(ahead)
-            .unwrap();
+        std::fs::set_times(&path, times).unwrap();
 
         matches(&f, 1);
     }
