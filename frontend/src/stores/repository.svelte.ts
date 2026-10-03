@@ -95,9 +95,10 @@ class RepositoryStore {
     return this.phase.kind === "opening";
   }
 
-  get error(): CogitError | null {
-    return this.phase.kind === "failed" ? this.phase.error : null;
-  }
+  /** A `$derived`, not a getter: `#replace` carries the same error into a new `failed`
+      phase, and a getter made every status re-read look like a new failure to the effect
+      that reports it. */
+  readonly error = $derived(this.phase.kind === "failed" ? this.phase.error : null);
 
   get localBranches() {
     return splitBranches(this.current?.branches ?? []).local;
