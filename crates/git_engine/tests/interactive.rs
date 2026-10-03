@@ -155,6 +155,22 @@ fn dropping_a_commit_removes_it_from_the_history() {
 }
 
 #[test]
+fn a_plan_made_before_a_new_commit_is_refused() {
+    let f = test_fixtures::linear(3).unwrap();
+    let repo = open(&f);
+    let base = f.oid("HEAD~2").unwrap();
+    let plan = repo.rebase_todo(&base).unwrap();
+    f.commit_file(400, "late.txt", "late\n").unwrap();
+    let head = f.oid("HEAD").unwrap();
+
+    let result = repo.interactive_rebase(&base, &plan);
+
+    assert!(matches!(result, Err(git_engine::GitError::InvalidState(_))));
+    assert_eq!(f.oid("HEAD").unwrap(), head);
+    assert!(!f.path().join(".git/rebase-merge").exists());
+}
+
+#[test]
 fn rewording_replaces_the_subject() {
     let f = test_fixtures::linear(3).unwrap();
     let base = f.oid("HEAD~1").unwrap();

@@ -196,6 +196,20 @@ impl RepoHandle {
         if plan.is_empty() {
             return Err(GitError::InvalidState("the plan is empty".to_owned()));
         }
+        // The todo below replaces git's own, so a commit made since the plan was read would
+        // be dropped without a word.
+        let fresh: std::collections::HashSet<String> = self
+            .rebase_todo(base)?
+            .into_iter()
+            .map(|entry| entry.oid)
+            .collect();
+        let planned: std::collections::HashSet<&str> =
+            plan.iter().map(|entry| entry.oid.as_str()).collect();
+        if fresh.len() != planned.len() || !fresh.iter().all(|oid| planned.contains(oid.as_str())) {
+            return Err(GitError::InvalidState(
+                "the branch moved since the plan was made; reopen the rebase".to_owned(),
+            ));
+        }
         let plan = self.settled_messages(plan)?;
         let body = if paused {
             render_todo_paused(&plan)
