@@ -104,18 +104,9 @@ impl AppState {
         let removed = handle.remove_worktree(path, force);
         if removed.is_err()
             && let Some(stash) = &stashed
+            && put_back(&handle, path, &wanted, stash)
         {
-            // Still registered: nothing was removed, so the work goes back where it was.
-            let registered = handle
-                .worktree_heads()?
-                .into_iter()
-                .any(|entry| entry.path == wanted && !entry.missing);
-            if registered {
-                git_engine::RepoHandle::open_exact(std::path::Path::new(path))?
-                    .stash_apply(stash)?;
-                handle.forget_backup(stash);
-                return removed;
-            }
+            return removed;
         }
         let recovery = match (stashed, checkout) {
             (Some(stash), Some(checkout)) => Recovery::Worktree {
@@ -231,6 +222,31 @@ impl AppState {
     }
 }
 
+/// Still registered: nothing was removed, so the work goes back where it was. A failure
+/// here keeps the backup and lets the caller write the Undo entry (INV-12).
+fn put_back(handle: &git_engine::RepoHandle, path: &str, wanted: &str, stash: &str) -> bool {
+    let restored = handle.worktree_heads().and_then(|heads| {
+        let registered = heads
+            .iter()
+            .any(|entry| entry.path == wanted && !entry.missing);
+        if registered {
+            git_engine::RepoHandle::open_exact(std::path::Path::new(path))?.stash_apply(stash)?;
+        }
+        Ok(registered)
+    });
+    match restored {
+        Ok(true) => {
+            handle.forget_backup(stash);
+            true
+        }
+        Ok(false) => false,
+        Err(err) => {
+            tracing::error!(error = ?err, context = "cannot put the stashed work back after a failed worktree removal");
+            false
+        }
+    }
+}
+
 /// The three stages of the Remove Worktree scan, which one chunk reports as it finishes.
 #[derive(Debug, Clone, Copy, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -264,4 +280,72 @@ pub enum WorktreeScanChunk {
     Done {
         cancelled: bool,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::put_back;
+
+    // `put_back` runs on a worktree that is still registered; the stash is of its work.
+    fn stashed() -> (
+        test_fixtures::Fixture,
+        git_engine::RepoHandle,
+        String,
+        String,
+    ) {
+        let f = test_fixtures::with_worktree().unwrap();
+        let handle = git_engine::RepoHandle::open_exact(f.path()).unwrap();
+        let path = handle
+            .worktree_heads()
+            .unwrap()
+            .into_iter()
+            .find(|entry| !entry.is_main)
+            .unwrap()
+            .path;
+        std::fs::write(std::path::Path::new(&path).join("file0.txt"), "work\n").unwrap();
+        let stash = handle
+            .stash_worktree_changes(&path, "cogit: before removing worktree linked")
+            .unwrap()
+            .unwrap();
+        (f, handle, path, stash)
+    }
+
+    fn backups(f: &test_fixtures::Fixture) -> String {
+        f.git(&["for-each-ref", "--format=%(refname)", "refs/cogit/backup/"])
+            .unwrap()
+    }
+
+    #[test]
+    fn the_work_goes_back_and_its_backup_is_let_go() {
+        let (f, handle, path, stash) = stashed();
+
+        assert!(put_back(&handle, &path, &path, &stash));
+
+        let file = std::path::Path::new(&path).join("file0.txt");
+        assert_eq!(std::fs::read_to_string(file).unwrap(), "work\n");
+        assert!(backups(&f).trim().is_empty());
+    }
+
+    // A second error must not leave the work only in the backup ref without an Undo entry:
+    // the caller writes it when this says no.
+    #[test]
+    fn a_stash_that_cannot_be_applied_keeps_its_backup() {
+        let (f, handle, path, stash) = stashed();
+        let file = std::path::Path::new(&path).join("file0.txt");
+        std::fs::write(&file, "newer\n").unwrap();
+
+        assert!(!put_back(&handle, &path, &path, &stash));
+
+        assert_eq!(std::fs::read_to_string(file).unwrap(), "newer\n");
+        assert!(backups(&f).contains(&stash), "{}", backups(&f));
+    }
+
+    #[test]
+    fn a_worktree_that_is_gone_keeps_its_backup() {
+        let (f, handle, path, stash) = stashed();
+
+        assert!(!put_back(&handle, &path, "elsewhere", &stash));
+
+        assert!(backups(&f).contains(&stash));
+    }
 }

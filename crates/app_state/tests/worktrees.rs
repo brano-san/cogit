@@ -264,3 +264,91 @@ fn a_locked_worktree_is_refused_before_its_changes_are_stashed() {
     assert!(kept.trim().is_empty(), "{kept}");
     assert!(state.safety_log().is_empty());
 }
+
+/// An ignored file that cannot be deleted, so `git worktree remove --force` fails after
+/// the stash was taken; the file is not in the stash.
+struct Stuck {
+    #[cfg(windows)]
+    _held: std::fs::File,
+    #[cfg(unix)]
+    dir: std::path::PathBuf,
+}
+
+#[cfg(windows)]
+fn stick(f: &test_fixtures::Fixture, worktree: &str) -> Stuck {
+    use std::os::windows::fs::OpenOptionsExt;
+    std::fs::write(f.path().join(".git/info/exclude"), "held.log\n").unwrap();
+    let file = std::path::Path::new(worktree).join("held.log");
+    std::fs::write(&file, "x").unwrap();
+    let held = std::fs::OpenOptions::new()
+        .read(true)
+        .share_mode(0)
+        .open(file)
+        .unwrap();
+    Stuck { _held: held }
+}
+
+#[cfg(unix)]
+fn stick(f: &test_fixtures::Fixture, worktree: &str) -> Stuck {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::write(f.path().join(".git/info/exclude"), "held/\n").unwrap();
+    let dir = std::path::Path::new(worktree).join("held");
+    std::fs::create_dir(&dir).unwrap();
+    std::fs::write(dir.join("x"), "x").unwrap();
+    std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o555)).unwrap();
+    Stuck { dir }
+}
+
+#[cfg(unix)]
+impl Drop for Stuck {
+    fn drop(&mut self) {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&self.dir, std::fs::Permissions::from_mode(0o755)).ok();
+    }
+}
+
+// Windows: git unregisters the worktree and then fails to delete its folder; the stash is
+// the only copy of the work, so the Undo entry must still be written.
+#[cfg(windows)]
+#[test]
+fn a_removal_that_failed_half_way_still_records_the_undo() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let (state, owner) = open(&f);
+    let path = linked(&state, owner).path;
+    std::fs::write(std::path::Path::new(&path).join("file0.txt"), "work\n").unwrap();
+    let _stuck = stick(&f, &path);
+
+    assert!(state.remove_worktree(owner, &path, true).is_err());
+
+    assert_eq!(state.worktrees(owner).unwrap().len(), 1);
+    let journal = state.safety_log();
+    assert!(journal[0].undoable, "{journal:?}");
+    let kept = f
+        .git(&["for-each-ref", "--format=%(subject)", "refs/cogit/backup/"])
+        .unwrap();
+    assert!(kept.contains("before removing worktree linked"), "{kept}");
+}
+
+// Unix: the folder cannot be emptied and git stops before touching the registration.
+#[cfg(unix)]
+#[test]
+fn a_removal_that_failed_before_anything_went_puts_the_work_back() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let (state, owner) = open(&f);
+    let path = linked(&state, owner).path;
+    let file = std::path::Path::new(&path).join("file0.txt");
+    std::fs::write(&file, "work\n").unwrap();
+    let _stuck = stick(&f, &path);
+
+    if state.remove_worktree(owner, &path, true).is_ok() {
+        return; // root ignores the permissions
+    }
+
+    assert_eq!(state.worktrees(owner).unwrap().len(), 2);
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), "work\n");
+    let kept = f
+        .git(&["for-each-ref", "--format=%(refname)", "refs/cogit/backup/"])
+        .unwrap();
+    assert!(kept.trim().is_empty(), "{kept}");
+    assert!(state.safety_log().is_empty());
+}
