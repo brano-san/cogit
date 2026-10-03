@@ -188,6 +188,21 @@ fn pruning_forgets_a_worktree_whose_folder_vanished() {
     assert_eq!(open(&f).worktrees().unwrap().len(), 1);
 }
 
+/// The panel's Prune All count is the missing worktrees that are not locked: git keeps a
+/// locked registration whatever happened to its folder, and a plain prune has no expiry.
+#[test]
+fn pruning_keeps_a_missing_worktree_that_is_locked() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let path = linked(&f).path;
+    open(&f).lock_worktree(&path, None).unwrap();
+    std::fs::remove_dir_all(&path).unwrap();
+
+    open(&f).prune_worktrees().unwrap();
+
+    let kept = linked(&f);
+    assert!(kept.missing && kept.locked.is_some(), "{kept:?}");
+}
+
 #[test]
 fn the_branch_a_worktree_holds_can_be_found_by_name() {
     let f = test_fixtures::with_worktree().unwrap();

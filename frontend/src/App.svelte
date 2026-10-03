@@ -84,7 +84,7 @@
   import IndexEditorDialog from "$components/file-list/IndexEditorDialog.svelte";
   import { openInvestigate } from "$lib/investigate/open";
   import WorktreesPanel from "$components/panels/WorktreesPanel.svelte";
-  import { hasStale, linkedCount, othersToWatch, removable } from "$lib/worktree-list";
+  import { hasStale, linkedCount, othersToWatch, pruneAllButton, removable } from "$lib/worktree-list";
   import { fileFormat, shortOid } from "$lib/format";
   import { checkedIds, disabledIds, rememberCommand, type PaletteCommand } from "$lib/palette";
   import type { Context } from "$lib/availability";
@@ -3535,6 +3535,7 @@ ${event.error}`,
         >
           {#snippet actions()}
             {#if repo}
+              {@const pruneAll = pruneAllButton(worktrees.entries)}
               <button
                 type="button"
                 class="panel-act worktrees-more"
@@ -3551,11 +3552,9 @@ ${event.error}`,
               <button
                 type="button"
                 class="panel-act worktrees-wide"
-                disabled={!hasStale(worktrees.entries)}
-                title={hasStale(worktrees.entries)
-                  ? "Forget every worktree whose folder is gone"
-                  : "No worktree is missing"}
-                onclick={() => void worktreeActions?.pruneAll()}>Prune All…</button
+                disabled={pruneAll.disabled}
+                title={pruneAll.tip}
+                onclick={() => void worktreeActions?.pruneAll()}>{pruneAll.label}</button
               >
             {/if}
           {/snippet}

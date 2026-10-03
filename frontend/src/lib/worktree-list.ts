@@ -64,8 +64,41 @@ export function linkedCount(entries: readonly WorktreeEntry[]): number {
   return entries.filter((entry) => !entry.isMain).length;
 }
 
+/** What `git worktree prune` forgets: a registration whose folder is gone, unless it is
+    locked — git's own `prunable` in `worktree list --porcelain`, without the expiry, which
+    a plain `prune` does not apply. */
+export function prunable(entries: readonly WorktreeEntry[]): WorktreeEntry[] {
+  return entries.filter((entry) => entry.missing && entry.locked === null);
+}
+
 export function hasStale(entries: readonly WorktreeEntry[]): boolean {
-  return entries.some((entry) => entry.missing);
+  return prunable(entries).length > 0;
+}
+
+export interface PruneAllButton {
+  label: string;
+  disabled: boolean;
+  tip: string;
+}
+
+/** Off with the reason while there is nothing to prune; on, it says how many. */
+export function pruneAllButton(entries: readonly WorktreeEntry[]): PruneAllButton {
+  const count = prunable(entries).length;
+  if (count > 0) {
+    return {
+      label: `Prune All (${count})…`,
+      disabled: false,
+      tip: `Forget ${count === 1 ? "the worktree" : `${count} worktrees`} whose folder is gone`,
+    };
+  }
+  const lockedOnly = entries.some((entry) => entry.missing);
+  return {
+    label: "Prune All…",
+    disabled: true,
+    tip: lockedOnly
+      ? "Nothing to prune: the missing worktrees are locked"
+      : "Nothing to prune: no worktree folder is missing",
+  };
 }
 
 /** Another worktree's folder can change unseen: the watcher follows only the repository on

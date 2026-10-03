@@ -5,6 +5,8 @@ import {
   linkedCount,
   listedRows,
   othersToWatch,
+  prunable,
+  pruneAllButton,
   removable,
   removalNeeds,
   worktreeTags,
@@ -93,6 +95,26 @@ describe("what the panel offers", () => {
   it("enables Prune All only when something is stale", () => {
     expect(hasStale([entry(), entry({ missing: true })])).toBe(true);
     expect(hasStale([entry()])).toBe(false);
+  });
+
+  // Git keeps a locked registration, gone or not: Prune All on it did nothing.
+  it("counts as prunable only a missing worktree that is not locked", () => {
+    const gone = entry({ missing: true, path: "E:/w/gone" });
+    const kept = entry({ missing: true, locked: "", path: "E:/w/kept" });
+    expect(prunable([entry(), gone, kept])).toEqual([gone]);
+    expect(hasStale([entry(), kept])).toBe(false);
+  });
+
+  it("says how many Prune All forgets, and why it is off", () => {
+    const gone = entry({ missing: true });
+    expect(pruneAllButton([entry(), gone, gone])).toEqual({
+      label: "Prune All (2)…",
+      disabled: false,
+      tip: "Forget 2 worktrees whose folder is gone",
+    });
+    expect(pruneAllButton([entry()])).toMatchObject({ label: "Prune All…", disabled: true });
+    expect(pruneAllButton([entry()]).tip).toMatch(/^Nothing to prune/);
+    expect(pruneAllButton([entry({ missing: true, locked: "" })]).tip).toContain("locked");
   });
 
   it("never offers to remove the main copy or a missing one", () => {

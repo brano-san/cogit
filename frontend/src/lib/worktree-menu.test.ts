@@ -88,8 +88,10 @@ describe("the menu of a narrow Worktrees header", () => {
     expect(items.every((item) => parseWorktreeCommand(item.id) === null)).toBe(true);
   });
 
-  it("turns Prune All off while nothing is missing", () => {
+  it("turns Prune All off while nothing is missing, and counts what it forgets", () => {
     expect(find(worktreeHeaderMenu([LINKED]), "worktree-prune")?.enabled).toBe(false);
-    expect(find(worktreeHeaderMenu([{ ...LINKED, missing: true }]), "worktree-prune")?.enabled).toBe(true);
+    const on = find(worktreeHeaderMenu([{ ...LINKED, missing: true }]), "worktree-prune");
+    expect(on?.enabled).toBe(true);
+    expect(on?.label).toBe("Prune All (1)…");
   });
 });

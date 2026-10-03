@@ -272,7 +272,7 @@ export function appCommands(facts: AppCommandFacts, run: AppCommandActions): Pal
       id: "worktree-prune",
       title: "Prune Obsolete Worktrees…",
       synonyms: ["worktree prune", "missing worktree"],
-      unavailable: noRepo ?? (facts.worktrees.stale ? undefined : "No worktree is missing"),
+      unavailable: noRepo ?? (facts.worktrees.stale ? undefined : "Nothing to prune"),
       run: run["worktree-prune"],
     },
     {

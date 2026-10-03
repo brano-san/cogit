@@ -6,6 +6,7 @@
   import { revealOnDesktop } from "$lib/ipc/file-menus";
   import type { AddOrigin } from "$lib/worktree-add";
   import { parseWorktreeCommand, worktreeHeaderMenu, worktreeMenu } from "$lib/worktree-menu";
+  import { prunable } from "$lib/worktree-list";
   import { removeWorktree, type RemovalHost } from "$lib/worktree-removal";
   import { commit } from "$stores/commit.svelte";
   import { confirmation } from "$stores/confirm.svelte";
@@ -60,15 +61,15 @@
   }
 
   export async function pruneAll() {
-    const stale = worktrees.entries.filter((entry) => entry.missing);
+    const stale = prunable(worktrees.entries);
     if (stale.length === 0) return;
-    const names = stale.map((entry) => entry.name).join(", ");
     const confirmed = await confirmation.ask({
       title: "Prune Obsolete Worktrees",
       message:
-        `Forget ${stale.length === 1 ? "the missing worktree" : `${stale.length} missing worktrees`} (${names})? ` +
+        `Forget ${stale.length === 1 ? "this missing worktree" : `these ${stale.length} missing worktrees`}? ` +
         "Only Git's registration is removed; nothing on disk is touched. Locked ones are kept.",
       confirm: "Prune",
+      items: stale.map((entry) => `${entry.name} — ${entry.path}`),
     });
     if (!confirmed) return;
     await worktrees.prune().catch((err) => errors.report(err, "Could not prune worktrees"));
