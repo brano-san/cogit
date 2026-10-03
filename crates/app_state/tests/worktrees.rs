@@ -307,9 +307,8 @@ impl Drop for Stuck {
     }
 }
 
-// Windows: git unregisters the worktree and then fails to delete its folder; the stash is
-// the only copy of the work, so the Undo entry must still be written.
-#[cfg(windows)]
+// With one `--force` git unregisters the worktree even when it cannot empty its folder,
+// on every platform: the stash is the only copy of the work, so Undo must be recorded.
 #[test]
 fn a_removal_that_failed_half_way_still_records_the_undo() {
     let f = test_fixtures::with_worktree().unwrap();
@@ -318,7 +317,11 @@ fn a_removal_that_failed_half_way_still_records_the_undo() {
     std::fs::write(std::path::Path::new(&path).join("file0.txt"), "work\n").unwrap();
     let _stuck = stick(&f, &path);
 
-    assert!(state.remove_worktree(owner, &path, true).is_err());
+    let removed = state.remove_worktree(owner, &path, true);
+    if cfg!(unix) && removed.is_ok() {
+        return; // root ignores the permissions
+    }
+    assert!(removed.is_err());
 
     assert_eq!(state.worktrees(owner).unwrap().len(), 1);
     let journal = state.safety_log();
@@ -327,28 +330,4 @@ fn a_removal_that_failed_half_way_still_records_the_undo() {
         .git(&["for-each-ref", "--format=%(subject)", "refs/cogit/backup/"])
         .unwrap();
     assert!(kept.contains("before removing worktree linked"), "{kept}");
-}
-
-// Unix: the folder cannot be emptied and git stops before touching the registration.
-#[cfg(unix)]
-#[test]
-fn a_removal_that_failed_before_anything_went_puts_the_work_back() {
-    let f = test_fixtures::with_worktree().unwrap();
-    let (state, owner) = open(&f);
-    let path = linked(&state, owner).path;
-    let file = std::path::Path::new(&path).join("file0.txt");
-    std::fs::write(&file, "work\n").unwrap();
-    let _stuck = stick(&f, &path);
-
-    if state.remove_worktree(owner, &path, true).is_ok() {
-        return; // root ignores the permissions
-    }
-
-    assert_eq!(state.worktrees(owner).unwrap().len(), 2);
-    assert_eq!(std::fs::read_to_string(&file).unwrap(), "work\n");
-    let kept = f
-        .git(&["for-each-ref", "--format=%(refname)", "refs/cogit/backup/"])
-        .unwrap();
-    assert!(kept.trim().is_empty(), "{kept}");
-    assert!(state.safety_log().is_empty());
 }
