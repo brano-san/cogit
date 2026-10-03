@@ -73,8 +73,8 @@ class WorktreeStore {
     try {
       await run();
     } catch (err) {
-      // The panels show another repository now: nobody there asked.
-      if (cleared !== this.#cleared) return;
+      // Thrown even after the panels moved on: the caller must not take a refusal for a
+      // commit. Only the read-back below is skipped for another repository.
       throw toCogitError(err);
     }
     if (cleared === this.#cleared) await this.load(repo);

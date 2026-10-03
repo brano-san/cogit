@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // were asked about, so a test can see which repository a store read back after a write.
 const held = vi.hoisted(() => new Map<string, () => void>());
 const reads = vi.hoisted(() => [] as string[]);
+const refused = vi.hoisted(() => new Map<string, (err: unknown) => void>());
 
 vi.mock("$lib/ipc", () => {
   const later =
@@ -23,6 +24,9 @@ vi.mock("$lib/ipc", () => {
     removeWorktree: vi.fn(later("remove")),
     listWorktrees: vi.fn(read("worktrees", (repo) => [{ path: `of ${String(repo)}` }])),
     stagePaths: vi.fn(later("stage")),
+    createCommit: vi.fn(
+      (repo: unknown) => new Promise<void>((_, reject) => refused.set(`commit:${String(repo)}`, reject)),
+    ),
     worktreeFiles: vi.fn(
       read("files", (repo) => ({ staged: [{ path: `of ${String(repo)}` }], unstaged: [] })),
     ),
@@ -119,6 +123,19 @@ describe("a write that finishes after the panels have left its repository", () =
     await write;
     expect(reads).toEqual([]);
     expect(conflicts.paths).toEqual(["of 2"]);
+  });
+});
+
+// A hook refused the commit after the panels had moved on: the refusal was dropped and the
+// caller took the commit for made.
+describe("a refused write that finishes after the panels have left its repository", () => {
+  it("is still thrown to the caller, without reading A back", async () => {
+    const write = worktree.commit(A, "m", false, false);
+    worktree.clear();
+    reads.length = 0;
+    refused.get("commit:1")!(new Error("hook said no"));
+    await expect(write).rejects.toThrow();
+    expect(reads).toEqual([]);
   });
 });
 

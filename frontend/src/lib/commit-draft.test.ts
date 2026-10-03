@@ -6,7 +6,25 @@ import {
   hasOwnText,
   initialMessage,
   messageAfterCommit,
+  afterCommit,
 } from "./commit-draft";
+
+describe("afterCommit", () => {
+  it("resets the field and keeps the draft key when still in the same repository", () => {
+    expect(afterCommit(true, "cogit:draft:A", "cogit:draft:A")).toEqual({ resetField: true, forgetKey: null });
+  });
+  // The panels moved to B while the hook ran: B's draft is not ours to touch.
+  it("only forgets the committed repository's draft after the panels left it", () => {
+    expect(afterCommit(true, "cogit:draft:A", "cogit:draft:B")).toEqual({
+      resetField: false,
+      forgetKey: "cogit:draft:A",
+    });
+  });
+  it("does nothing when nothing was committed", () => {
+    expect(afterCommit(false, "cogit:draft:A", "cogit:draft:B")).toEqual({ resetField: false, forgetKey: null });
+    expect(afterCommit(false, "cogit:draft:A", "cogit:draft:A")).toEqual({ resetField: false, forgetKey: null });
+  });
+});
 
 const template = "\n\n# Explain why, not what\n# Wrap at 72\n";
 

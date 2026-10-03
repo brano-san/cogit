@@ -39,6 +39,20 @@ export function messageAfterCommit(template: string | null): string {
   return template ?? "";
 }
 
+/** What a finished commit does to the box. The panels may show another repository by now
+    (a hook ran while the user clicked on): then the field belongs to that one and is left
+    alone, and only the draft of the repository the commit was made in is dropped. */
+export function afterCommit(
+  made: boolean,
+  keyAtStart: string,
+  keyNow: string,
+): { resetField: boolean; forgetKey: string | null } {
+  if (!made) return { resetField: false, forgetKey: null };
+  return keyAtStart === keyNow
+    ? { resetField: true, forgetKey: null }
+    : { resetField: false, forgetKey: keyAtStart };
+}
+
 /** What to keep in storage for the next start; `null` keeps nothing. The untouched
     template is not a draft: kept, it would outlive a change to the template itself. */
 export function draftToSave(message: string, template: string | null): string | null {

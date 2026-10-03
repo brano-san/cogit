@@ -2,7 +2,7 @@
   import { onDestroy } from "svelte";
   import Checkbox from "$components/common/Checkbox.svelte";
   import { commitBox } from "$stores/commit-box.svelte";
-  import { amends, canCommit, draftToSave, initialMessage, messageAfterCommit } from "$lib/commit-draft";
+  import { afterCommit, amends, canCommit, draftToSave, initialMessage, messageAfterCommit } from "$lib/commit-draft";
   import { SUBJECT_HARD, SUBJECT_SOFT, subjectOf, subjectState } from "$lib/commit-message";
   import { ON_MAC, primary } from "$lib/platform";
 
@@ -45,13 +45,22 @@
   async function submit() {
     if (!ready) return;
     committing = true;
+    const keyAtStart = draftKey;
     let made: boolean | void;
     try {
       made = await oncommit(message, amending, noVerify);
     } finally {
       committing = false;
     }
-    if (made === false) return;
+    const after = afterCommit(made !== false, keyAtStart, draftKey);
+    if (after.forgetKey !== null) {
+      try {
+        localStorage.removeItem(after.forgetKey);
+      } catch {
+        // Blocked site data: the stale draft stays, nothing else breaks.
+      }
+    }
+    if (!after.resetField) return;
     message = messageAfterCommit(template);
     amend = false;
     noVerify = false;
