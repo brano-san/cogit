@@ -212,6 +212,37 @@ fn linux_redirects_the_xdg_folders_and_remembers_the_originals() {
     assert!(!restored.contains_key("TMPDIR"));
 }
 
+// fontconfig reads user fonts and config from `$XDG_DATA_HOME/fonts` and `$XDG_CONFIG_HOME/
+// fontconfig`, never from the `*_DIRS`: with both redirected, Inter in ~/.local/share/fonts vanished.
+#[test]
+fn fonts_of_the_user_are_bridged_into_the_data_folder() {
+    let text = fontconfig_bridge("/home/ann/.local/share", "/home/ann/.config");
+    assert!(
+        text.contains("<dir>/home/ann/.local/share/fonts</dir>"),
+        "{text}"
+    );
+    assert!(
+        text.contains(
+            "<include ignore_missing=\"yes\">/home/ann/.config/fontconfig/fonts.conf</include>"
+        ),
+        "{text}"
+    );
+    let odd = fontconfig_bridge("/home/a&b/<x>", "/c");
+    assert!(odd.contains("/home/a&amp;b/&lt;x&gt;/fonts"), "{odd}");
+}
+
+#[test]
+fn the_bridge_follows_the_users_own_xdg_homes_and_needs_a_home() {
+    let get = env(&[("HOME", "/home/ann"), ("XDG_DATA_HOME", "/data")]);
+    let text = fontconfig_bridge_from_env(&get).unwrap();
+    assert!(text.contains("<dir>/data/fonts</dir>"), "{text}");
+    assert!(
+        text.contains("/home/ann/.config/fontconfig/fonts.conf"),
+        "{text}"
+    );
+    assert_eq!(fontconfig_bridge_from_env(&env(&[])), None);
+}
+
 #[test]
 fn linux_without_home_does_not_invent_search_paths() {
     let layout = Layout::in_folder(Path::new("/x"));

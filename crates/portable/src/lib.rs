@@ -197,20 +197,56 @@ fn is_unix_absolute(value: &OsStr) -> bool {
     value.as_encoded_bytes().first() == Some(&b'/')
 }
 
+/// The user's own XDG folder: the variable, else `$HOME/<fallback>`.
+fn user_home(
+    get: &dyn Fn(&str) -> Option<OsString>,
+    name: &str,
+    fallback: &str,
+) -> Option<OsString> {
+    get(name)
+        .filter(|value| is_unix_absolute(value))
+        .or_else(|| {
+            get("HOME")
+                .filter(|home| is_unix_absolute(home))
+                .map(|mut path| {
+                    path.push("/");
+                    path.push(fallback);
+                    path
+                })
+        })
+}
+
+fn xml_escape(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
+/// A `fonts.conf` for `Cogit-data/config/fontconfig`: the system one includes it through
+/// `$XDG_CONFIG_HOME`, and it points back at the user's real fonts and configuration.
+#[must_use]
+pub fn fontconfig_bridge(data_home: &str, config_home: &str) -> String {
+    let (data, config) = (xml_escape(data_home), xml_escape(config_home));
+    format!(
+        "<?xml version=\"1.0\"?>\n<!DOCTYPE fontconfig SYSTEM \"fonts.dtd\">\n<fontconfig>\n  \
+         <dir>{data}/fonts</dir>\n  \
+         <include ignore_missing=\"yes\">{config}/fontconfig/fonts.conf</include>\n</fontconfig>\n"
+    )
+}
+
+/// The bridge for the environment as it was before the redirect; `None` without a home.
+#[must_use]
+pub fn fontconfig_bridge_from_env(get: &dyn Fn(&str) -> Option<OsString>) -> Option<String> {
+    let data = user_home(get, "XDG_DATA_HOME", ".local/share")?;
+    let config = user_home(get, "XDG_CONFIG_HOME", ".config")?;
+    Some(fontconfig_bridge(
+        &data.to_string_lossy(),
+        &config.to_string_lossy(),
+    ))
+}
+
 fn linux(layout: &Layout, tmp: OsString, get: &dyn Fn(&str) -> Option<OsString>) -> Redirect {
-    let user_home = |name: &str, fallback: &str| {
-        get(name)
-            .filter(|value| is_unix_absolute(value))
-            .or_else(|| {
-                get("HOME")
-                    .filter(|home| is_unix_absolute(home))
-                    .map(|mut path| {
-                        path.push("/");
-                        path.push(fallback);
-                        path
-                    })
-            })
-    };
+    let user_home = |name: &str, fallback: &str| user_home(get, name, fallback);
     let search = |own: Option<OsString>, name: &str, system: &str| {
         let mut paths = own.unwrap_or_default();
         if !paths.is_empty() {
@@ -288,6 +324,9 @@ pub fn activate(layout: Layout) -> Result<&'static Layout, Error> {
     let plan = redirect(&layout, Platform::current(), &|name: &str| {
         std::env::var_os(name)
     });
+    if Platform::current() == Platform::Linux {
+        write_fontconfig_bridge(&layout);
+    }
     for (name, value) in &plan.set {
         set_var(name, value);
     }
@@ -296,6 +335,21 @@ pub fn activate(layout: Layout) -> Result<&'static Layout, Error> {
         restore: plan.restore,
     });
     Ok(&active.layout)
+}
+
+/// Inside `Cogit-data`, so the contract holds; written only when it changed. A failure costs
+/// the user's fonts, not the start.
+fn write_fontconfig_bridge(layout: &Layout) {
+    let Some(text) = fontconfig_bridge_from_env(&|name: &str| std::env::var_os(name)) else {
+        return;
+    };
+    let dir = layout.config().join("fontconfig");
+    let file = dir.join("fonts.conf");
+    if std::fs::read_to_string(&file).is_ok_and(|old| old == text) {
+        return;
+    }
+    // No logger yet at this point of the start-up, hence no report.
+    let _ = std::fs::create_dir_all(&dir).and_then(|()| std::fs::write(&file, text));
 }
 
 #[allow(unsafe_code)]
