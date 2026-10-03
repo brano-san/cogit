@@ -12,6 +12,8 @@ pub const MAX_SOLVER_BYTES: usize = 4 * 1024 * 1024;
 pub struct SolverData {
     pub context: ConflictContext,
     pub binary: bool,
+    /// A link or a submodule: its sides are taken whole and labeled as what they are.
+    pub kind: git_engine::EntryKind,
     pub too_large: bool,
     /// Ours or theirs lacks the file: it was deleted there (modify/delete).
     pub missing_ours: bool,
@@ -56,6 +58,7 @@ impl AppState {
         let mut data = SolverData {
             context,
             binary,
+            kind: sides.kind,
             too_large,
             missing_ours,
             missing_theirs,
@@ -130,6 +133,12 @@ impl AppState {
     ) -> Result<(), GitError> {
         let handle = self.handle(repo)?;
         let sides = handle.conflict_sides(path)?;
+        // The tool would write its result over the submodule's folder.
+        if sides.kind == git_engine::EntryKind::Submodule {
+            return Err(GitError::InvalidState(format!(
+                "{path} is a submodule: take ours or theirs, a merge tool cannot merge it"
+            )));
+        }
         let (program, args) = if program.trim().is_empty() {
             let config = handle.merge_tool_config()?;
             merge_tool::from_git_config(&merge_tool::GitToolConfig {

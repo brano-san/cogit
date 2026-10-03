@@ -33,6 +33,7 @@ const sides = (name: string) => ({
   ours: name,
   theirs: name,
   binary: false,
+  kind: "regular",
   stages: stagesOf(name),
   tooLarge: false,
   missingOurs: false,
@@ -163,6 +164,16 @@ describe("a conflict that is not text", () => {
     expect(conflicts.binary).toBe(true);
     expect(conflicts.regions).toEqual([]);
     expect(ipc.mergePreview).not.toHaveBeenCalled();
+  });
+
+  it("remembers a submodule or a link as what it is, until the panel closes", async () => {
+    const opening = conflicts.open(1 as never, "sub");
+    calls.text.get("sub")?.({ ...sides("sub"), binary: true, kind: "submodule" });
+    await opening;
+
+    expect(conflicts.kind).toBe("submodule");
+    conflicts.close();
+    expect(conflicts.kind).toBe("regular");
   });
 
   it("forgets the mark once the panel closes", async () => {

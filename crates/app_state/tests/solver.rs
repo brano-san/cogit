@@ -428,3 +428,78 @@ fn a_modify_delete_file_kept_with_edited_text_is_written_and_staged() {
     );
     assert!(f.git(&["status", "--short"]).unwrap().contains("A  "));
 }
+
+/// Two branches point `path` at different entries of mode `mode` (a symlink or a gitlink),
+/// written through the index: no `core.symlinks`, no real submodule.
+fn special_conflict(mode: &str, path: &str, values: [&str; 3]) -> test_fixtures::Fixture {
+    let f = test_fixtures::linear(1).unwrap();
+    let point = |value: &str| {
+        let id = if mode == "120000" {
+            f.write_file("target.tmp", value).unwrap();
+            let id = f.git(&["hash-object", "-w", "target.tmp"]).unwrap();
+            std::fs::remove_file(f.path().join("target.tmp")).unwrap();
+            id.trim().to_owned()
+        } else {
+            value.to_owned()
+        };
+        let entry = format!("{mode},{id},{path}");
+        f.git(&["update-index", "--add", "--cacheinfo", &entry])
+            .unwrap();
+    };
+    point(values[0]);
+    f.commit_staged(20, "base").unwrap();
+    f.git(&["switch", "-c", "theirs"]).unwrap();
+    point(values[2]);
+    f.commit_staged(21, "theirs").unwrap();
+    f.git(&["switch", "main"]).unwrap();
+    point(values[1]);
+    f.commit_staged(22, "ours").unwrap();
+    assert!(f.git(&["merge", "--no-edit", "theirs"]).is_err());
+    f
+}
+
+const OID_A: &str = "1111111111111111111111111111111111111111";
+const OID_B: &str = "2222222222222222222222222222222222222222";
+const OID_C: &str = "3333333333333333333333333333333333333333";
+
+#[test]
+fn a_submodule_conflict_says_what_it_is_and_gets_no_merge_tool() {
+    let f = special_conflict("160000", "sub", [OID_A, OID_B, OID_C]);
+    let (state, repo) = opened(&f);
+    let temp = tempfile::tempdir().unwrap();
+
+    let data = state.solver_data(repo, "sub").unwrap();
+    let err = state
+        .start_merge_tool(repo, "sub", "tool", "{result}", temp.path(), |_| {})
+        .unwrap_err();
+
+    assert_eq!(data.kind, git_engine::EntryKind::Submodule);
+    assert!(data.binary);
+    assert_eq!(data.stages.ours.as_deref(), Some(OID_B));
+    assert!(
+        matches!(&err, git_engine::GitError::InvalidState(why) if why.contains("submodule")),
+        "{err:?}"
+    );
+    assert_eq!(std::fs::read_dir(temp.path()).unwrap().count(), 0);
+}
+
+#[test]
+fn a_symlink_conflict_says_it_is_a_link_not_a_binary_file() {
+    let f = special_conflict("120000", "cfg", ["../a", "../b", "../c"]);
+    let (state, repo) = opened(&f);
+
+    let data = state.solver_data(repo, "cfg").unwrap();
+
+    assert_eq!(data.kind, git_engine::EntryKind::Symlink);
+    assert_eq!(state.conflict_text(repo, "cfg").unwrap().kind, data.kind);
+}
+
+#[test]
+fn an_ordinary_conflict_is_regular() {
+    let f = test_fixtures::conflicted().unwrap();
+    let (state, repo) = opened(&f);
+
+    let data = state.solver_data(repo, "conflict.txt").unwrap();
+
+    assert_eq!(data.kind, git_engine::EntryKind::Regular);
+}

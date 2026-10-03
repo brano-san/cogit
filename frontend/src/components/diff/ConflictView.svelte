@@ -1,5 +1,6 @@
 <script lang="ts">
-  import type { ConflictSide } from "$lib/ipc";
+  import type { ConflictSide, EntryKind } from "$lib/ipc";
+  import { sideTitle, wholeReason } from "$lib/conflict-kind";
 
   interface Props {
     path: string;
@@ -8,6 +9,8 @@
     theirs: string | null;
     /** Binary or not UTF-8: the text above is a rendering, and writing it back corrupts. */
     binary?: boolean;
+    /** A link or a submodule, named as such instead of "binary". */
+    kind?: EntryKind;
     /** Over the size limit: the sides are not sent, so only taking one whole is offered. */
     tooLarge?: boolean;
     /** A side that deleted the file; read from the text unless the text was not sent. */
@@ -21,7 +24,7 @@
     onunsaved?: (unsaved: boolean) => void;
   }
 
-  let { path, base, ours, theirs, binary = false, tooLarge = false, missingOurs, missingTheirs, onresolve, onresolveText, onsolver, onunsaved }: Props = $props();
+  let { path, base, ours, theirs, binary = false, kind = "regular", tooLarge = false, missingOurs, missingTheirs, onresolve, onresolveText, onsolver, onunsaved }: Props = $props();
 
   let editing = $state(false);
   let draft = $state("");
@@ -32,9 +35,9 @@
   const theirsGone = $derived(missingTheirs ?? theirs === null);
 
   const sides: { id: ConflictSide; label: string; text: string | null }[] = $derived([
-    { id: "base", label: "Base", text: base },
-    { id: "ours", label: "Ours", text: ours },
-    { id: "theirs", label: "Theirs", text: theirs },
+    { id: "base", label: sideTitle(kind, "base"), text: base },
+    { id: "ours", label: sideTitle(kind, "ours"), text: ours },
+    { id: "theirs", label: sideTitle(kind, "theirs"), text: theirs },
   ]);
 
   function startEditing(from: string | null) {
@@ -67,7 +70,7 @@
         title={tooLarge
           ? "Too large to edit here: take one side whole"
           : binary
-            ? "Binary or not UTF-8: take one side whole"
+            ? wholeReason(kind, true)
             : undefined}
         onclick={() => startEditing(ours)}>Edit by hand</button
       >
@@ -98,7 +101,7 @@
           {:else if side.text === null}
             <p class="message">Absent on this side.</p>
           {:else if binary}
-            <p class="message">Binary or not UTF-8 — take one side whole.</p>
+            <p class="message">{wholeReason(kind, true)}</p>
           {:else}
             <pre class="body mono">{side.text}</pre>
           {/if}

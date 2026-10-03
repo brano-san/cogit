@@ -962,6 +962,7 @@ export type ConflictText = {
 	missingTheirs: boolean,
 	/**  The index entries the sides were read from; a resolution names them back. */
 	stages: ConflictStages,
+	kind: EntryKind,
 };
 
 export type ContentMatch = {
@@ -1043,6 +1044,9 @@ export type DisplayInfo = {
 	scale: number | null,
 	primary: boolean,
 };
+
+/**  What the sides are: a link or a submodule is taken whole, whatever its bytes look like. */
+export type EntryKind = "regular" | "symlink" | "submodule";
 
 export type EolInfo = {
 	old: LineEnding,
@@ -2217,6 +2221,8 @@ export type SkippedRef = {
 export type SolverData = {
 	context: ConflictContext,
 	binary: boolean,
+	/**  A link or a submodule: its sides are taken whole and labeled as what they are. */
+	kind: EntryKind,
 	tooLarge: boolean,
 	/**  Ours or theirs lacks the file: it was deleted there (modify/delete). */
 	missingOurs: boolean,

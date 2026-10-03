@@ -65,6 +65,7 @@
     ours={conflicts.ours}
     theirs={conflicts.theirs}
     binary={conflicts.binary}
+    kind={conflicts.kind}
     tooLarge={conflicts.tooLarge}
     missingOurs={conflicts.missingOurs}
     missingTheirs={conflicts.missingTheirs}

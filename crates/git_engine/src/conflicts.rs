@@ -23,7 +23,8 @@ pub struct ConflictSides {
 }
 
 /// What the sides are: a link or a submodule is taken whole, whatever its bytes look like.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub enum EntryKind {
     #[default]
     Regular,
@@ -58,6 +59,7 @@ pub struct ConflictText {
     pub missing_theirs: bool,
     /// The index entries the sides were read from; a resolution names them back.
     pub stages: ConflictStages,
+    pub kind: EntryKind,
 }
 
 impl ConflictSides {
@@ -87,6 +89,7 @@ impl ConflictSides {
             missing_ours: self.ours.is_none(),
             missing_theirs: self.theirs.is_none(),
             stages: self.stages.clone(),
+            kind: self.kind,
         }
     }
 }

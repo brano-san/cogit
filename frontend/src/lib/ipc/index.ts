@@ -97,6 +97,7 @@ export type {
   CommitRow,
   ConflictSide,
   ConflictStages,
+  EntryKind,
   Author,
   AvatarReady,
   AvatarRow,

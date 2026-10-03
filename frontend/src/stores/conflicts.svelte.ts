@@ -8,6 +8,7 @@ import {
   rerereStatus,
   type ConflictSide,
   type ConflictStages,
+  type EntryKind,
   type RerereStatus,
   type Region,
   type RepoId,
@@ -23,6 +24,8 @@ class ConflictStore {
   theirs = $state<string | null>(null);
   /** A side is binary or not UTF-8: only taking one side whole can resolve it. */
   binary = $state(false);
+  /** A link or a submodule is `binary` too, but it is named as what it is. */
+  kind = $state<EntryKind>("regular");
   /** The index entries the sides on screen were read from; a write names them back. */
   stages = $state.raw<ConflictStages | null>(null);
   /** Over the size limit: no side was sent and none is merged. */
@@ -92,6 +95,7 @@ class ConflictStore {
     this.ours = sides.ours;
     this.theirs = sides.theirs;
     this.binary = sides.binary;
+    this.kind = sides.kind;
     this.stages = sides.stages;
     this.tooLarge = sides.tooLarge;
     this.missingOurs = sides.missingOurs;
@@ -199,6 +203,7 @@ class ConflictStore {
     this.ours = null;
     this.theirs = null;
     this.binary = false;
+    this.kind = "regular";
     this.stages = null;
     this.tooLarge = false;
     this.missingOurs = false;
