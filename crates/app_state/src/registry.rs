@@ -217,7 +217,7 @@ impl AppState {
         path: &str,
         init: bool,
     ) -> Result<(), git_engine::GitError> {
-        let _quiet = self.quiet(repo);
+        let _quiet = self.quiet_briefly(repo);
         self.handle(repo)?.update_submodule(path, init)
     }
 
