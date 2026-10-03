@@ -102,6 +102,7 @@
   import { repository } from "$stores/repository.svelte";
   import { settings } from "$stores/settings.svelte";
   import { stashView } from "$stores/stash-view.svelte";
+  import { stashTarget } from "$lib/stash-target";
   import { stashes } from "$stores/stashes.svelte";
   import { worktree } from "$stores/worktree.svelte";
   import { worktrees } from "$stores/worktrees.svelte";
@@ -338,12 +339,9 @@
       const base = { ...blank(), oid, details: loaded?.details ?? null, facts, node };
 
       if (node.kind === "stash") {
-        const index = Number(node.id.slice("stash:".length));
-        const entry = stashes.entries.find((entry) => entry.index === index);
-        const message = entry?.message ?? "";
-        const stashOid = entry?.oid ?? node.oid;
-        if (!stashOid) return;
-        await show({ ...base, stash: { index, oid: stashOid, message } }, branchesStashMenu(facts, at), x, y);
+        const stash = stashTarget(stashes.entries, Number(node.id.slice("stash:".length)), node.oid);
+        if (!stash) return;
+        await show({ ...base, stash }, branchesStashMenu(facts, at), x, y);
       } else if (node.kind === "tag") {
         if (!tag || !found?.ref) return;
         await show({ ...base, ref: found.ref, tag }, branchesTagMenu(facts, { ...at, annotated: tag.isAnnotated }), x, y);
@@ -653,7 +651,7 @@
     const summary = repository.current;
     if (!summary) return;
     if (label.kind === "stash") {
-      openApplyStash(stashIndexOf(label.text));
+      openApplyStash(stashIndexOf(label.text), oid);
       return;
     }
     const found = labelTarget(label, summary.branches, summary.tags, worktreeMarks(worktrees.entries, summary.branches));
@@ -662,13 +660,13 @@
 
   /** Apply Stash (item 40): a double click on a stash in Branches or the graph, and the
       menu's Apply Stash. */
-  function openApplyStash(index: number) {
-    const entry = stashes.entries.find((stash) => stash.index === index);
-    if (entry) refDialogs.applyStash = { index, oid: entry.oid, message: entry.message };
+  function openApplyStash(index: number, oid: string | null | undefined) {
+    const stash = stashTarget(stashes.entries, index, oid);
+    if (stash) refDialogs.applyStash = stash;
   }
 
   export function applyStashNode(node: RefNode) {
-    openApplyStash(Number(node.id.slice("stash:".length)));
+    openApplyStash(Number(node.id.slice("stash:".length)), node.oid);
   }
 
   async function applyPickedStash(drop: boolean, restoreIndex: boolean) {
