@@ -78,7 +78,9 @@ impl RepoWatcher {
         })?;
         std::thread::Builder::new()
             .name("fs-watcher-debounce".into())
-            .spawn(move || debounce(&rx, &route, &on_change))
+            .spawn(move || {
+                debounce(&rx, &route, Duration::from_millis(DEBOUNCE_MS), &on_change);
+            })
             .map_err(|error| WatchError::Start {
                 path: root.display().to_string(),
                 source: notify::Error::io(error),
@@ -201,9 +203,9 @@ impl std::fmt::Debug for RepoWatcher {
 fn debounce(
     rx: &mpsc::Receiver<notify::Result<Event>>,
     route: &Route,
+    window: Duration,
     on_change: &impl Fn(RepoChanged),
 ) {
-    let window = Duration::from_millis(DEBOUNCE_MS);
     while let Ok(first) = rx.recv() {
         let deadline = Instant::now() + window;
         let mut seen: Vec<(ChangeKind, PathBuf)> = Vec::new();
@@ -689,10 +691,17 @@ mod tests {
     fn spawn_debounce(
         rx: mpsc::Receiver<notify::Result<Event>>,
     ) -> mpsc::Receiver<Vec<ChangeKind>> {
+        spawn_debounce_in(rx, Duration::from_millis(DEBOUNCE_MS))
+    }
+
+    fn spawn_debounce_in(
+        rx: mpsc::Receiver<notify::Result<Event>>,
+        window: Duration,
+    ) -> mpsc::Receiver<Vec<ChangeKind>> {
         let (out, batches) = mpsc::channel();
         std::thread::spawn(move || {
             let batch = Mutex::new(Vec::new());
-            debounce(&rx, &route(), &|change: RepoChanged| {
+            debounce(&rx, &route(), window, &|change: RepoChanged| {
                 if let Ok(mut batch) = batch.lock() {
                     batch.push(change.kind);
                     let _ = out.send(batch.clone());
@@ -719,6 +728,44 @@ mod tests {
 
         let kinds = batches.recv_timeout(Duration::from_secs(10)).unwrap();
         assert_eq!(kinds, [ChangeKind::Head]);
+    }
+
+    // `recv_timeout` hands out a ready message before it looks at the clock: with a channel
+    // that never empties the old loop kept one window open to the very end. Two hundred
+    // thousand events are queued up front and the window is a millisecond, so the burst has
+    // to leave in many batches, each answering for the working tree once.
+    #[test]
+    fn a_window_closes_at_its_deadline_while_the_channel_never_empties() {
+        let route = route();
+        let (tx, rx) = mpsc::channel();
+        for i in 0..200_000 {
+            tx.send(event(
+                EventKind::Any,
+                route.root.join(format!("src/f{i}.rs")),
+            ))
+            .unwrap();
+        }
+        drop(tx);
+
+        let batches = Mutex::new(0);
+        debounce(
+            &rx,
+            &route,
+            Duration::from_millis(1),
+            &|change: RepoChanged| {
+                if change.kind == ChangeKind::WorkingTree
+                    && let Ok(mut batches) = batches.lock()
+                {
+                    *batches += 1;
+                }
+            },
+        );
+
+        let batches = *batches.lock().unwrap();
+        assert!(
+            batches >= 2,
+            "{batches} batch for a burst that never paused"
+        );
     }
 
     #[test]
