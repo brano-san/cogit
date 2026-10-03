@@ -152,6 +152,46 @@ fn a_byte_order_mark_does_not_make_the_settings_damaged() {
     assert_eq!(document["a"], 1, "{document}");
     assert_eq!(document["b"], 2, "{document}");
 }
+// `>` in Windows PowerShell 5.1 writes UTF-16LE with a byte-order mark: the file did not
+// read as UTF-8, and every write of a setting failed until it was fixed by hand.
+#[test]
+fn a_utf16_file_from_powershell_is_read_and_written_back() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut bytes = vec![0xFF, 0xFE];
+    for unit in "{\"a\":1}".encode_utf16() {
+        bytes.extend(unit.to_le_bytes());
+    }
+    std::fs::write(dir.path().join("settings.json"), bytes).unwrap();
+    assert_eq!(app_state::settings::read_document(dir.path())["a"], 1);
+
+    app_state::settings::write_key(dir.path(), "b", serde_json::json!(2)).unwrap();
+
+    let document = app_state::settings::read_document(dir.path());
+    assert_eq!((&document["a"], &document["b"]), (&1.into(), &2.into()));
+    let text = std::fs::read_to_string(dir.path().join("settings.json")).unwrap();
+    assert!(text.starts_with('{'), "{text}");
+}
+
+#[test]
+fn bytes_that_are_no_text_are_kept_aside_and_the_write_goes_on() {
+    let dir = tempfile::tempdir().unwrap();
+    // `{"gitPath":"<cp1251 Cyrillic>"}`
+    let mut cp1251 = b"{\"gitPath\":\"".to_vec();
+    cp1251.extend([0xCF, 0xF0, 0xE8, 0xE2, 0xE5, 0xF2]);
+    cp1251.extend(b"\"}");
+    std::fs::write(dir.path().join("settings.json"), &cp1251).unwrap();
+
+    app_state::settings::write_key(dir.path(), "b", serde_json::json!(2)).unwrap();
+
+    assert_eq!(
+        std::fs::read(dir.path().join("settings.json.damaged")).unwrap(),
+        cp1251
+    );
+    let document = app_state::settings::read_document(dir.path());
+    assert_eq!(document["b"], 2);
+    assert!(document.get("gitPath").is_none());
+}
+
 #[test]
 fn the_git_executable_is_read_from_the_settings_file() {
     let dir = tempfile::tempdir().unwrap();

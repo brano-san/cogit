@@ -37,18 +37,17 @@ const USER_THEME_FILE: &str = "user-theme.json";
 #[must_use]
 pub fn read_user_theme(config_dir: &Path) -> String {
     let path = config_dir.join(USER_THEME_FILE);
-    let text = match std::fs::read_to_string(&path) {
-        Ok(text) => text,
+    let bytes = match std::fs::read(&path) {
+        Ok(bytes) => bytes,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return "{}".into(),
         Err(err) => {
             tracing::warn!(?path, error = ?err, "user-theme.json cannot be read; ignored");
             return "{}".into();
         }
     };
-    let json = text.strip_prefix('\u{feff}').unwrap_or(&text);
-    match serde_json::from_str::<Value>(json) {
-        Ok(value @ Value::Object(_)) => value.to_string(),
-        _ => {
+    match decode(&bytes).map(|json| serde_json::from_str::<Value>(&json)) {
+        Some(Ok(value @ Value::Object(_))) => value.to_string(),
+        Some(Ok(_) | Err(_)) | None => {
             tracing::warn!(?path, "user-theme.json is not a JSON object; ignored");
             "{}".into()
         }
@@ -67,22 +66,44 @@ pub fn read_git_program(config_dir: &Path) -> Option<PathBuf> {
 enum Stored {
     Document(Map<String, Value>),
     Missing,
-    /// The text as it was, for the copy kept aside before it is replaced.
-    Damaged(String),
+    /// The bytes as they were, for the copy kept aside before it is replaced.
+    Damaged(Vec<u8>),
+}
+
+/// The text of a file a person may have saved from any editor: UTF-8 with or without a
+/// byte-order mark, or the UTF-16 that Windows PowerShell 5.1 writes. `None` is no text.
+fn decode(bytes: &[u8]) -> Option<String> {
+    let utf16 = |pairs: &[u8], unit: fn([u8; 2]) -> u16| {
+        let (pairs, odd) = pairs.as_chunks::<2>();
+        let units: Vec<u16> = pairs.iter().map(|pair| unit(*pair)).collect();
+        if odd.is_empty() {
+            String::from_utf16(&units).ok()
+        } else {
+            None
+        }
+    };
+    match bytes {
+        [0xFF, 0xFE, rest @ ..] => utf16(rest, u16::from_le_bytes),
+        [0xFE, 0xFF, rest @ ..] => utf16(rest, u16::from_be_bytes),
+        _ => {
+            let bytes = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(bytes);
+            String::from_utf8(bytes.to_vec()).ok()
+        }
+    }
 }
 
 fn stored(config_dir: &Path) -> std::io::Result<Stored> {
-    let text = match std::fs::read_to_string(file_in(config_dir)) {
-        Ok(text) => text,
+    let bytes = match std::fs::read(file_in(config_dir)) {
+        Ok(bytes) => bytes,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(Stored::Missing),
         Err(err) => return Err(err),
     };
-    // An editor that saves with a byte-order mark leaves the JSON as it was.
-    let json = text.strip_prefix('\u{feff}').unwrap_or(&text);
-    Ok(match serde_json::from_str(json) {
-        Ok(Value::Object(map)) => Stored::Document(map),
-        _ => Stored::Damaged(text),
-    })
+    Ok(
+        match decode(&bytes).map(|json| serde_json::from_str(&json)) {
+            Some(Ok(Value::Object(map))) => Stored::Document(map),
+            _ => Stored::Damaged(bytes),
+        },
+    )
 }
 
 /// Replaces one top-level key and leaves the rest of the document as it was.
