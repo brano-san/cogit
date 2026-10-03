@@ -299,13 +299,12 @@ fn a_pulse_does_not_count_a_dead_watcher_as_watching() {
     std::fs::remove_dir(&root).unwrap();
     std::thread::sleep(SETTLE);
     std::fs::create_dir(&root).unwrap();
-    let init = std::process::Command::new("git")
+    let init = test_fixtures::git_command_in(&root)
         .args(["init", "-q", "-b", "other"])
-        .current_dir(&root)
         .status()
         .unwrap();
     assert!(init.success());
-    let commit = std::process::Command::new("git")
+    let commit = test_fixtures::git_command_in(&root)
         .args([
             "-c",
             "user.name=t",
@@ -317,7 +316,6 @@ fn a_pulse_does_not_count_a_dead_watcher_as_watching() {
             "-m",
             "x",
         ])
-        .current_dir(&root)
         .status()
         .unwrap();
     assert!(commit.success());
@@ -325,9 +323,8 @@ fn a_pulse_does_not_count_a_dead_watcher_as_watching() {
     // What the deletion told is over; the row is now read from the new repository.
     std::thread::sleep(SETTLE);
     assert_eq!(branch(&state).as_deref(), Some("other"));
-    let switched = std::process::Command::new("git")
+    let switched = test_fixtures::git_command_in(&root)
         .args(["checkout", "-q", "-b", "third"])
-        .current_dir(&root)
         .status()
         .unwrap();
     assert!(switched.success());
