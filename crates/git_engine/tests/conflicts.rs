@@ -347,3 +347,46 @@ fn a_symlink_conflict_is_taken_whole_and_never_edited_as_text() {
     let staged = f.git(&["ls-files", "-s", "cfg"]).unwrap();
     assert!(staged.starts_with("120000 "), "{staged}");
 }
+
+fn utf16le(text: &str) -> Vec<u8> {
+    text.encode_utf16().flat_map(u16::to_le_bytes).collect()
+}
+
+/// `*.rc` is UTF-16LE in the working tree and UTF-8 in the repository.
+fn utf16_conflict() -> (test_fixtures::Fixture, String) {
+    let f = test_fixtures::empty().unwrap();
+    f.write_file(".gitattributes", "*.rc working-tree-encoding=UTF-16LE\n")
+        .unwrap();
+    let commit = |text: &str, index: i64| {
+        std::fs::write(f.path().join("a.rc"), utf16le(text)).unwrap();
+        f.git(&["add", "--", ".gitattributes", "a.rc"]).unwrap();
+        f.commit_staged(index, "side").unwrap();
+    };
+    commit("line1\nbase\nline3\n", 10);
+    f.git(&["switch", "-c", "theirs"]).unwrap();
+    commit("line1\ntheirs\nline3\n", 11);
+    f.git(&["switch", "main"]).unwrap();
+    commit("line1\nours\nline3\n", 12);
+    let _ = f.git(&["merge", "theirs"]);
+    (f, "a.rc".to_owned())
+}
+
+// The sides are the repository's UTF-8 already; a second pass through the clean filter
+// read them as UTF-16 and staged noise, or refused after the file was overwritten.
+#[test]
+fn a_text_resolution_of_an_encoded_file_is_staged_as_utf8_and_written_as_the_file_is() {
+    for text in ["line1\nmerged!\nline3\n", "line1\nmerged\nline3\n"] {
+        let (f, path) = utf16_conflict();
+        let repo = open(&f);
+
+        repo.resolve_with_text(&path, text).unwrap();
+
+        assert_eq!(f.git(&["show", ":a.rc"]).unwrap(), text);
+        assert_eq!(
+            std::fs::read(f.path().join(&path)).unwrap(),
+            utf16le(text),
+            "{text:?}"
+        );
+        assert!(repo.conflicted_paths().unwrap().is_empty());
+    }
+}

@@ -161,8 +161,8 @@ impl RepoHandle {
         self.run_git_literal(&["add", "--", path]).map(drop)
     }
 
-    /// Written and staged in one step, or `git merge --continue` refuses a file that looks
-    /// done; then checked out again, so the eol and smudge filters apply as to any file.
+    /// Staged and checked out in one step, or `git merge --continue` refuses a file that
+    /// looks done; the checkout applies the eol, encoding and smudge filters as to any file.
     pub fn resolve_with_text(&self, path: &str, text: &str) -> Result<()> {
         let sides = self.conflict_sides(path)?;
         if sides.kind != EntryKind::Regular {
@@ -185,12 +185,39 @@ impl RepoHandle {
                 "{path} is a symbolic link: take one side whole"
             )));
         }
-        std::fs::write(&file, shaped_like(text, like))?;
-        self.run_git_literal(&["add", "--", path])?;
-        // `checkout-index` passes over a file that matches the index, however it is written.
-        std::fs::remove_file(&file)?;
-        self.run_git_literal(&["checkout-index", "--", path])
+        // Into the index first, as it is: the text is the repository's form already, and a
+        // second pass through `add`'s clean filter (`working-tree-encoding`) would spoil it
+        // after the file was overwritten. The checkout then writes the working form.
+        let blob = self.run_git_fed(
+            &["hash-object", "-w", "--no-filters", "--stdin"],
+            shaped_like(text, like).as_bytes(),
+        )?;
+        let mode = self.conflict_mode(path)?;
+        self.run_git_literal(&[
+            "update-index",
+            "--cacheinfo",
+            &format!("{mode},{},{path}", blob.stdout.trim()),
+        ])?;
+        self.run_git_literal(&["checkout-index", "-f", "-u", "--", path])
             .map(drop)
+    }
+
+    /// The mode of the first side that has an entry, as git prints it (`100755`).
+    fn conflict_mode(&self, path: &str) -> Result<String> {
+        let index = self.current_index()?;
+        let backing = index.path_backing();
+        let mut modes: Vec<(u8, u32)> = index
+            .entries()
+            .iter()
+            .filter(|entry| entry.path_in(backing) == gix::bstr::BStr::new(path.as_bytes()))
+            .map(|entry| (entry.stage() as u8, entry.mode.bits()))
+            .collect();
+        // Ours, then theirs, then base.
+        modes.sort_by_key(|(stage, _)| (*stage + 1) % 3);
+        modes
+            .first()
+            .map(|(_, bits)| format!("{bits:o}"))
+            .ok_or_else(|| GitError::InvalidState(format!("{path} is not conflicted")))
     }
 
     /// The working file as it is, kept in the object store before a resolution writes over
