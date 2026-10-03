@@ -121,7 +121,15 @@ impl AppState {
         request: &git_engine::CommitRequest,
     ) -> Result<String, git_engine::GitError> {
         let _quiet = self.quiet(repo);
-        self.handle(repo)?.commit(request)
+        let handle = self.handle(repo)?;
+        let finishing = handle
+            .state()
+            .is_ok_and(|state| state.is_interrupted_operation());
+        let oid = handle.commit(request)?;
+        if finishing {
+            self.settle_moves(repo);
+        }
+        Ok(oid)
     }
 
     pub fn wants_maintenance(&self, repo: RepoId) -> Result<bool, git_engine::GitError> {

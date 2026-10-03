@@ -1237,3 +1237,101 @@ fn a_copy_kept_for_undo_writes_no_reflog_of_its_own() {
     assert_eq!(backups(&f).len(), 1);
     assert!(!f.git_dir().join("logs/refs/cogit").exists());
 }
+
+fn merge_dev(state: &AppState, repo: RepoId) {
+    state
+        .merge(
+            repo,
+            &git_engine::MergeOptions {
+                source: "dev".to_owned(),
+                no_fast_forward: true,
+                squash: false,
+                message: None,
+            },
+        )
+        .unwrap();
+}
+
+// Commits are not journaled, so the newest entry was still the merge: Undo reset the branch
+// to before it and took the later commits off with it.
+#[test]
+fn undoing_a_merge_is_refused_once_commits_were_made_on_the_branch() {
+    let f = test_fixtures::branched().unwrap();
+    let (state, repo) = open(&f);
+    merge_dev(&state, repo);
+    f.commit_file(50, "later.txt", "later\n").unwrap();
+    let tip = head_oid(&state, repo);
+
+    let err = state.undo_last(repo).unwrap_err();
+
+    assert!(
+        matches!(&err, git_engine::GitError::InvalidState(why) if why.contains("1 commit")),
+        "{err:?}"
+    );
+    assert_eq!(head_oid(&state, repo), tip);
+}
+
+#[test]
+fn undoing_a_reset_is_refused_once_commits_were_made_after_it() {
+    let f = test_fixtures::linear(3).unwrap();
+    let (state, repo) = open(&f);
+    state
+        .reset_to(repo, "HEAD~1", git_engine::ResetMode::Mixed)
+        .unwrap();
+    f.commit_file(50, "later.txt", "later\n").unwrap();
+    let tip = head_oid(&state, repo);
+
+    assert!(state.undo_last(repo).is_err());
+    assert_eq!(head_oid(&state, repo), tip);
+}
+
+#[test]
+fn undoing_a_move_is_itself_undoable() {
+    let f = test_fixtures::branched().unwrap();
+    let (state, repo) = open(&f);
+    let before = head_oid(&state, repo);
+    merge_dev(&state, repo);
+    let merged = head_oid(&state, repo);
+
+    state.undo_last(repo).unwrap();
+    assert_eq!(head_oid(&state, repo), before);
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(head_oid(&state, repo), merged);
+}
+
+#[test]
+fn a_merge_finished_by_cogit_is_checked_like_any_other() {
+    let f = about_to_conflict();
+    let (state, repo) = open(&f);
+    assert!(
+        state
+            .merge(
+                repo,
+                &git_engine::MergeOptions {
+                    source: "side".to_owned(),
+                    no_fast_forward: false,
+                    squash: false,
+                    message: None,
+                },
+            )
+            .is_err()
+    );
+    f.write_file("c.txt", "resolved\n").unwrap();
+    f.git(&["add", "c.txt"]).unwrap();
+    state
+        .commit(
+            repo,
+            &git_engine::CommitRequest {
+                message: "merge".to_owned(),
+                amend: false,
+                no_verify: false,
+                signoff: false,
+                only: Vec::new(),
+            },
+        )
+        .unwrap();
+    f.commit_file(60, "later.txt", "later\n").unwrap();
+
+    assert!(state.undo_last(repo).is_err());
+}

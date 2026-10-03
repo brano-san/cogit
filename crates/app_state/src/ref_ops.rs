@@ -65,6 +65,7 @@ impl AppState {
         };
         let recovery = if moved || stashed.is_some() {
             Recovery::Reset {
+                after: crate::safety::tip_of(&handle, branch.as_deref()),
                 branch,
                 oid: before,
                 mode,
@@ -159,7 +160,8 @@ impl AppState {
 
     pub fn restore_branch(&self, repo: RepoId, branch: &str, oid: &str) -> Result<(), GitError> {
         let _quiet = self.quiet(repo);
-        let before = self.handle(repo)?.restore_branch(branch, oid)?;
+        let handle = self.handle(repo)?;
+        let before = handle.restore_branch(branch, oid)?;
         self.record(
             repo,
             format!(
@@ -167,10 +169,7 @@ impl AppState {
                 short(oid),
                 short(&before)
             ),
-            Recovery::Moved {
-                name: branch.to_owned(),
-                oid: before,
-            },
+            crate::safety::moved(&handle, branch.to_owned(), before, true),
         );
         Ok(())
     }
@@ -210,7 +209,7 @@ impl AppState {
         let (was, recovery) = match before {
             git_engine::Head::Branch { name, oid } => (
                 format!(" ({name} was at {})", short(&oid)),
-                Recovery::Moved { name, oid },
+                crate::safety::moved(&handle, name, oid, true),
             ),
             git_engine::Head::Detached { oid } => {
                 (format!(" (HEAD was at {})", short(&oid)), Recovery::None)

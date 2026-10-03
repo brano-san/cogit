@@ -39,6 +39,18 @@ impl RepoHandle {
         self.run_git(&["reset", mode.flag(), &oid]).map(drop)
     }
 
+    /// Where a local branch is now, as a full hex oid.
+    pub fn branch_tip(&self, name: &str) -> Result<String> {
+        Ok(self
+            .resolve_commit(&format!("refs/heads/{name}"))?
+            .to_string())
+    }
+
+    pub fn count_commits_between(&self, base: &str, tip: &str) -> Result<usize> {
+        let out = self.run_git_reading(&["rev-list", "--count", &format!("{base}..{tip}")])?;
+        Ok(out.stdout.trim().parse().unwrap_or(0))
+    }
+
     /// Through `gix`: the graph menu asks on every right-click.
     pub fn is_ancestor(&self, ancestor: &str, descendant: &str) -> Result<bool> {
         let ancestor = self.resolve_commit(ancestor)?;

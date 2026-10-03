@@ -54,6 +54,9 @@ pub enum Recovery {
     Moved {
         name: String,
         oid: String,
+        /// Where the branch stood right after the operation; `None` while it waits for
+        /// Continue. Undo refuses once the branch has moved on.
+        after: Option<String>,
     },
     /// HEAD was reset from `oid`; `branch` is `None` when it was detached. A hard reset
     /// also keeps the stash of what it threw away, taken on `oid`.
@@ -62,6 +65,7 @@ pub enum Recovery {
         oid: String,
         mode: git_engine::ResetMode,
         stash: Option<String>,
+        after: Option<String>,
     },
     Tag {
         name: String,
@@ -193,18 +197,30 @@ impl AppState {
                     tracing::warn!(error = ?err, branch = %name, "the branch is back without its upstream");
                 }
             }
-            Recovery::Moved { name, oid } => {
+            Recovery::Moved { name, oid, after } => {
                 wait_for_the_operation(&handle)?;
+                let tip = tip_of(&handle, Some(name));
+                ensure_unmoved(&handle, name, tip.as_deref(), after.as_deref())?;
                 handle.move_branch_back(name, oid)?;
+                self.record_undone(repo, &handle, Some(name), tip, oid);
             }
             Recovery::Reset {
                 branch,
                 oid,
                 mode,
                 stash,
+                after,
             } => {
                 wait_for_the_operation(&handle)?;
+                let tip = tip_of(&handle, branch.as_deref());
+                ensure_unmoved(
+                    &handle,
+                    branch.as_deref().unwrap_or("HEAD"),
+                    tip.as_deref(),
+                    after.as_deref(),
+                )?;
                 undo_reset(&handle, branch.as_deref(), oid, *mode, stash.as_deref())?;
+                self.record_undone(repo, &handle, branch.as_deref(), tip, oid);
             }
             Recovery::Tag { name, oid } => handle.create_tag(&git_engine::TagRequest {
                 name: name.clone(),
@@ -315,4 +331,99 @@ fn undo_reset(
     };
     handle.reset(oid, back)?;
     stash.map_or(Ok(()), |stash| handle.stash_apply(stash))
+}
+
+/// Where the branch is now; HEAD's commit for `None`.
+pub(crate) fn tip_of(handle: &git_engine::RepoHandle, branch: Option<&str>) -> Option<String> {
+    match branch {
+        Some(name) => handle.branch_tip(name).ok(),
+        None => match handle.head() {
+            Ok(git_engine::Head::Branch { oid, .. } | git_engine::Head::Detached { oid }) => {
+                Some(oid)
+            }
+            _ => None,
+        },
+    }
+}
+
+/// A move or reset is reversed by putting the branch back, which also takes off whatever
+/// was committed on it since: refused unless the branch is where the operation left it.
+fn ensure_unmoved(
+    handle: &git_engine::RepoHandle,
+    label: &str,
+    tip: Option<&str>,
+    after: Option<&str>,
+) -> Result<(), git_engine::GitError> {
+    let (Some(tip), Some(after)) = (tip, after) else {
+        return Ok(());
+    };
+    if tip == after {
+        return Ok(());
+    }
+    let why = if handle.is_ancestor(after, tip).unwrap_or(false) {
+        let n = handle.count_commits_between(after, tip).unwrap_or(0);
+        format!("{label} has {n} commit(s) made since; undo would take them off it")
+    } else {
+        format!("{label} moved since; undo would discard where it went")
+    };
+    Err(git_engine::GitError::InvalidState(why))
+}
+
+impl AppState {
+    /// A finished merge or rebase commits outside the journal's sight: the entry waiting
+    /// for it learns where the branch ended up.
+    pub(crate) fn settle_moves(&self, repo: RepoId) {
+        let Ok(handle) = self.handle(repo) else {
+            return;
+        };
+        let mut safety = self.safety.write();
+        let waiting = safety.iter_mut().rev().find(|held| {
+            held.entry.repo == repo && matches!(held.recovery, Recovery::Moved { after: None, .. })
+        });
+        if let Some(Undoable {
+            recovery: Recovery::Moved { name, after, .. },
+            ..
+        }) = waiting
+        {
+            *after = tip_of(&handle, Some(name));
+        }
+    }
+
+    /// The undo is a move like any other, so it can be undone too.
+    fn record_undone(
+        &self,
+        repo: RepoId,
+        handle: &git_engine::RepoHandle,
+        branch: Option<&str>,
+        was: Option<String>,
+        now: &str,
+    ) {
+        let (Some(branch), Some(was)) = (branch, was) else {
+            return;
+        };
+        self.record(
+            repo,
+            format!("Undo: put {branch} back at {}", &now[..now.len().min(8)]),
+            Recovery::Moved {
+                name: branch.to_owned(),
+                oid: was,
+                after: tip_of(handle, Some(branch)),
+            },
+        );
+    }
+}
+
+/// The recovery of a branch that moved: `after` is read once the operation is over.
+pub(crate) fn moved(
+    handle: &git_engine::RepoHandle,
+    name: String,
+    oid: String,
+    finished: bool,
+) -> Recovery {
+    let after = if finished {
+        tip_of(handle, Some(&name))
+    } else {
+        None
+    };
+    Recovery::Moved { name, oid, after }
 }

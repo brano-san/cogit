@@ -26,7 +26,9 @@ impl AppState {
 
     pub fn continue_operation(&self, repo: RepoId) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
-        self.handle(repo)?.continue_operation()
+        self.handle(repo)?.continue_operation()?;
+        self.settle_moves(repo);
+        Ok(())
     }
 
     /// Stashes first when the tree is dirty: restoring a past version must not quietly
@@ -158,7 +160,9 @@ impl AppState {
         handle.split_off(rev, paths, message, split_first)?;
 
         let recovery = match before {
-            git_engine::Head::Branch { name, oid } => Recovery::Moved { name, oid },
+            git_engine::Head::Branch { name, oid } => {
+                crate::safety::moved(&handle, name, oid, true)
+            }
             _ => Recovery::None,
         };
         self.record(
@@ -263,7 +267,9 @@ impl AppState {
             return;
         }
         let recovery = match before {
-            git_engine::Head::Branch { name, oid } => Recovery::Moved { name, oid },
+            git_engine::Head::Branch { name, oid } => {
+                crate::safety::moved(handle, name, oid, !stopped)
+            }
             _ => Recovery::None,
         };
         self.record(repo, what, recovery);
