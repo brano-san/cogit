@@ -145,7 +145,7 @@ pub use presets::{
     Preset, PresetTool, builtin_presets, find_tool, parse_preset, preset_toml, tool_search_places,
 };
 pub use progress::{RebaseProgress, RebaseStep};
-pub use pulse::{RepoPulse, pulse};
+pub use pulse::{ASKPASS_REFUSAL_VAR, RepoPulse, pulse};
 pub use ref_meta::{OtherRef, RefDate};
 pub use reflog::{Reachable, ReflogEntry};
 pub use remotes::RemoteInfo;

@@ -69,6 +69,42 @@ pub(crate) const STALL_LIMITS: &[&str] =
 pub(crate) const BATCH_SSH: &str =
     "core.sshCommand=ssh -o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=15";
 
+/// Names the variable that makes Cogit's own executable refuse an ssh askpass request: it
+/// is the `SSH_ASKPASS` helper that answers every question with a failure (GR-06).
+pub const ASKPASS_REFUSAL_VAR: &str = "COGIT_ASKPASS_REFUSE";
+
+/// For a command whose ssh is one the user chose (`core.sshCommand`), which `BATCH_SSH`
+/// cannot reach: ssh asks its questions in a console nobody sees under `CREATE_NO_WINDOW`
+/// and the command waits for them, so they are answered with a refusal. A helper the user
+/// set up themselves (`SSH_ASKPASS` already in the environment) is left alone.
+pub(crate) fn askpass_refusal(own_ssh_command: bool) -> Vec<(String, String)> {
+    if !own_ssh_command || std::env::var_os("SSH_ASKPASS").is_some() {
+        return Vec::new();
+    }
+    let Ok(this) = std::env::current_exe() else {
+        return Vec::new();
+    };
+    vec![
+        (
+            "SSH_ASKPASS".to_owned(),
+            this.to_string_lossy().into_owned(),
+        ),
+        ("SSH_ASKPASS_REQUIRE".to_owned(), "force".to_owned()),
+        (ASKPASS_REFUSAL_VAR.to_owned(), "1".to_owned()),
+    ]
+}
+
+/// `QUIET`, then what overrides it: a later value wins.
+fn quiet_env(refusal: &[(String, String)]) -> Vec<(&str, &str)> {
+    let mut env = QUIET.to_vec();
+    env.extend(
+        refusal
+            .iter()
+            .map(|(key, value)| (key.as_str(), value.as_str())),
+    );
+    env
+}
+
 impl RepoHandle {
     /// Only the remote-tracking refs move: no prune, no submodules, no maintenance.
     pub fn background_fetch(&self) -> Result<()> {
@@ -80,7 +116,8 @@ impl RepoHandle {
             "--no-auto-gc",
             "--recurse-submodules=no",
         ]);
-        self.run_git_with_env(&args, QUIET).map(drop)
+        let refusal = askpass_refusal(self.has_own_ssh_command());
+        self.run_git_with_env(&args, &quiet_env(&refusal)).map(drop)
     }
 
     /// The server's branch tips, as `git ls-remote --heads` lists them; nothing is written.
@@ -94,7 +131,8 @@ impl RepoHandle {
         let mut args = self.background_options();
         args.extend(["ls-remote", "--heads", remote]);
         args.extend(patterns);
-        let out = self.read_git_with(&args, QUIET)?;
+        let refusal = askpass_refusal(self.has_own_ssh_command());
+        let out = self.read_git_with(&args, &quiet_env(&refusal))?;
         Ok(out
             .lines()
             .filter_map(|line| {
@@ -158,7 +196,7 @@ impl RepoHandle {
         args
     }
 
-    fn has_own_ssh_command(&self) -> bool {
+    pub(crate) fn has_own_ssh_command(&self) -> bool {
         std::env::var_os("GIT_SSH_COMMAND").is_some()
             || std::env::var_os("GIT_SSH").is_some()
             || self

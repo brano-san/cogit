@@ -332,9 +332,8 @@ impl RepoHandle {
             stop: self.stop.as_ref(),
             journal: &|entry| self.journal_entry(entry),
         };
-        let mut process = self.base_git(args);
-        process.envs(env.iter().map(|(key, value)| (key, value)));
-        to.run_read(process, args, on_line, SILENCE)
+        let (args, process) = self.network_command(args, env);
+        to.run_read(process, &args, on_line, SILENCE)
     }
 
     fn run_streaming_within(
@@ -349,9 +348,28 @@ impl RepoHandle {
             stop: self.stop.as_ref(),
             journal: &|entry| self.journal_entry(entry),
         };
-        let mut process = self.base_git(args);
+        let (args, process) = self.network_command(args, env);
+        to.run(process, &args, on_line, silence)
+    }
+
+    /// The command with what keeps ssh from asking where nobody can answer (GR-06): a batch
+    /// ssh of Cogit's own, or a refusing askpass for the user's. The arguments are returned
+    /// because they are what the journal shows.
+    fn network_command<'a>(
+        &self,
+        args: &[&'a str],
+        env: &[(String, String)],
+    ) -> (Vec<&'a str>, std::process::Command) {
+        let own_ssh = self.has_own_ssh_command();
+        let mut all: Vec<&str> = Vec::new();
+        if !own_ssh {
+            all.extend(["-c", crate::pulse::BATCH_SSH]);
+        }
+        all.extend_from_slice(args);
+        let mut process = self.base_git(&all);
+        process.envs(crate::pulse::askpass_refusal(own_ssh));
         process.envs(env.iter().map(|(key, value)| (key, value)));
-        to.run(process, args, on_line, silence)
+        (all, process)
     }
 }
 
@@ -465,7 +483,7 @@ impl Streamed<'_> {
             result.severity = crate::Severity::Warning;
         } else if stopped {
             result.summary = format!(
-                "Stopped after {} s with no output from git",
+                "Stopped after {} s with no output from git\nIf the remote uses SSH, it may be waiting for a host key confirmation or a key passphrase: connect once from a terminal or add the key to ssh-agent",
                 silence.as_secs()
             );
             tracing::warn!(command = %result.command, silence_s = silence.as_secs(), "stopped a silent network command");
@@ -677,6 +695,7 @@ mod tests {
             started.elapsed()
         );
         assert!(failure.summary.contains("no output"), "{failure:?}");
+        assert!(failure.summary.contains("ssh-agent"), "{failure:?}");
     }
 
     #[test]

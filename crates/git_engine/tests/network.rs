@@ -787,3 +787,53 @@ fn a_token_reaches_the_deletion_of_a_remote_tag_but_not_the_journal() {
     assert!(!lines.contains("s3cr3t"), "{lines}");
     assert!(!lines.contains("extraHeader"), "{lines}");
 }
+
+// ssh asks for a host key or a passphrase itself. Under CREATE_NO_WINDOW the question went to
+// a console nobody sees, and the command waited for 300 s with nothing to read (GR-06).
+#[test]
+fn a_fetch_over_ssh_is_told_never_to_ask() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&["remote", "set-url", "origin", "ssh://git@127.0.0.1:1/x.git"])
+        .unwrap();
+    let (repo, log) = commands_of(open(&f));
+
+    assert!(repo.fetch("origin", no_token, |_| {}).is_err());
+
+    let lines = seen(&log).join("\n");
+    assert!(
+        lines.contains("core.sshCommand=ssh -o BatchMode=yes"),
+        "{lines}"
+    );
+}
+
+#[test]
+fn an_own_ssh_command_gets_a_refusing_askpass_instead_of_a_flag() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&["remote", "set-url", "origin", "ssh://git@127.0.0.1/x.git"])
+        .unwrap();
+    let script = f.path().join("fake-ssh.sh");
+    std::fs::write(
+        &script,
+        "#!/bin/sh\necho \"asked-for=$SSH_ASKPASS_REQUIRE\" >&2\nexit 255\n",
+    )
+    .unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    f.git(&[
+        "config",
+        "core.sshCommand",
+        &script.to_string_lossy().replace('\\', "/"),
+    ])
+    .unwrap();
+    let (repo, log) = journalled(open(&f));
+
+    assert!(repo.fetch("origin", no_token, |_| {}).is_err());
+
+    let records = log.lock().unwrap();
+    let last = records.last().unwrap();
+    assert!(last.stderr.contains("asked-for=force"), "{last:?}");
+    assert!(!last.command.contains("BatchMode"), "{}", last.command);
+}

@@ -11,6 +11,11 @@ fn short_description() -> String {
 }
 
 fn main() {
+    // Started by ssh as its `SSH_ASKPASS` helper (git_engine::pulse::askpass_refusal): there is
+    // no one to ask, so the answer is a failure, at once and without a window.
+    if std::env::var_os(git_engine::ASKPASS_REFUSAL_VAR).is_some() {
+        std::process::exit(1);
+    }
     // Before Tauri: these commands need no window, no logging, no webview.
     if let Some(code) = desktop_entry::handle(
         std::env::args_os().skip(1),
