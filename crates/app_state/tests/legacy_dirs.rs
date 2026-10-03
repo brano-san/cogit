@@ -47,7 +47,7 @@ fn an_existing_new_folder_takes_only_the_entries_it_lacks() {
     fs::write(new.join("cogit.exe"), "").unwrap();
     fs::write(new.join("clash"), "new").unwrap();
 
-    let Migration::Merged { moved, left } = run(&old, &new) else {
+    let Migration::Merged { moved, left, .. } = run(&old, &new) else {
         panic!("expected a merge");
     };
     assert_eq!(
@@ -68,6 +68,81 @@ fn an_old_folder_emptied_by_the_merge_is_removed() {
 
     assert!(matches!(run(&old, &new), Migration::Merged { .. }));
     assert!(!old.exists());
+}
+
+fn flaky(
+    old: &Path,
+    new: &Path,
+    rename: &dyn Fn(&Path, &Path) -> std::io::Result<()>,
+) -> Migration {
+    app_state::legacy_dirs::migrate_with(
+        &[(old.to_path_buf(), new.to_path_buf())],
+        rename,
+        std::time::Duration::ZERO,
+    )
+    .remove(0)
+    .1
+}
+
+// WebView2 of the old process lives a few seconds after the installer: the first renames fail.
+#[test]
+fn a_rename_that_fails_twice_succeeds_on_the_third_try() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (old, new) = (tmp.path().join("old"), tmp.path().join("Cogit"));
+    fs::create_dir_all(&old).unwrap();
+    let calls = std::cell::Cell::new(0);
+    let outcome = flaky(&old, &new, &|from, to| {
+        calls.set(calls.get() + 1);
+        if calls.get() <= 2 {
+            return Err(std::io::Error::other("in use"));
+        }
+        fs::rename(from, to)
+    });
+    assert_eq!(outcome, Migration::Renamed);
+    assert!(new.is_dir() && !old.exists());
+}
+
+#[test]
+fn a_folder_that_cannot_be_renamed_whole_is_moved_entry_by_entry() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (old, new) = (tmp.path().join("old"), tmp.path().join("Cogit"));
+    fs::create_dir_all(&old).unwrap();
+    fs::write(old.join("settings.json"), "{}").unwrap();
+    let whole = old.clone();
+    let outcome = flaky(&old, &new, &|from, to| {
+        if from == whole {
+            return Err(std::io::Error::other("in use"));
+        }
+        fs::rename(from, to)
+    });
+    assert!(
+        matches!(&outcome, Migration::Merged { moved, left, .. } if moved == &["settings.json"] && left.is_empty()),
+        "{outcome:?}"
+    );
+    assert!(new.join("settings.json").is_file());
+}
+
+#[test]
+fn an_entry_left_by_an_error_is_told_apart_from_a_clash() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (old, new) = (tmp.path().join("old"), tmp.path().join("Cogit"));
+    fs::create_dir_all(old.join("EBWebView")).unwrap();
+    fs::write(old.join("clash"), "old").unwrap();
+    fs::create_dir_all(&new).unwrap();
+    fs::write(new.join("clash"), "new").unwrap();
+    let outcome = flaky(&old, &new, &|from, to| {
+        if from.ends_with("EBWebView") {
+            return Err(std::io::Error::other("in use"));
+        }
+        fs::rename(from, to)
+    });
+    let Migration::Merged { failed, left, .. } = outcome else {
+        panic!("expected a merge");
+    };
+    assert_eq!(
+        (failed, left),
+        (vec!["EBWebView".to_owned()], vec!["clash".to_owned()])
+    );
 }
 
 #[test]
