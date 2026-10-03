@@ -7,7 +7,19 @@ import {
   initialMessage,
   messageAfterCommit,
   afterCommit,
+  commitFailureTitle,
 } from "./commit-draft";
+
+describe("commitFailureTitle", () => {
+  it("names the repository when another one is shown by the time the refusal arrives", () => {
+    expect(commitFailureTitle("D:\\work\\alpha", "D:\\work\\beta")).toBe("Could not commit in alpha");
+  });
+
+  it("stays plain while the repository the commit was made in is still shown", () => {
+    expect(commitFailureTitle("/work/alpha", "/work/alpha")).toBe("Could not commit");
+    expect(commitFailureTitle("/work/alpha", undefined)).toBe("Could not commit");
+  });
+});
 
 describe("afterCommit", () => {
   it("resets the field and keeps the draft key when still in the same repository", () => {

@@ -243,6 +243,7 @@
   import { flow } from "$stores/flow.svelte";
   import { droppedRepositories, openDropped } from "$lib/drop-open";
   import { connect } from "$lib/wiring";
+  import { commitFailureTitle } from "$lib/commit-draft";
   import { runDiskPass } from "$lib/disk-pass";
   import { DiskPasses } from "$lib/disk-refresh";
   import { clear as freshen, mark as markStale } from "$lib/staleness";
@@ -1140,12 +1141,13 @@ ${event.error}`,
       if (!confirmed) return false;
     }
     const epoch = repository.epoch;
+    const startedIn = repository.current?.root ?? "";
     if (!noVerify) await announceHooks(id, "commit");
     try {
       await worktree.commit(id, message, amend, noVerify, scope.paths ?? []);
     } catch (err) {
       // A hook's refusal: the message stays in the box for another try.
-      errors.report(err, "Could not commit");
+      errors.report(err, commitFailureTitle(startedIn, repository.current?.root));
       return false;
     } finally {
       runningHooks = undefined;

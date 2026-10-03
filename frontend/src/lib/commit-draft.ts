@@ -1,3 +1,5 @@
+import { repoNameOf } from "./notices";
+
 /** The lines of `commit.template` that are hints to the writer. `git commit` strips them
     after the editor, and so does Cogit's commit (commit_write.rs); a `#` line of the
     user's own, like `#123 fix`, is a subject and stays. */
@@ -51,6 +53,14 @@ export function afterCommit(
   return keyAtStart === keyNow
     ? { resetField: true, forgetKey: null }
     : { resetField: false, forgetKey: keyAtStart };
+}
+
+/** A refusal (a hook, say) can arrive after the user moved on: the error is then shown over
+    another repository, so its title says which one the commit was made in. */
+export function commitFailureTitle(startedIn: string, shownNow: string | undefined): string {
+  return shownNow === undefined || shownNow === startedIn
+    ? "Could not commit"
+    : `Could not commit in ${repoNameOf(startedIn)}`;
 }
 
 /** What to keep in storage for the next start; `null` keeps nothing. The untouched
