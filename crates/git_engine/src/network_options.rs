@@ -445,37 +445,50 @@ impl RepoHandle {
         self.run_streaming(args, auth, |line| on_line(line))
     }
 
-    /// What this repository remembers for the dialogs, from its own config only.
+    /// What this repository remembers for the dialogs, from its own config only. Read
+    /// without a process: a git run would journal the whole config, secrets included.
     pub fn network_defaults(&self) -> Result<NetworkDefaults> {
-        let listing = self.run_git_reading(&["config", "--local", "--list"])?;
         let mut defaults = NetworkDefaults::default();
-        for line in listing.stdout.lines() {
-            let Some((key, value)) = line.split_once('=') else {
-                continue;
+        if let Some(value) = self.local_choice("cogit.pullMethod") {
+            defaults.pull_method = if value == "rebase" {
+                PullMethod::Rebase
+            } else {
+                PullMethod::Merge
             };
-            match key {
-                "cogit.pullmethod" => {
-                    defaults.pull_method = if value == "rebase" {
-                        PullMethod::Rebase
-                    } else {
-                        PullMethod::Merge
-                    };
-                }
-                "cogit.pulltags" => defaults.pull_tags = value == "true",
-                "cogit.pullnotes" => defaults.pull_notes = value == "true",
-                "cogit.pushtags" => {
-                    defaults.push_tags = match value {
-                        "follow" => TagsMode::Follow,
-                        "all" => TagsMode::All,
-                        _ => TagsMode::None,
-                    };
-                }
-                "cogit.pushnotes" => defaults.push_notes = value == "true",
-                "cogit.pushsetupstream" => defaults.push_set_upstream = Some(value == "true"),
-                _ => {}
-            }
         }
+        if let Some(value) = self.local_choice("cogit.pullTags") {
+            defaults.pull_tags = value == "true";
+        }
+        if let Some(value) = self.local_choice("cogit.pullNotes") {
+            defaults.pull_notes = value == "true";
+        }
+        if let Some(value) = self.local_choice("cogit.pushTags") {
+            defaults.push_tags = match value.as_str() {
+                "follow" => TagsMode::Follow,
+                "all" => TagsMode::All,
+                _ => TagsMode::None,
+            };
+        }
+        if let Some(value) = self.local_choice("cogit.pushNotes") {
+            defaults.push_notes = value == "true";
+        }
+        defaults.push_set_upstream = self
+            .local_choice("cogit.pushSetUpstream")
+            .map(|value| value == "true");
         Ok(defaults)
+    }
+
+    fn local_choice(&self, key: &str) -> Option<String> {
+        let snapshot = self.repo.config_snapshot();
+        snapshot
+            .plumbing()
+            .string_filter(key, |meta| {
+                matches!(
+                    meta.source,
+                    gix::config::Source::Local | gix::config::Source::Worktree
+                )
+            })
+            .map(|value| value.to_string())
     }
 
     pub fn save_network_defaults(&self, defaults: &NetworkDefaults) -> Result<()> {
@@ -500,12 +513,7 @@ impl RepoHandle {
             Some(on) => pairs.push(("cogit.pushSetUpstream", flag(on))),
             None => {
                 // Absent means automatic; clear it only when it is there.
-                let present = self
-                    .run_git_reading(&["config", "--local", "--list"])?
-                    .stdout
-                    .lines()
-                    .any(|line| line.starts_with("cogit.pushsetupstream="));
-                if present {
+                if self.local_choice("cogit.pushSetUpstream").is_some() {
                     self.run_git(&["config", "--local", "--unset-all", "cogit.pushSetUpstream"])?;
                 }
             }

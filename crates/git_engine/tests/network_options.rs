@@ -469,3 +469,23 @@ fn a_repository_remembers_its_choices_in_its_own_config() {
     open(&f).save_network_defaults(&automatic).unwrap();
     assert_eq!(open(&f).network_defaults().unwrap().push_set_upstream, None);
 }
+
+#[test]
+fn reading_the_remembered_choices_does_not_run_git_or_journal_the_config() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["config", "--local", "cogit.pullMethod", "rebase"])
+        .unwrap();
+    f.git(&["config", "--local", "sendemail.smtpPass", "s3cr3t"])
+        .unwrap();
+    let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let sink = std::sync::Arc::clone(&seen);
+    let repo = open(&f).with_journal(std::sync::Arc::new(move |out: git_engine::GitOutput| {
+        sink.lock().unwrap().push(out.stdout);
+    }));
+
+    assert_eq!(
+        repo.network_defaults().unwrap().pull_method,
+        PullMethod::Rebase
+    );
+    assert!(seen.lock().unwrap().is_empty());
+}
