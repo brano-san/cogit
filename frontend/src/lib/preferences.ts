@@ -538,6 +538,28 @@ export function firstMatch(query: string): string | null {
   return leaf?.id ?? null;
 }
 
+/** The page a heading opens on: its first child still shown, so a search lands on a match.
+    A heading has no page of its own; an overview would only repeat the tree below it. */
+export function firstPage(heading: string, shown: readonly string[]): string | null {
+  const page = CATEGORIES.find(
+    (category) => category.parent === heading && shown.includes(category.id),
+  );
+  return page?.id ?? null;
+}
+
+/** Where `query` occurs in `text`, case-insensitive, as [start, end) offsets, for the
+    search to mark what it found. */
+export function matchRanges(text: string, query: string): [number, number][] {
+  const needle = query.trim().toLowerCase();
+  if (needle === "") return [];
+  const haystack = text.toLowerCase();
+  const ranges: [number, number][] = [];
+  for (let at = haystack.indexOf(needle); at >= 0; at = haystack.indexOf(needle, at + needle.length)) {
+    ranges.push([at, at + needle.length]);
+  }
+  return ranges;
+}
+
 /** Which settings the draft moved. Key by key, not by serialising both sides: the
     dialog asks on every keystroke, and JSON also calls two keymaps different when they
     hold the same bindings in another order. */

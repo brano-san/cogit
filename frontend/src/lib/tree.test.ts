@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { NO_FILTER_FOLDS, flatten, shownFolds, toggle, toggleFilterFold, type TreeNode } from "./tree";
+import {
+  NO_FILTER_FOLDS,
+  flatten,
+  shownFolds,
+  toggle,
+  toggleFilterFold,
+  treeKey,
+  type TreeNode,
+} from "./tree";
 
 interface Row extends TreeNode {
   label: string;
@@ -102,5 +110,49 @@ describe("folds while filtering", () => {
   it("open again on a second click", () => {
     const twice = toggleFilterFold(toggleFilterFold(NO_FILTER_FOLDS, "x", "a"), "x", "a");
     expect([...shownFolds(stored, "x", twice)]).toEqual([]);
+  });
+});
+
+describe("treeKey", () => {
+  const rows = flatten(
+    [
+      { id: "a", depth: 0, children: true },
+      { id: "a1", depth: 1 },
+      { id: "a2", depth: 1 },
+      { id: "b", depth: 0, children: true },
+      { id: "b1", depth: 1 },
+    ],
+    new Set(["b"]),
+  );
+
+  it("moves up and down the visible rows and stops at the ends", () => {
+    expect(treeKey(rows, "a1", "ArrowDown")).toEqual({ kind: "focus", id: "a2" });
+    expect(treeKey(rows, "a1", "ArrowUp")).toEqual({ kind: "focus", id: "a" });
+    expect(treeKey(rows, "a", "ArrowUp")).toBeNull();
+    expect(treeKey(rows, "b", "ArrowDown")).toBeNull();
+    expect(treeKey(rows, "a", "End")).toEqual({ kind: "focus", id: "b" });
+    expect(treeKey(rows, "b", "Home")).toEqual({ kind: "focus", id: "a" });
+  });
+
+  it("starts at the top when nothing has the focus", () => {
+    expect(treeKey(rows, null, "ArrowDown")).toEqual({ kind: "focus", id: "a" });
+    expect(treeKey(rows, null, "Enter")).toBeNull();
+  });
+
+  it("opens a closed node with Right and steps into an open one", () => {
+    expect(treeKey(rows, "b", "ArrowRight")).toEqual({ kind: "toggle", id: "b" });
+    expect(treeKey(rows, "a", "ArrowRight")).toEqual({ kind: "focus", id: "a1" });
+    expect(treeKey(rows, "a1", "ArrowRight")).toBeNull();
+  });
+
+  it("closes an open node with Left and steps out of a child to its parent", () => {
+    expect(treeKey(rows, "a", "ArrowLeft")).toEqual({ kind: "toggle", id: "a" });
+    expect(treeKey(rows, "a2", "ArrowLeft")).toEqual({ kind: "focus", id: "a" });
+    expect(treeKey(rows, "b", "ArrowLeft")).toBeNull();
+  });
+
+  it("activates the focused row with Enter or Space", () => {
+    expect(treeKey(rows, "a2", "Enter")).toEqual({ kind: "activate", id: "a2" });
+    expect(treeKey(rows, "b", " ")).toEqual({ kind: "activate", id: "b" });
   });
 });

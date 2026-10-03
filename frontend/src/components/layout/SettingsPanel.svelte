@@ -8,12 +8,14 @@
   import {
     CATEGORIES,
     firstMatch,
+    firstPage,
+    matchRanges,
     matchingCategories,
     disabledBy,
     restoreCategory,
     restoreKeys,
   } from "$lib/preferences";
-  import type { TreeNode } from "$lib/tree";
+  import { NO_FILTER_FOLDS, shownFolds, toggle, toggleFilterFold, type TreeNode } from "$lib/tree";
   import { needsRestart, THEMES, type Settings } from "$lib/settings";
   import { isSetting, type Field } from "$lib/preferences";
   import { createGitChecker, describeCheck, type GitCheck } from "$lib/git-check";
@@ -132,6 +134,10 @@
   /** The toolbar edits made since this window opened, for the Toolbar page's Undo. */
   let toolbarHistory = $state.raw<UndoStack<readonly string[]>>(emptyStack());
   let collapsed = $state.raw<ReadonlySet<string>>(new Set());
+  /** A search opens every heading with a match; folds made while it is typed are kept
+      apart, and clearing it brings back `collapsed` untouched. */
+  let filterFolds = $state.raw(NO_FILTER_FOLDS);
+  const shown = $derived(shownFolds(collapsed, search, filterFolds));
 
   const visible = $derived(matchingCategories(search));
   const nodes = $derived(
@@ -204,6 +210,45 @@
     if (landing) active = landing;
   }
 
+  function toggleNode(id: string) {
+    if (search.trim() === "") collapsed = toggle(collapsed, id);
+    else filterFolds = toggleFilterFold(filterFolds, search, id);
+  }
+
+  /** A page opens; a heading opens or closes, and opening it also opens its first page,
+      so the content always belongs to a row the tree shows as selected. */
+  function activate(id: string) {
+    if (nodes.find((node) => node.id === id)?.leaf) {
+      active = id;
+      return;
+    }
+    const opening = shown.has(id);
+    toggleNode(id);
+    const page = opening ? firstPage(id, visible) : null;
+    if (page) active = page;
+  }
+
+  /** Marks what the search found in the tree and on the page, without touching the markup:
+      the CSS Custom Highlight API paints ranges of the text nodes already there. */
+  let panes = $state<HTMLElement>();
+  $effect(() => {
+    const query = search;
+    void [active, nodes];
+    if (!panes || typeof CSS === "undefined" || !("highlights" in CSS)) return;
+    const found = new Highlight();
+    const walker = document.createTreeWalker(panes, NodeFilter.SHOW_TEXT);
+    for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+      for (const [start, end] of matchRanges(text.textContent ?? "", query)) {
+        const range = new Range();
+        range.setStart(text, start);
+        range.setEnd(text, end);
+        found.add(range);
+      }
+    }
+    CSS.highlights.set("settings-match", found);
+    return () => CSS.highlights.delete("settings-match");
+  });
+
 </script>
 
 <Dialog
@@ -213,7 +258,7 @@
   flush
   {onclose}
 >
-  <div class="panes">
+  <div class="panes" bind:this={panes}>
     <nav aria-label="Settings categories">
       <div class="search">
         <input
@@ -227,21 +272,19 @@
       <div class="tree">
         <Tree
           {nodes}
-          {collapsed}
-          oncollapse={(next) => (collapsed = next)}
+          collapsed={shown}
+          ontoggle={toggleNode}
+          onactivate={activate}
+          selected={active}
           label="Settings categories"
         >
           {#snippet row(node)}
-            <button
-              type="button"
-              class="nav-row"
+            <!-- `holds`: the heading of the page shown, so a closed one still says where it is. -->
+            <span
+              class="title truncate"
               class:heading={!node.leaf}
-              class:active={active === node.id}
-              disabled={!node.leaf}
-              onclick={() => (active = node.id)}
+              class:holds={current?.parent === node.id}>{node.title}</span
             >
-              <span class="truncate">{node.title}</span>
-            </button>
           {/snippet}
         </Tree>
         {#if nodes.length === 0}
@@ -690,37 +733,25 @@
     overflow-y: auto;
   }
 
-  .nav-row {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-2);
-    width: 100%;
-    height: 100%;
-    padding-right: var(--sp-4);
-    background: none;
-    border: 0;
+  .title {
+    min-width: 0;
     color: var(--text-primary);
-    font: inherit;
-    font-size: var(--fs-dense);
-    text-align: left;
-    cursor: default;
   }
 
-  .nav-row:hover {
-    background: var(--state-hover);
-  }
-
-  .nav-row.active {
-    background: var(--state-selected);
-    box-shadow: inset 2px 0 0 var(--selected-bar);
-  }
-
-  .nav-row.heading {
+  .title.heading {
     color: var(--text-secondary);
     font-size: var(--fs-header);
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
+  }
+
+  .title.heading.holds {
+    color: var(--text-primary);
+  }
+
+  :global(::highlight(settings-match)) {
+    background-color: var(--search-hit);
   }
 
   .content {

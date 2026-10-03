@@ -6,6 +6,8 @@ import {
   fieldDisabled,
   isSetting,
   firstMatch,
+  firstPage,
+  matchRanges,
   matchingCategories,
   restoreCategory,
   restoreKeys,
@@ -96,6 +98,45 @@ describe("firstMatch", () => {
 
   it("is null when nothing matched", () => {
     expect(firstMatch("zzzznothing")).toBeNull();
+  });
+});
+
+describe("firstPage", () => {
+  it("opens a heading on its first page", () => {
+    expect(firstPage("advanced", ids)).toBe("window");
+    expect(firstPage("tools", ids)).toBe("cli");
+  });
+
+  it("opens on the first page the search still shows", () => {
+    expect(firstPage("ui", matchingCategories("lane width"))).toBe("graph");
+  });
+
+  it("is null for a page, or a heading with nothing shown", () => {
+    expect(firstPage("cli", ids)).toBeNull();
+    expect(firstPage("ui", [])).toBeNull();
+  });
+});
+
+describe("matchRanges", () => {
+  it("marks every occurrence, whatever the case", () => {
+    expect(matchRanges("Log level", "l")).toEqual([
+      [0, 1],
+      [4, 5],
+      [8, 9],
+    ]);
+    expect(matchRanges("Diff & Merge", " MERGE ")).toEqual([[7, 12]]);
+  });
+
+  it("marks nothing for an empty search or text that is not there", () => {
+    expect(matchRanges("Theme", "  ")).toEqual([]);
+    expect(matchRanges("Theme", "colors")).toEqual([]);
+  });
+
+  it("does not overlap repeats", () => {
+    expect(matchRanges("aaaa", "aa")).toEqual([
+      [0, 2],
+      [2, 4],
+    ]);
   });
 });
 

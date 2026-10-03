@@ -73,3 +73,47 @@ export function toggleFilterFold(folds: FilterFolds, filter: string, id: string)
   const text = filter.trim();
   return { filter: text, ids: toggle(folds.filter === text ? folds.ids : new Set(), id) };
 }
+
+/** What a key does in a tree whose rows take the focus one at a time (11 §Preferences). */
+export type TreeKey =
+  | { kind: "focus"; id: string }
+  | { kind: "toggle"; id: string }
+  | { kind: "activate"; id: string };
+
+/** Up/Down move, Home/End jump; Right opens a closed node or steps into an open one; Left
+    closes an open node or steps out to its parent; Enter and Space activate. */
+export function treeKey<T extends TreeNode>(
+  rows: readonly Flattened<T>[],
+  focus: string | null,
+  key: string,
+): TreeKey | null {
+  const at = rows.findIndex((row) => row.id === focus);
+  const row = rows[at];
+  const to = (index: number): TreeKey | null => {
+    const target = rows[index];
+    return target ? { kind: "focus", id: target.id } : null;
+  };
+  if (key === "Home") return to(0);
+  if (key === "End") return to(rows.length - 1);
+  if (!row) return key === "ArrowDown" || key === "ArrowUp" ? to(0) : null;
+  switch (key) {
+    case "ArrowDown":
+      return to(at + 1);
+    case "ArrowUp":
+      return to(at - 1);
+    case "ArrowRight":
+      if (row.open === false) return { kind: "toggle", id: row.id };
+      return row.open ? to(at + 1) : null;
+    case "ArrowLeft":
+      if (row.open) return { kind: "toggle", id: row.id };
+      for (let index = at - 1; index >= 0; index--) {
+        if ((rows[index]?.depth ?? 0) < row.depth) return to(index);
+      }
+      return null;
+    case "Enter":
+    case " ":
+      return { kind: "activate", id: row.id };
+    default:
+      return null;
+  }
+}
