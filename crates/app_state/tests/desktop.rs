@@ -3,9 +3,10 @@
 //! What the desktop is asked to do with a folder or a file. Pure, and parametrised by the
 //! platform, so the Linux and macOS answers are checked on a Windows machine too.
 
+use app_state::desktop::Launch;
 use app_state::desktop::{
     Platform, file_uri, git_shell_command, native_path, open_command, power_shell_command,
-    reveal_command, reveal_fallback, trash_command, url_command,
+    reveal_command, reveal_fallback, reveal_with, trash_command, url_command,
 };
 use app_state::terminal::{Terminal, launch_for};
 use std::path::{Path, PathBuf};
@@ -301,15 +302,73 @@ fn without_a_file_manager_service_linux_opens_the_parent_folder() {
     assert_eq!(fallback.args, ["/home/me"]);
 }
 
+// The service answers, or it does not: either way the user gets one window, and a failure
+// of both is the service's error, which says what is missing.
+#[test]
+fn reveal_falls_back_to_the_folder_only_when_the_service_fails() {
+    use std::cell::RefCell;
+    let started = RefCell::new(Vec::new());
+    let open = |l: &Launch| {
+        started
+            .borrow_mut()
+            .push((l.program.clone(), l.args.clone()));
+        Ok(())
+    };
+
+    reveal_with(Platform::Linux, "/home/me/a.txt", |_| Ok(()), open).unwrap();
+    assert!(started.borrow().is_empty(), "the service selected the file");
+
+    let down = |_: &Launch| Err(std::io::Error::other("dbus-send failed: no such service"));
+    reveal_with(Platform::Linux, "/home/me/a.txt", down, open).unwrap();
+    assert_eq!(
+        *started.borrow(),
+        [("xdg-open".to_owned(), vec!["/home/me".to_owned()])]
+    );
+
+    let none = |_: &Launch| Err(std::io::Error::other("no xdg-open"));
+    let err = reveal_with(Platform::Linux, "/home/me/a.txt", down, none).unwrap_err();
+    assert!(err.to_string().contains("no such service"), "{err}");
+}
+
+#[test]
+fn reveal_off_linux_does_not_ask_the_service() {
+    let run = |_: &Launch| -> std::io::Result<()> { panic!("no dbus here") };
+    for (platform, program) in [
+        (Platform::Windows, "explorer.exe"),
+        (Platform::MacOs, "open"),
+    ] {
+        let mut seen = None;
+        reveal_with(platform, "/x/y", run, |l| {
+            seen = Some(l.program.clone());
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(seen.as_deref(), Some(program));
+    }
+}
+
+// Any POSIX `ps` lists a parent's children as `-o pid,ppid,stat`; GNU's `--ppid` is not one.
 #[cfg(unix)]
 #[test]
 fn a_program_that_has_ended_is_not_left_a_zombie() {
-    use app_state::desktop::{Launch, spawn};
-    spawn(&Launch::plain("true", &[]), None).unwrap();
+    let quick = Launch {
+        program: "true".to_owned(),
+        args: vec![],
+        verbatim: false,
+        hidden: false,
+    };
+    app_state::desktop::spawn(&quick, None).unwrap();
     std::thread::sleep(std::time::Duration::from_secs(1));
     let ps = std::process::Command::new("ps")
-        .args(["-o", "stat=", "--ppid", &std::process::id().to_string()])
+        .args(["-A", "-o", "ppid=,stat="])
         .output()
         .unwrap();
-    assert!(!String::from_utf8_lossy(&ps.stdout).contains('Z'));
+    assert!(ps.status.success(), "ps must run, or the test says nothing");
+    let me = std::process::id().to_string();
+    let text = String::from_utf8_lossy(&ps.stdout);
+    let own: Vec<&str> = text
+        .lines()
+        .filter(|line| line.split_whitespace().next() == Some(me.as_str()))
+        .collect();
+    assert!(!own.iter().any(|line| line.contains('Z')), "{own:?}");
 }

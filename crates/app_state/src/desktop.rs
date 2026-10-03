@@ -318,13 +318,24 @@ pub fn spawn(launch: &Launch, cwd: Option<&Path>) -> std::io::Result<()> {
 /// Selects the item in the file manager. Without the `FileManager1` service on Linux
 /// `dbus-send` fails, and the folder is opened instead.
 pub fn reveal(platform: Platform, path: &str) -> std::io::Result<()> {
+    reveal_with(platform, path, run, |launch| spawn(launch, None))
+}
+
+/// `reveal` with the two ways of starting a program handed in, so the choice between the
+/// service and the folder is testable without a session bus.
+pub fn reveal_with(
+    platform: Platform,
+    path: &str,
+    run: impl FnOnce(&Launch) -> std::io::Result<()>,
+    open: impl FnOnce(&Launch) -> std::io::Result<()>,
+) -> std::io::Result<()> {
     let launch = reveal_command(platform, path);
     if platform != Platform::Linux {
-        return spawn(&launch, None);
+        return open(&launch);
     }
     run(&launch).or_else(|err| {
         tracing::warn!(error = ?err, "no file manager service, opening the folder");
-        spawn(&reveal_fallback(platform, path), None).map_err(|_| err)
+        open(&reveal_fallback(platform, path)).map_err(|_| err)
     })
 }
 

@@ -275,9 +275,15 @@ fn reveal_log(app: &tauri::AppHandle) {
         return;
     };
     let path = app_state::logging::latest_part(&context.log_path);
-    if let Err(err) = tauri_plugin_opener::OpenerExt::opener(app).reveal_item_in_dir(path) {
-        tracing::warn!(error = %err, "cannot reveal the log file");
-    }
+    // The one reveal the Show in Folder commands use; off this thread, since on Linux it
+    // waits for the file manager service to answer.
+    std::thread::spawn(move || {
+        let path = path.to_string_lossy();
+        if let Err(err) = app_state::desktop::reveal(app_state::desktop::Platform::current(), &path)
+        {
+            tracing::warn!(error = %err, "cannot reveal the log file");
+        }
+    });
 }
 
 #[cfg(test)]
