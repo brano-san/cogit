@@ -211,26 +211,33 @@ function dayNumber(timestamp: number, offsetMinutes: number): number {
   return Math.floor((timestamp + offsetMinutes * 60) / DAY_SECONDS);
 }
 
-/** `DD-MM-YY`: the short form for anything the weekday can no longer place. */
-export function shortDate(timestamp: number, offsetMinutes: number): string {
+/** `DD-MM-YY` (`DD-MM-YYYY` with `fullYear`): the form for anything the weekday can no
+    longer place. */
+export function shortDate(timestamp: number, offsetMinutes: number, fullYear = false): string {
   const shifted = new Date((timestamp + offsetMinutes * 60) * 1000);
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(shifted.getUTCDate())}-${pad(shifted.getUTCMonth() + 1)}-${pad(
-    shifted.getUTCFullYear() % 100,
-  )}`;
+  const year = shifted.getUTCFullYear();
+  return `${pad(shifted.getUTCDate())}-${pad(shifted.getUTCMonth() + 1)}-${
+    fullYear ? year : pad(year % 100)
+  }`;
 }
 
 /** Days are counted in the commit's own timezone, so the answer never depends on the
     machine reading it. Anything older than a week gets a date instead of a weekday. */
-export function smartDate(timestamp: number, offsetMinutes: number, now: number): string {
+export function smartDate(
+  timestamp: number,
+  offsetMinutes: number,
+  now: number,
+  fullYear = false,
+): string {
   const elapsed = dayNumber(now, offsetMinutes) - dayNumber(timestamp, offsetMinutes);
   if (elapsed === 0) return "Today";
   if (elapsed === 1) return "Yesterday";
   if (elapsed > 1 && elapsed < 7) {
     const shifted = new Date((timestamp + offsetMinutes * 60) * 1000);
-    return WEEKDAYS[shifted.getUTCDay()] ?? shortDate(timestamp, offsetMinutes);
+    return WEEKDAYS[shifted.getUTCDay()] ?? shortDate(timestamp, offsetMinutes, fullYear);
   }
-  return shortDate(timestamp, offsetMinutes);
+  return shortDate(timestamp, offsetMinutes, fullYear);
 }
 
 export function displayDate(

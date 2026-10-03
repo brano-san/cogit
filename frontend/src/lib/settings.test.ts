@@ -105,9 +105,9 @@ describe("themes", () => {
 });
 
 describe("graph display settings (#23)", () => {
-  it("draws the graph as it looked before they existed", () => {
+  it("draws the graph as before they existed, with the clock time beside the date", () => {
     expect(DEFAULT_SETTINGS.graphColumns).toEqual(["author", "avatar", "time", "hash"]);
-    expect(DEFAULT_SETTINGS.graphTimeFormat).toBe("date");
+    expect(DEFAULT_SETTINGS.graphTimeFormat).toBe("dateTime");
     expect(DEFAULT_SETTINGS.graphDensity).toBe("normal");
     expect(DEFAULT_SETTINGS.graphStripes).toBe(true);
     expect(DEFAULT_SETTINGS.graphShowNotes).toBe(true);
@@ -133,7 +133,11 @@ describe("graph display settings (#23)", () => {
 
   it("keeps a relative graph for a file whose only date setting said relative", () => {
     expect(merge({ dateFormat: "relative" }).graphTimeFormat).toBe("relative");
-    expect(merge({ dateFormat: "both" }).graphTimeFormat).toBe("date");
+    expect(merge({ dateFormat: "both" }).graphTimeFormat).toBe("dateTime");
+  });
+
+  it("keeps a graph time format a file saved over the dateTime default", () => {
+    expect(merge({ graphTimeFormat: "date" }).graphTimeFormat).toBe("date");
   });
 
   it("lets a stored graph time format win over the old date setting", () => {

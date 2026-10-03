@@ -49,7 +49,8 @@ export function moveColumn(rows: readonly ColumnRow[], from: number, to: number)
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-/** `date` is what the column always showed: Today, Yesterday, the weekday, then DD-MM-YY. */
+/** `date`: Today, Yesterday, the weekday, then DD-MM-YY. `dateTime` (the default) adds the
+    clock time and writes the year in full past the week: `19-10-2026 14:05`. */
 export function graphTime(
   timestamp: number,
   offsetMinutes: number,
@@ -57,8 +58,8 @@ export function graphTime(
   format: GraphTimeFormat,
 ): string {
   if (format === "relative") return relativeDate(timestamp, offsetMinutes, now);
-  const date = smartDate(timestamp, offsetMinutes, now);
-  if (format === "date") return date;
+  if (format === "date") return smartDate(timestamp, offsetMinutes, now);
+  const date = smartDate(timestamp, offsetMinutes, now, true);
   const shifted = new Date((timestamp + offsetMinutes * 60) * 1000);
   return `${date} ${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}`;
 }

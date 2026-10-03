@@ -134,7 +134,7 @@ export const DEFAULT_SETTINGS: Settings = {
   notificationsTaskbarFlash: true,
   refsShowPseudoRefs: false,
   graphColumns: ["author", "avatar", "time", "hash"],
-  graphTimeFormat: "date",
+  graphTimeFormat: "dateTime",
   graphDensity: "normal",
   graphStripes: true,
   graphShowNotes: true,

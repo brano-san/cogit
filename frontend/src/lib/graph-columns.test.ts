@@ -82,7 +82,8 @@ describe("graphTime", () => {
 
   it("adds the clock time in the commit's own timezone for dateTime", () => {
     expect(graphTime(yesterday, 0, now, "dateTime")).toBe("Yesterday 14:05");
-    expect(graphTime(old, 120, now, "dateTime")).toBe("09-09-26 10:30");
+    expect(graphTime(old, 120, now, "dateTime")).toBe("09-09-2026 10:30");
+    expect(graphTime(old, 0, now, "date")).toBe("09-09-26");
   });
 });
 
