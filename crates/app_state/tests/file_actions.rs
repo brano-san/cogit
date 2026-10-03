@@ -49,14 +49,18 @@ fn removing_from_the_repository_is_journalled() {
 }
 
 #[test]
-fn a_read_only_copy_lands_in_the_temporary_folder() {
+fn a_read_only_copy_lands_in_the_folder_it_is_given() {
     let f = test_fixtures::linear(1).unwrap();
     let state = AppState::new();
     let repo = state.open_repository(f.path()).unwrap().repo;
 
-    let copy = state.export_read_only(repo, "HEAD", "file0.txt").unwrap();
+    let dir = tempfile::tempdir().unwrap();
 
-    assert!(copy.starts_with(std::env::temp_dir()), "{}", copy.display());
+    let copy = state
+        .export_read_only(repo, "HEAD", "file0.txt", dir.path())
+        .unwrap();
+
+    assert!(copy.starts_with(dir.path()), "{}", copy.display());
     assert_eq!(std::fs::read_to_string(copy).unwrap(), "content 0\n");
 }
 

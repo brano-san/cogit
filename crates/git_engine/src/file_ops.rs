@@ -227,6 +227,17 @@ impl RepoHandle {
             .rev_parse_single(rev)
             .map_err(|err| GitError::InvalidState(format!("cannot resolve {rev}: {err}")))?
             .to_string();
+        let options = gix::validate::path::component::Options {
+            protect_windows: cfg!(windows),
+            protect_ntfs: cfg!(windows),
+            protect_hfs: cfg!(target_os = "macos"),
+        };
+        // A tree is repository data: `..` or a device name must not pick where the copy lands.
+        for part in path.split('/') {
+            gix::validate::path::component(part.into(), None, options).map_err(|err| {
+                GitError::InvalidState(format!("{path} is not a path inside the commit: {err}"))
+            })?;
+        }
         let target = dir.join(&commit[..commit.len().min(12)]).join(path);
         if target.is_file() {
             return Ok(target);

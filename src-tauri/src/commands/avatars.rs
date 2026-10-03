@@ -32,6 +32,17 @@ pub async fn avatars(
     blocking("avatars", move || Ok(state.avatars(&authors))).await
 }
 
+/// The current user's cache folder (the portable build's own, else the system's).
+pub(super) fn cache_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, GitError> {
+    match portable::layout() {
+        Some(layout) => Ok(layout.cache()),
+        None => app
+            .path()
+            .app_cache_dir()
+            .map_err(|err| GitError::Io(format!("no cache directory: {err}"))),
+    }
+}
+
 /// Turning avatars on is also what creates the cache directory: off means no directory,
 /// no request and no address leaving the machine (M14 T14.3).
 #[tauri::command]
@@ -50,14 +61,7 @@ pub async fn set_avatars(
         .await;
     }
 
-    let cache = match portable::layout() {
-        Some(layout) => layout.cache(),
-        None => app
-            .path()
-            .app_cache_dir()
-            .map_err(|err| GitError::Io(format!("no cache directory: {err}")))?,
-    };
-    let dir = cache.join("avatars");
+    let dir = cache_dir(&app)?.join("avatars");
 
     blocking("set_avatars", move || {
         state

@@ -120,14 +120,16 @@ pub async fn save_blob(
 #[tauri::command]
 #[specta::specta]
 pub async fn open_read_only(
+    app: tauri::AppHandle,
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,
     rev: String,
     path: String,
 ) -> Result<String, GitError> {
     let app_state = state.state.clone();
+    let dir = super::avatars::cache_dir(&app)?.join("view");
     blocking("open_read_only", move || {
-        app_state.open_read_only(repo, &rev, &path)
+        app_state.open_read_only(repo, &rev, &path, &dir)
     })
     .await
 }

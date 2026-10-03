@@ -421,3 +421,56 @@ fn an_untracked_file_can_be_renamed_to_another_case_of_its_name() {
     assert!(names.contains(&"Notes.txt".to_owned()), "{names:?}");
     assert!(!names.contains(&"notes.txt".to_owned()), "{names:?}");
 }
+
+fn mktree(f: &test_fixtures::Fixture, entries: &str) -> String {
+    use std::io::Write;
+    use std::process::Stdio;
+    let mut child = test_fixtures::git_command_in(f.path())
+        .arg("mktree")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(entries.as_bytes())
+        .unwrap();
+    let out = child.wait_with_output().unwrap();
+    String::from_utf8(out.stdout).unwrap().trim().to_owned()
+}
+
+#[test]
+fn a_commit_path_that_climbs_out_is_not_written_outside_the_folder() {
+    let f = test_fixtures::linear(1).unwrap();
+    let blob = f.oid("HEAD:file0.txt").unwrap();
+    let inner = mktree(&f, &format!("100644 blob {blob}\tevil.txt\n"));
+    let mid = mktree(&f, &format!("040000 tree {inner}\t..\n"));
+    let top = mktree(&f, &format!("040000 tree {mid}\t..\n"));
+    let commit = f.git(&["commit-tree", &top, "-m", "climb"]).unwrap();
+    let commit = commit.trim();
+    let dir = tempfile::tempdir().unwrap();
+    let cache = dir.path().join("a").join("b");
+
+    let err = open(&f)
+        .export_read_only(commit, "../../evil.txt", &cache)
+        .unwrap_err();
+
+    assert!(matches!(err, GitError::InvalidState(_)), "{err:?}");
+    assert!(!dir.path().join("evil.txt").exists());
+    assert!(!dir.path().join("a").join("evil.txt").exists());
+}
+
+#[cfg(windows)]
+#[test]
+fn a_commit_path_with_backslashes_or_a_device_name_is_refused() {
+    let f = test_fixtures::linear(1).unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    for path in [r"a\..\..\x", "CON", "file0.txt:stream"] {
+        let err = open(&f)
+            .export_read_only("HEAD", path, dir.path())
+            .unwrap_err();
+        assert!(matches!(err, GitError::InvalidState(_)), "{path}: {err:?}");
+    }
+}
