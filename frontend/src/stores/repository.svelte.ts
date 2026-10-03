@@ -11,6 +11,7 @@ import {
   type RepoSummary,
   toCogitError,
   workingState,
+  type WorkingState,
 } from "$lib/ipc";
 import { trace } from "$lib/trace";
 import { within } from "$lib/within";
@@ -203,6 +204,18 @@ class RepositoryStore {
       // Nothing actionable; the next full refresh reports it with its own error.
       return null;
     }
+  }
+
+  /** The counters of a read somebody else made — the file list carries them, one walk for
+      both (R-316). Returns the conflicted paths like `refreshStatus`; `null` when the
+      repository shown is another one by now. */
+  applyState(repo: RepoId, state: WorkingState): string[] | null {
+    const open = this.current;
+    if (!open || open.repo !== repo) return null;
+    // A read begun earlier would answer with older counters.
+    this.#statusRead += 1;
+    this.#replace({ ...open, status: state.status, indexLock: state.indexLock });
+    return state.conflicted;
   }
 
   /** Takes a repository somebody else opened — a submodule reached from the tree —

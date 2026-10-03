@@ -10,6 +10,7 @@ import {
   unstagePaths,
   worktreeFiles,
   type FileEntry,
+  type WorkingState,
   type RepoId,
   toCogitError,
 } from "$lib/ipc";
@@ -31,44 +32,48 @@ class WorktreeStore {
     return this.staged.length + this.unstaged.length;
   }
 
-  async load(repo: RepoId): Promise<void> {
+  /** The counters and conflicted paths of the same read; `null` when it failed or an
+      answer for another read got there first. */
+  async load(repo: RepoId): Promise<WorkingState | null> {
     const generation = ++this.#generation;
     this.error = null;
     this.loading = true;
 
     try {
       const files = await worktreeFiles(repo, backendView(filesView.current));
-      if (generation !== this.#generation) return;
+      if (generation !== this.#generation) return null;
       this.staged = files.staged;
       this.unstaged = files.unstaged;
       this.loaded = true;
+      return files.state;
     } catch (err) {
-      if (generation !== this.#generation) return;
+      if (generation !== this.#generation) return null;
       this.staged = [];
       this.unstaged = [];
       this.error = toCogitError(err);
+      return null;
     } finally {
       if (generation === this.#generation) this.loading = false;
     }
   }
 
-  async stage(repo: RepoId, paths: string[]): Promise<void> {
+  async stage(repo: RepoId, paths: string[]): Promise<WorkingState | null> {
     const everything = stagesEverything(paths, this.unstaged);
-    await this.mutate(repo, () => (everything ? stageAll(repo, paths.length) : stagePaths(repo, paths)));
+    return this.mutate(repo, () => (everything ? stageAll(repo, paths.length) : stagePaths(repo, paths)));
   }
 
-  async unstage(repo: RepoId, paths: string[]): Promise<void> {
-    await this.mutate(repo, () => unstagePaths(repo, paths));
+  async unstage(repo: RepoId, paths: string[]): Promise<WorkingState | null> {
+    return this.mutate(repo, () => unstagePaths(repo, paths));
   }
 
-  async discard(repo: RepoId, paths: string[]): Promise<void> {
-    await this.mutate(repo, () => discardPaths(repo, paths));
+  async discard(repo: RepoId, paths: string[]): Promise<WorkingState | null> {
+    return this.mutate(repo, () => discardPaths(repo, paths));
   }
 
   /** A mutation is only believed once the working tree has been read back. A refused write
       is thrown to the caller, which reports it as the write it was; `error` is only ever a
       failed read, so a read failing after a good write does not undo the write's success. */
-  async mutate(repo: RepoId, run: () => Promise<unknown>): Promise<void> {
+  async mutate(repo: RepoId, run: () => Promise<unknown>): Promise<WorkingState | null> {
     const cleared = this.#cleared;
     try {
       await run();
@@ -77,7 +82,7 @@ class WorktreeStore {
       // commit. Only the read-back below is skipped for another repository.
       throw toCogitError(err);
     }
-    if (cleared === this.#cleared) await this.load(repo);
+    return cleared === this.#cleared ? this.load(repo) : null;
   }
 
   async commit(

@@ -177,6 +177,7 @@ export type {
   RepoOverview,
   RepoState,
   RepoStatus,
+  WorkingState,
   RepoSummary,
   SafetyEntry,
   Signature,

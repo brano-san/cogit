@@ -117,9 +117,11 @@ impl RepoHandle {
         Ok(false)
     }
 
+    /// Collapsed, like the Files list: a folder of new files is one entry in both, so the
+    /// header counts and the list agree and one walk can serve both (R-316).
     fn status_items(&self) -> Result<gix::status::Iter> {
         self.status_platform()?
-            .untracked_files(UntrackedFiles::Files)
+            .untracked_files(UntrackedFiles::Collapsed)
             .into_iter(None::<gix::bstr::BString>)
             .map_err(|err| GitError::Internal(format!("cannot read status: {err}")))
     }

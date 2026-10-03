@@ -643,11 +643,11 @@ mod unstaged {
         matches(&f, 1);
     }
 
-    /// The four counters of `status()` from the same porcelain. They count untracked files,
-    /// not the folder rows the list folds them into.
+    /// The four counters of `status()` from the same porcelain. A folder of new files is one
+    /// untracked entry, as in the list: one walk feeds both (R-316).
     fn counters(f: &Fixture) -> (git_engine::RepoStatus, git_engine::RepoStatus) {
         let text = f
-            .git(&["status", "--porcelain=v2", "--untracked-files=all", "-z"])
+            .git(&["status", "--porcelain=v2", "--untracked-files=normal", "-z"])
             .unwrap();
         let mut git = git_engine::RepoStatus::default();
         let mut fields = text.split('\0').filter(|field| !field.is_empty());
@@ -688,7 +688,7 @@ mod unstaged {
             git_engine::RepoStatus {
                 staged: 2,
                 unstaged: 2,
-                untracked: 3,
+                untracked: 2,
                 conflicted: 0
             }
         );

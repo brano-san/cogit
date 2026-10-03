@@ -25,6 +25,9 @@ pub struct WorktreeFiles {
     /// Unstaged edits, untracked files and conflicts share one section, as in Git's own
     /// "Changes not staged for commit" plus "Untracked files".
     pub unstaged: Vec<FileEntry>,
+    /// The counters and conflicted paths of the same walk, so one read feeds the list and
+    /// the header (R-316).
+    pub state: crate::WorkingState,
 }
 
 impl RepoHandle {
@@ -126,6 +129,8 @@ impl RepoHandle {
             file.status != FileStatus::Untracked || !conflicted.contains(&file.path)
         });
 
+        files.state = self.state_of(&files);
+
         if view.unchanged || view.assume_unchanged || view.skipped {
             self.add_index_entries(&mut files, view)?;
         }
@@ -133,6 +138,29 @@ impl RepoHandle {
         files.staged.sort_by(|a, b| a.path.cmp(&b.path));
         files.unstaged.sort_by(|a, b| a.path.cmp(&b.path));
         Ok(files)
+    }
+
+    /// What `working_state` counts, from rows already read; ignored rows are not changes.
+    fn state_of(&self, files: &WorktreeFiles) -> crate::WorkingState {
+        let mut state = crate::WorkingState {
+            index_lock: self.index_lock(),
+            ..Default::default()
+        };
+        state.status.staged = u32::try_from(files.staged.len()).unwrap_or(u32::MAX);
+        for file in &files.unstaged {
+            match file.status {
+                FileStatus::Conflicted => {
+                    state.status.conflicted += 1;
+                    state.conflicted.push(file.path.clone());
+                }
+                FileStatus::Untracked => state.status.untracked += 1,
+                FileStatus::Ignored => {}
+                _ => state.status.unstaged += 1,
+            }
+        }
+        state.conflicted.sort();
+        state.conflicted.dedup();
+        state
     }
 
     /// The quiet side of the index: files status never mentions because nothing happened to

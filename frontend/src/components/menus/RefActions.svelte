@@ -1011,9 +1011,9 @@
     if (name === "wt-commit") commit.clear();
     else await worktree.load(id);
     await runWorkingTreeAction(name, worktree, {
-      stage: (repo, paths) => worktree.stage(repo, paths),
-      unstage: (repo, paths) => worktree.unstage(repo, paths),
-      discard: (repo, paths) => worktree.discard(repo, paths),
+      stage: async (repo, paths) => void (await worktree.stage(repo, paths)),
+      unstage: async (repo, paths) => void (await worktree.unstage(repo, paths)),
+      discard: async (repo, paths) => void (await worktree.discard(repo, paths)),
       mutate,
       confirmDiscard: (paths) =>
         confirmation.ask({

@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { ChangeKind, RepoId } from "./ipc";
 import { runDiskPass, type DiskPassContext } from "./disk-pass";
 
+const STATE = { status: { staged: 0, unstaged: 1, untracked: 0, conflicted: 0 }, conflicted: [], indexLock: null };
+
 function context(over: Partial<DiskPassContext> = {}) {
   const log: string[] = [];
+  const states: unknown[] = [];
   const note = (name: string) => () => {
     log.push(name);
     return Promise.resolve();
@@ -16,15 +19,22 @@ function context(over: Partial<DiskPassContext> = {}) {
     resetProtection: () => log.push("resetProtection"),
     hooksOpen: () => false,
     refreshHooks: () => log.push("refreshHooks"),
-    loadWorktree: note("loadWorktree"),
+    loadWorktree: () => {
+      log.push("loadWorktree");
+      return Promise.resolve(STATE);
+    },
     refreshWorktrees: () => log.push("refreshWorktrees"),
-    afterMutation: note("afterMutation"),
+    afterMutation: (state) => {
+      log.push("afterMutation");
+      states.push(state);
+      return Promise.resolve();
+    },
     refreshDiff: note("refreshDiff"),
     reselectCommit: () => log.push("reselectCommit"),
     loadGraph: note("loadGraph"),
     freshened: () => {},
   };
-  return { log, context: { ...base, ...over } };
+  return { log, states, context: { ...base, ...over } };
 }
 
 const kinds = (...list: ChangeKind[]) => new Set(list);
@@ -40,9 +50,26 @@ describe("answering watcher events", () => {
     expect(t.log.filter((name) => name === "loadWorktree")).toHaveLength(1);
   });
 
+  // The status was walked twice per pass: once for the list, once for the counters.
+  it("hands the counters of the file list to the after-step instead of walking the status again", async () => {
+    const t = context();
+
+    await runDiskPass(t.context, kinds("workingTree"));
+
+    expect(t.states).toEqual([STATE]);
+  });
+
+  it("leaves the counters to be read when no file list was", async () => {
+    const t = context({ commitSelected: () => true });
+
+    await runDiskPass(t.context, kinds("workingTree"));
+
+    expect(t.states).toEqual([null]);
+  });
+
   it("starts the graph as soon as the refs are in, before the file list is read", async () => {
     let release: () => void = () => {};
-    const files = new Promise<void>((resolve) => (release = resolve));
+    const files = new Promise<typeof STATE>((resolve) => (release = () => resolve(STATE)));
     const t = context();
     const loadWorktree = () => {
       t.log.push("loadWorktree");

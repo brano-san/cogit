@@ -1,4 +1,4 @@
-import type { ChangeKind, RepoId } from "$lib/ipc";
+import type { ChangeKind, RepoId, WorkingState } from "$lib/ipc";
 import { planFor } from "$lib/disk-change";
 import type { PanelId } from "$lib/perspectives";
 
@@ -13,10 +13,10 @@ export interface DiskPassContext {
   resetProtection: () => void;
   hooksOpen: () => boolean;
   refreshHooks: (repo: RepoId) => void;
-  loadWorktree: (repo: RepoId) => Promise<void>;
+  loadWorktree: (repo: RepoId) => Promise<WorkingState | null>;
   refreshWorktrees: (repo: RepoId) => void;
-  /** Reads the status along with everything hanging off a mutation. */
-  afterMutation: () => Promise<void>;
+  /** Everything hanging off a mutation; reads the status unless the file list just did. */
+  afterMutation: (state: WorkingState | null) => Promise<void>;
   refreshDiff: () => Promise<void>;
   reselectCommit: (repo: RepoId) => void;
   loadGraph: (repo: RepoId) => Promise<void>;
@@ -47,15 +47,16 @@ export async function runDiskPass(context: DiskPassContext, kinds: ReadonlySet<C
   }
   context.freshened(["repositories", "refs"]);
 
+  let state: WorkingState | null = null;
   if (plan.worktree && !context.commitSelected()) {
-    await context.loadWorktree(id);
+    state = await context.loadWorktree(id);
     if (left()) return;
     context.freshened(["files", "commit"]);
   }
   context.refreshWorktrees(id);
 
-  // `afterMutation` reads the status; the file list above read its own copy.
-  await context.afterMutation();
+  // The file list above carried the counters; without it `afterMutation` reads them.
+  await context.afterMutation(state);
   if (left()) return;
   context.freshened(["files", "commit"]);
   if (plan.worktree || plan.refs) await context.refreshDiff();

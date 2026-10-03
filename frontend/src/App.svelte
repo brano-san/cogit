@@ -209,6 +209,7 @@
     type AppInfo,
     type Branch,
     type RepoId,
+    type WorkingState,
   } from "$lib/ipc";
   import { openBlame } from "$lib/blame-window";
   import { ShownRepository } from "$lib/shown-repository";
@@ -580,7 +581,7 @@
     epoch: () => repository.epoch,
     report: (err) => errors.report(err, "Could not change the working tree"),
     loadWorktree: (id) => worktree.load(id),
-    after: (paths) => afterMutation(paths),
+    after: (paths, state) => afterMutation(paths, state),
   };
   diff.useMutation(mutation);
 
@@ -599,14 +600,15 @@
       watcher is quiet right after our own writes, so the file list would stay as it was. */
   async function afterWorkingTreeChange(paths: string[] = []) {
     const id = repository.current?.repo;
-    if (id) await worktree.load(id);
-    await afterMutation(paths);
+    const state = id ? await worktree.load(id) : null;
+    await afterMutation(paths, state);
   }
 
-  async function afterMutation(paths: string[] = []) {
+  /** `state`: the counters from a file-list read made just before, so one walk serves both. */
+  async function afterMutation(paths: string[] = [], state: WorkingState | null = null) {
     diff.dropIfAffected(paths);
-    const conflicted = await repository.refreshStatus();
     const id = repository.current?.repo;
+    const conflicted = state && id ? repository.applyState(id, state) : await repository.refreshStatus();
     // One store that cannot read must not cancel the others, nor the diff and the graph
     // after them.
     const settled = await Promise.allSettled([
@@ -1011,7 +1013,7 @@ ${event.error}`,
         refreshHooks: (id) => void hooks.refresh(id),
         loadWorktree: (id) => worktree.load(id),
         refreshWorktrees: (id) => void worktrees.refresh(id),
-        afterMutation,
+        afterMutation: (state) => afterMutation([], state),
         refreshDiff: () => diff.refreshFromDisk(),
         reselectCommit: (id) => {
           if (commit.oid) void commit.select(id, commit.oid);
@@ -1182,9 +1184,9 @@ ${event.error}`,
     await repository.refreshRefs();
     if (repository.epoch !== epoch) return;
     void graph.load(id, graph.query);
-    await worktree.load(id);
+    const state = await worktree.load(id);
     if (repository.epoch !== epoch) return;
-    await afterMutation();
+    await afterMutation([], state);
   }
 
   const refTreeBase = $derived({

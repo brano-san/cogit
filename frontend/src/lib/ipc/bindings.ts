@@ -2560,6 +2560,11 @@ export type WorktreeFiles_Deserialize = {
 	 *  "Changes not staged for commit" plus "Untracked files".
 	 */
 	unstaged: FileEntry_Deserialize[],
+	/**
+	 *  The counters and conflicted paths of the same walk, so one read feeds the list and
+	 *  the header (R-316).
+	 */
+	state: WorkingState,
 };
 
 export type WorktreeFiles_Serialize = {
@@ -2569,6 +2574,11 @@ export type WorktreeFiles_Serialize = {
 	 *  "Changes not staged for commit" plus "Untracked files".
 	 */
 	unstaged: FileEntry_Serialize[],
+	/**
+	 *  The counters and conflicted paths of the same walk, so one read feeds the list and
+	 *  the header (R-316).
+	 */
+	state: WorkingState,
 };
 
 /**

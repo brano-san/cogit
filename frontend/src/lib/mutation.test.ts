@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { runMutation, type MutationContext } from "./mutation";
 
 const REPO = 7 as never;
+const STATE = { status: { staged: 1, unstaged: 0, untracked: 0, conflicted: 0 }, conflicted: [], indexLock: null };
 
 function context(overrides: Partial<MutationContext> = {}) {
   const calls: string[] = [];
@@ -10,7 +11,10 @@ function context(overrides: Partial<MutationContext> = {}) {
     repo: () => REPO,
     epoch: () => epoch,
     report: vi.fn(() => calls.push("report")),
-    loadWorktree: vi.fn(async () => void calls.push("worktree_files")),
+    loadWorktree: vi.fn(async () => {
+      calls.push("worktree_files");
+      return STATE;
+    }),
     after: vi.fn(async () => void calls.push("after")),
   };
   return { calls, leave: () => (epoch += 1), context: { ...base, ...overrides } };
@@ -23,7 +27,16 @@ describe("runMutation", () => {
     expect(await runMutation(c, async () => void calls.push("write"), ["a"], false)).toBe(true);
 
     expect(calls).toEqual(["write", "worktree_files", "after"]);
-    expect(c.after).toHaveBeenCalledWith(["a"]);
+    // The counters ride along with the list: no second walk of the status for them.
+    expect(c.after).toHaveBeenCalledWith(["a"], STATE);
+  });
+
+  it("hands on the counters a step that read the list back returned", async () => {
+    const { context: c } = context();
+
+    await runMutation(c, async () => STATE, ["a"], true);
+
+    expect(c.after).toHaveBeenCalledWith(["a"], STATE);
   });
 
   // Staging read the list twice: once in the worktree store, once here.

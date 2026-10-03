@@ -59,7 +59,7 @@
     repo: () => request?.repo ?? null,
     epoch: () => 0,
     report: (err) => errors.report(err, "Could not change the working tree"),
-    loadWorktree: async () => {},
+    loadWorktree: async () => null,
     after: async (paths) => {
       await diff.reload();
       if (request) await announceTreeChange({ repo: request.repo, path: paths[0] ?? request.path });

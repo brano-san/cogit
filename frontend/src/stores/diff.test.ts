@@ -402,7 +402,7 @@ describe("discarding lines ends like any other change to the working tree", () =
   });
 
   it("reads the file list and the journal again afterwards", async () => {
-    const loadWorktree = vi.fn(async () => {});
+    const loadWorktree = vi.fn(async () => null);
     const after = vi.fn(async () => {});
     diff.useMutation({ repo: () => REPO, epoch: () => 0, report: vi.fn(), loadWorktree, after });
     await diff.load(REPO, SPEC, "a.txt");
@@ -412,7 +412,7 @@ describe("discarding lines ends like any other change to the working tree", () =
 
     expect(commands.discardSelection).toHaveBeenCalledOnce();
     expect(loadWorktree).toHaveBeenCalledWith(REPO);
-    expect(after).toHaveBeenCalledWith(["a.txt"]);
+    expect(after).toHaveBeenCalledWith(["a.txt"], null);
   });
 
   it("reports a refusal where every other failed change goes", async () => {
