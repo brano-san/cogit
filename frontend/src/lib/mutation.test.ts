@@ -54,6 +54,20 @@ describe("runMutation", () => {
     expect(calls).toEqual([]);
   });
 
+  // An editor opened on A saves after B became current: the write goes to A and B's panels
+  // are not refreshed for it.
+  it("writes to the repository it was given and refreshes nothing once another is shown", async () => {
+    const step = vi.fn(async () => {});
+    const other = 8 as never;
+    const { context: c } = context({ repo: () => other });
+
+    expect(await runMutation(c, step, ["a"], false, REPO)).toBe(true);
+
+    expect(step).toHaveBeenCalledWith(REPO);
+    expect(c.loadWorktree).not.toHaveBeenCalled();
+    expect(c.after).not.toHaveBeenCalled();
+  });
+
   it("does nothing without a repository", async () => {
     const step = vi.fn(async () => {});
     const { context: c } = context({ repo: () => null });

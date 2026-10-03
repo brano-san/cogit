@@ -18,8 +18,10 @@ export async function runMutation(
   step: (repo: RepoId) => Promise<unknown>,
   paths: string[],
   readsBack: boolean,
+  /** The repository a dialog was opened on, when that may no longer be the shown one. */
+  repo?: RepoId,
 ): Promise<boolean> {
-  const id = context.repo();
+  const id = repo ?? context.repo();
   if (!id) return false;
   const epoch = context.epoch();
   try {
@@ -28,7 +30,7 @@ export async function runMutation(
     context.report(err);
     return false;
   }
-  if (context.epoch() !== epoch) return true;
+  if (context.epoch() !== epoch || context.repo() !== id) return true;
   if (!readsBack) await context.loadWorktree(id);
   await context.after(paths);
   return true;

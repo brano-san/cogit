@@ -570,8 +570,9 @@
     step: (repo: import("$lib/ipc").RepoId) => Promise<unknown>,
     paths: string[] = [],
     readsBack = false,
+    repo?: import("$lib/ipc").RepoId,
   ): Promise<boolean> {
-    return runMutation(mutation, step, paths, readsBack);
+    return runMutation(mutation, step, paths, readsBack, repo);
   }
 
   /** For a change `mutate` did not make: resolving a conflict, an Undo from the journal,
@@ -2078,6 +2079,8 @@ ${event.error}`,
   let aboutOpen = $state(false);
   let configEdit = $state.raw<{
     scope: import("$lib/ipc").ConfigScope;
+    /** The repository the text was read from; saving writes there, not to the shown one. */
+    repo: import("$lib/ipc").RepoId | null;
     file: import("$lib/ipc").ConfigFile;
     problem: { line: number | null; message: string } | null;
     saving: boolean;
@@ -2086,8 +2089,12 @@ ${event.error}`,
   async function openConfig(scope: import("$lib/ipc").ConfigScope) {
     const id = scope === "repository" ? (repository.current?.repo ?? null) : null;
     if (scope === "repository" && id === null) return;
+    const epoch = repository.epoch;
     try {
-      configEdit = { scope, file: await readGitConfig(id, scope), problem: null, saving: false };
+      const file = await readGitConfig(id, scope);
+      // Left for another repository while reading: the dialog would show a stale file.
+      if (scope === "repository" && repository.epoch !== epoch) return;
+      configEdit = { scope, repo: id, file, problem: null, saving: false };
     } catch (err) {
       errors.report(err, "Could not read the Git config");
     }
@@ -2098,10 +2105,9 @@ ${event.error}`,
   async function saveConfig(text: string) {
     const edit = configEdit;
     if (!edit) return;
-    const id = edit.scope === "repository" ? (repository.current?.repo ?? null) : null;
     configEdit = { ...edit, saving: true };
     try {
-      await writeGitConfig(id, edit.scope, text, edit.file.crlf);
+      await writeGitConfig(edit.repo, edit.scope, text, edit.file.crlf);
     } catch (err) {
       const detail = (err as { detail?: import("$lib/ipc").GitError }).detail;
       if (detail?.kind === "configInvalid") {
@@ -2113,7 +2119,7 @@ ${event.error}`,
       return;
     }
     configEdit = null;
-    if (repository.current) {
+    if (repository.current && (edit.repo === null || edit.repo === repository.current.repo)) {
       await repository.refresh();
       await afterMutation();
     }
@@ -2254,6 +2260,8 @@ ${event.error}`,
 
   let indexEditing = $state.raw<{
     path: string;
+    /** The repository the sides were read from; saving writes there. */
+    repo: import("$lib/ipc").RepoId;
     sides: import("$lib/ipc/file-menus").IndexEditorSides;
     saving: boolean;
   } | null>(null);
@@ -2261,8 +2269,11 @@ ${event.error}`,
   async function openIndexEditor(path: string) {
     const id = repository.current?.repo;
     if (!id) return;
+    const epoch = repository.epoch;
     try {
-      indexEditing = { path, sides: await fileMenus.indexEditorSides(id, path), saving: false };
+      const sides = await fileMenus.indexEditorSides(id, path);
+      if (repository.epoch !== epoch) return;
+      indexEditing = { path, repo: id, sides, saving: false };
     } catch (err) {
       errors.report(err, "Could not read the file for the Index Editor");
     }
@@ -2275,6 +2286,8 @@ ${event.error}`,
     const saved = await mutate(
       (id) => fileMenus.writeIndexEditor(id, open.path, edited.index, edited.worktree),
       [open.path],
+      false,
+      open.repo,
     );
     indexEditing = saved ? null : { ...open, saving: false };
   }
