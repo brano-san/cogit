@@ -4,6 +4,8 @@ import {
   checkAvailability,
   filterRows,
   folderPlan,
+  forgetMissing,
+  forgetMissingQuestion,
   keepSelection,
   missingPaths,
   moveSelection,
@@ -190,6 +192,27 @@ describe("missing repositories", () => {
 
   it("Remove All Missing takes the rows not found or no longer a repository", () => {
     expect(missingPaths(rows, availability)).toEqual(["gone", "plain"]);
+  });
+
+  it("Remove All Missing asks first, naming how many go", () => {
+    expect(forgetMissingQuestion(["a", "b", "c"]).message).toBe("Remove 3 missing repositories from the list?");
+    expect(forgetMissingQuestion(["a"]).message).toBe("Remove 1 missing repository from the list?");
+  });
+
+  it("Remove All Missing removes only on a yes and asks nothing when none is missing", async () => {
+    const forgotten: string[][] = [];
+    const forget = (paths: readonly string[]) => void forgotten.push([...paths]);
+    let asked = 0;
+    const answer = (yes: boolean) => () => {
+      asked += 1;
+      return Promise.resolve(yes);
+    };
+    await forgetMissing(["gone"], answer(false), forget);
+    expect(forgotten).toEqual([]);
+    await forgetMissing(["gone", "plain"], answer(true), forget);
+    expect(forgotten).toEqual([["gone", "plain"]]);
+    await forgetMissing([], answer(true), forget);
+    expect(asked).toBe(2);
   });
 
   it("Open has nothing to open without a selection or on a missing row", () => {

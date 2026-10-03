@@ -165,6 +165,21 @@ export function missingPaths(rows: readonly MruRow[], availability: ReadonlyMap<
   return rows.filter((row) => isUnavailable(availability.get(row.path))).map((row) => row.path);
 }
 
+/** "Remove All Missing" asks first, naming how many go; "Remove from List" for one row does not. */
+export function forgetMissingQuestion(paths: readonly string[]) {
+  const what = paths.length === 1 ? "1 missing repository" : `${paths.length} missing repositories`;
+  return { title: "Remove All Missing", message: `Remove ${what} from the list?`, confirm: "Remove", items: paths };
+}
+
+/** Nothing is asked when nothing is missing; the paths go only on a yes. */
+export async function forgetMissing(
+  paths: readonly string[],
+  ask: (question: ReturnType<typeof forgetMissingQuestion>) => Promise<boolean>,
+  forget: (paths: readonly string[]) => void,
+): Promise<void> {
+  if (paths.length > 0 && (await ask(forgetMissingQuestion(paths)))) forget(paths);
+}
+
 /** What Open (or Enter, or a double click) opens: the selected row, unless it is gone. */
 export function openTarget(
   rows: readonly MruRow[],

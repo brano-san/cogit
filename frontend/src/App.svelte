@@ -63,6 +63,7 @@
   import {
     filterRows,
     folderPlan,
+    forgetMissing,
     missingPaths,
     mruRows,
     pathKey,
@@ -3016,9 +3017,16 @@ ${event.error}`,
     if (path !== null && welcome.open) forgetWelcomePaths([path]);
   }
 
-  function forgetMissingWelcome() {
+  async function forgetMissingWelcome() {
     welcomeTarget = null;
-    if (welcome.open) forgetWelcomePaths(missingPaths(welcomeRows, welcome.availability));
+    if (!welcome.open) return;
+    await forgetMissing(
+      missingPaths(welcomeRows, welcome.availability),
+      (question) => confirmation.ask(question),
+      (paths) => {
+        if (welcome.open) forgetWelcomePaths(paths);
+      },
+    );
   }
 
   async function welcomeContext(path: string, x: number, y: number) {
