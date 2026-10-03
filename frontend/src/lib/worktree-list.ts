@@ -59,6 +59,11 @@ export function listedRows(entries: readonly WorktreeEntry[]): readonly Worktree
   return entries.some((entry) => !entry.isMain) ? entries : [];
 }
 
+/** The header's `Worktrees (N)`: the linked ones, as `git worktree list` minus the main. */
+export function linkedCount(entries: readonly WorktreeEntry[]): number {
+  return entries.filter((entry) => !entry.isMain).length;
+}
+
 export function hasStale(entries: readonly WorktreeEntry[]): boolean {
   return entries.some((entry) => entry.missing);
 }

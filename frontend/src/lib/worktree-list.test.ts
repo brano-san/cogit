@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Branch, FileEntry, WorktreeEntry } from "$lib/ipc";
 import {
   hasStale,
+  linkedCount,
   listedRows,
   othersToWatch,
   removable,
@@ -77,6 +78,14 @@ describe("listedRows", () => {
   it("shows the main one too once there is a linked one", () => {
     const linked = entry({ path: "E:/w/x" });
     expect(listedRows([main, linked])).toEqual([main, linked]);
+  });
+});
+
+// The header said "Worktrees (2)" for the main worktree and one linked one.
+describe("linkedCount", () => {
+  it("counts the linked worktrees, not the main one", () => {
+    expect(linkedCount([entry({ isMain: true })])).toBe(0);
+    expect(linkedCount([entry({ isMain: true }), entry(), entry({ missing: true })])).toBe(2);
   });
 });
 

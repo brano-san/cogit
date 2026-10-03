@@ -46,7 +46,7 @@ export function worktreeMenu(entry: WorktreeEntry): ContextItem[] {
 export function worktreeHeaderMenu(entries: readonly WorktreeEntry[]): ContextItem[] {
   return [
     item("worktree-add", "Add Worktree…"),
-    offer("worktree-prune", "Prune All", hasStale(entries) ? null : "no worktree is missing"),
+    offer("worktree-prune", "Prune All…", hasStale(entries) ? null : "no worktree is missing"),
   ];
 }
 
