@@ -74,6 +74,23 @@ export function fromVirtual(virtual: number, scale: number): number {
   return virtual / scale;
 }
 
+/** The `scrollTop` that keeps the same list offset when the scale changes under the list: the
+    history grows while it is walked, and `k` with it, so the element's own offset would
+    stand for a place `k_new / k_old` times further on (GH-09). */
+export function rescaledScrollTop(real: number, from: number, to: number): number {
+  return fromVirtual(toVirtual(real, from), to);
+}
+
+/** How far a wheel event moves the list, in the list's own pixels. The element does the
+    scaling itself once the list is taller than the cap — a notch would then jump `k` times
+    as many rows — so a scaled list takes the wheel over and moves by what an unscaled one
+    would: pixels as given, lines and pages in rows and viewports. */
+export function wheelStep(delta: number, mode: number, rowHeight: number, viewportHeight: number): number {
+  if (mode === 1) return delta * rowHeight;
+  if (mode === 2) return delta * viewportHeight;
+  return delta;
+}
+
 /** Clamped again here: the canvas must stay drawable whatever the settings file holds. */
 export function setLaneWidth(px: number): void {
   laneWidth = Math.min(Math.max(Math.round(px), LANE_WIDTH.min), LANE_WIDTH.max);

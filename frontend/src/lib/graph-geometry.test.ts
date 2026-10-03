@@ -20,6 +20,8 @@ import {
   visibleRange,
   MAX_SCROLL_PX,
   scrollScale,
+  rescaledScrollTop,
+  wheelStep,
   toVirtual,
   fromVirtual,
   HEADER_ROWS,
@@ -618,6 +620,33 @@ describe("a list taller than the layout limit", () => {
     expect(fromVirtual(centreRow(rows - 1, viewport, rowHeight, rows), k)).toBeLessThanOrEqual(
       realFurthest,
     );
+  });
+
+  // The history grows while it is walked: the element keeps its scrollTop, the scale changes.
+  it("keeps the same row at the top when the history grows and the scale with it", () => {
+    const rowHeight = 24;
+    const before = scrollScale(400_000 * rowHeight, viewport);
+    const after = scrollScale(900_000 * rowHeight, viewport);
+    expect(after).toBeGreaterThan(before);
+
+    const real = fromVirtual(200_000 * rowHeight, before);
+    const moved = rescaledScrollTop(real, before, after);
+
+    // Without it the element offset `real` stood for `after / before` times as far.
+    expect(Math.floor(toVirtual(real, after) / rowHeight)).toBeGreaterThan(200_000);
+    expect(Math.floor(toVirtual(moved, after) / rowHeight)).toBe(200_000);
+  });
+
+  it("keeps the offset when a list stops being scaled, too", () => {
+    expect(rescaledScrollTop(1000, 2, 1)).toBe(2000);
+    expect(rescaledScrollTop(1000, 1, 1)).toBe(1000);
+  });
+
+  // Past the cap the element moves k times as far per notch; the wheel is taken over.
+  it("steps the wheel by pixels, lines or pages as an unscaled list would", () => {
+    expect(wheelStep(100, 0, 24, 600)).toBe(100);
+    expect(wheelStep(3, 1, 24, 600)).toBe(72);
+    expect(wheelStep(-1, 2, 24, 600)).toBe(-600);
   });
 
   it("round-trips a position", () => {

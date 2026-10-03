@@ -18,6 +18,8 @@
     centreRow,
     MAX_SCROLL_PX,
     scrollScale,
+    rescaledScrollTop,
+    wheelStep,
     toVirtual,
     fromVirtual,
     clickedCommit,
@@ -300,6 +302,25 @@
   function writeScroll(offset: number) {
     if (scroller) scroller.scrollTop = fromVirtual(offset, scale);
   }
+  /** The history grows while it is walked, and so does `scale`: the element keeps its own
+      offset, which would now stand for a place further on (GH-09). */
+  let drawnScale = 1;
+  $effect(() => {
+    const next = scale;
+    const before = drawnScale;
+    drawnScale = next;
+    if (next === before || !scroller) return;
+    scroller.scrollTop = rescaledScrollTop(scroller.scrollTop, before, next);
+  });
+
+  /** Past the cap the element would move `scale` times as far per notch; the wheel is ours. */
+  function onwheel(event: WheelEvent) {
+    if (!scroller || scale === 1 || event.ctrlKey || event.shiftKey) return;
+    if (Math.abs(event.deltaY) < Math.abs(event.deltaX)) return;
+    event.preventDefault();
+    writeScroll(readScroll() + wheelStep(event.deltaY, event.deltaMode, rowHeight, viewportHeight));
+  }
+
   const range = $derived(
     visibleRange(scrollTop, viewportHeight, rowHeight, listRows, BUFFER_ROWS),
   );
@@ -729,6 +750,7 @@
     bind:this={scroller}
     use:pointerDrag={commitDrag}
     {onscroll}
+    {onwheel}
     {onclick}
     {ondblclick}
     {oncontextmenu}
