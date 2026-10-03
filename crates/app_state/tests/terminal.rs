@@ -135,6 +135,12 @@ mod windows {
     }
 
     #[test]
+    fn a_semicolon_in_the_directory_does_not_start_a_second_wt_command() {
+        let (_, args) = command_for(Terminal::WindowsTerminal, r"C:\work\x;notepad");
+        assert_eq!(args, ["-d", r"C:\work\x\;notepad"]);
+    }
+
+    #[test]
     fn powershell_stays_open_and_inherits_the_directory() {
         let (program, args) = command_for(Terminal::PowerShell, PATH);
         assert_eq!(program, "powershell.exe");

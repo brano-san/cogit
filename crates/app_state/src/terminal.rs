@@ -72,10 +72,14 @@ pub fn command_for(
     git_bash: Option<&Path>,
 ) -> (String, Vec<String>) {
     match kind {
-        // `wt` starts in its own configured directory unless told otherwise.
+        // `wt` starts in its own configured directory unless told otherwise, and reads an
+        // unescaped `;` anywhere in its command line as the start of another command.
         Terminal::WindowsTerminal => (
             "wt.exe".to_owned(),
-            vec!["-d".to_owned(), native_path(platform, path)],
+            vec![
+                "-d".to_owned(),
+                native_path(platform, path).replace(';', "\\;"),
+            ],
         ),
         Terminal::PowerShell => ("powershell.exe".to_owned(), vec!["-NoExit".to_owned()]),
         Terminal::Cmd => ("cmd.exe".to_owned(), vec!["/K".to_owned()]),
