@@ -228,3 +228,43 @@ fn a_clean_pulse_retires_a_dirty_row_of_a_repository_not_watched() {
 
     assert!(!dirty(&state), "the row follows the pulse");
 }
+
+// notify drops its watch when the folder is removed and says nothing; a repository cloned
+// again into the same path stayed unwatched until another one was shown and this one again.
+#[test]
+fn a_repository_recreated_in_its_folder_is_watched_again_after_a_reread() {
+    let fixture = test_fixtures::linear(1).unwrap();
+    let root = fixture.path().to_path_buf();
+    let state = AppState::new();
+    let repo = state.open_repository(&root).unwrap().repo;
+    state.show_repository(Some(repo));
+    let mut events = state.subscribe();
+
+    for entry in std::fs::read_dir(&root).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            let _ = std::fs::remove_dir_all(&path);
+        } else {
+            let _ = std::fs::remove_file(&path);
+        }
+    }
+    std::fs::remove_dir(&root).unwrap();
+    std::thread::sleep(SETTLE);
+    std::fs::create_dir(&root).unwrap();
+    let init = std::process::Command::new("git")
+        .args(["init", "-q"])
+        .current_dir(&root)
+        .status()
+        .unwrap();
+    assert!(init.success());
+    state.reread_repository(repo).unwrap();
+    while events.try_recv().is_ok() {}
+
+    std::fs::write(root.join(".git/HEAD"), "ref: refs/heads/other\n").unwrap();
+
+    assert!(heard(
+        &mut events,
+        repo,
+        test_fixtures::scaled(Duration::from_secs(5))
+    ));
+}

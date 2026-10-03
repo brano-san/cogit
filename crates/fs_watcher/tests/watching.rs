@@ -557,3 +557,14 @@ fn reading_head_is_not_a_change() {
     assert!(seen.is_empty(), "a read is not a change, got {seen:?}");
     still_hears(&harness);
 }
+
+#[test]
+fn a_removed_folder_ends_the_watch() {
+    let harness = start();
+    assert!(harness.watcher.is_alive());
+
+    std::fs::remove_dir_all(&harness.root).unwrap();
+
+    let _ = collect(&harness);
+    assert!(!harness.watcher.is_alive());
+}

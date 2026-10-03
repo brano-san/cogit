@@ -37,8 +37,26 @@ impl AppState {
         *self.shown.lock() == Some(repo)
     }
 
+    /// A watcher whose folder went away is not watching: it is dropped, outside the lock
+    /// (R-126), so that the next start replaces it.
+    fn is_watched(&self, repo: RepoId) -> bool {
+        let dead = {
+            let mut watchers = self.watchers.write();
+            if watchers
+                .get(&repo)
+                .is_some_and(|watcher| !watcher.is_alive())
+            {
+                watchers.remove(&repo)
+            } else {
+                return watchers.contains_key(&repo);
+            }
+        };
+        drop(dead);
+        false
+    }
+
     fn watch_again(&self, repo: RepoId) -> bool {
-        if self.watchers.read().contains_key(&repo) {
+        if self.is_watched(repo) {
             return false;
         }
         let handle = match self.handle(repo) {
@@ -110,7 +128,7 @@ impl AppState {
         git_dir: &Path,
         common_dir: &Path,
     ) {
-        if self.watchers.read().contains_key(&repo) || !self.is_shown(repo) {
+        if self.is_watched(repo) || !self.is_shown(repo) {
             return;
         }
         let events = self.events.clone();

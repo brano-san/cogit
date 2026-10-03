@@ -19,6 +19,9 @@ pub struct RepoWatcher {
     paused: Arc<AtomicBool>,
     quiet_until: Arc<Mutex<Option<Instant>>>,
     held: Arc<AtomicUsize>,
+    /// Cleared when the watched folder is removed or moved: notify drops its watch then and
+    /// says nothing more.
+    alive: Arc<AtomicBool>,
     /// Why the working tree is not watched, when the watch of the root was refused.
     degraded: Option<String>,
     /// Dropping the watcher closes the channel, which ends the debounce thread.
@@ -49,6 +52,7 @@ impl RepoWatcher {
         let paused = Arc::new(AtomicBool::new(false));
         let quiet_until = Arc::new(Mutex::new(None));
         let held = Arc::new(AtomicUsize::new(0));
+        let alive = Arc::new(AtomicBool::new(true));
         let route = Route {
             root: root.to_path_buf(),
             git_dir: git_dir.to_path_buf(),
@@ -56,6 +60,7 @@ impl RepoWatcher {
             paused: Arc::clone(&paused),
             quiet_until: Arc::clone(&quiet_until),
             held: Arc::clone(&held),
+            alive: Arc::clone(&alive),
         };
 
         let (tx, rx) = mpsc::channel::<notify::Result<Event>>();
@@ -127,6 +132,7 @@ impl RepoWatcher {
             paused,
             quiet_until,
             held,
+            alive,
             degraded,
             _watcher: debouncer,
         })
@@ -152,6 +158,12 @@ impl RepoWatcher {
             held: Arc::clone(&self.held),
             quiet_until: Arc::clone(&self.quiet_until),
         }
+    }
+
+    /// `false` once the folder was removed or moved away; the repository has to be watched anew.
+    #[must_use]
+    pub fn is_alive(&self) -> bool {
+        self.alive.load(Ordering::Relaxed)
     }
 
     /// Whether a quiet window is open right now.
@@ -195,8 +207,10 @@ fn debounce(
     while let Ok(first) = rx.recv() {
         let deadline = Instant::now() + window;
         let mut seen: Vec<(ChangeKind, PathBuf)> = Vec::new();
+        let mut removed = false;
         let mut next = Some(first);
         while let Some(received) = next {
+            removed |= matches!(&received, Ok(event) if matches!(event.kind, EventKind::Remove(_)));
             route.absorb(received, &mut seen);
             let left = deadline.saturating_duration_since(Instant::now());
             next = if left.is_zero() {
@@ -204,6 +218,11 @@ fn debounce(
             } else {
                 rx.recv_timeout(left).ok()
             };
+        }
+        // Windows says nothing when it drops the watch of a folder that went away.
+        if removed && route.alive.load(Ordering::Relaxed) && !route.root.is_dir() {
+            route.alive.store(false, Ordering::Relaxed);
+            everything(&mut seen);
         }
         for (kind, path) in seen {
             // The first path per kind per batch: a refresh that feeds itself shows here.
@@ -260,6 +279,7 @@ struct Route {
     paused: Arc<AtomicBool>,
     quiet_until: Arc<Mutex<Option<Instant>>>,
     held: Arc<AtomicUsize>,
+    alive: Arc<AtomicBool>,
 }
 
 impl Route {
@@ -275,6 +295,19 @@ impl Route {
     /// `dtv_device` came from (problem 5). Noise is dropped as events arrive, so a window
     /// keeps at most one entry per kind, however large the burst.
     fn absorb(&self, received: notify::Result<Event>, seen: &mut Vec<(ChangeKind, PathBuf)>) {
+        if let Ok(event) = &received
+            && matches!(
+                event.kind,
+                EventKind::Remove(_) | EventKind::Modify(notify::event::ModifyKind::Name(_))
+            )
+            && event
+                .paths
+                .iter()
+                .any(|path| *path == self.root || *path == self.git_dir)
+        {
+            self.alive.store(false, Ordering::Relaxed);
+            return everything(seen);
+        }
         // Judged when the event is taken off the channel, not when its window closes: a
         // stranger's write a moment before our own mutation must still get through.
         if self.paused.load(Ordering::Relaxed) || self.is_quiet() {
@@ -412,6 +445,7 @@ mod tests {
             paused: Arc::new(AtomicBool::new(false)),
             quiet_until: Arc::new(Mutex::new(None)),
             held: Arc::new(AtomicUsize::new(0)),
+            alive: Arc::new(AtomicBool::new(true)),
         }
     }
 
@@ -557,6 +591,23 @@ mod tests {
     }
 
     #[test]
+    fn a_removed_root_ends_the_watch_and_marks_everything() {
+        let route = route();
+        let mut seen = Vec::new();
+
+        route.absorb(
+            event(
+                EventKind::Remove(notify::event::RemoveKind::Folder),
+                route.root.clone(),
+            ),
+            &mut seen,
+        );
+
+        assert!(!route.alive.load(Ordering::Relaxed));
+        assert!(!seen.is_empty());
+    }
+
+    #[test]
     fn a_lost_queue_marks_everything_as_changed() {
         let route = route();
         let overflow = Event::new(EventKind::Other).set_flag(notify::event::Flag::Rescan);
@@ -615,6 +666,7 @@ mod tests {
             paused: Arc::new(AtomicBool::new(false)),
             quiet_until: Arc::new(Mutex::new(None)),
             held: Arc::new(AtomicUsize::new(0)),
+            alive: Arc::new(AtomicBool::new(true)),
         };
 
         let main = [
