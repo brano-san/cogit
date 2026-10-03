@@ -24,7 +24,12 @@ const LEVELS: &[&str] = &["error", "warn", "info", "debug", "trace"];
 
 #[must_use]
 pub fn start_label() -> String {
-    chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string()
+    // The pid: two instances started in one second must not share a name.
+    format!(
+        "{}_{}",
+        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S"),
+        std::process::id()
+    )
 }
 
 /// `cogit-<start>.log`, then `cogit-<start>.2.log` past the limit (doc/12-risks.md, R-159).
@@ -51,11 +56,7 @@ impl SessionLog {
         keep: usize,
     ) -> std::io::Result<Self> {
         std::fs::create_dir_all(dir)?;
-        let mut part = 1;
-        while dir.join(file_name(started, part)).exists() {
-            part += 1;
-        }
-        let file = std::fs::File::create(dir.join(file_name(started, part)))?;
+        let (part, file) = create_part(dir, started, 1)?;
         let log = Self {
             dir: dir.to_path_buf(),
             started: started.to_owned(),
@@ -76,8 +77,7 @@ impl SessionLog {
 
     fn roll(&mut self) -> std::io::Result<()> {
         self.file.flush()?;
-        self.part += 1;
-        self.file = std::fs::File::create(self.path())?;
+        (self.part, self.file) = create_part(&self.dir, &self.started, self.part + 1)?;
         self.written = 0;
         self.prune();
         Ok(())
@@ -111,6 +111,22 @@ impl SessionLog {
             .take(excess)
         {
             let _ = std::fs::remove_file(path);
+        }
+    }
+}
+
+/// The first part from `part` on that does not exist yet. `create_new`: a file another
+/// instance is writing is never opened, so never truncated.
+fn create_part(dir: &Path, started: &str, mut part: u32) -> std::io::Result<(u32, std::fs::File)> {
+    loop {
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(dir.join(file_name(started, part)))
+        {
+            Ok(file) => return Ok((part, file)),
+            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => part += 1,
+            Err(err) => return Err(err),
         }
     }
 }

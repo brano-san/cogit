@@ -119,13 +119,30 @@ fn the_log_is_named_after_the_moment_cogit_started() {
 #[test]
 fn the_start_label_is_a_local_time_a_file_name_can_hold() {
     let label = start_label();
-    assert_eq!(label.len(), "2026-09-22_23-15-04".len(), "{label}");
+    let (time, pid) = label.rsplit_once('_').unwrap();
+    assert_eq!(time.len(), "2026-09-22_23-15-04".len(), "{label}");
+    assert_eq!(pid, std::process::id().to_string(), "{label}");
     assert!(
         label
             .chars()
             .all(|c| c.is_ascii_digit() || c == '-' || c == '_'),
         "{label}"
     );
+}
+
+// Two instances started in one second shared a label; the second rolled over (truncated) the
+// part the first was still writing.
+#[test]
+fn a_roll_never_truncates_a_part_that_is_already_there() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("cogit-L.2.log"), "someone else").unwrap();
+    let mut log = SessionLog::with_limits(dir.path(), "L", 10, 10).unwrap();
+    write_lines(&mut log, 500);
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("cogit-L.2.log")).unwrap(),
+        "someone else"
+    );
+    assert_ne!(log.path(), dir.path().join("cogit-L.2.log"));
 }
 
 #[test]
