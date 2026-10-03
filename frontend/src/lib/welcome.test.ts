@@ -2,19 +2,19 @@ import { describe, expect, it } from "vitest";
 import {
   availabilityOf,
   checkAvailability,
-  clampSelection,
-  defaultSelection,
+  filterRows,
   folderPlan,
+  keepSelection,
+  missingPaths,
   moveSelection,
   mruRows,
   noteFor,
-  okAction,
+  openTarget,
   repoName,
-  selectOption,
+  selectionAfterRemoval,
   shouldShowAtStartup,
+  showsFilter,
   type Availability,
-  type WelcomeSelection,
-  isOptionDisabled,
 } from "./welcome";
 
 describe("shouldShowAtStartup", () => {
@@ -33,16 +33,6 @@ describe("shouldShowAtStartup", () => {
   it("stays away when a repository is open or the setting is off", () => {
     expect(shouldShowAtStartup({ ...base, openCount: 1, phase: "open" })).toBe(false);
     expect(shouldShowAtStartup({ ...base, enabled: false })).toBe(false);
-  });
-});
-
-describe("defaultSelection", () => {
-  it("is option 3 on the first row when there is a list", () => {
-    expect(defaultSelection(3)).toEqual({ option: 3, row: 0 });
-  });
-
-  it("is option 1 when the list is empty", () => {
-    expect(defaultSelection(0)).toEqual({ option: 1, row: null });
   });
 });
 
@@ -143,64 +133,71 @@ describe("availability", () => {
   });
 });
 
-describe("keyboard", () => {
-  it("walks the options and then the rows", () => {
-    let sel: WelcomeSelection = { option: 1, row: null };
-    sel = moveSelection(sel, "down", 3);
-    expect(sel.option).toBe(2);
-    sel = moveSelection(sel, "down", 3);
-    expect(sel).toEqual({ option: 3, row: 0 });
-    sel = moveSelection(sel, "down", 3);
-    expect(sel).toEqual({ option: 3, row: 1 });
-    sel = moveSelection(sel, "down", 3);
-    sel = moveSelection(sel, "down", 3);
-    expect(sel).toEqual({ option: 3, row: 2 });
+describe("filter", () => {
+  const rows = mruRows(["D:\\work\\cogit", "D:\\work\\site", "E:\\old\\Cogit-fork"]);
+
+  it("stands over the list only when it is longer than eight rows", () => {
+    expect(showsFilter(8)).toBe(false);
+    expect(showsFilter(9)).toBe(true);
   });
 
-  it("walks back from the first row to option 2, and stops at option 1", () => {
-    expect(moveSelection({ option: 3, row: 0 }, "up", 3).option).toBe(2);
-    expect(moveSelection({ option: 1, row: null }, "up", 3).option).toBe(1);
+  it("matches the name or the path, ignoring case", () => {
+    expect(filterRows(rows, "COGIT").map((row) => row.name)).toEqual(["cogit", "Cogit-fork"]);
+    expect(filterRows(rows, "e:\\old").map((row) => row.name)).toEqual(["Cogit-fork"]);
+    expect(filterRows(rows, "  ")).toEqual(rows);
   });
 
-  it("with no rows, option 3 is not a stop: the arrows end at option 2", () => {
-    expect(moveSelection({ option: 1, row: null }, "down", 0)).toEqual({ option: 2, row: null });
-    expect(moveSelection({ option: 2, row: null }, "down", 0)).toEqual({ option: 2, row: null });
-    expect(moveSelection({ option: 2, row: null }, "up", 0)).toEqual({ option: 1, row: null });
-  });
-
-  it("with no rows, option 3 cannot be chosen", () => {
-    expect(selectOption({ option: 1, row: null }, 3, 0)).toEqual({ option: 1, row: null });
-    expect(selectOption({ option: 2, row: null }, 3, 0)).toEqual({ option: 2, row: null });
-    expect(isOptionDisabled(3, 0)).toBe(true);
-    expect(isOptionDisabled(3, 1)).toBe(false);
-    expect(isOptionDisabled(1, 0)).toBe(false);
-    expect(isOptionDisabled(2, 0)).toBe(false);
-  });
-
-  it("choosing option 3 lands on the row it left, or the first", () => {
-    expect(selectOption({ option: 1, row: 2 }, 3, 4)).toEqual({ option: 3, row: 2 });
-    expect(selectOption({ option: 1, row: null }, 3, 4)).toEqual({ option: 3, row: 0 });
-    expect(selectOption({ option: 3, row: 1 }, 1, 4).option).toBe(1);
-  });
-
-  it("keeps the selection inside a list that shrank", () => {
-    expect(clampSelection({ option: 3, row: 4 }, 3)).toEqual({ option: 3, row: 2 });
-    expect(clampSelection({ option: 3, row: 0 }, 0)).toEqual({ option: 1, row: null });
-    expect(clampSelection({ option: 2, row: 5 }, 2)).toEqual({ option: 2, row: 1 });
+  it("moves the selection to the first row shown when the filter hides it", () => {
+    expect(keepSelection(filterRows(rows, "site"), "D:\\work\\cogit")).toBe("D:\\work\\site");
+    expect(keepSelection(rows, "D:\\work\\site")).toBe("D:\\work\\site");
+    expect(keepSelection([], "D:\\work\\site")).toBeNull();
   });
 });
 
-describe("okAction", () => {
-  const rows = mruRows(["D:\\a", "D:\\b"]);
+describe("selection", () => {
+  const rows = mruRows(["a", "b", "c"]);
 
-  it("runs the selected option", () => {
-    expect(okAction({ option: 1, row: null }, rows)).toEqual({ kind: "folder" });
-    expect(okAction({ option: 2, row: null }, rows)).toEqual({ kind: "clone" });
-    expect(okAction({ option: 3, row: 1 }, rows)).toEqual({ kind: "open", path: "D:\\b" });
+  it("walks the rows shown and stops at the ends", () => {
+    expect(moveSelection(rows, "a", "down")).toBe("b");
+    expect(moveSelection(rows, "c", "down")).toBe("c");
+    expect(moveSelection(rows, "a", "up")).toBe("a");
+    expect(moveSelection(rows, "b", "end")).toBe("c");
+    expect(moveSelection(rows, "c", "home")).toBe("a");
   });
 
-  it("has nothing to do for option 3 without a row", () => {
-    expect(okAction({ option: 3, row: null }, [])).toBeNull();
+  it("starts at the first row, or the last going up, when nothing is selected", () => {
+    expect(moveSelection(rows, null, "down")).toBe("a");
+    expect(moveSelection(rows, null, "up")).toBe("c");
+    expect(moveSelection([], null, "down")).toBeNull();
+  });
+
+  it("after a removal lands on the next row that stays, else the one before", () => {
+    expect(selectionAfterRemoval(rows, "b", new Set(["b"]))).toBe("c");
+    expect(selectionAfterRemoval(rows, "b", new Set(["b", "c"]))).toBe("a");
+    expect(selectionAfterRemoval(rows, "a", new Set(["c"]))).toBe("a");
+    expect(selectionAfterRemoval(rows, "a", new Set(["a", "b", "c"]))).toBeNull();
+  });
+});
+
+describe("missing repositories", () => {
+  const rows = mruRows(["ok", "gone", "plain", "hung"]);
+  const availability = new Map<string, Availability>([
+    ["ok", "available"],
+    ["gone", "missing"],
+    ["plain", "notRepository"],
+    ["hung", "unknown"],
+  ]);
+
+  it("Remove All Missing takes the rows not found or no longer a repository", () => {
+    expect(missingPaths(rows, availability)).toEqual(["gone", "plain"]);
+  });
+
+  it("Open has nothing to open without a selection or on a missing row", () => {
+    expect(openTarget(rows, null, availability)).toBeNull();
+    expect(openTarget(rows, "gone", availability)).toBeNull();
+    expect(openTarget(rows, "ok", availability)).toBe("ok");
+    // A check that ended without an answer stays usable: opening it says what is wrong.
+    expect(openTarget(rows, "hung", availability)).toBe("hung");
   });
 });
 

@@ -59,7 +59,7 @@ export interface Settings {
   /** Off until ticked: nothing reaches the network unasked. Help ▸ Check for Updates…
       works either way. */
   autoUpdate: boolean;
-  /** The Welcome dialog at startup when no repository is open; Repository ▸ Welcome… always works. */
+  /** The Welcome dialog at startup when no repository is open; nothing else opens it. */
   startupShowWelcome: boolean;
   /** The Exit dialog's "Don't show again" and this checkbox are the same value (R-151). */
   confirmExit: boolean;

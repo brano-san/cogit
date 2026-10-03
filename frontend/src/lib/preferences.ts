@@ -322,7 +322,7 @@ export const CATEGORIES: Category[] = [
           {
             key: "startupShowWelcome",
             label: "Show Welcome dialog if no repository was opened",
-            hint: "Repository ▸ Welcome… opens it at any time.",
+            hint: "The same switch as at the bottom of the Welcome dialog.",
             keywords: ["welcome", "start", "startup", "launch", "recent", "dialog"],
           },
         ],

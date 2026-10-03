@@ -61,11 +61,15 @@
   import { welcome } from "$stores/welcome.svelte";
   import { webMenus } from "$stores/web-menus.svelte";
   import {
+    filterRows,
     folderPlan,
+    missingPaths,
     mruRows,
     pathKey,
     shouldShowAtStartup,
+    showsFilter,
     WELCOME_FORGET,
+    WELCOME_FORGET_MISSING,
     type WelcomeAction,
   } from "$lib/welcome";
   import { folderKind, initRepository } from "$lib/ipc/clone";
@@ -704,7 +708,6 @@
   const actions: AppCommandActions = {
     open: () => void pickRepository(),
     clone: () => void openCloneWizard(),
-    welcome: () => showWelcome(),
     fetch: () => void networkActions?.run("fetch"),
     pull: () => networkActions?.openPull(),
     "pull-defaults": () => networkActions?.pullNow(),
@@ -2988,32 +2991,47 @@ ${event.error}`,
     return cloneWizard.start(parentFolder(repository.current?.root ?? session.recent[0] ?? ""));
   }
 
-  /** The Welcome dialog (F-586): rows come from the same recent list the app keeps. */
+  /** The Welcome dialog (F-586), shown only at startup: rows come from the same recent list
+      the app keeps. */
   const welcomeRows = $derived(mruRows(session.recent));
+  const welcomeShown = $derived(showsFilter(welcomeRows.length) ? filterRows(welcomeRows, welcome.query) : welcomeRows);
   let welcomeTarget: string | null = null;
 
   function showWelcome() {
     welcome.show(welcomeRows.map((row) => row.path));
   }
 
-  /** Every spelling of the path goes: the list shows one row for all of them. */
-  function forgetWelcomePath(path: string) {
-    const key = pathKey(path);
-    for (const spelling of session.recent.filter((entry) => pathKey(entry) === key)) {
+  /** Every spelling of each path goes: the list shows one row for all of them. */
+  function forgetWelcomePaths(paths: readonly string[]) {
+    welcome.removing(paths, welcomeShown);
+    const keys = new Set(paths.map(pathKey));
+    for (const spelling of session.recent.filter((entry) => keys.has(pathKey(entry)))) {
       session.forgetRecent(spelling);
     }
-    welcome.listChanged(welcomeRows.length);
   }
 
   function forgetWelcomeTarget() {
     const path = welcomeTarget;
     welcomeTarget = null;
-    if (path !== null && welcome.open) forgetWelcomePath(path);
+    if (path !== null && welcome.open) forgetWelcomePaths([path]);
+  }
+
+  function forgetMissingWelcome() {
+    welcomeTarget = null;
+    if (welcome.open) forgetWelcomePaths(missingPaths(welcomeRows, welcome.availability));
   }
 
   async function welcomeContext(path: string, x: number, y: number) {
     welcomeTarget = path;
-    await popupContextMenu([menuItem(WELCOME_FORGET, "Remove from List", true, "Delete")], x, y).catch(() => {});
+    const missing = missingPaths(welcomeRows, welcome.availability).length > 0;
+    await popupContextMenu(
+      [
+        menuItem(WELCOME_FORGET, "Remove from List", true, "Delete"),
+        menuItem(WELCOME_FORGET_MISSING, "Remove All Missing", missing),
+      ],
+      x,
+      y,
+    ).catch(() => {});
   }
 
   async function openFromWelcome(root: string) {
@@ -3031,7 +3049,7 @@ ${event.error}`,
     // Clone opens over the Welcome dialog: Cancel comes back to it, Finish closes it.
     if (action.kind === "clone") return openCloneWizard();
 
-    const picked = await pickFolder("Add or Create Repository");
+    const picked = await pickFolder("Open or Create Repository");
     if (picked === null) return;
     const kind = await folderKind(picked).catch((err) => {
       errors.report(err, "Could not read the folder");
@@ -3040,7 +3058,7 @@ ${event.error}`,
     if (kind === null) return;
     const plan = folderPlan(kind);
     if (plan === "gone") {
-      notices.inform("Add or Create Repository", `${picked} is not a folder.`);
+      notices.inform("Open or Create Repository", `${picked} is not a folder.`);
       return;
     }
     let root = picked;
@@ -3344,6 +3362,7 @@ ${event.error}`,
       pushMenuState(true);
       // The Welcome dialog is a modal, so its own menu answers before the modal check.
       if (id === WELCOME_FORGET) return forgetWelcomeTarget();
+      if (id === WELCOME_FORGET_MISSING) return forgetMissingWelcome();
       if (!menuCommandRuns(id, modals)) return;
       if (id === "toolbar-preferences") return openSettings("toolbar");
       if (id === "select-all") return selectAllFromMenu();
@@ -3474,7 +3493,6 @@ ${event.error}`,
       <StartScreen
         onopen={() => void pickRepository()}
         onclone={() => void openCloneWizard()}
-        onwelcome={() => showWelcome()}
       />
     {/if}
     {#if leftColumn}
@@ -4162,7 +4180,7 @@ ${event.error}`,
       showAtStart={settings.current.startupShowWelcome}
       onshowchange={(show) => void settings.set("startupShowWelcome", show)}
       onrun={(action) => void runWelcome(action)}
-      onforget={forgetWelcomePath}
+      onforget={(path) => forgetWelcomePaths([path])}
       oncontext={(path, x, y) => void welcomeContext(path, x, y)}
       onclose={() => welcome.close()}
     />

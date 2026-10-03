@@ -24,7 +24,6 @@ const FLOW_KINDS: readonly FlowKind[] = ["feature", "release", "hotfix"];
 export type AppCommandId =
   | "open"
   | "clone"
-  | "welcome"
   | "fetch"
   | "pull"
   | "pull-defaults"
@@ -128,12 +127,6 @@ export function appCommands(facts: AppCommandFacts, run: AppCommandActions): Pal
       title: "Clone Repository…",
       synonyms: ["git clone", "download a repository", "check out from a server"],
       run: run.clone,
-    },
-    {
-      id: "welcome",
-      title: "Welcome…",
-      synonyms: ["start", "recent repositories", "reopen", "new repository", "git init"],
-      run: run.welcome,
     },
     { id: "fetch", title: "Fetch", unavailable: noRepo ?? noRemote, run: run.fetch },
     { id: "pull", title: "Pull…", unavailable: toolbar("pull"), run: run.pull },

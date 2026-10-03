@@ -1,14 +1,13 @@
 <script lang="ts">
   /** The one empty state of the window: shown over the panels while no repository is open
-      (`emptyStateVisible`). The panels themselves stay blank. Recent repositories are the
-      Welcome dialog's job, so there is one list of them, not two. */
+      (`emptyStateVisible`). The panels themselves stay blank. Recent repositories are listed
+      in Repositories and, at startup, in the Welcome dialog. */
   interface Props {
     onopen: () => void;
     onclone: () => void;
-    onwelcome: () => void;
   }
 
-  let { onopen, onclone, onwelcome }: Props = $props();
+  let { onopen, onclone }: Props = $props();
 </script>
 
 <div class="layer">
@@ -18,7 +17,6 @@
     <div class="buttons">
       <button type="button" class="primary" onclick={onopen}>Open…</button>
       <button type="button" onclick={onclone}>Clone…</button>
-      <button type="button" onclick={onwelcome}>Welcome…</button>
     </div>
   </div>
 </div>

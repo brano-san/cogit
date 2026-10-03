@@ -1,21 +1,24 @@
 import { describe, expect, it } from "vitest";
+import { filterRows, mruRows } from "$lib/welcome";
 import { WelcomeDialog } from "./welcome.svelte";
 
 const later = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe("WelcomeDialog", () => {
-  it("opens on option 3 and the first row, every row 'checking' until its check ends", () => {
+  it("opens on the first row with no filter, every row 'checking' until its check ends", () => {
     const dialog = new WelcomeDialog(() => new Promise(() => {}), 50);
+    dialog.query = "left over";
     dialog.show(["D:\\a", "D:\\b"]);
     expect(dialog.open).toBe(true);
-    expect(dialog.selection).toEqual({ option: 3, row: 0 });
+    expect(dialog.selected).toBe("D:\\a");
+    expect(dialog.query).toBe("");
     expect([...dialog.availability.values()]).toEqual(["checking", "checking"]);
   });
 
-  it("opens on option 1 with an empty list", () => {
+  it("opens with nothing selected on an empty list", () => {
     const dialog = new WelcomeDialog(() => Promise.resolve("repository"), 50);
     dialog.show([]);
-    expect(dialog.selection).toEqual({ option: 1, row: null });
+    expect(dialog.selected).toBeNull();
   });
 
   it("marks a missing path when its check ends, and a hung one stays usable", async () => {
@@ -39,21 +42,26 @@ describe("WelcomeDialog", () => {
     expect(dialog.availability.get("x")).toBe("checking");
   });
 
-  it("choosing a row selects option 3", () => {
+  it("a click selects, the arrows walk the rows the filter shows", () => {
+    const rows = mruRows(["a1", "b", "a2"]);
     const dialog = new WelcomeDialog(() => Promise.resolve("repository"), 50);
-    dialog.show(["a", "b", "c"]);
-    dialog.choose(1, 3);
-    dialog.chooseRow(2);
-    expect(dialog.selection).toEqual({ option: 3, row: 2 });
+    dialog.show(rows.map((row) => row.path));
+    dialog.select("b");
+    expect(dialog.selected).toBe("b");
+    dialog.filter("a", filterRows(rows, "a"));
+    expect(dialog.selected).toBe("a1");
+    dialog.move("down", filterRows(rows, dialog.query));
+    expect(dialog.selected).toBe("a2");
   });
 
-  it("keeps the selection on a row after one is removed", () => {
+  it("keeps the selection on a row after the selected one is removed", () => {
+    const rows = mruRows(["a", "b", "c"]);
     const dialog = new WelcomeDialog(() => Promise.resolve("repository"), 50);
-    dialog.show(["a", "b"]);
-    dialog.chooseRow(1);
-    dialog.listChanged(1);
-    expect(dialog.selection).toEqual({ option: 3, row: 0 });
-    dialog.listChanged(0);
-    expect(dialog.selection.option).toBe(1);
+    dialog.show(rows.map((row) => row.path));
+    dialog.select("b");
+    dialog.removing(["b"], rows);
+    expect(dialog.selected).toBe("c");
+    dialog.removing(["a", "c"], mruRows(["a", "c"]));
+    expect(dialog.selected).toBeNull();
   });
 });

@@ -2,14 +2,6 @@ import type { FolderKind } from "$lib/ipc/clone";
 
 /** The Welcome dialog (F-586): the pure rules; the store and the component only apply them. */
 
-export type WelcomeOption = 1 | 2 | 3;
-
-/** `row` is the selected recent repository; it only counts while `option` is 3. */
-export interface WelcomeSelection {
-  option: WelcomeOption;
-  row: number | null;
-}
-
 export interface StartupFacts {
   enabled: boolean;
   /** The saved session is still being reopened. */
@@ -22,10 +14,6 @@ export interface StartupFacts {
     session is restored, so it cannot flash over the repository about to appear. */
 export function shouldShowAtStartup(facts: StartupFacts): boolean {
   return facts.enabled && !facts.restoring && facts.openCount === 0 && (facts.phase === "closed" || facts.phase === "failed");
-}
-
-export function defaultSelection(rowCount: number): WelcomeSelection {
-  return rowCount > 0 ? { option: 3, row: 0 } : { option: 1, row: null };
 }
 
 export interface MruRow {
@@ -124,51 +112,77 @@ export async function checkAvailability(
   await Promise.all(Array.from({ length: Math.min(concurrency, queue.length) }, lane));
 }
 
-/** Option 3 reopens a recent repository: with none it is disabled and nothing can select it. */
-export function isOptionDisabled(option: WelcomeOption, rowCount: number): boolean {
-  return option === 3 && rowCount === 0;
+/** Above this many rows a filter field stands over the list. */
+export const FILTER_ABOVE = 8;
+
+export function showsFilter(rowCount: number): boolean {
+  return rowCount > FILTER_ABOVE;
 }
 
-/** One line of stops: option 1, option 2, then each recent repository (option 3 is the
-    list; with an empty list it is no stop at all). */
-function stops(rowCount: number): number {
-  return 2 + rowCount;
+/** Rows whose name or path holds the text, case-insensitive; an empty filter keeps all. */
+export function filterRows(rows: readonly MruRow[], query: string): MruRow[] {
+  const needle = query.trim().toLowerCase();
+  if (needle === "") return [...rows];
+  return rows.filter((row) => row.name.toLowerCase().includes(needle) || row.path.toLowerCase().includes(needle));
 }
 
-export function moveSelection(sel: WelcomeSelection, dir: "up" | "down", rowCount: number): WelcomeSelection {
-  const at = sel.option === 1 ? 0 : sel.option === 2 ? 1 : 2 + (sel.row ?? 0);
-  const next = Math.min(Math.max(at + (dir === "down" ? 1 : -1), 0), stops(rowCount) - 1);
-  if (next === 0) return { option: 1, row: sel.row };
-  if (next === 1) return { option: 2, row: sel.row };
-  return { option: 3, row: next - 2 };
+export type Step = "up" | "down" | "home" | "end";
+
+/** The arrows walk the rows shown; nothing selected starts at the first (or, going up, the last). */
+export function moveSelection(rows: readonly MruRow[], selected: string | null, step: Step): string | null {
+  if (rows.length === 0) return null;
+  const at = rows.findIndex((row) => row.path === selected);
+  const last = rows.length - 1;
+  const next =
+    step === "home" ? 0
+    : step === "end" ? last
+    : at < 0 ? (step === "down" ? 0 : last)
+    : Math.min(Math.max(at + (step === "down" ? 1 : -1), 0), last);
+  return rows[next]?.path ?? null;
 }
 
-export function selectOption(sel: WelcomeSelection, option: WelcomeOption, rowCount: number): WelcomeSelection {
-  if (isOptionDisabled(option, rowCount)) return sel;
-  if (option !== 3) return { option, row: sel.row };
-  return { option, row: rowCount > 0 ? Math.min(sel.row ?? 0, rowCount - 1) : null };
+/** A filter that hides the selected row moves the selection to the first row it shows. */
+export function keepSelection(rows: readonly MruRow[], selected: string | null): string | null {
+  if (rows.some((row) => row.path === selected)) return selected;
+  return rows[0]?.path ?? null;
 }
 
-/** After the list changed under the selection (a row removed). */
-export function clampSelection(sel: WelcomeSelection, rowCount: number): WelcomeSelection {
-  if (rowCount === 0) return { option: sel.option === 3 ? 1 : sel.option, row: null };
-  return { option: sel.option, row: Math.min(sel.row ?? 0, rowCount - 1) };
+/** Rows about to go: the selection moves to the next row that stays, else the one before. */
+export function selectionAfterRemoval(
+  rows: readonly MruRow[],
+  selected: string | null,
+  removed: ReadonlySet<string>,
+): string | null {
+  if (selected === null || !removed.has(selected)) return selected;
+  const at = rows.findIndex((row) => row.path === selected);
+  const after = rows.slice(at + 1).find((row) => !removed.has(row.path));
+  const before = rows.slice(0, Math.max(at, 0)).reverse().find((row) => !removed.has(row.path));
+  return (after ?? before)?.path ?? null;
+}
+
+/** The rows "Remove All Missing" takes: not found, or no longer a repository. */
+export function missingPaths(rows: readonly MruRow[], availability: ReadonlyMap<string, Availability>): string[] {
+  return rows.filter((row) => isUnavailable(availability.get(row.path))).map((row) => row.path);
+}
+
+/** What Open (or Enter, or a double click) opens: the selected row, unless it is gone. */
+export function openTarget(
+  rows: readonly MruRow[],
+  selected: string | null,
+  availability: ReadonlyMap<string, Availability>,
+): string | null {
+  const row = rows.find((entry) => entry.path === selected);
+  return row && !isUnavailable(availability.get(row.path)) ? row.path : null;
 }
 
 export type WelcomeAction = { kind: "folder" } | { kind: "clone" } | { kind: "open"; path: string };
 
-export function okAction(sel: WelcomeSelection, rows: readonly MruRow[]): WelcomeAction | null {
-  if (sel.option === 1) return { kind: "folder" };
-  if (sel.option === 2) return { kind: "clone" };
-  const row = sel.row === null ? undefined : rows[sel.row];
-  return row ? { kind: "open", path: row.path } : null;
-}
-
-/** What to do with the folder option 1 picked. */
+/** What to do with the folder Open or Create… picked. */
 export function folderPlan(kind: FolderKind): "open" | "init" | "gone" {
   if (kind === "repository") return "open";
   return kind === "plain" ? "init" : "gone";
 }
 
-/** The id of the one item of the recent list's context menu. */
+/** The ids of the recent list's context menu. */
 export const WELCOME_FORGET = "welcome-forget";
+export const WELCOME_FORGET_MISSING = "welcome-forget-missing";

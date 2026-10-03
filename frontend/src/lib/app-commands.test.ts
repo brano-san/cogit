@@ -58,6 +58,11 @@ const reason = (facts: AppCommandFacts, id: string) =>
   appCommands(facts, spies()).find((command) => command.id === id)?.unavailable;
 
 describe("app commands", () => {
+  // The Welcome dialog shows itself at startup only: no command, menu item or key opens it.
+  it("has no Welcome command", () => {
+    expect(appCommands(OPEN, spies()).map((command) => command.id)).not.toContain("welcome");
+  });
+
   it("has unique ids", () => {
     const ids = appCommands(OPEN, spies()).map((command) => command.id);
     expect(new Set(ids).size).toBe(ids.length);
@@ -68,7 +73,6 @@ describe("app commands", () => {
     expect(appCommands(OPEN, spies()).map((command) => [command.id, command.title])).toEqual([
       ["open", "Open Repository…"],
       ["clone", "Clone Repository…"],
-      ["welcome", "Welcome…"],
       ["fetch", "Fetch"],
       ["pull", "Pull…"],
       ["pull-defaults", "Pull with Defaults"],
@@ -157,7 +161,7 @@ describe("app commands", () => {
     for (const id of ["fetch", "stash-selection", "commit", "close", "refresh", "find", "journal", "fetch-all"]) {
       expect(reason(CLOSED, id), id).toBe("No repository is open");
     }
-    for (const id of ["open", "clone", "welcome", "output", "palette", "settings", "exit"]) {
+    for (const id of ["open", "clone", "output", "palette", "settings", "exit"]) {
       expect(reason(CLOSED, id), id).toBeUndefined();
     }
   });

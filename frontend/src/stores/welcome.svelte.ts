@@ -1,13 +1,12 @@
 import { folderKind, type FolderKind } from "$lib/ipc/clone";
 import {
   checkAvailability,
-  clampSelection,
-  defaultSelection,
+  keepSelection,
   moveSelection,
-  selectOption,
+  selectionAfterRemoval,
   type Availability,
-  type WelcomeOption,
-  type WelcomeSelection,
+  type MruRow,
+  type Step,
 } from "$lib/welcome";
 
 /** A dead share must not leave a row "checking" for ever, nor hold the dialog. */
@@ -15,11 +14,12 @@ const CHECK_TIMEOUT_MS = 4000;
 
 type Probe = (path: string) => Promise<FolderKind>;
 
-/** The Welcome dialog (F-586): open or not, what is selected, and which recent
-    repositories turned out to be gone. */
+/** The Welcome dialog (F-586): open or not, the filter, the selected recent repository (by
+    path, so a filter or a removal cannot shift it onto another row), and which turned out gone. */
 export class WelcomeDialog {
   open = $state(false);
-  selection = $state.raw<WelcomeSelection>({ option: 1, row: null });
+  selected = $state<string | null>(null);
+  query = $state("");
   availability = $state.raw<ReadonlyMap<string, Availability>>(new Map());
 
   #probe: Probe;
@@ -35,7 +35,8 @@ export class WelcomeDialog {
   show(paths: readonly string[]): void {
     this.#checking?.abort();
     this.open = true;
-    this.selection = defaultSelection(paths.length);
+    this.query = "";
+    this.selected = paths[0] ?? null;
     this.availability = new Map(paths.map((path) => [path, "checking"]));
     const controller = new AbortController();
     this.#checking = controller;
@@ -55,21 +56,23 @@ export class WelcomeDialog {
     this.open = false;
   }
 
-  choose(option: WelcomeOption, rowCount: number): void {
-    this.selection = selectOption(this.selection, option, rowCount);
+  select(path: string): void {
+    this.selected = path;
   }
 
-  chooseRow(row: number): void {
-    this.selection = { option: 3, row };
+  move(step: Step, shown: readonly MruRow[]): void {
+    this.selected = moveSelection(shown, this.selected, step);
   }
 
-  move(dir: "up" | "down", rowCount: number): void {
-    this.selection = moveSelection(this.selection, dir, rowCount);
+  /** `shown`: the rows the new filter leaves. */
+  filter(query: string, shown: readonly MruRow[]): void {
+    this.query = query;
+    this.selected = keepSelection(shown, this.selected);
   }
 
-  /** The list lost a row: the selection stays on the one that took its place. */
-  listChanged(rowCount: number): void {
-    this.selection = clampSelection(this.selection, rowCount);
+  /** Called before `paths` leave the list, with the rows shown now. */
+  removing(paths: readonly string[], shown: readonly MruRow[]): void {
+    this.selected = selectionAfterRemoval(shown, this.selected, new Set(paths));
   }
 }
 
