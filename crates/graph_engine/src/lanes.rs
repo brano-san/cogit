@@ -182,6 +182,9 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
     // arrives in the upper half and for what leaves in the lower one, beside the node's own
     // lines and never in its column at the ring.
     let below = |id: u64, lanes: &[Lane]| lanes.iter().position(|lane| lane.id == id);
+    // Lanes keep their order from row to row, so `above` is met in the order of `middle` and
+    // of the lanes below: each search goes on from the last hit, not from the start.
+    let (mut mid_from, mut to_from) = (0, 0);
     let mut segments = Vec::with_capacity(above.len() + leaving.len());
     for (index, lane) in above.iter().enumerate() {
         if !lane.drawn {
@@ -200,11 +203,12 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
             continue;
         }
         let (Some(mid), Some(to)) = (
-            middle.iter().position(|id| *id == lane.id),
-            below(lane.id, &cursor.lanes),
+            find_from(&middle, mid_from, |id| *id == lane.id),
+            find_from(&cursor.lanes, to_from, |other| other.id == lane.id),
         ) else {
             continue;
         };
+        (mid_from, to_from) = (mid + 1, to + 1);
         if index == mid && mid == to {
             segments.push(line(index, to, Span::Through));
         } else {
@@ -337,6 +341,11 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
         segments,
         links,
     }
+}
+
+/// The index of the first match at or after `from`.
+fn find_from<T>(items: &[T], from: usize, is: impl Fn(&T) -> bool) -> Option<usize> {
+    items.get(from..)?.iter().position(is).map(|at| at + from)
 }
 
 fn far(cursor: &LayoutCursor, parent: &str) -> bool {
