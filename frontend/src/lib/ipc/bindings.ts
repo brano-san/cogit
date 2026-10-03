@@ -378,6 +378,11 @@ export const commands = {
 	/**  The frontend's theme is dark or light; GTK dialogs follow it (Linux), a no-op elsewhere. */
 	setNativeTheme: (dark: boolean) => __TAURI_INVOKE<void>("set_native_theme", { dark }),
 	openPath: (path: string) => typedError<null, GitError>(__TAURI_INVOKE("open_path", { path })),
+	/**
+	 *  A link in the browser. Not the opener plugin's `openUrl` from the page: it starts the
+	 *  browser with a portable build's redirected `XDG_*` (a second, empty profile).
+	 */
+	openUrl: (url: string) => typedError<null, GitError>(__TAURI_INVOKE("open_url", { url })),
 	revealPath: (path: string) => typedError<null, GitError>(__TAURI_INVOKE("reveal_path", { path })),
 	openPowerShell: (path: string) => typedError<null, GitError>(__TAURI_INVOKE("open_power_shell", { path })),
 	openGitShell: (path: string) => typedError<null, GitError>(__TAURI_INVOKE("open_git_shell", { path })),

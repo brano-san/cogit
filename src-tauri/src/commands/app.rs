@@ -128,10 +128,7 @@ fn displays(window: &tauri::Window) -> Vec<app_state::environment::DisplayInfo> 
 /// beside the page; the dev server has none.
 #[tauri::command]
 #[specta::specta]
-pub async fn open_third_party_licences(
-    app: tauri::AppHandle,
-    frontend: Option<String>,
-) -> Result<(), GitError> {
+pub async fn open_third_party_licences(frontend: Option<String>) -> Result<(), GitError> {
     let text = app_state::licences::document(
         env!("CARGO_PKG_VERSION"),
         THIRD_PARTY_CRATES,
@@ -142,9 +139,15 @@ pub async fn open_third_party_licences(
             .map_err(|err| GitError::Io(format!("cannot write the license list: {err}")))
     })
     .await?;
-    tauri_plugin_opener::OpenerExt::opener(&app)
-        .open_path(path.display().to_string(), None::<&str>)
-        .map_err(|err| GitError::Io(format!("cannot open {}: {err}", path.display())))
+    // The plugin would start the editor with a portable build's redirected `XDG_*`.
+    let launch = app_state::desktop::open_command(
+        app_state::desktop::Platform::current(),
+        &path.display().to_string(),
+    );
+    blocking("open_third_party_licences", move || {
+        super::desktop::start("licences", launch, None)
+    })
+    .await
 }
 
 /// The settings document as JSON text. Rust owns the file because the menu and the

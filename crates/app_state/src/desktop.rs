@@ -114,6 +114,25 @@ pub fn open_command(platform: Platform, path: &str) -> Launch {
     }
 }
 
+/// A web or mail link, opened by the system's handler through `command_for` so that a portable
+/// build's `XDG_*` stay out of the browser (a plugin would start it with them). `None` on
+/// Windows, where `ShellExecute` is the opener and only `TEMP` differs. Only the schemes
+/// `opener:default` allows: a link must not reach `file:` or an arbitrary handler.
+pub fn url_command(platform: Platform, url: &str) -> Result<Option<Launch>, String> {
+    let lower = url.to_ascii_lowercase();
+    if !["http://", "https://", "mailto:"]
+        .iter()
+        .any(|scheme| lower.starts_with(scheme))
+    {
+        return Err(format!("only web and mail links are opened, not {url}"));
+    }
+    Ok(match platform {
+        Platform::Windows => None,
+        Platform::MacOs => Some(Launch::plain("open", &[url])),
+        Platform::Linux => Some(Launch::plain("xdg-open", &[url])),
+    })
+}
+
 #[must_use]
 pub fn reveal_command(platform: Platform, path: &str) -> Launch {
     let native = native_path(platform, path);

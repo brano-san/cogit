@@ -3,7 +3,9 @@
   import Callout from "$components/common/template/Callout.svelte";
   import TemplateDialog from "$components/common/template/TemplateDialog.svelte";
   import { GIT_DOWNLOAD_URL, WHY_GIT, installHint, oldGitText } from "$lib/git-missing";
+  import { openExternal } from "$lib/ipc/file-menus";
   import { ON_WINDOWS, OS } from "$lib/platform";
+  import { errors } from "$stores/errors.svelte";
   import type { GitMissingStore } from "$stores/git-missing.svelte";
 
   /** The missing-git dialog (R-700): why, what was found, and the three ways out. */
@@ -29,8 +31,7 @@
   }
 
   async function download() {
-    const { openUrl } = await import("@tauri-apps/plugin-opener");
-    await openUrl(GIT_DOWNLOAD_URL);
+    await openExternal(GIT_DOWNLOAD_URL).catch((err) => errors.report(err, "Could not open the download page"));
   }
 </script>
 

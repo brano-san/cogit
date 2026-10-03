@@ -5,12 +5,44 @@
 
 use app_state::desktop::{
     Platform, file_uri, git_shell_command, native_path, open_command, power_shell_command,
-    reveal_command, reveal_fallback, trash_command,
+    reveal_command, reveal_fallback, trash_command, url_command,
 };
 use app_state::terminal::{Terminal, launch_for};
 use std::path::{Path, PathBuf};
 
 const REPO: &str = "D:/work/my repo";
+
+#[test]
+fn a_url_opens_through_xdg_open_exactly_as_given_on_linux() {
+    // Not `native_path`: a trailing `/` belongs to the address.
+    let launch = url_command(Platform::Linux, "https://h/x/")
+        .unwrap()
+        .unwrap();
+    assert_eq!(launch.program, "xdg-open");
+    assert_eq!(launch.args, ["https://h/x/"]);
+    let mac = url_command(Platform::MacOs, "mailto:a@b.c")
+        .unwrap()
+        .unwrap();
+    assert_eq!((mac.program.as_str(), mac.args.len()), ("open", 1));
+}
+
+#[test]
+fn only_web_and_mail_links_are_opened() {
+    for url in ["file:///etc/passwd", "javascript:alert(1)", "-foo", ""] {
+        assert!(url_command(Platform::Linux, url).is_err(), "{url}");
+    }
+    assert!(url_command(Platform::Linux, "HTTP://h").is_ok());
+}
+
+#[test]
+fn windows_leaves_links_to_the_shell() {
+    assert!(
+        url_command(Platform::Windows, "https://h")
+            .unwrap()
+            .is_none()
+    );
+    assert!(url_command(Platform::Windows, "file:///c:/x").is_err());
+}
 
 #[test]
 fn windows_paths_reach_explorer_with_backslashes() {

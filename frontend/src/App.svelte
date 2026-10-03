@@ -835,8 +835,7 @@
       if (!push) return;
       await networkActions?.run("push");
     }
-    const { openUrl } = await import("@tauri-apps/plugin-opener");
-    await openUrl(url);
+    await fileMenus.openExternal(url);
   }
 
   async function runFind(text: string) {
@@ -3980,7 +3979,7 @@ ${event.error}`,
 
   <SuccessToast />
   <Notifications
-    onopenurl={(url) => void import("@tauri-apps/plugin-opener").then((opener) => opener.openUrl(url))}
+    onopenurl={(url) => void fileMenus.openExternal(url).catch((err) => errors.report(err, "Could not open the link"))}
     onshowoutput={(record) => void output.openRecord(record)}
     onaction={(action) => void runNoticeAction(action)}
   />

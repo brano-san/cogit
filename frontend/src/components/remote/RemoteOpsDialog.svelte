@@ -2,6 +2,8 @@
   import Dialog from "$components/common/Dialog.svelte";
   import Checkbox from "$components/common/Checkbox.svelte";
   import Select from "$components/common/Select.svelte";
+  import { openExternal } from "$lib/ipc/file-menus";
+  import { errors } from "$stores/errors.svelte";
   import { followUp, problemOf, type DialogSpec, type Values } from "$lib/remote-dialogs";
 
   /** Draws any of the Remote ▸ Submodule, Subtree and LFS dialogs from its spec. */
@@ -38,8 +40,7 @@
 
   async function openLink() {
     if (!link) return;
-    const { openUrl } = await import("@tauri-apps/plugin-opener");
-    await openUrl(link).catch(() => {});
+    await openExternal(link).catch((err) => errors.report(err, "Could not open the link"));
   }
 </script>
 

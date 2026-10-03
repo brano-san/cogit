@@ -6,7 +6,11 @@ use git_engine::GitError;
 
 use super::{blocking, mutating};
 
-fn start(label: &'static str, launch: Launch, cwd: Option<String>) -> Result<(), GitError> {
+pub(super) fn start(
+    label: &'static str,
+    launch: Launch,
+    cwd: Option<String>,
+) -> Result<(), GitError> {
     tracing::info!(program = %launch.program, args = ?launch.args, label, "starting a desktop program");
     desktop::spawn(&launch, cwd.as_deref().map(std::path::Path::new))
         .map_err(|err| GitError::Io(format!("cannot start {}: {err}", launch.program)))
@@ -37,6 +41,19 @@ pub async fn open_path(path: String) -> Result<(), GitError> {
         )
     })
     .await
+}
+
+/// A link in the browser. Not the opener plugin's `openUrl` from the page: it starts the
+/// browser with a portable build's redirected `XDG_*` (a second, empty profile).
+#[tauri::command]
+#[specta::specta]
+pub async fn open_url(app: tauri::AppHandle, url: String) -> Result<(), GitError> {
+    match desktop::url_command(Platform::current(), &url).map_err(GitError::InvalidState)? {
+        Some(launch) => blocking("open_url", move || start("url", launch, None)).await,
+        None => tauri_plugin_opener::OpenerExt::opener(&app)
+            .open_url(&url, None::<&str>)
+            .map_err(|err| GitError::Io(format!("cannot open {url}: {err}"))),
+    }
 }
 
 #[tauri::command]

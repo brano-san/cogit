@@ -12,6 +12,8 @@
   import { clampBox, defaultBox, type Box } from "$lib/window-box";
   import type { Snippet } from "svelte";
   import type { GitOutput } from "$lib/ipc";
+  import { openExternal } from "$lib/ipc/file-menus";
+  import { errors } from "$stores/errors.svelte";
   import { output } from "$stores/output.svelte";
 
   interface Props {
@@ -171,8 +173,7 @@
   /** A link git printed (the pull request a push offers) opens in the browser (F-028). */
   async function openLink(event: MouseEvent, href: string) {
     event.preventDefault();
-    const { openUrl } = await import("@tauri-apps/plugin-opener");
-    await openUrl(href).catch(() => {});
+    await openExternal(href).catch((err) => errors.report(err, "Could not open the link"));
   }
 
   function step(by: number) {

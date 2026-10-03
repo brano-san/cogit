@@ -20,6 +20,11 @@ export async function openOnDesktop(path: string) {
   return unwrap(await commands.openPath(path));
 }
 
+/** A web or mail link, in the browser the system names (not the opener plugin: see `open_url`). */
+export async function openExternal(url: string) {
+  return unwrap(await commands.openUrl(url));
+}
+
 export async function revealOnDesktop(path: string) {
   return unwrap(await commands.revealPath(path));
 }
