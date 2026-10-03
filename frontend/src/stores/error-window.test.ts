@@ -73,6 +73,8 @@ beforeEach(async () => {
     Promise.resolve(record(id, { summary: `failed ${id}` })),
   );
   stop = await errorWindow.own(() => {});
+  // What the window had is gone with it; so is what it never got, for a clean start.
+  for (const entry of errorWindow.entries) act("viewed", entry.id);
   act("closed");
   emitted.queue.length = 0;
   emitted.reported.length = 0;
@@ -233,14 +235,29 @@ describe("the queue the window reads and the footer and taskbar watch", () => {
     expect(emitted.queue.at(-1)).toEqual([]);
   });
 
-  it("clears everything when the window is closed", async () => {
+  it("clears what the window had when it is closed", async () => {
     await errorWindow.command(event(1, { summary: "a" }));
     await errorWindow.command(event(2, { summary: "b" }));
 
+    act("viewed", 1);
+    act("viewed", 2);
     act("closed");
 
     expect(errorWindow.entries).toEqual([]);
     expect(errorWindow.unviewed).toBe(0);
+  });
+
+  // The second failure arrived while the window was being closed: it never was on screen.
+  it("keeps an entry the closing window never received, and opens the window for it", async () => {
+    await errorWindow.command(event(1, { summary: "a" }));
+    act("viewed", 1);
+    await errorWindow.command(event(2, { summary: "b" }));
+    commands.openErrorsWindow.mockClear();
+
+    act("closed");
+
+    expect(errorWindow.entries.map((entry) => entry.id)).toEqual([2]);
+    expect(commands.openErrorsWindow).toHaveBeenCalled();
   });
 
   it("sends the queue to a window that has just started listening", async () => {

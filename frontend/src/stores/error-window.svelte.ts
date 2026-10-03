@@ -114,9 +114,13 @@ class ErrorWindowStore {
   #act(action: ErrorAction, id: number | null, showConflicts: (repo: string) => void): void {
     if (action === "ready") return this.#publish();
     if (action === "closed") {
-      this.entries = [];
+      // What the window had is seen and goes; an entry that came in while it was closing
+      // was never on screen, and the window opens again for it.
+      this.entries = this.entries.filter((entry) => !this.#viewed.has(entry.id));
       this.#viewed = new Set();
-      return this.#publish();
+      this.#publish();
+      if (this.entries.length > 0) void openErrorsWindow().catch(() => {});
+      return;
     }
     if (id === null) return;
     if (action === "viewed") {

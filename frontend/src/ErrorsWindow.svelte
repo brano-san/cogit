@@ -60,6 +60,8 @@
   // The window closing by any road — ✕, Esc, Ctrl+W, the title bar — tells the main window.
   $effect(() => {
     const pending = getCurrentWindow().onCloseRequested(async () => {
+      // Everything this window holds was in front of it; an entry still on its way to it is not.
+      await Promise.all(entries.map((entry) => sendErrorsAction("viewed", entry.id).catch(() => {})));
       await sendErrorsAction("closed").catch(() => {});
     });
     return () => void pending.then((stop) => stop()).catch(() => {});
