@@ -16,6 +16,17 @@ pub struct ConflictSides {
     pub base: Option<Vec<u8>>,
     pub ours: Option<Vec<u8>>,
     pub theirs: Option<Vec<u8>>,
+    #[serde(skip)]
+    pub kind: EntryKind,
+}
+
+/// What the sides are: a link or a submodule is taken whole, whatever its bytes look like.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum EntryKind {
+    #[default]
+    Regular,
+    Symlink,
+    Submodule,
 }
 
 /// Named rather than a tuple: positional optional strings reorder silently across IPC.
@@ -34,10 +45,11 @@ impl ConflictSides {
     /// a replacement character and staged.
     #[must_use]
     pub fn is_text(&self) -> bool {
-        [&self.base, &self.ours, &self.theirs]
-            .into_iter()
-            .flatten()
-            .all(|side| is_text(side))
+        self.kind == EntryKind::Regular
+            && [&self.base, &self.ours, &self.theirs]
+                .into_iter()
+                .flatten()
+                .all(|side| is_text(side))
     }
 
     /// Lossy on purpose: a conflict the user cannot see is worse than one rendered oddly.
@@ -103,24 +115,46 @@ impl RepoHandle {
         if !self.conflicted_paths()?.iter().any(|p| p == path) {
             return Err(GitError::InvalidState(format!("{path} is not conflicted")));
         }
-        Ok(ConflictSides {
-            base: self.stage_blob(path, ConflictSide::Base),
-            ours: self.stage_blob(path, ConflictSide::Ours),
-            theirs: self.stage_blob(path, ConflictSide::Theirs),
-        })
+        let mut sides = ConflictSides::default();
+        for (slot, side) in [
+            (&mut sides.base, ConflictSide::Base),
+            (&mut sides.ours, ConflictSide::Ours),
+            (&mut sides.theirs, ConflictSide::Theirs),
+        ] {
+            if let Some((bytes, kind)) = self.stage_entry(path, side)? {
+                *slot = Some(bytes);
+                if kind != EntryKind::Regular {
+                    sides.kind = kind;
+                }
+            }
+        }
+        Ok(sides)
     }
 
     /// Checked out by git, not written from the blob: the eol and smudge filters (LFS)
     /// apply to a stage as they do to any checkout. Ours or theirs missing is the side that
     /// deleted the file, and taking it deletes the file.
     pub fn resolve_with(&self, path: &str, side: ConflictSide) -> Result<()> {
-        if self.stage_blob(path, side).is_none() {
+        let entry = self.stage_entry(path, side)?;
+        if entry.is_none() {
             if side == ConflictSide::Base || !self.conflicted_paths()?.iter().any(|p| p == path) {
                 return Err(GitError::InvalidState(format!(
                     "{path} has no {side:?} side"
                 )));
             }
             return self.run_git_literal(&["rm", "-q", "--", path]).map(drop);
+        }
+        if let Some((oid, EntryKind::Submodule)) = entry {
+            // `add` would stage the submodule's current HEAD, not the side's commit.
+            let oid = String::from_utf8_lossy(&oid);
+            return self
+                .run_git_literal(&[
+                    "update-index",
+                    "--add",
+                    "--cacheinfo",
+                    &format!("160000,{oid},{path}"),
+                ])
+                .map(drop);
         }
         let stage = format!("--stage={}", side.stage());
         self.run_git_literal(&["checkout-index", "-f", &stage, "--", path])?;
@@ -131,6 +165,11 @@ impl RepoHandle {
     /// done; then checked out again, so the eol and smudge filters apply as to any file.
     pub fn resolve_with_text(&self, path: &str, text: &str) -> Result<()> {
         let sides = self.conflict_sides(path)?;
+        if sides.kind != EntryKind::Regular {
+            return Err(GitError::InvalidState(format!(
+                "{path} is a symbolic link or a submodule: take one side whole"
+            )));
+        }
         if !sides.is_text() {
             return Err(GitError::InvalidState(format!(
                 "{path} is binary or not UTF-8: take one side whole"
@@ -141,6 +180,11 @@ impl RepoHandle {
             .find_map(Option::as_deref)
             .unwrap_or_default();
         let file = self.root().join(path);
+        if crate::blobs::is_symlink(&file) {
+            return Err(GitError::InvalidState(format!(
+                "{path} is a symbolic link: take one side whole"
+            )));
+        }
         std::fs::write(&file, shaped_like(text, like))?;
         self.run_git_literal(&["add", "--", path])?;
         // `checkout-index` passes over a file that matches the index, however it is written.
@@ -152,7 +196,8 @@ impl RepoHandle {
     /// The working file as it is, kept in the object store before a resolution writes over
     /// it: hand edits made in an editor are in it (INV-12). `None` when there is no file.
     pub fn keep_worktree_file(&self, path: &str) -> Result<Option<String>> {
-        if !self.root().join(path).is_file() {
+        let file = self.root().join(path);
+        if crate::blobs::is_symlink(&file) || !file.is_file() {
             return Ok(None);
         }
         let kept = self.run_git_literal(&["hash-object", "-w", "--no-filters", "--", path])?;
@@ -183,18 +228,39 @@ impl RepoHandle {
         if let Some(folder) = file.parent() {
             std::fs::create_dir_all(folder)?;
         }
+        if crate::blobs::is_symlink(&file) {
+            std::fs::remove_file(&file)?;
+        }
         std::fs::write(file, bytes)?;
         Ok(())
     }
 
-    fn stage_blob(&self, path: &str, side: ConflictSide) -> Option<Vec<u8>> {
-        let index = self.current_index().ok()?;
+    /// `None` only when the stage has no entry. A gitlink's content is its commit's hex id:
+    /// that commit is not in this repository's object store.
+    fn stage_entry(&self, path: &str, side: ConflictSide) -> Result<Option<(Vec<u8>, EntryKind)>> {
+        let index = self.current_index()?;
         let backing = index.path_backing();
-        let entry = index.entries().iter().find(|entry| {
+        let Some(entry) = index.entries().iter().find(|entry| {
             entry.stage() as u8 == side.stage()
                 && entry.path_in(backing) == gix::bstr::BStr::new(path.as_bytes())
-        })?;
-        let object = self.repo.find_object(entry.id).ok()?;
-        Some(object.into_blob().data.clone())
+        }) else {
+            return Ok(None);
+        };
+        if entry.mode.is_submodule() {
+            return Ok(Some((
+                entry.id.to_string().into_bytes(),
+                EntryKind::Submodule,
+            )));
+        }
+        let object = self
+            .repo
+            .find_object(entry.id)
+            .map_err(|err| GitError::Internal(format!("cannot read {path}: {err}")))?;
+        let kind = if entry.mode == gix::index::entry::Mode::SYMLINK {
+            EntryKind::Symlink
+        } else {
+            EntryKind::Regular
+        };
+        Ok(Some((object.into_blob().data.clone(), kind)))
     }
 }

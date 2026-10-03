@@ -267,3 +267,83 @@ fn a_text_resolution_is_checked_out_as_the_attributes_ask() {
     );
     assert_eq!(f.git(&["show", ":shared.txt"]).unwrap(), "merged\nkeep\n");
 }
+
+/// Two branches point `path` at different entries of mode `mode` (a symlink or a gitlink).
+/// Written through the index, so it needs neither `core.symlinks` nor a real submodule.
+fn special_conflict(mode: &str, path: &str, oids: [&str; 3]) -> test_fixtures::Fixture {
+    let f = test_fixtures::linear(1).unwrap();
+    let point = |oid: &str| {
+        let id = if mode == "120000" {
+            f.write_file("target.tmp", oid).unwrap();
+            let id = f.git(&["hash-object", "-w", "target.tmp"]).unwrap();
+            std::fs::remove_file(f.path().join("target.tmp")).unwrap();
+            id.trim().to_owned()
+        } else {
+            oid.to_owned()
+        };
+        f.git(&[
+            "update-index",
+            "--add",
+            "--cacheinfo",
+            &format!("{mode},{id},{path}"),
+        ])
+        .unwrap();
+    };
+    point(oids[0]);
+    f.commit_staged(20, "base").unwrap();
+    f.git(&["switch", "-c", "theirs"]).unwrap();
+    point(oids[2]);
+    f.commit_staged(21, "theirs").unwrap();
+    f.git(&["switch", "main"]).unwrap();
+    point(oids[1]);
+    f.commit_staged(22, "ours").unwrap();
+    assert!(f.git(&["merge", "--no-edit", "theirs"]).is_err());
+    f
+}
+
+const OID_A: &str = "1111111111111111111111111111111111111111";
+const OID_B: &str = "2222222222222222222222222222222222222222";
+const OID_C: &str = "3333333333333333333333333333333333333333";
+
+#[test]
+fn a_gitlink_conflict_has_all_its_sides_and_is_not_text() {
+    let f = special_conflict("160000", "sub", [OID_A, OID_B, OID_C]);
+    let repo = open(&f);
+
+    let sides = repo.conflict_sides("sub").unwrap();
+
+    assert!(sides.base.is_some() && sides.ours.is_some() && sides.theirs.is_some());
+    assert!(!sides.is_text());
+    assert!(repo.resolve_with_text("sub", "x").is_err());
+}
+
+#[test]
+fn taking_a_side_of_a_gitlink_conflict_keeps_the_gitlink_at_that_commit() {
+    let f = special_conflict("160000", "sub", [OID_A, OID_B, OID_C]);
+    let repo = open(&f);
+
+    repo.resolve_with("sub", git_engine::ConflictSide::Theirs)
+        .unwrap();
+
+    let staged = f.git(&["ls-files", "-s", "sub"]).unwrap();
+    assert_eq!(staged.trim(), format!("160000 {OID_C} 0\tsub"));
+}
+
+#[test]
+fn a_symlink_conflict_is_taken_whole_and_never_edited_as_text() {
+    let f = special_conflict(
+        "120000",
+        "cfg",
+        ["../a/config", "../b/config", "../c/config"],
+    );
+    let repo = open(&f);
+
+    let sides = repo.conflict_sides("cfg").unwrap();
+
+    assert!(!sides.is_text());
+    assert!(repo.resolve_with_text("cfg", "../c/config").is_err());
+    repo.resolve_with("cfg", git_engine::ConflictSide::Theirs)
+        .unwrap();
+    let staged = f.git(&["ls-files", "-s", "cfg"]).unwrap();
+    assert!(staged.starts_with("120000 "), "{staged}");
+}

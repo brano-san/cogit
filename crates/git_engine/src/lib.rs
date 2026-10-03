@@ -101,7 +101,7 @@ pub use config_file::{
     ConfigFile, ConfigProblem, ConfigScope, origin_file, read_config, save_config,
     user_config_by_rules, user_config_path,
 };
-pub use conflicts::{ConflictSide, ConflictSides, ConflictText};
+pub use conflicts::{ConflictSide, ConflictSides, ConflictText, EntryKind};
 pub use error::{GitCommandError, GitError};
 pub use file_log::{FileChange, FileRevision};
 pub use file_ops::{IgnoreRule, IndexEditorSides, IndexFlag};
