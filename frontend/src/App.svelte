@@ -616,12 +616,14 @@
     void diff.afterWrite(paths, rereadDiff);
     const id = repository.current?.repo;
     const conflicted = state && id ? repository.applyState(id, state) : await repository.refreshStatus();
+    // Not waited for: the first scan of a repository's objects can take seconds on a cold
+    // disk, and nothing an open or a mutation finishes needs the lost commits (R-731).
+    if (id) void recovery.refresh(id).catch((err) => errors.report(err, "Could not read the lost commits"));
     // One store that cannot read must not cancel the others, nor the diff and the graph
     // after them.
     const settled = await Promise.allSettled([
       id ? stashes.refresh(id) : Promise.resolve(),
       id ? network.refresh(id) : Promise.resolve(),
-      id ? recovery.refresh(id) : Promise.resolve(),
       // A checkout anywhere, in Branches or a terminal, moves which flow branch HEAD is on.
       id ? flow.refresh(id) : Promise.resolve(),
       submodules.refresh(),

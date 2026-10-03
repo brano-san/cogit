@@ -47,15 +47,34 @@ describe("the lost commits arrive in chunks", () => {
     expect(recovery.lost.map((r) => r.oid)).toEqual(["new"]);
   });
 
-  it("drops the chunks of a read that a newer one replaced", async () => {
-    const stale = recovery.refresh(1 as never);
-    const fresh = recovery.refresh(1 as never);
-    at(1).take([row("fresh")]);
+  // A refresh per disk event restarted the scan each time, seconds each on a cold disk.
+  it("reads once more after the running read, not once per refresh", async () => {
+    const reads = [1, 2, 3].map(() => recovery.refresh(1 as never));
+    expect(streams.length).toBe(1);
+
     at(0).take([row("stale")]);
     at(0).done();
+    await vi.waitFor(() => expect(streams.length).toBe(2));
+    at(1).take([row("fresh")]);
     at(1).done();
-    await Promise.all([stale, fresh]);
+    await Promise.all(reads);
 
+    expect(streams.length).toBe(2);
     expect(recovery.lost.map((r) => r.oid)).toEqual(["fresh"]);
+  });
+
+  it("drops the chunks of the repository left", async () => {
+    const left = recovery.refresh(1 as never);
+    recovery.clear();
+    const opened = recovery.refresh(2 as never);
+    expect(streams.length).toBe(2);
+
+    at(1).take([row("opened")]);
+    at(0).take([row("left")]);
+    at(0).done();
+    at(1).done();
+    await Promise.all([left, opened]);
+
+    expect(recovery.lost.map((r) => r.oid)).toEqual(["opened"]);
   });
 });
