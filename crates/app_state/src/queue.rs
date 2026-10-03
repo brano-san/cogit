@@ -58,6 +58,8 @@ pub struct Operation {
     pub phase: OperationPhase,
     /// Only ever `Some` once the phase is `Done`.
     pub success: Option<bool>,
+    /// `cancel_network` can stop it while it runs: what registered a stop, whatever its kind.
+    pub cancellable: bool,
 }
 
 #[derive(Debug, Default)]
@@ -89,6 +91,7 @@ impl Queue {
         repo: Option<RepoId>,
         kind: OperationKind,
         label: String,
+        cancellable: bool,
     ) -> (Operation, Option<oneshot::Receiver<()>>) {
         let mut lanes = self.lanes.lock();
         let lane = lanes.entry(lane.to_path_buf()).or_default();
@@ -99,6 +102,7 @@ impl Queue {
             label,
             phase: OperationPhase::Queued,
             success: None,
+            cancellable,
         };
 
         if lane.running.is_none() {
@@ -162,7 +166,18 @@ impl crate::AppState {
         kind: OperationKind,
         label: &str,
     ) -> OperationPermit<'_> {
-        self.enqueue_in(self.lane_of(repo), Some(repo), kind, label)
+        self.enqueue_in(self.lane_of(repo), Some(repo), kind, label, false)
+            .await
+    }
+
+    /// `enqueue` for a command registered with `network_stop`: the footer offers Cancel.
+    pub async fn enqueue_cancellable(
+        &self,
+        repo: RepoId,
+        kind: OperationKind,
+        label: &str,
+    ) -> OperationPermit<'_> {
+        self.enqueue_in(self.lane_of(repo), Some(repo), kind, label, true)
             .await
     }
 
@@ -174,7 +189,7 @@ impl crate::AppState {
         kind: OperationKind,
         label: &str,
     ) -> OperationPermit<'_> {
-        self.enqueue_in(lane, None, kind, label).await
+        self.enqueue_in(lane, None, kind, label, true).await
     }
 
     async fn enqueue_in(
@@ -183,8 +198,11 @@ impl crate::AppState {
         repo: Option<RepoId>,
         kind: OperationKind,
         label: &str,
+        cancellable: bool,
     ) -> OperationPermit<'_> {
-        let (operation, wait) = self.queue.admit(&lane, repo, kind, label.to_owned());
+        let (operation, wait) = self
+            .queue
+            .admit(&lane, repo, kind, label.to_owned(), cancellable);
         self.emit(AppEvent::Operation(operation.clone()));
 
         let mut operation = operation;

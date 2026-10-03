@@ -46,11 +46,17 @@ impl RepoHandle {
         self.run_git(&["tag", "--delete", name]).map(drop)
     }
 
-    pub fn delete_remote_tag(&self, remote: &str, name: &str) -> Result<()> {
+    pub fn delete_remote_tag(
+        &self,
+        remote: &str,
+        name: &str,
+        token: impl Fn(&str) -> Option<String>,
+    ) -> Result<()> {
         let remote = require(remote)?;
         let name = require(name)?;
-        self.run_git(&["push", remote, "--delete", &format!("refs/tags/{name}")])
-            .map(drop)
+        let auth = self.auth_env(remote, gix::remote::Direction::Push, &token);
+        let tag = format!("refs/tags/{name}");
+        self.run_streaming(&["push", remote, "--delete", &tag], &auth, |_| {})
     }
 
     /// Asked once on submit. A refusal is the answer, not a failed command, so it stays out

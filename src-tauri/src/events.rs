@@ -203,6 +203,7 @@ mod tests {
             label: "Fetching".to_owned(),
             phase: app_state::OperationPhase::Done,
             success: Some(true),
+            cancellable: false,
         };
         assert_eq!(
             serde_json::to_value(OperationChanged(operation.clone())).unwrap(),

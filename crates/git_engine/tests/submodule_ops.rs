@@ -279,3 +279,20 @@ fn initializing_a_clone_keeps_git_s_ban_on_local_paths() {
             .map(drop)
     ));
 }
+
+// A pull that brings a submodule updates it after the fetch is over; Cancel pressed then
+// reached no process, and the clone went on holding the repository's queue (GR-01).
+#[test]
+fn the_submodules_a_pull_brought_are_not_cloned_after_cancel() {
+    let f = test_fixtures::with_submodule().unwrap();
+    deinit(&f);
+    let stop = git_engine::NetworkStop::default();
+    stop.stop();
+
+    let result = open(&f)
+        .with_stop(stop)
+        .init_submodules_added_since(&BTreeSet::new());
+
+    assert!(matches!(result, Err(GitError::Cancelled(_))), "{result:?}");
+    assert_eq!(state(&f), SubmoduleState::NotInitialised);
+}

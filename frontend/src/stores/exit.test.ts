@@ -5,11 +5,11 @@ import { ExitFlow } from "./exit.svelte";
 const repo = 1 as unknown as RepoId;
 
 function op(id: number, phase: Operation["phase"] = "running"): Operation {
-  return { id, repo, kind: "push", label: "Pushing", phase, success: null };
+  return { id, repo, kind: "push", label: "Pushing", phase, success: null, cancellable: false };
 }
 
 function done(id: number, success = true): OperationChanged {
-  return { id, repo, kind: "push", label: "Pushing", phase: "done", success };
+  return { id, repo, kind: "push", label: "Pushing", phase: "done", success, cancellable: false };
 }
 
 const snapshot = (operations: Operation[]) => async () => operations;

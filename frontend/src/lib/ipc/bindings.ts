@@ -1662,6 +1662,8 @@ export type Operation = {
 	phase: OperationPhase,
 	/**  Only ever `Some` once the phase is `Done`. */
 	success: boolean | null,
+	/**  `cancel_network` can stop it while it runs: what registered a stop, whatever its kind. */
+	cancellable: boolean,
 };
 
 /**

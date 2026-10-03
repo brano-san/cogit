@@ -146,12 +146,12 @@ pub async fn delete_remote_branch(
     branch: String,
 ) -> Result<RemoteDeletion, GitError> {
     let app_state = state.state.clone();
-    mutating(
+    super::network::networking(
         &state.state,
         repo,
         OperationKind::Branch,
         "delete_remote_branch",
-        move || app_state.delete_remote_branch(repo, &remote, &branch),
+        move |stop| app_state.delete_remote_branch(repo, &remote, &branch, &stop),
     )
     .await
 }
@@ -202,12 +202,12 @@ pub async fn delete_remote_tag(
     name: String,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    mutating(
+    super::network::networking(
         &state.state,
         repo,
         OperationKind::Tag,
         "delete_remote_tag",
-        move || app_state.delete_remote_tag(repo, &remote, &name),
+        move |stop| app_state.delete_remote_tag(repo, &remote, &name, &stop),
     )
     .await
 }
@@ -239,12 +239,14 @@ pub async fn delete_refs(
     request: app_state::RefDeletion,
 ) -> Result<app_state::RefDeletionReport, GitError> {
     let app_state = state.state.clone();
-    mutating(
+    super::network::networking_if(
+        request.kind == app_state::RefDeletionKind::RemoteBranch,
         &state.state,
         repo,
         OperationKind::Branch,
+        OperationKind::Branch.title(),
         "delete_refs",
-        move || app_state.delete_refs(repo, &request),
+        move |stop| app_state.delete_refs(repo, &request, &stop),
     )
     .await
 }

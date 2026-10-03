@@ -62,6 +62,7 @@ fn a_folder_of_branches_goes_but_the_current_one_stays() {
                 &["fix/a", "fix/b", "fix/current"],
                 false,
             ),
+            &git_engine::NetworkStop::default(),
         )
         .unwrap();
 
@@ -87,6 +88,7 @@ fn one_failure_does_not_stop_the_rest_and_keeps_gits_words() {
                 &["fix/a", "fix/missing", "fix/b"],
                 false,
             ),
+            &git_engine::NetworkStop::default(),
         )
         .unwrap();
 
@@ -109,13 +111,21 @@ fn unmerged_branches_are_listed_and_go_with_force() {
     let (state, repo) = open(&f);
 
     let first = state
-        .delete_refs(repo, &request(RefDeletionKind::Branch, &["fix/wip"], false))
+        .delete_refs(
+            repo,
+            &request(RefDeletionKind::Branch, &["fix/wip"], false),
+            &git_engine::NetworkStop::default(),
+        )
         .unwrap();
     assert_eq!(first.not_fully_merged, names(&["fix/wip"]));
     assert!(first.deleted.is_empty());
 
     let second = state
-        .delete_refs(repo, &request(RefDeletionKind::Branch, &["fix/wip"], true))
+        .delete_refs(
+            repo,
+            &request(RefDeletionKind::Branch, &["fix/wip"], true),
+            &git_engine::NetworkStop::default(),
+        )
         .unwrap();
     assert_eq!(second.deleted, names(&["fix/wip"]));
 }
@@ -128,9 +138,34 @@ fn a_folder_of_tags_goes() {
     let (state, repo) = open(&f);
 
     let report = state
-        .delete_refs(repo, &request(RefDeletionKind::Tag, &["v/1", "v/2"], false))
+        .delete_refs(
+            repo,
+            &request(RefDeletionKind::Tag, &["v/1", "v/2"], false),
+            &git_engine::NetworkStop::default(),
+        )
         .unwrap();
 
     assert_eq!(report.deleted, names(&["v/1", "v/2"]));
     assert_eq!(f.git(&["tag"]).unwrap().trim(), "");
+}
+
+// A folder of remote branches is one `push --delete` after another; Cancel must end the
+// run, not fail every remaining branch on its own (GR-01).
+#[test]
+fn cancelling_a_remote_deletion_ends_the_batch() {
+    let f = test_fixtures::with_remote().unwrap();
+    let (state, repo) = open(&f);
+    let stop = git_engine::NetworkStop::default();
+    stop.stop();
+    let mut cancelled = request(RefDeletionKind::RemoteBranch, &["a", "b", "c"], false);
+    cancelled.remote = Some("origin".to_owned());
+
+    let report = state.delete_refs(repo, &cancelled, &stop).unwrap();
+
+    assert_eq!(report.failed.len(), 1, "{report:?}");
+    assert!(matches!(
+        report.failed[0].error,
+        git_engine::GitError::Cancelled(_)
+    ));
+    assert!(report.deleted.is_empty());
 }

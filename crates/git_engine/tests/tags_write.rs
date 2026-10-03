@@ -155,7 +155,8 @@ fn deleting_a_remote_tag_removes_it_from_the_remote() {
     f.git(&["tag", "shipped"]).unwrap();
     f.git(&["push", "origin", "refs/tags/shipped"]).unwrap();
 
-    repo.delete_remote_tag("origin", "shipped").unwrap();
+    repo.delete_remote_tag("origin", "shipped", |_| None)
+        .unwrap();
 
     let listed = f.git(&["ls-remote", "--tags", "origin"]).unwrap();
     assert!(!listed.contains("shipped"), "{listed}");

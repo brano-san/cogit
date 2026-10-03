@@ -51,15 +51,18 @@ impl AppState {
         self.handle(repo)?.set_upstream(branch, upstream)
     }
 
-    /// Reaches the server, so it is tracked and journalled like any other network call.
+    /// Reaches the server, so it is tracked and journalled like any other network call,
+    /// and `stop` can end it.
     pub fn delete_remote_branch(
         &self,
         repo: RepoId,
         remote: &str,
         branch: &str,
+        stop: &git_engine::NetworkStop,
     ) -> Result<git_engine::RemoteDeletion, git_engine::GitError> {
-        let _quiet = self.quiet(repo);
-        self.handle(repo)?.delete_remote_branch(remote, branch)
+        let _quiet = self.quiet_briefly(repo);
+        let handle = self.handle(repo)?.with_stop(stop.clone());
+        handle.delete_remote_branch(remote, branch, |url| self.token_for(url))
     }
 
     pub fn delete_branch(
@@ -104,9 +107,11 @@ impl AppState {
         repo: RepoId,
         remote: &str,
         name: &str,
+        stop: &git_engine::NetworkStop,
     ) -> Result<(), git_engine::GitError> {
-        let _quiet = self.quiet(repo);
-        self.handle(repo)?.delete_remote_tag(remote, name)
+        let _quiet = self.quiet_briefly(repo);
+        let handle = self.handle(repo)?.with_stop(stop.clone());
+        handle.delete_remote_tag(remote, name, |url| self.token_for(url))
     }
 
     pub fn delete_tag(&self, repo: RepoId, name: &str) -> Result<(), git_engine::GitError> {

@@ -18,6 +18,12 @@ pub enum SubmoduleOp {
 }
 
 impl SubmoduleOp {
+    /// Whether it may fetch from a server, which the footer then lets the user cancel.
+    #[must_use]
+    pub fn talks_to_a_server(self) -> bool {
+        matches!(self, Self::Initialize | Self::Reset)
+    }
+
     fn needs_a_target(self) -> bool {
         !matches!(self, Self::Initialize | Self::Synchronize)
     }
@@ -67,12 +73,12 @@ impl RepoHandle {
             ));
         }
         let mut args = ALLOW_FILE.to_vec();
-        args.extend(["submodule", "add"]);
+        args.extend(["submodule", "add", "--progress"]);
         if let Some(branch) = branch.map(str::trim).filter(|branch| !branch.is_empty()) {
             args.extend(["-b", branch]);
         }
         args.extend(["--", url, path]);
-        self.run_git(&args).map(drop)
+        self.run_network(&args)
     }
 
     /// What `.gitmodules` lists. Taken before a pull, so the ones it brings can be told apart.
@@ -107,16 +113,13 @@ impl RepoHandle {
             Some(allow) => vec!["-c", allow.as_str()],
             None => Vec::new(),
         };
-        args.extend(["submodule", "update"]);
+        args.extend(["submodule", "update", "--progress"]);
         args.extend(flags);
-        self.run_on_paths(&args, paths)
+        self.run_network(&with_paths(&args, paths))
     }
 
     fn run_on_paths(&self, args: &[&str], paths: &[String]) -> Result<()> {
-        let mut all = args.to_vec();
-        all.push("--");
-        all.extend(paths.iter().map(String::as_str));
-        self.run_git(&all).map(drop)
+        self.run_git(&with_paths(args, paths)).map(drop)
     }
 
     fn named_modules(&self) -> Result<Vec<Named>> {
@@ -177,4 +180,11 @@ impl RepoHandle {
                     && section.header().subsection_name() == Some(subsection.into())
             })
     }
+}
+
+fn with_paths<'a>(args: &[&'a str], paths: &'a [String]) -> Vec<&'a str> {
+    let mut all = args.to_vec();
+    all.push("--");
+    all.extend(paths.iter().map(String::as_str));
+    all
 }

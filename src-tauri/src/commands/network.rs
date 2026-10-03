@@ -44,9 +44,31 @@ where
     T: Send + 'static,
     F: FnOnce(NetworkStop) -> Result<T, GitError> + Send + 'static,
 {
-    let permit = state.enqueue(repo, kind, kind.title()).await;
-    let run = state.network_stop(permit.id());
-    let stop = run.token();
+    networking_if(true, state, repo, kind, kind.title(), label, work).await
+}
+
+/// `networking` for a command that only sometimes reaches a remote: the footer offers Cancel
+/// (`cancellable`) only when it does, since for the rest there is no git to stop.
+pub(super) async fn networking_if<T, F>(
+    cancellable: bool,
+    state: &std::sync::Arc<app_state::AppState>,
+    repo: RepoId,
+    kind: OperationKind,
+    title: &str,
+    label: &'static str,
+    work: F,
+) -> Result<T, GitError>
+where
+    T: Send + 'static,
+    F: FnOnce(NetworkStop) -> Result<T, GitError> + Send + 'static,
+{
+    let permit = if cancellable {
+        state.enqueue_cancellable(repo, kind, title).await
+    } else {
+        state.enqueue(repo, kind, title).await
+    };
+    let run = cancellable.then(|| state.network_stop(permit.id()));
+    let stop = run.as_ref().map(|run| run.token()).unwrap_or_default();
     let result = blocking(label, move || work(stop)).await;
     drop(run);
     permit.finish(result.is_ok());

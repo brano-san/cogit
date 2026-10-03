@@ -28,6 +28,7 @@ function op(over: Partial<Operation>): Operation {
     label: "Pushing",
     phase: "running",
     success: null,
+    cancellable: false,
     ...over,
   };
 }
@@ -40,6 +41,7 @@ function changed(over: Partial<OperationChanged>): OperationChanged {
     label: "Pushing",
     phase: "running",
     success: null,
+    cancellable: false,
     ...over,
   };
 }

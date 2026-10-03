@@ -1,7 +1,7 @@
 //! Every ref under a folder of Branches, deleted in one queued step.
 
 use crate::{AppState, RepoId};
-use git_engine::{BranchDeletion, GitError};
+use git_engine::{BranchDeletion, GitError, NetworkStop};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, specta::Type)]
@@ -76,6 +76,7 @@ impl AppState {
         &self,
         repo: RepoId,
         request: &RefDeletion,
+        stop: &NetworkStop,
     ) -> Result<RefDeletionReport, GitError> {
         let mut report = RefDeletionReport::default();
         let mut names = request.names.clone();
@@ -97,14 +98,20 @@ impl AppState {
                     .delete_branch(repo, &name, request.force)
                     .map(|done| done == BranchDeletion::NotFullyMerged),
                 RefDeletionKind::RemoteBranch => self
-                    .delete_remote_branch(repo, remote, &name)
+                    .delete_remote_branch(repo, remote, &name, stop)
                     .map(|_| false),
                 RefDeletionKind::Tag => self.delete_tag(repo, &name).map(|()| false),
             };
             match outcome {
                 Ok(true) => report.not_fully_merged.push(name),
                 Ok(false) => report.deleted.push(name),
-                Err(error) => report.failed.push(FailedDeletion { name, error }),
+                Err(error) => {
+                    let canceled = matches!(error, GitError::Cancelled(_));
+                    report.failed.push(FailedDeletion { name, error });
+                    if canceled {
+                        break;
+                    }
+                }
             }
         }
         Ok(report)

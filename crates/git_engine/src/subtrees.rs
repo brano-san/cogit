@@ -38,6 +38,19 @@ pub enum SubtreeOp {
     },
 }
 
+impl SubtreeOp {
+    #[must_use]
+    pub fn talks_to_a_server(&self) -> bool {
+        match self {
+            Self::Add { .. } | Self::Push { .. } => true,
+            Self::Merge { repository, .. } => {
+                repository.as_deref().is_some_and(|r| !r.trim().is_empty())
+            }
+            _ => false,
+        }
+    }
+}
+
 /// Commits read for `git-subtree-dir:`; an older subtree is typed in by hand.
 const PREFIX_SCAN_LIMIT: usize = 50_000;
 
@@ -59,7 +72,7 @@ impl RepoHandle {
                     required(repository, "repository")?,
                     required(reference, "ref")?,
                 ]);
-                self.run_git(&args).map(drop)
+                self.run_network(&args)
             }
             SubtreeOp::Merge {
                 prefix,
@@ -79,7 +92,11 @@ impl RepoHandle {
                 }
                 args.extend(source);
                 args.push(required(reference, "ref")?);
-                self.run_git(&args).map(drop)
+                if source.is_some() {
+                    self.run_network(&args)
+                } else {
+                    self.run_git(&args).map(drop)
+                }
             }
             SubtreeOp::Split {
                 prefix,
@@ -115,7 +132,7 @@ impl RepoHandle {
                     required(repository, "repository")?,
                     required(reference, "ref")?,
                 ];
-                self.run_git(&args).map(drop)
+                self.run_network(&args)
             }
         }
     }

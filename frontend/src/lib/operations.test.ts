@@ -124,11 +124,12 @@ describe("activity · bulk work", () => {
 });
 
 describe("trackCancellable", () => {
-  const step = (id: number, kind: string, phase: "queued" | "running" | "done") => ({
-    id,
-    kind: kind as "fetch",
-    phase,
-  });
+  const step = (
+    id: number,
+    kind: string,
+    phase: "queued" | "running" | "done",
+    cancellable = true,
+  ) => ({ id, kind: kind as "fetch", phase, cancellable });
 
   it("holds a fetch, pull or push once it runs, not while it waits", () => {
     let ids = trackCancellable([], step(1, "fetch", "queued"));
@@ -139,12 +140,14 @@ describe("trackCancellable", () => {
     expect(ids).toEqual([1, 2, 3]);
   });
 
-  it("leaves out what does not talk to a server", () => {
-    expect(trackCancellable([], step(4, "commit", "running"))).toEqual([]);
+  it("leaves out what the backend can not stop", () => {
+    expect(trackCancellable([], step(4, "commit", "running", false))).toEqual([]);
+    expect(trackCancellable([], step(4, "fetch", "running", false))).toEqual([]);
   });
 
-  it("holds a clone too: the footer's Cancel stops it", () => {
-    expect(trackCancellable([], step(5, "clone", "running"))).toEqual([5]);
+  it("holds any kind the backend can stop: a remote branch delete, a submodule update", () => {
+    expect(trackCancellable([], step(5, "branch", "running"))).toEqual([5]);
+    expect(trackCancellable([], step(6, "submodule", "running"))).toEqual([6]);
   });
 
   it("lets one go when it is done, whatever it was", () => {

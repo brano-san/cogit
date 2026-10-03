@@ -401,6 +401,7 @@ mod tests {
             label: "fetch".into(),
             phase: OperationPhase::Running,
             success: None,
+            cancellable: false,
         }));
     }
 }

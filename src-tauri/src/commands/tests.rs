@@ -204,7 +204,8 @@ fn commands_that_write_the_repository_wait_for_its_lane() {
             !all.iter().any(|command| {
                 command.name == *name
                     && (command.body.contains("mutating(")
-                        || command.body.contains("mutating_titled("))
+                        || command.body.contains("mutating_titled(")
+                        || command.body.contains("networking_if("))
             })
         })
         .collect();
@@ -219,7 +220,11 @@ fn commands_that_write_the_repository_wait_for_its_lane() {
 #[test]
 fn every_command_that_talks_to_a_remote_can_be_cancelled() {
     let all = all_commands();
-    let registered = |body: &str| body.contains("networking(") || body.contains("network_stop(");
+    let registered = |body: &str| {
+        body.contains("networking(")
+            || body.contains("networking_if(")
+            || body.contains("network_stop(")
+    };
     let uncancellable: Vec<&str> = [
         "fetch",
         "pull",
@@ -228,6 +233,13 @@ fn every_command_that_talks_to_a_remote_can_be_cancelled() {
         "fetch_more",
         "fetch_depth",
         "clone_repository",
+        "delete_remote_branch",
+        "delete_remote_tag",
+        "delete_refs",
+        "submodule_op",
+        "add_submodule",
+        "subtree_op",
+        "lfs_op",
     ]
     .into_iter()
     .filter(|name| {

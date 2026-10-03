@@ -718,3 +718,72 @@ fn a_fetch_stopped_before_it_starts_never_runs_git() {
     );
     assert!(seen(&log).is_empty(), "{:?}", seen(&log));
 }
+
+// What talks to a server through `run_git` waited for it with no end and no way to stop it,
+// and held the repository's queue (GR-01).
+fn stopped_while_the_server_is_silent(
+    f: &test_fixtures::Fixture,
+    ask: impl FnOnce(RepoHandle) -> git_engine::Result<()> + Send + 'static,
+) {
+    let stop = git_engine::NetworkStop::default();
+    let repo = open(f).with_stop(stop.clone());
+    let (done, finished) = std::sync::mpsc::channel();
+    let started = std::time::Instant::now();
+
+    std::thread::spawn(move || {
+        let _ = done.send(ask(repo));
+    });
+    while git_engine::children::running() == 0 {
+        assert!(
+            started.elapsed() < test_fixtures::scaled(std::time::Duration::from_secs(20)),
+            "git never started"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    assert!(stop.stop());
+    let result = finished
+        .recv_timeout(std::time::Duration::from_secs(20))
+        .expect("the command was still running 20 s after it was stopped");
+
+    assert!(
+        matches!(result, Err(git_engine::GitError::Cancelled(_))),
+        "{result:?}"
+    );
+}
+
+#[test]
+fn deleting_a_remote_branch_on_a_silent_server_can_be_stopped() {
+    let f = test_fixtures::linear(1).unwrap();
+    silent_remote(&f);
+
+    stopped_while_the_server_is_silent(&f, |repo| {
+        repo.delete_remote_branch("quiet", "topic", no_token)
+            .map(drop)
+    });
+}
+
+#[test]
+fn deleting_a_remote_tag_on_a_silent_server_can_be_stopped() {
+    let f = test_fixtures::linear(1).unwrap();
+    silent_remote(&f);
+
+    stopped_while_the_server_is_silent(&f, |repo| repo.delete_remote_tag("quiet", "v1", no_token));
+}
+
+#[test]
+fn a_token_reaches_the_deletion_of_a_remote_tag_but_not_the_journal() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&["remote", "set-url", "origin", "https://127.0.0.1:1/o/r.git"])
+        .unwrap();
+    let (repo, log) = commands_of(open(&f));
+
+    let _ = repo.delete_remote_tag("origin", "v1", |_| Some("s3cr3t".to_owned()));
+
+    let lines = seen(&log).join("\n");
+    assert!(
+        lines.contains("push origin --delete refs/tags/v1"),
+        "{lines}"
+    );
+    assert!(!lines.contains("s3cr3t"), "{lines}");
+    assert!(!lines.contains("extraHeader"), "{lines}");
+}

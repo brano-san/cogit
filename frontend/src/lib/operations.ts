@@ -1,4 +1,4 @@
-import type { OperationKind, OperationPhase } from "./ipc";
+import type { OperationPhase } from "./ipc";
 
 export interface OperationEvent {
   id: number;
@@ -22,18 +22,15 @@ export function busyLabel(running: ReadonlyMap<number, string>): string | null {
   return `${running.size} operations running…`;
 }
 
-/** What `cancel_network` stops: a fetch, a pull or a push, Push To and Push Up To included,
-    and a clone. */
-const TALKS_TO_A_SERVER: ReadonlySet<OperationKind> = new Set(["fetch", "pull", "push", "clone"]);
-
-/** The ids of the network operations running now, in the order they started (R-506). One
-    still waiting in the queue has no git to stop yet. */
+/** The ids of the operations running now that `cancel_network` can stop, in the order they
+    started (R-506): what the backend registered a stop for, whatever its kind. One still
+    waiting in the queue has no git to stop yet. */
 export function trackCancellable(
   ids: readonly number[],
-  event: { id: number; kind: OperationKind; phase: OperationPhase },
+  event: { id: number; phase: OperationPhase; cancellable: boolean },
 ): number[] {
   const rest = ids.filter((id) => id !== event.id);
-  if (event.phase === "running" && TALKS_TO_A_SERVER.has(event.kind)) rest.push(event.id);
+  if (event.phase === "running" && event.cancellable) rest.push(event.id);
   return rest;
 }
 

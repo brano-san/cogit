@@ -314,6 +314,29 @@ impl RepoHandle {
         self.run_streaming_within(args, env, on_line, SILENCE)
     }
 
+    /// A command that talks to a remote and shows no progress: stoppable and watched.
+    pub(crate) fn run_network(&self, args: &[&str]) -> Result<()> {
+        self.run_streaming(args, &[], |_| {})
+    }
+
+    /// `run_streaming` for output that is parsed: the whole stdout, a journal entry only
+    /// when the command fails.
+    pub(crate) fn run_streaming_read(
+        &self,
+        args: &[&str],
+        env: &[(String, String)],
+        on_line: impl FnMut(&str),
+    ) -> Result<String> {
+        let to = Streamed {
+            root: self.root(),
+            stop: self.stop.as_ref(),
+            journal: &|entry| self.journal_entry(entry),
+        };
+        let mut process = self.base_git(args);
+        process.envs(env.iter().map(|(key, value)| (key, value)));
+        to.run_read(process, args, on_line, SILENCE)
+    }
+
     fn run_streaming_within(
         &self,
         args: &[&str],
@@ -348,8 +371,30 @@ impl Streamed<'_> {
         on_line: impl FnMut(&str),
         silence: Duration,
     ) -> Result<()> {
-        let out = self.stream_git(process, args, on_line, silence)?;
-        if out.exit_code == Some(0) {
+        let (out, _) = self.stream_git(process, args, on_line, silence)?;
+        self.settle(out, true)
+    }
+
+    /// `run` for output that is parsed: the raw stdout, which the record trims, and a
+    /// journal entry only on failure (R-280).
+    pub(crate) fn run_read(
+        &self,
+        process: std::process::Command,
+        args: &[&str],
+        on_line: impl FnMut(&str),
+        silence: Duration,
+    ) -> Result<String> {
+        let (out, stdout) = self.stream_git(process, args, on_line, silence)?;
+        self.settle(out, false)?;
+        Ok(stdout)
+    }
+
+    fn settle(&self, out: GitOutput, journal_success: bool) -> Result<()> {
+        let succeeded = out.exit_code == Some(0);
+        if journal_success || !succeeded {
+            (self.journal)(out.clone());
+        }
+        if succeeded {
             return Ok(());
         }
         if self.cancelled() {
@@ -358,14 +403,15 @@ impl Streamed<'_> {
         Err(out.into())
     }
 
-    /// Delivered as it appears, not after the process exits.
+    /// Delivered as it appears, not after the process exits. The record, and the whole
+    /// stdout beside it.
     fn stream_git(
         &self,
         mut process: std::process::Command,
         args: &[&str],
         mut on_line: impl FnMut(&str),
         silence: Duration,
-    ) -> Result<GitOutput> {
+    ) -> Result<(GitOutput, String)> {
         let command = crate::redact_command(args);
         if self.cancelled() {
             return Err(GitError::Cancelled(command));
@@ -424,8 +470,7 @@ impl Streamed<'_> {
             );
             tracing::warn!(command = %result.command, silence_s = silence.as_secs(), "stopped a silent network command");
         }
-        (self.journal)(result.clone());
-        Ok(result)
+        Ok((result, stdout))
     }
 
     fn cancelled(&self) -> bool {

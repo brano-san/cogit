@@ -14,12 +14,14 @@ pub async fn submodule_op(
     paths: Vec<String>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    mutating(
+    super::network::networking_if(
+        op.talks_to_a_server(),
         &state.state,
         repo,
         OperationKind::Submodule,
+        OperationKind::Submodule.title(),
         "submodule_op",
-        move || app_state.submodule_op(repo, op, &paths),
+        move |stop| app_state.submodule_op(repo, op, &paths, &stop),
     )
     .await
 }
@@ -34,12 +36,12 @@ pub async fn add_submodule(
     branch: Option<String>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    mutating(
+    super::network::networking(
         &state.state,
         repo,
         OperationKind::Submodule,
         "add_submodule",
-        move || app_state.add_submodule(repo, &url, &path, branch.as_deref()),
+        move |stop| app_state.add_submodule(repo, &url, &path, branch.as_deref(), &stop),
     )
     .await
 }
@@ -52,12 +54,14 @@ pub async fn subtree_op(
     op: SubtreeOp,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    mutating(
+    super::network::networking_if(
+        op.talks_to_a_server(),
         &state.state,
         repo,
         OperationKind::Other,
+        OperationKind::Other.title(),
         "subtree_op",
-        move || app_state.subtree_op(repo, &op),
+        move |stop| app_state.subtree_op(repo, &op, &stop),
     )
     .await
 }
@@ -88,12 +92,14 @@ pub async fn lfs_op(
     op: LfsOp,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    mutating(
+    super::network::networking_if(
+        op.talks_to_a_server(),
         &state.state,
         repo,
         OperationKind::Other,
+        OperationKind::Other.title(),
         "lfs_op",
-        move || app_state.lfs_op(repo, &op),
+        move |stop| app_state.lfs_op(repo, &op, &stop),
     )
     .await
 }

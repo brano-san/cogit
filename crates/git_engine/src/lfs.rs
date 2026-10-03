@@ -22,6 +22,13 @@ pub enum LfsOp {
     Prune,
 }
 
+impl LfsOp {
+    #[must_use]
+    pub fn talks_to_a_server(&self) -> bool {
+        matches!(self, Self::Lock { .. } | Self::Unlock { .. })
+    }
+}
+
 /// `git lfs version`, or `None` when git has no `lfs` command to run.
 #[must_use]
 pub fn lfs_version() -> Option<String> {
@@ -163,7 +170,7 @@ impl RepoHandle {
         }
         paths
             .iter()
-            .try_for_each(|path| self.run_git(&["lfs", command, "--", path]).map(drop))
+            .try_for_each(|path| self.run_network(&["lfs", command, "--", path]))
     }
 }
 

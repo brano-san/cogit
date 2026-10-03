@@ -137,7 +137,8 @@ fn deleting_a_remote_branch_removes_it_from_the_remote() {
         .unwrap();
 
     assert_eq!(
-        repo.delete_remote_branch("origin", "doomed").unwrap(),
+        repo.delete_remote_branch("origin", "doomed", |_| None)
+            .unwrap(),
         RemoteDeletion::Deleted
     );
     f.git(&["fetch", "--prune", "origin"]).unwrap();
@@ -164,7 +165,7 @@ fn deleting_a_remote_branch_that_is_already_gone_succeeds() {
         .unwrap();
 
     let result = open(&f)
-        .delete_remote_branch("origin", "origin/gone")
+        .delete_remote_branch("origin", "origin/gone", |_| None)
         .unwrap();
 
     assert_eq!(result, RemoteDeletion::AlreadyGone);
@@ -188,7 +189,7 @@ fn a_remote_branch_with_a_tag_of_the_same_name_is_deleted_and_the_tag_kept() {
     .unwrap();
 
     let result = open(&f)
-        .delete_remote_branch("origin", "origin/topic")
+        .delete_remote_branch("origin", "origin/topic", |_| None)
         .unwrap();
 
     assert_eq!(result, RemoteDeletion::Deleted);
@@ -211,7 +212,7 @@ fn the_server_branch_is_found_through_the_remotes_fetch_refspec() {
     f.git(&["fetch", "origin"]).unwrap();
 
     let result = open(&f)
-        .delete_remote_branch("origin", "origin/mirror/feature")
+        .delete_remote_branch("origin", "origin/mirror/feature", |_| None)
         .unwrap();
 
     assert_eq!(result, RemoteDeletion::Deleted);
@@ -226,7 +227,8 @@ fn a_remote_branch_is_named_without_its_remote_prefix() {
     f.git(&["push", "origin", "HEAD:refs/heads/short"]).unwrap();
 
     // `origin/short` is what the panel shows; the command has to take either spelling.
-    repo.delete_remote_branch("origin", "origin/short").unwrap();
+    repo.delete_remote_branch("origin", "origin/short", |_| None)
+        .unwrap();
     f.git(&["fetch", "--prune", "origin"]).unwrap();
     assert!(
         !repo
