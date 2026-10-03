@@ -219,15 +219,14 @@ impl RepoHandle {
             // A filtered list shows matches from every line, the merged ones too (#26).
             let first_parent = query.view.first_parent && !query.filters_rows();
             let shallow = self.shallow_commits();
-            let walk = ByTime::new(tips, read, first_parent, shallow.clone()).inspect(
-                |(id, parents, _)| {
+            let walk =
+                ByTime::new(tips, read, first_parent, shallow.clone()).inspect(|(id, _, _)| {
                     if let Some(cut) = cut
                         && shallow.binary_search(id).is_ok()
                     {
-                        parents.iter().for_each(|parent| cut.insert(*parent));
+                        cut.insert_shallow(*id);
                     }
-                },
-            );
+                });
             let rows = Rows {
                 record,
                 text,

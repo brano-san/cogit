@@ -67,7 +67,7 @@ pub(crate) fn lay_out(
                 } else {
                     c.parents
                         .iter()
-                        .filter(|parent| cut.contains(parent))
+                        .filter(|parent| cut.hides(&c.oid, parent))
                         .cloned()
                         .collect()
                 },

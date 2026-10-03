@@ -36,25 +36,33 @@ impl WalkedHistory {
     }
 }
 
-/// Parents a walk never lists: those of a shallow commit and those it could not read. The
-/// walk names them before the row that has them as parents goes out, so the layout can end
-/// their lines in an arrow instead of waiting for a commit that never comes.
+/// Links a walk never lists: from a shallow commit to its parents, and to a parent it could
+/// not read. The walk names them before the row that has them as parents goes out, so the
+/// layout can end their lines in an arrow instead of waiting for a commit that never comes.
+/// A shallow boundary is the child's: another child of the same parent keeps its link.
 #[derive(Debug, Default)]
-pub struct CutParents(std::cell::RefCell<HashSet<String>>);
+pub struct CutParents {
+    unreadable: std::cell::RefCell<HashSet<String>>,
+    shallow: std::cell::RefCell<HashSet<String>>,
+}
 
 impl CutParents {
     #[must_use]
-    pub fn contains(&self, oid: &str) -> bool {
-        self.0.borrow().contains(oid)
+    pub fn hides(&self, child: &str, parent: &str) -> bool {
+        self.shallow.borrow().contains(child) || self.unreadable.borrow().contains(parent)
     }
 
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.0.borrow().is_empty()
+        self.shallow.borrow().is_empty() && self.unreadable.borrow().is_empty()
     }
 
     pub(crate) fn insert(&self, id: ObjectId) {
-        self.0.borrow_mut().insert(id.to_string());
+        self.unreadable.borrow_mut().insert(id.to_string());
+    }
+
+    pub(crate) fn insert_shallow(&self, id: ObjectId) {
+        self.shallow.borrow_mut().insert(id.to_string());
     }
 }
 

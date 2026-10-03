@@ -282,6 +282,54 @@ fn a_shallow_boundary_ends_its_lines_in_arrows() {
     }
 }
 
+/// A shallow boundary belongs to the child: another commit with the same parent still has
+/// it, so a pull request fetched `--depth 1` must not cut main's own history (R-161).
+#[test]
+fn a_parent_of_a_shallow_commit_stays_linked_to_its_other_children() {
+    let upstream = test_fixtures::linear(6).unwrap();
+    upstream
+        .git(&["switch", "-q", "-c", "pr", "HEAD~1"])
+        .unwrap();
+    upstream.commit_file(10, "pr.txt", "pr\n").unwrap();
+    upstream.git(&["switch", "-q", "main"]).unwrap();
+    let clone = tempfile::tempdir().unwrap();
+    let url = format!(
+        "file://{}",
+        upstream.path().to_string_lossy().replace('\\', "/")
+    );
+    let target = clone.path().join("full");
+    let status = test_fixtures::git_command_in(clone.path())
+        .args(["clone", "-q", "--single-branch", "--branch", "main", &url])
+        .arg(&target)
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let status = test_fixtures::git_command_in(&target)
+        .args(["fetch", "-q", "--depth", "1", "origin", "pr:refs/heads/pr"])
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let state = AppState::new();
+    let repo = state.open_repository(&target).unwrap().repo;
+
+    let chunks = stream(&state, repo, 100);
+    let commits: Vec<_> = chunks.iter().flat_map(|c| c.commits.iter()).collect();
+    let rows: Vec<_> = chunks.iter().flat_map(|c| c.rows.iter()).collect();
+    let row_of = |summary: &str| {
+        let at = commits
+            .iter()
+            .position(|c| c.summary == summary)
+            .unwrap_or_else(|| panic!("{summary} in {commits:?}"));
+        rows[at]
+    };
+
+    let head = row_of("commit 5");
+    assert!(head.segments.iter().all(|s| !s.arrow), "{head:?}");
+    assert_eq!(row_of("commit 4").lane, 0);
+    let pr = row_of("commit 10");
+    assert!(pr.segments.iter().any(|s| s.arrow), "{pr:?}");
+}
+
 #[test]
 fn rows_keep_counting_across_chunks_when_filtered() {
     let f = test_fixtures::linear(5).unwrap();
