@@ -238,7 +238,8 @@ impl AppState {
         spec: &git_engine::DiffSpec,
         reverse: bool,
     ) -> Result<String, git_engine::GitError> {
-        let (old, new) = self.handle(repo)?.patch_sides(spec, &request.path)?;
+        let handle = self.handle(repo)?;
+        let (old, new) = handle.patch_sides(spec, &request.path)?;
         // A stand-in character only means a lost byte where a side is not UTF-8: the same
         // character written in valid UTF-8 is just text (an icon font's, say).
         let lossy = |side: &Option<Vec<u8>>| {
@@ -255,6 +256,10 @@ impl AppState {
             reverse,
             old_exists: old.is_some(),
             new_exists: new.is_some(),
+            new_mode: handle
+                .side_modes(spec, &request.path, &request.path)
+                .1
+                .and_then(|mode| u32::from_str_radix(&mode, 8).ok()),
         };
         let sides = diff_engine::PatchSides {
             old: old.as_deref().unwrap_or_default(),

@@ -22,6 +22,9 @@ pub struct PatchShape {
     pub reverse: bool,
     pub old_exists: bool,
     pub new_exists: bool,
+    /// Octal mode of the file the patch creates (`0o100755`): written in a `diff --git`
+    /// header, since a bare `--- /dev/null` patch makes a regular file.
+    pub new_mode: Option<u32>,
 }
 
 /// The two files the diff was cut from, as they are now and as git holds them — the working
@@ -319,7 +322,13 @@ pub fn build_patch(
     } else {
         format!("b/{path}")
     };
-    Ok(format!("--- {from}\n+++ {to}\n{body}"))
+    let header = match shape.new_mode {
+        Some(mode) if from == "/dev/null" && !shape.reverse => {
+            format!("diff --git a/{path} b/{path}\nnew file mode {mode:o}\n")
+        }
+        _ => String::new(),
+    };
+    Ok(format!("{header}--- {from}\n+++ {to}\n{body}"))
 }
 
 /// The diff shows a missing final newline as an empty last row on the side that has the

@@ -10,6 +10,7 @@ const FORWARD: PatchShape = PatchShape {
     reverse: false,
     old_exists: true,
     new_exists: true,
+    new_mode: None,
 };
 
 fn hunks(old: &str, new: &str) -> Vec<diff_engine::Hunk> {
@@ -158,6 +159,35 @@ fn a_brand_new_file_patches_against_dev_null() {
         patch.starts_with("--- /dev/null\n+++ b/new.txt\n"),
         "{patch}"
     );
+}
+
+// Without the header `git apply` creates a regular file: a new script lost its +x.
+#[test]
+fn a_brand_new_file_is_created_with_its_mode() {
+    let mut req = request("", "fresh\n", &[(1, false)]);
+    req.path = "run.sh".to_owned();
+    let new = PatchShape {
+        old_exists: false,
+        new_mode: Some(0o100_755),
+        ..FORWARD
+    };
+
+    let forward = build_patch(&req, new, sides("", "fresh\n")).unwrap();
+    let reverse = build_patch(
+        &req,
+        PatchShape {
+            reverse: true,
+            ..new
+        },
+        sides("", "fresh\n"),
+    )
+    .unwrap();
+
+    assert!(
+        forward.starts_with("diff --git a/run.sh b/run.sh\nnew file mode 100755\n--- /dev/null\n"),
+        "{forward}"
+    );
+    assert!(!reverse.contains("diff --git"), "{reverse}");
 }
 
 #[test]

@@ -88,6 +88,40 @@ fn staging_a_line_of_a_file_that_has_no_committed_version_creates_it_in_the_inde
         "one\n",
         "the index gets a new file holding just the picked line"
     );
+    assert!(
+        f.git(&["ls-files", "-s", "fresh.txt"])
+            .unwrap()
+            .starts_with("100644")
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn staging_a_line_of_a_new_executable_keeps_it_executable() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file("run.sh", "one\ntwo\n").unwrap();
+    std::fs::set_permissions(
+        f.path().join("run.sh"),
+        std::fs::Permissions::from_mode(0o755),
+    )
+    .unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    state
+        .stage_selection(
+            repo,
+            &request("run.sh", "", "one\ntwo\n", Vec::new(), vec![1]),
+            false,
+        )
+        .unwrap();
+
+    assert!(
+        f.git(&["ls-files", "-s", "run.sh"])
+            .unwrap()
+            .starts_with("100755")
+    );
 }
 
 #[test]
