@@ -20,11 +20,28 @@ pub fn tail(text: &str, lines: usize) -> String {
     all[from..].join("\n")
 }
 
+/// Only the end of the file is read: the log is up to 10 MB, and this may run on a slow disk.
+const TAIL_BYTES: u64 = 256 * 1024;
+
 fn read_tail(log_path: &Path, lines: usize) -> String {
-    match std::fs::read_to_string(log_path) {
-        Ok(text) => tail(&text, lines),
-        Err(err) => format!("(cannot read {}: {err})", log_path.display()),
-    }
+    use std::io::{Read as _, Seek as _, SeekFrom};
+    let read = || -> std::io::Result<String> {
+        let mut file = std::fs::File::open(log_path)?;
+        let len = file.metadata()?.len();
+        let cut = len > TAIL_BYTES;
+        file.seek(SeekFrom::Start(len.saturating_sub(TAIL_BYTES)))?;
+        let mut bytes = Vec::new();
+        file.read_to_end(&mut bytes)?;
+        let text = String::from_utf8_lossy(&bytes);
+        // The first line of a cut read is a fragment.
+        let whole = if cut {
+            text.split_once('\n').map_or("", |(_, rest)| rest)
+        } else {
+            &text
+        };
+        Ok(tail(whole, lines))
+    };
+    read().unwrap_or_else(|err| format!("(cannot read {}: {err})", log_path.display()))
 }
 
 /// The whole report. Paths are printed even when reading them failed: half the questions
@@ -62,6 +79,18 @@ fn build_kind() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_tail_of_a_big_log_is_its_last_lines() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("big.log");
+        let text: String = (1..=200_000).map(|i| format!("line {i}\n")).collect();
+        std::fs::write(&path, text).unwrap();
+        let got = read_tail(&path, 200);
+        let lines: Vec<&str> = got.lines().collect();
+        assert_eq!(lines.len(), 200);
+        assert_eq!((lines[0], lines[199]), ("line 199801", "line 200000"));
+    }
 
     #[test]
     fn a_short_log_travels_whole() {

@@ -628,16 +628,17 @@ fn copy_diagnostics(app: &tauri::AppHandle) {
     let Some(context) = app.try_state::<AppContext>() else {
         return;
     };
-    let text = diagnostics::report(
-        &context.log_path,
-        &context.config_dir,
-        webview2_version().as_deref(),
-    );
-
-    match app.clipboard().write_text(text) {
-        Ok(()) => tracing::info!("diagnostics copied to the clipboard"),
-        Err(err) => tracing::error!(error = %err, "cannot copy diagnostics"),
-    }
+    let (log_path, config_dir) = (context.log_path.clone(), context.config_dir.clone());
+    let webview2 = webview2_version();
+    let app = app.clone();
+    // The menu handler runs on the window's thread: reading the log must not hold it.
+    tauri::async_runtime::spawn_blocking(move || {
+        let text = diagnostics::report(&log_path, &config_dir, webview2.as_deref());
+        match app.clipboard().write_text(text) {
+            Ok(()) => tracing::info!("diagnostics copied to the clipboard"),
+            Err(err) => tracing::error!(error = %err, "cannot copy diagnostics"),
+        }
+    });
 }
 
 #[cfg(debug_assertions)]
