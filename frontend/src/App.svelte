@@ -604,7 +604,9 @@
     diff.dropIfAffected(paths);
     const conflicted = await repository.refreshStatus();
     const id = repository.current?.repo;
-    await Promise.all([
+    // One store that cannot read must not cancel the others, nor the diff and the graph
+    // after them.
+    const settled = await Promise.allSettled([
       id ? stashes.refresh(id) : Promise.resolve(),
       id ? network.refresh(id) : Promise.resolve(),
       id ? recovery.refresh(id) : Promise.resolve(),
@@ -618,6 +620,8 @@
       loadTemplate(),
       output.open ? output.refresh() : Promise.resolve(),
     ]);
+    const failed = settled.find((result) => result.status === "rejected");
+    if (failed) errors.report(failed.reason, "Could not refresh after a change");
   }
 
   /** What every command rule reads (issue 2). One object, one definition. */
@@ -955,7 +959,12 @@
   const SETTLE_MS = 120;
   // A stream that never pauses for SETTLE_MS is still answered this often.
   const MAX_WAIT_MS = 1_000;
-  const diskPasses = new DiskPasses(SETTLE_MS, MAX_WAIT_MS, (kinds, arrived) => applyDiskChanges(kinds, arrived));
+  const diskPasses = new DiskPasses(
+    SETTLE_MS,
+    MAX_WAIT_MS,
+    (kinds, arrived) => applyDiskChanges(kinds, arrived),
+    (err) => errors.report(err, "Could not refresh after a change on disk"),
+  );
 
   function onDiskChange(change: import("$lib/ipc").RepoChanged) {
     if (change.kind === "refs") {

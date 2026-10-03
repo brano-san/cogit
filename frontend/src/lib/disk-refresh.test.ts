@@ -9,6 +9,8 @@ afterEach(() => vi.useRealTimers());
 function passes() {
   const runs: ChangeKind[][] = [];
   let finish: () => void = () => {};
+  let fail: (err: unknown) => void = () => {};
+  const reported: unknown[] = [];
   let seen: () => ReadonlySet<ChangeKind> = () => new Set();
   let running = 0;
   let overlapped = false;
@@ -17,14 +19,18 @@ function passes() {
     seen = arrived;
     running += 1;
     if (running > 1) overlapped = true;
-    return new Promise<void>((resolve) => {
+    return new Promise<void>((resolve, reject) => {
       finish = () => {
         running -= 1;
         resolve();
       };
+      fail = (err) => {
+        running -= 1;
+        reject(err);
+      };
     });
-  });
-  return { disk, runs, finish: () => finish(), seen: () => seen(), overlapped: () => overlapped };
+  }, (err) => reported.push(err));
+  return { disk, runs, reported, fail: (err: unknown) => fail(err), finish: () => finish(), seen: () => seen(), overlapped: () => overlapped };
 }
 
 // Writes into .vs/ or .svelte-kit/ never stop: each quiet spell after one started another
@@ -93,6 +99,22 @@ describe("a stream of events that never pauses", () => {
 
     expect(runs.length).toBeGreaterThan(0);
     expect(runs[0]).toContain("head");
+  });
+});
+
+describe("a pass that fails", () => {
+  it("is reported, and what arrived during it still gets its pass", async () => {
+    const t = passes();
+    t.disk.add("workingTree");
+    await vi.advanceTimersByTimeAsync(120);
+    t.disk.add("index");
+    await vi.advanceTimersByTimeAsync(120);
+
+    t.fail(new Error("broken config"));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(t.reported).toHaveLength(1);
+    expect(t.runs).toEqual([["workingTree"], ["index"]]);
   });
 });
 

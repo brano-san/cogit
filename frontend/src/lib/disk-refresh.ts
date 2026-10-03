@@ -12,6 +12,7 @@ export class DiskPasses {
   readonly #settleMs: number;
   readonly #maxWaitMs: number;
   readonly #run: DiskPass;
+  readonly #report: (err: unknown) => void;
   #since: number | undefined;
   #pending = new Set<ChangeKind>();
   #arrived = new Set<ChangeKind>();
@@ -19,10 +20,11 @@ export class DiskPasses {
   #running = false;
   #again = false;
 
-  constructor(settleMs: number, maxWaitMs: number, run: DiskPass) {
+  constructor(settleMs: number, maxWaitMs: number, run: DiskPass, report: (err: unknown) => void) {
     this.#settleMs = settleMs;
     this.#maxWaitMs = maxWaitMs;
     this.#run = run;
+    this.#report = report;
   }
 
   add(kind: ChangeKind): void {
@@ -55,7 +57,15 @@ export class DiskPasses {
         this.#since = undefined;
         const arrived = new Set<ChangeKind>();
         this.#arrived = arrived;
-        if (kinds.size > 0) await this.#run(kinds, () => arrived);
+        // A pass that fails is reported and its kinds are not asked for again, or a broken
+        // config would loop; what arrived meanwhile still gets its pass.
+        if (kinds.size > 0) {
+          try {
+            await this.#run(kinds, () => arrived);
+          } catch (err) {
+            this.#report(err);
+          }
+        }
       } while (this.#again);
     } finally {
       this.#running = false;
