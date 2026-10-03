@@ -22,7 +22,7 @@ system_part() {
     clang mold patchelf \
     libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev libsoup-3.0-dev libgtk-3-dev \
     libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev \
-    libdbus-1-dev libsecret-1-dev
+    libdbus-1-dev libsecret-1-dev xdg-utils
 }
 
 user_part() {
