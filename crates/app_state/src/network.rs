@@ -178,7 +178,7 @@ impl AppState {
 
     /// Only for an HTTPS remote: SSH already authenticates through the agent, and handing
     /// a token to an unknown host would leak it.
-    pub(crate) fn token_for(&self, url: &str) -> Option<String> {
+    pub fn token_for(&self, url: &str) -> Option<String> {
         if !git_engine::wants_auth(url) {
             return None;
         }

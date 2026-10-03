@@ -927,16 +927,21 @@ export async function setMenuState(disabled: string[], checked: string[]) {
   return await commands.setMenuState(disabled, checked);
 }
 
-export async function hasToken(host: string) {
-  return unwrap(await commands.hasToken(host));
+/** The three below take the remote URL: which host a token belongs to is the backend's rule. */
+export async function hasToken(url: string) {
+  return unwrap(await commands.hasToken(url));
 }
 
-export async function storeToken(host: string, token: string) {
-  return unwrap(await commands.storeToken(host, token));
+export async function tokenHost(url: string) {
+  return await commands.tokenHost(url);
 }
 
-export async function forgetToken(host: string) {
-  return unwrap(await commands.forgetToken(host));
+export async function storeToken(url: string, token: string) {
+  return unwrap(await commands.storeToken(url, token));
+}
+
+export async function forgetToken(url: string) {
+  return unwrap(await commands.forgetToken(url));
 }
 
 export async function listHooks(repo: RepoId) {

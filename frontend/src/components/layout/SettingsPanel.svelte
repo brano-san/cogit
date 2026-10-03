@@ -573,9 +573,11 @@
         {#if current.id === "auth"}
           {#if tokenHost === null}
             <p class="hint wide">
-              This repository authenticates over SSH or has no remote, so no token is needed.
+              A token is kept for an https:// remote only. This repository has none (it uses SSH, plain
+              http or no remote), so no token is needed and none is ever sent.
             </p>
           {:else if tokenStored}
+            <p class="hint wide">The token is sent over https:// only, and only to {tokenHost}.</p>
             <div class="row">
               <span>{tokenHost}</span>
               <span class="stored">A token is stored.</span>

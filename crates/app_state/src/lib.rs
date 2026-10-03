@@ -338,18 +338,34 @@ impl AppState {
         }
     }
 
-    /// Only ever answers whether a token exists: the value must not reach the webview.
+    /// The host a remote's token is kept under, for the Authentication page to name.
     #[must_use]
-    pub fn has_token(&self, host: &str) -> bool {
-        self.secrets.get(host).is_some()
+    pub fn token_host(&self, url: &str) -> Option<String> {
+        token_host(url)
     }
 
-    pub fn store_token(&self, host: &str, token: &str) -> Result<(), SecretError> {
-        self.secrets.set(host, token)
+    /// Only ever answers whether a token exists: the value must not reach the webview.
+    /// All three take the remote URL: the rule for whose token it is stays here.
+    #[must_use]
+    pub fn has_token(&self, url: &str) -> bool {
+        token_host(url).is_some_and(|host| self.secrets.get(&host).is_some())
     }
 
-    pub fn forget_token(&self, host: &str) -> Result<(), SecretError> {
-        self.secrets.delete(host)
+    pub fn store_token(&self, url: &str, token: &str) -> Result<(), SecretError> {
+        let host = token_host(url).ok_or(SecretError::NoHost)?;
+        self.secrets.set(&host, token)
+    }
+
+    pub fn forget_token(&self, url: &str) -> Result<(), SecretError> {
+        let host = token_host(url).ok_or(SecretError::NoHost)?;
+        self.secrets.delete(&host)
+    }
+
+    /// Replaces the credential store; tests hand in a `MemoryStore`.
+    #[must_use]
+    pub fn with_secrets(mut self, secrets: Box<dyn SecretStore>) -> Self {
+        self.secrets = secrets;
+        self
     }
 
     #[must_use]

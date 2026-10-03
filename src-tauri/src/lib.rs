@@ -342,6 +342,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::clone::clipboard_repository_url,
             commands::clone::clone_repository,
             commands::network::has_token,
+            commands::network::token_host,
             commands::network::store_token,
             commands::network::forget_token,
             commands::hooks::list_hooks,

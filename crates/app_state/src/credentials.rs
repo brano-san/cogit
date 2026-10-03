@@ -7,6 +7,8 @@ const SERVICE: &str = "cogit";
 pub enum SecretError {
     #[error("a secret cannot be empty")]
     Empty,
+    #[error("a token is kept for an https remote only")]
+    NoHost,
     #[error("the credential store is unavailable: {0}")]
     Store(String),
 }
@@ -101,14 +103,21 @@ pub fn platform_store() -> Box<dyn SecretStore> {
     }
 }
 
-/// The key a stored token is read under: HTTPS only (over `http://` it would cross the
-/// network in clear), and a short name such as `gitlab` counts as a host.
+/// The key a stored token is kept under, and the only place that decides it: HTTPS only
+/// (over `http://` it would cross the network in clear), a short name such as `gitlab`
+/// counts as a host, and the case does not matter. The authority ends at the first
+/// `/`, `?` or `#`, so `https://h?a@evil/x` belongs to `h`; userinfo and port are cut off.
+#[must_use]
 pub fn token_host(url: &str) -> Option<String> {
     let rest = url.strip_prefix("https://")?;
     let authority = rest.split(['/', '?', '#']).next()?;
     let host = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
-    let host = host.split_once(':').map_or(host, |(h, _)| h);
-    (!host.is_empty()).then(|| host.to_owned())
+    let host = match host.strip_prefix('[') {
+        // An IPv6 literal keeps its colons; only what follows the bracket is a port.
+        Some(inner) => &host[..=inner.find(']')? + 1],
+        None => host.split_once(':').map_or(host, |(h, _)| h),
+    };
+    (!host.is_empty()).then(|| host.to_lowercase())
 }
 
 /// The key a remote's token is stored under. `None` for a path, which needs no token.

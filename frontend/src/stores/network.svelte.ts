@@ -1,4 +1,3 @@
-import { authHost } from "$lib/pull-request";
 import {
   fetchRemote,
   forgetToken,
@@ -7,6 +6,7 @@ import {
   pullRemote,
   pushRemote,
   remoteUrl,
+  tokenHost as tokenHostOf,
   storeToken,
   type RepoId,
 } from "$lib/ipc";
@@ -40,9 +40,8 @@ class NetworkStore {
     return this.#running.at(-1)?.repo ?? null;
   }
 
-  get tokenHost(): string | null {
-    return authHost(this.url);
-  }
+  /** Whose token the primary remote's is; only the backend knows that rule. */
+  tokenHost = $state<string | null>(null);
 
   get primary(): string | null {
     return this.remotes.includes("origin") ? "origin" : (this.remotes[0] ?? null);
@@ -59,18 +58,20 @@ class NetworkStore {
     this.remotes = remotes;
     const url = this.primary ? await remoteUrl(repo, this.primary) : null;
     if (generation !== this.#generation) return;
+    const host = url === null ? null : await tokenHostOf(url);
+    if (generation !== this.#generation) return;
     this.url = url;
-    const host = this.tokenHost;
-    const stored = host !== null && (await hasToken(host));
+    this.tokenHost = host;
+    const stored = url !== null && host !== null && (await hasToken(url));
     if (generation === this.#generation) this.tokenStored = stored;
   }
 
   /** A keychain that refuses is reported; the page keeps saying what is stored. */
   async storeToken(token: string): Promise<void> {
-    const host = this.tokenHost;
-    if (host === null) return;
+    const url = this.url;
+    if (url === null || this.tokenHost === null) return;
     try {
-      await storeToken(host, token);
+      await storeToken(url, token);
     } catch (err) {
       notices.report(err, "Could not store the token");
       return;
@@ -79,10 +80,10 @@ class NetworkStore {
   }
 
   async forgetToken(): Promise<void> {
-    const host = this.tokenHost;
-    if (host === null) return;
+    const url = this.url;
+    if (url === null || this.tokenHost === null) return;
     try {
-      await forgetToken(host);
+      await forgetToken(url);
     } catch (err) {
       notices.report(err, "Could not forget the token");
       return;
@@ -129,6 +130,7 @@ class NetworkStore {
     this.#generation += 1;
     this.remotes = [];
     this.url = null;
+    this.tokenHost = null;
     this.tokenStored = false;
     this.#running = this.#running.filter((entry) => entry.repo === null);
   }

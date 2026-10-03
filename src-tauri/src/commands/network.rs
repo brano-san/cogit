@@ -178,23 +178,30 @@ pub async fn remote_url(
 #[specta::specta]
 pub async fn has_token(
     state: tauri::State<'_, crate::AppContext>,
-    host: String,
+    url: String,
 ) -> Result<bool, GitError> {
     let app_state = state.state.clone();
-    blocking("has_token", move || Ok(app_state.has_token(&host))).await
+    blocking("has_token", move || Ok(app_state.has_token(&url))).await
+}
+
+/// Whose token a remote's is: the one rule, so the page names the host it will store under.
+#[tauri::command]
+#[specta::specta]
+pub fn token_host(state: tauri::State<'_, crate::AppContext>, url: String) -> Option<String> {
+    state.state.token_host(&url)
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn store_token(
     state: tauri::State<'_, crate::AppContext>,
-    host: String,
+    url: String,
     token: String,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
     blocking("store_token", move || {
         app_state
-            .store_token(&host, &token)
+            .store_token(&url, &token)
             .map_err(|err| GitError::InvalidState(err.to_string()))
     })
     .await
@@ -204,12 +211,12 @@ pub async fn store_token(
 #[specta::specta]
 pub async fn forget_token(
     state: tauri::State<'_, crate::AppContext>,
-    host: String,
+    url: String,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
     blocking("forget_token", move || {
         app_state
-            .forget_token(&host)
+            .forget_token(&url)
             .map_err(|err| GitError::InvalidState(err.to_string()))
     })
     .await

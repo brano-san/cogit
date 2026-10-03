@@ -14,6 +14,8 @@ vi.mock("$lib/ipc", () => {
     ),
     pullRemote: vi.fn(later("pull")),
     pushRemote: vi.fn(later("push")),
+    tokenHost: vi.fn(async (url: string) => (url.startsWith("https://") ? "github.com" : null)),
+    hasToken: vi.fn(async () => false),
     storeToken: vi.fn(async () => {}),
     forgetToken: vi.fn(async () => {}),
   };
@@ -109,6 +111,7 @@ describe("leaving the repository", () => {
 describe("a token the keychain refuses", () => {
   beforeEach(() => {
     network.url = "https://github.com/owner/repo.git";
+    network.tokenHost = "github.com";
   });
 
   it("is reported when stored, and not counted as stored", async () => {
