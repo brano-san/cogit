@@ -14,6 +14,7 @@
     disabledBy,
     restoreCategory,
     restoreKeys,
+    restartFields,
   } from "$lib/preferences";
   import { NO_FILTER_FOLDS, shownFolds, toggle, toggleFilterFold, type TreeNode } from "$lib/tree";
   import { needsRestart, THEMES, type Settings } from "$lib/settings";
@@ -152,7 +153,8 @@
     })),
   );
   const current = $derived(CATEGORIES.find((category) => category.id === active));
-  const note = $derived(current?.note ?? "");
+  /** A page with a `*` setting explains the mark here; no page has both a note and one. */
+  const note = $derived(current?.note ?? (restartFields(active).length > 0 ? "* Requires restart" : ""));
 
   let gitCheck = $state.raw<GitCheck>({ state: "idle" });
   const gitChecker = createGitChecker(probeGit, (next) => (gitCheck = next));
@@ -676,8 +678,8 @@
     >{field.label}{#if isSetting(field.key) && needsRestart(field.key)}<button
         type="button"
         class="star"
-        aria-label="Takes effect after a restart."
-        data-tip="Takes effect after a restart.">*</button
+        aria-label="Requires restart: read only when Cogit starts."
+        data-tip="Requires restart: read only when Cogit starts.">*</button
       >{/if}</span
   >
 {/snippet}

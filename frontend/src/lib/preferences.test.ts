@@ -9,6 +9,7 @@ import {
   firstPage,
   matchRanges,
   matchingCategories,
+  restartFields,
   restoreCategory,
   restoreKeys,
   changedKeys,
@@ -114,6 +115,21 @@ describe("firstPage", () => {
   it("is null for a page, or a heading with nothing shown", () => {
     expect(firstPage("cli", ids)).toBeNull();
     expect(firstPage("ui", [])).toBeNull();
+  });
+});
+
+describe("restartFields", () => {
+  // The three read before the first window or the first git: by the backend at startup
+  // (`read_log_level`, `read_git_program`, `window_chrome::stored`).
+  it("marks every setting read only at startup, on the page that holds it", () => {
+    const marked = ids.flatMap((id) => restartFields(id).map((key) => `${id}:${key}`));
+    expect(marked.sort()).toEqual(["cli:logLevel", "git:gitPath", "window:uiWebMenus"]);
+  });
+
+  it("leaves a page with none unmarked", () => {
+    expect(restartFields("theme")).toEqual([]);
+    expect(restartFields("keymap")).toEqual([]);
+    expect(restartFields("nope")).toEqual([]);
   });
 });
 

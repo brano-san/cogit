@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, type GraphColumn, type Settings } from "./settings";
+import { DEFAULT_SETTINGS, needsRestart, type GraphColumn, type Settings } from "./settings";
 
 export type FieldKey = keyof Settings | "keymap" | "suppressions" | "toolbar";
 
@@ -545,6 +545,16 @@ export function firstPage(heading: string, shown: readonly string[]): string | n
     (category) => category.parent === heading && shown.includes(category.id),
   );
   return page?.id ?? null;
+}
+
+/** The settings on a page that are read only at startup (`needsRestart`): each gets the
+    `*`, and the page gets the footer legend that explains it. */
+export function restartFields(id: string): (keyof Settings)[] {
+  const category = CATEGORIES.find((entry) => entry.id === id);
+  return (category?.groups ?? [])
+    .flatMap((group) => group.fields.map((field) => field.key))
+    .filter(isSetting)
+    .filter(needsRestart);
 }
 
 /** Where `query` occurs in `text`, case-insensitive, as [start, end) offsets, for the
