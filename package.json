@@ -1,6 +1,6 @@
 {
   "name": "cogit",
-  "version": "0.1.0",
+  "version": "0.1.0-rc.1",
   "private": true,
   "description": "Blazing-fast, SmartGit-inspired Git GUI client for power users",
   "license": "MIT",
