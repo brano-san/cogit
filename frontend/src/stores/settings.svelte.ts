@@ -6,6 +6,7 @@ import { DEFAULT_DIFF_OPTIONS, type DiffOptions } from "$lib/ipc";
 import { mergeKeymap, type Keymap } from "$lib/keymap";
 import { defaultKeymap, setKeymap } from "$lib/ipc";
 import { DEFAULT_SETTINGS, merge, type Settings } from "$lib/settings";
+import { errors } from "$stores/errors.svelte";
 import { themeStore } from "$stores/theme.svelte";
 import { webMenus } from "$stores/web-menus.svelte";
 
@@ -61,12 +62,7 @@ class SettingsStore {
   async set<K extends keyof Settings>(key: K, value: Settings[K]): Promise<void> {
     this.current = merge({ ...this.current, [key]: value });
     this.#apply();
-    try {
-      await writeKey(KEY, this.current);
-      announceSettings();
-    } catch {
-      // Unsaved is still applied: the change lasts for this session, not past a restart.
-    }
+    await this.#save(KEY, this.current);
   }
 
   /** The defaults are Rust's, beside the menu they belong to; read once. */
@@ -84,26 +80,28 @@ class SettingsStore {
     try {
       await setKeymap(next);
       await webMenus.reloadModel();
-    } catch {
+    } catch (err) {
       // The stored map still wins on the next start, so the change is not lost.
+      errors.report(err, "Could not apply the keyboard shortcuts");
     }
-    try {
-      await writeKey(KEYMAP_KEY, next);
-      announceSettings();
-    } catch {
-      // Unsaved is still applied for this session.
-    }
+    await this.#save(KEYMAP_KEY, next);
   }
 
   /** Writes a whole draft at once, so OK in the Preferences dialog is one save. */
   async apply(draft: Settings): Promise<void> {
     this.current = merge(draft);
     this.#apply();
+    await this.#save(KEY, this.current);
+  }
+
+  /** Unsaved is still applied: the change lasts for this session, not past a restart; the
+      user is told, since a disk that refuses now will lose it silently at the next one. */
+  async #save(key: string, value: unknown): Promise<void> {
     try {
-      await writeKey(KEY, this.current);
+      await writeKey(key, value);
       announceSettings();
-    } catch {
-      // Unsaved is still applied: the change lasts for this session, not past a restart.
+    } catch (err) {
+      errors.report(err, "Could not save the settings");
     }
   }
 
