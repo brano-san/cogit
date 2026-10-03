@@ -64,7 +64,7 @@ already handles hooks, credentials and merge strategies correctly.
 
 ## Building
 
-Requires Rust 1.98+, Node 22.12+, Git 2.45+, and a C++ toolchain
+Requires Rust 1.99+, Node 22.12+, Git 2.45+, and a C++ toolchain
 (MSVC on Windows; `scripts/wsl/setup-linux.sh` installs everything on Ubuntu 22.04+).
 
 ```bash
