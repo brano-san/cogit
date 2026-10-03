@@ -4,6 +4,7 @@ import {
   CONFIRM_LOCAL_CHECKOUT,
   healthChoiceId,
   parseChoice,
+  resetPlan,
   suppressedChoices,
 } from "./suppressions";
 
@@ -63,5 +64,26 @@ describe("parseChoice", () => {
   it("survives a repository path with the separator in it", () => {
     const id = healthChoiceId("E:/odd|name", "w");
     expect(parseChoice(id)).toEqual({ kind: "health", root: "E:/odd|name", warning: "w" });
+  });
+});
+
+describe("resetPlan", () => {
+  const choices = suppressedChoices(false, { "C:/r": { a: "A warning", b: "B warning" } }, false);
+
+  it("takes back one row: the setting it stands for, or its repository's warning", () => {
+    expect(resetPlan(choices.slice(0, 1))).toEqual({ settings: { confirmExit: true }, warnings: [] });
+    expect(resetPlan(choices.slice(2, 3))).toEqual({ settings: {}, warnings: [{ root: "C:/r", warning: "a" }] });
+  });
+
+  it("takes back every row at once for Reset All, after which nothing is listed", () => {
+    const plan = resetPlan(choices);
+    expect(plan).toEqual({
+      settings: { confirmExit: true, confirmLocalCheckout: true },
+      warnings: [
+        { root: "C:/r", warning: "a" },
+        { root: "C:/r", warning: "b" },
+      ],
+    });
+    expect(suppressedChoices(plan.settings.confirmExit ?? false, {}, plan.settings.confirmLocalCheckout ?? false)).toEqual([]);
   });
 });

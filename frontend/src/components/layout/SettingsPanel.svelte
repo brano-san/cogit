@@ -32,7 +32,7 @@
   import { LANE_WIDTH } from "$lib/graph-geometry";
   import { recordEdit } from "$lib/toolbar-layout";
   import { canUndo, emptyStack, undo, type UndoStack } from "$lib/undo-stack";
-  import { parseChoice, suppressedChoices } from "$lib/suppressions";
+  import { resetPlan, suppressedChoices, type SuppressedChoice } from "$lib/suppressions";
 
   interface Props {
     value: Settings;
@@ -204,6 +204,16 @@
   function set<K extends keyof Settings>(key: K, next: Settings[K]) {
     draft = { ...draft, [key]: next };
     onapply(draft, draftKeys);
+  }
+
+  /** Reset or Reset All on the "Don't show again" list: settings in one draft change. */
+  function resetChoices(choices: readonly SuppressedChoice[]) {
+    const plan = resetPlan(choices);
+    if (Object.keys(plan.settings).length > 0) {
+      draft = { ...draft, ...plan.settings };
+      onapply(draft, draftKeys);
+    }
+    for (const { root, warning } of plan.warnings) onunignore(root, warning);
   }
 
   function changeToolbar(next: readonly string[]) {
@@ -534,30 +544,29 @@
               </div>
             {:else if field.key === "suppressions"}
               {@const choices = suppressedChoices(draft.confirmExit, ignored, draft.confirmLocalCheckout)}
-              <p class="row">{field.label}</p>
+              <!-- A description above the list, full width: in the label column it wrapped mid-quote. -->
+              <p class="lead" id="suppressed-title">{field.label}.</p>
               {#if choices.length === 0}
-                <p class="hint">Nothing is hidden: every dialog and warning still shows.</p>
+                <p class="hint wide">Nothing is hidden: every dialog and warning still shows.</p>
               {:else}
-                <ul class="suppressed">
+                <ul class="suppressed" aria-labelledby="suppressed-title">
                   {#each choices as choice (choice.id)}
-                    {@const parsed = parseChoice(choice.id)}
                     <li>
-                      <span class="grow">
-                        {choice.label}
-                        {#if choice.scope}<span class="scope">— {choice.scope}</span>{/if}
+                      <span class="grow truncate" title={choice.scope ? `${choice.label} — ${choice.scope}` : choice.label}>
+                        {choice.label}{#if choice.scope}<span class="scope"> — {choice.scope}</span>{:else}<span class="scope"> — everywhere</span>{/if}
                       </span>
                       <button
                         type="button"
                         class="btn"
-                        onclick={() => {
-                          if (parsed.kind === "confirmExit") set("confirmExit", true);
-                          else if (parsed.kind === "confirmLocalCheckout") set("confirmLocalCheckout", true);
-                          else if (parsed.kind === "health") onunignore(parsed.root, parsed.warning);
-                        }}>Show again</button
+                        aria-label={`Reset ${choice.label}`}
+                        onclick={() => resetChoices([choice])}>Reset</button
                       >
                     </li>
                   {/each}
                 </ul>
+                <div class="reset-all">
+                  <button type="button" class="btn" onclick={() => resetChoices(choices)}>Reset All</button>
+                </div>
               {/if}
             {:else if field.key === "notificationsTaskbar"}
               <div class="row check">
@@ -699,19 +708,44 @@
 {/snippet}
 
 <style>
+  .lead {
+    margin: 0 0 var(--sp-4);
+    font-size: var(--fs-dense);
+    color: var(--text-secondary);
+  }
+
   .suppressed {
     display: flex;
     flex-direction: column;
-    gap: var(--sp-1);
-    margin: 0;
+    margin: 0 0 var(--sp-4);
     padding: 0;
     list-style: none;
+    border: 1px solid var(--field-border);
+    border-radius: var(--r-sm);
+    background: var(--surface-input);
   }
 
   .suppressed li {
     display: flex;
     align-items: center;
     gap: var(--sp-3);
+    min-height: var(--h-row);
+    padding: var(--sp-1) var(--sp-2) var(--sp-1) var(--sp-4);
+    font-size: var(--fs-dense);
+  }
+
+  .suppressed li + li {
+    border-top: 1px solid var(--divider);
+  }
+
+  .suppressed .grow {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .reset-all {
+    display: flex;
+    justify-content: flex-end;
   }
 
   .suppressed .scope {

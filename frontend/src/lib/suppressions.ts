@@ -52,3 +52,21 @@ export function suppressedChoices(
   }
   return choices;
 }
+
+/** What Reset (one row) or Reset All (every row) takes back: the global questions are
+    settings, applied in one draft change; a repository's warnings are un-ignored one by one. */
+export interface ResetPlan {
+  settings: { confirmExit?: true; confirmLocalCheckout?: true };
+  warnings: { root: string; warning: string }[];
+}
+
+export function resetPlan(choices: readonly SuppressedChoice[]): ResetPlan {
+  const plan: ResetPlan = { settings: {}, warnings: [] };
+  for (const choice of choices) {
+    const parsed = parseChoice(choice.id);
+    if (parsed.kind === "confirmExit") plan.settings.confirmExit = true;
+    else if (parsed.kind === "confirmLocalCheckout") plan.settings.confirmLocalCheckout = true;
+    else if (parsed.kind === "health") plan.warnings.push({ root: parsed.root, warning: parsed.warning });
+  }
+  return plan;
+}

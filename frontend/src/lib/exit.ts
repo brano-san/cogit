@@ -23,7 +23,7 @@ export interface NetworkLine {
   line: string | null;
 }
 
-export const DONT_SHOW_HINT = "You can turn this back on in Preferences → General";
+export const DONT_SHOW_HINT = "You can turn this back on in Preferences → Behavior";
 
 /** "Don't show again" silences the question, never the warning that work would be lost. */
 export function mustAskBeforeExit(
