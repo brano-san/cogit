@@ -23,9 +23,19 @@ struct Held {
 }
 
 impl HandleCache {
+    /// Taken before the caller checks the repository is still open, so a `forget` in between
+    /// is seen by `handle`.
+    pub(crate) fn begin(&self) -> u64 {
+        self.forgets.load(Ordering::SeqCst)
+    }
+
     /// Reopens when the root is not the one held or a config file has changed since.
-    pub(crate) fn handle(&self, repo: RepoId, root: &Path) -> Result<RepoHandle, GitError> {
-        let since = self.forgets.load(Ordering::SeqCst);
+    pub(crate) fn handle(
+        &self,
+        repo: RepoId,
+        root: &Path,
+        since: u64,
+    ) -> Result<RepoHandle, GitError> {
         let held = self.held.lock().get(&repo).cloned();
         if let Some(held) = held
             && held.root == root
@@ -66,5 +76,29 @@ impl HandleCache {
 
     pub(crate) fn held(&self) -> usize {
         self.held.lock().len()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_handle_read_across_a_forget_is_not_kept() {
+        let f = test_fixtures::linear(1).unwrap();
+        let cache = HandleCache::default();
+        let since = cache.begin();
+        cache.forget(RepoId(1));
+        cache.handle(RepoId(1), f.path(), since).unwrap();
+        assert_eq!(cache.held(), 0);
+    }
+
+    #[test]
+    fn a_handle_read_without_a_forget_is_kept() {
+        let f = test_fixtures::linear(1).unwrap();
+        let cache = HandleCache::default();
+        let since = cache.begin();
+        cache.handle(RepoId(1), f.path(), since).unwrap();
+        assert_eq!(cache.held(), 1);
     }
 }

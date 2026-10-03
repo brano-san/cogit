@@ -362,10 +362,11 @@ impl AppState {
     }
 
     fn handle(&self, repo: RepoId) -> Result<git_engine::RepoHandle, git_engine::GitError> {
+        let since = self.handles.begin();
         let open = self.get(repo).ok_or_else(|| not_open(repo))?;
         Ok(self
             .handles
-            .handle(repo, &open.root)?
+            .handle(repo, &open.root, since)?
             .with_journal(self.command_sink(repo)))
     }
 
