@@ -62,13 +62,26 @@ fn use_git_from_settings(config_dir: &std::path::Path) {
         return;
     };
     git_engine::use_git_program(program.clone());
-    match git_engine::git_version() {
-        Ok(version) => {
-            tracing::info!(program = %program.display(), %version, "git from Preferences")
-        }
-        Err(err) => {
-            tracing::error!(error = ?err, context = "the git set in Preferences does not run")
-        }
+    // Off the start path: a program on a sleeping network share can hang `CreateProcess` for
+    // tens of seconds, and the window waits for `setup`. The probe has its own timeout.
+    let spawned = std::thread::Builder::new()
+        .name("git-check".into())
+        .spawn(move || {
+            let probe = git_engine::probe_git(
+                &program.to_string_lossy(),
+                std::time::Duration::from_secs(5),
+            );
+            match (probe.valid, probe.version, probe.error) {
+                (true, version, _) => {
+                    tracing::info!(program = %program.display(), ?version, "git from Preferences");
+                }
+                (false, _, error) => {
+                    tracing::error!(?error, context = "the git set in Preferences does not run");
+                }
+            }
+        });
+    if let Err(err) = spawned {
+        tracing::warn!(error = ?err, context = "cannot start the git check");
     }
 }
 
