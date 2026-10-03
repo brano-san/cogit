@@ -7,7 +7,7 @@
   import type { CloneRequest } from "$lib/ipc/clone";
   import type { CloneWizard } from "$stores/clone.svelte";
 
-  /** Repository ▸ Clone…: Repository, Selection, Directory, as in SmartGit (F-575). */
+  /** Repository ▸ Clone…: Repository, Selection, Directory (F-575). */
   interface Props {
     wizard: CloneWizard;
     onbrowse: (title: string) => Promise<string | null>;

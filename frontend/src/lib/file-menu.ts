@@ -58,7 +58,7 @@ export function rowActionBlocked(
   }
 }
 
-/** The Files panel on the Working Tree, in SmartGit's order (#40). */
+/** The Files panel on the Working Tree, in a fixed order (#40). */
 export function worktreeFileMenu(at: WorktreeFileTarget): ContextItem[] {
   const [status = "modified"] = at.statuses;
   const one = at.statuses.length <= 1;

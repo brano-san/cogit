@@ -203,7 +203,7 @@
   };
 </script>
 
-<!-- Push and pull sit on the corners of the icon, as SmartGit draws them; the changes dot has
+<!-- Push and pull sit on the corners of the icon; the changes dot has
      a slot of its own in every row, so the names start on one line (R-353). -->
 {#snippet repoMarks(sync: RowSync, kind: "repository" | "submodule" = "repository")}
   {@const tip = syncTooltip(sync)}

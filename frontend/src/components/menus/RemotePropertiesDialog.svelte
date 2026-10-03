@@ -3,7 +3,7 @@
   import Dialog from "$components/common/Dialog.svelte";
   import type { RemoteInfo } from "$lib/ipc/remotes";
 
-  /** Remote ▸ Properties, after SmartGit's: the URL and whether the background check asks
+  /** Remote ▸ Properties: the URL and whether the background check asks
       this remote's server (R-554). */
   interface Props {
     info: RemoteInfo;

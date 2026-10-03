@@ -53,7 +53,7 @@ const shape = (items: ContextItem[]) => items.map((item) => (item.separator ? "â
 const find = (items: ContextItem[], id: string) => items.find((item) => item.id === id);
 
 describe("repoMenu", () => {
-  it("is SmartGit's list, in its order, with its separators", () => {
+  it("is the expected list, in order, with its separators", () => {
     expect(shape(repoMenu(OPEN, WINDOWS))).toEqual([
       "Open Repository",
       "Open in Explorer",

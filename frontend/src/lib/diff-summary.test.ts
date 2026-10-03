@@ -8,7 +8,7 @@ describe("diff summary", () => {
     expect(byteCount(0)).toBe("0 bytes");
   });
 
-  it("gives SmartGit's reason for a character text does not hold", () => {
+  it("gives the reason for a character text does not hold", () => {
     expect(binaryReason({ kind: "character", code: 2, line: 1, position: 6, side: "new" })).toBe(
       "File is considered as binary: invalid character 0x02 in line 1, at position 6 (new version)",
     );

@@ -1,7 +1,7 @@
 //! Every file in the repository, and what is written inside them.
 //!
 //! The Files panel searches what changed. That is the wrong answer to "where is this
-//! file": in SmartGit the search finds a file whether or not anything happened to it, so
+//! file": the search has to find a file whether or not anything happened to it, so
 //! the panel needs a list that is not the change list, and a way to look inside.
 
 use crate::{GitError, RepoHandle, Result};

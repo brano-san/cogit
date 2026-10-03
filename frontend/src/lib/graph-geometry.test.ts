@@ -101,7 +101,7 @@ describe("rowY", () => {
   });
 });
 
-// SmartGit: the message starts right of the last line of its own row, so it sits next
+// The message starts right of the last line of its own row, so it sits next
 // to its node however wide the rows around it are (R-161).
 describe("textX", () => {
   it("starts right of the one column a linear history uses", () => {
@@ -380,7 +380,7 @@ describe("how big the graph is drawn", () => {
     expect(GRAPH.lineWidth).toBeGreaterThanOrEqual(2);
   });
 
-  it("draws the main line a little thicker than the rest, as SmartGit does", () => {
+  it("draws the main line a little thicker than the rest", () => {
     const extra = GRAPH.mainLineWidth - GRAPH.lineWidth;
     expect(extra).toBeGreaterThanOrEqual(0.5);
     expect(extra).toBeLessThanOrEqual(1);

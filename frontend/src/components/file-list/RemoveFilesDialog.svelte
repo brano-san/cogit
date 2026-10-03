@@ -3,7 +3,7 @@
   import Dialog from "$components/common/Dialog.svelte";
   import { removeRows } from "$lib/file-dialogs";
 
-  /** SmartGit's Remove (#40): off by default the files only stop being tracked and stay
+  /** Remove (#40): off by default the files only stop being tracked and stay
       on disk (`git rm --cached`); with "Delete local files" they go from disk too. */
   interface Props {
     paths: readonly string[];

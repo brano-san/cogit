@@ -19,7 +19,7 @@
   import { splitUpstream } from "$lib/push-to";
   import type { PushRequest } from "$stores/network-dialog.svelte";
 
-  /** Push (item 12), after SmartGit's Push dialog: where, what goes, which tags and notes. */
+  /** Push (item 12), the Push dialog: where, what goes, which tags and notes. */
   interface Props {
     request: PushRequest;
     onpush: (choice: PushChoice, remember: boolean) => void;

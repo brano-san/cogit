@@ -14,7 +14,7 @@
     type PushTarget,
   } from "$lib/push-to";
 
-  /** #28, after SmartGit's Push To — without its labels cut off on the right. */
+  /** #28, Push To — with no labels cut off on the right. */
   interface Props {
     source: PushSource;
     remotes: readonly string[];

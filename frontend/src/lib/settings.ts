@@ -39,7 +39,7 @@ export interface Settings {
   /** Side by side: the left code column's share of the width both get (R-535). */
   diffSplit: number;
   /** Side by side: `aligned` keeps both sides on the same rows (filler where one has no lines),
-      `compact` is SmartGit's own rows per side with curved connectors (08 §12.2). */
+      `compact` is each side's own rows per side with curved connectors (08 §12.2). */
   diffLayout: DiffLayout;
   laneWidth: number;
   pullMode: "ffOnly" | "merge";
@@ -85,7 +85,7 @@ export interface Settings {
   /** A link longer than this many rows is drawn as two stubs; 0 draws every link whole. */
   graphLongLinkRows: number;
   graphHighlightChecked: boolean;
-  /** SmartGit's colorings; `varying` is a color per lane, `branch` brings the selected
+  /** Graph colorings; `varying` is a color per lane, `branch` brings the selected
       commit's branch forward (R-574). */
   graphColoring: GraphColoring;
   graphFirstParent: boolean;

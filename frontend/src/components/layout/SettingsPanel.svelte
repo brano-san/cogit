@@ -843,7 +843,7 @@
     text-align: left;
   }
 
-  /* A dependent switch sits under the one it depends on, as SmartGit does. */
+  /* A dependent switch sits under the one it depends on. */
   .row.check.nested {
     padding-left: var(--sp-7);
   }

@@ -208,7 +208,7 @@ fn a_missing_repository_reports_nothing_it_cannot_know() {
 
 // --- a submodule opened from the tree is not a repository in the list -----------------
 
-/// SmartGit opens a submodule by double-clicking its node: the panels follow it, but the
+/// Double-clicking a submodule's node opens it: the panels follow it, but the
 /// list of repositories does not grow a second entry for it (doc/12-risks.md, R-109).
 #[test]
 fn opening_a_submodule_does_not_add_it_to_the_list() {

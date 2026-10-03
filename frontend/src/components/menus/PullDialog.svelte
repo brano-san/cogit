@@ -9,7 +9,7 @@
   import { networkDialog, type PullRequest } from "$stores/network-dialog.svelte";
   import { DETACHED_HINTS } from "$lib/toolbar";
 
-  /** Pull and Fetch Only (item 12), after SmartGit's Pull dialog. */
+  /** Pull and Fetch Only (item 12): the Pull dialog. */
   interface Props {
     request: PullRequest;
     onrun: (action: "pull" | "fetch", remote: string, choice: PullChoice, remember: boolean) => void;

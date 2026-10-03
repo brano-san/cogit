@@ -135,8 +135,8 @@ fn narrow(f: &test_fixtures::Fixture) {
         .unwrap();
 }
 
-// SmartGit: "Use Remote | Fetch More if a remote contains branches which are not yet
-// available in the local repository" — after a narrow clone in particular.
+// Remote ▸ Fetch More is for a remote whose branches are not yet in the local
+// repository — after a narrow clone in particular.
 #[test]
 fn fetch_more_brings_the_branches_the_refspec_leaves_out_and_says_when_nothing_came() {
     let f = test_fixtures::with_remote().unwrap();

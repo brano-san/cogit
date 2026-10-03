@@ -152,7 +152,7 @@ pub enum DiffSide {
     New,
 }
 
-/// Why a file is shown as binary, in the terms SmartGit words it (R-531).
+/// Why a file is shown as binary, in plain terms (R-531).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(
     tag = "kind",

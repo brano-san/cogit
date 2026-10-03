@@ -1,7 +1,7 @@
 // clippy.toml's allow-unwrap-in-tests does not reach helpers beside `#[test]` fns.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-//! Long links cut into two stubs, as SmartGit draws them (R-330): the column they would
+//! Long links cut into two stubs (R-330): the column they would
 //! hold goes back to the lanes, and the main line is never cut.
 
 use graph_engine::{CommitNode, GraphRow, LayoutCursor, Span, finish, layout, push};

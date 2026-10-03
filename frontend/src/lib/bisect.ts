@@ -5,7 +5,7 @@ import type { BisectMark, BisectState } from "./ipc/bisect";
 import type { PaletteCommand } from "./palette";
 import type { Banner, BannerAction } from "./repo-state";
 
-/** Bisect after SmartGit (https://docs.syntevo.com/SmartGit/Latest/Manual/GUI/Bisect):
+/** Bisect:
     a bad and a good commit, then git checks out the one between them to test. */
 export function bisectOf(state: RepoState | null | undefined): BisectState | null {
   return state?.kind === "bisecting" ? state.bisect : null;
@@ -66,7 +66,7 @@ function isBisectAction(value: string | undefined): value is BisectAction {
   return value === "start" || value === "good" || value === "bad" || value === "skip" || value === "reset";
 }
 
-/** The Bisect submenu of a commit row in the graph: SmartGit's Mark as Good on any commit. */
+/** The Bisect submenu of a commit row in the graph: Mark as Good on any commit. */
 export function bisectCommitMenu(state: RepoState | null | undefined, oid: string): ContextItem {
   const bisect = bisectOf(state);
   const id = (action: BisectAction) => `${BISECT_MENU_PREFIX}${action}:${oid}`;
@@ -143,7 +143,7 @@ export function newlyFound(
   return before.firstBad === found ? null : found;
 }
 
-/** Reset after the end is SmartGit's Leave Bisect and asks nothing; before it, the marks
+/** Reset after the end is Leave Bisect and asks nothing; before it, the marks
     made so far are lost. */
 export function resetQuestion(
   bisect: BisectState,

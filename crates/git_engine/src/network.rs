@@ -142,7 +142,7 @@ impl RepoHandle {
         self.run_streaming(&["fetch", "--progress", "--prune", "--all"], &auth, on_line)
     }
 
-    /// Remote ▸ Fetch More, after SmartGit's: every branch and tag of `remote`, whatever its
+    /// Remote ▸ Fetch More: every branch and tag of `remote`, whatever its
     /// refspec leaves out — a single-branch clone fetches one (R-553). `false`: nothing new came.
     pub fn fetch_more(
         &self,

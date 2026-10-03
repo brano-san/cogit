@@ -25,13 +25,13 @@ function twinIds(label: RefLabel): string[] {
 }
 
 /** Show Only Selected Branches and Tags (F-561): only the labels of refs ticked in
-    Branches, as SmartGit hides the rest. */
+    Branches; the rest are hidden. */
 export function selectedLabels(labels: readonly RefLabel[], ticked: ReadonlySet<string>): RefLabel[] {
   return labels.filter((label) => [...idsOf(label), ...twinIds(label)].some((id) => ticked.has(id)));
 }
 
 /** Include Tracked Remote Branches (F-561): a ticked branch brings the remote branch it
-    tracks into the graph, HEAD's branch too while HEAD is ticked, as SmartGit does. */
+    tracks into the graph, HEAD's branch too while HEAD is ticked. */
 export function withTracked(
   ticked: ReadonlySet<string>,
   branches: readonly Pick<Branch, "name" | "kind" | "upstream" | "isHead">[],

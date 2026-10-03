@@ -1,4 +1,4 @@
-/** Filter texts kept for later, newest first (F-563): SmartGit's Remember Pattern. */
+/** Filter texts kept for later, newest first (F-563): Remember Pattern. */
 export const MAX_PATTERNS = 30;
 
 /** Text only, trimmed, each once, at most `MAX_PATTERNS`: a hand-edited file cannot break

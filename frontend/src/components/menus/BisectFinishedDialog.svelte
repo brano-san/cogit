@@ -3,7 +3,7 @@
   import { dateTooltip } from "$lib/format";
   import type { CommitDetails } from "$lib/ipc";
 
-  /** SmartGit's Bisect Finished: the commit, Copy ID, Continue Bisect and Leave Bisect. */
+  /** Bisect Finished: the commit, Copy ID, Continue Bisect and Leave Bisect. */
   interface Props {
     found: CommitDetails;
     term: string;

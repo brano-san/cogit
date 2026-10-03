@@ -1,6 +1,6 @@
 import type { FileEntry } from "./ipc/bindings";
 
-/** The switches SmartGit puts above its file list, in its order and its words. */
+/** The switches above the file list, in their order and their words. */
 export interface FileView {
   unchanged: boolean;
   untracked: boolean;
@@ -10,7 +10,7 @@ export interface FileView {
   renameSources: boolean;
   directories: boolean;
   separateIndex: boolean;
-  /** SmartGit lists these two beside the others; Cogit had them always on (issue 11). */
+  /** These two are listed beside the others; Cogit had them always on (issue 11). */
   modified: boolean;
   missing: boolean;
   /** The filter field reads the text as a pattern rather than a substring. */

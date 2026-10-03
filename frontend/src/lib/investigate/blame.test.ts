@@ -41,7 +41,7 @@ const tables: BlameTables = {
 };
 
 describe("Investigate blame helpers", () => {
-  it("marks added, modified and merge lines the way SmartGit does", () => {
+  it("marks added, modified and merge lines with their status signs", () => {
     expect(markerOf(tables, tables.lines[0]!)).toBe("+");
     expect(markerOf(tables, tables.lines[1]!)).toBe("~");
     expect(markerOf(tables, tables.lines[4]!)).toBe("M~");

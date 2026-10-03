@@ -46,7 +46,7 @@
     ],
     "category": "DeveloperTool",
     "shortDescription": "Blazing-fast Git GUI client for power users",
-    "longDescription": "Cogit is a SmartGit-inspired Git client built with Rust and Tauri.",
+    "longDescription": "Cogit is a fast Git client built with Rust and Tauri.",
     "publisher": "brano-san",
     "copyright": "Copyright (c) 2026 brano-san",
     "licenseFile": "../LICENSE",

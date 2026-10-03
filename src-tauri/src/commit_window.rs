@@ -2,7 +2,7 @@
 
 use crate::child_window::Shape;
 
-/// SmartGit's dialog title.
+/// The dialog title.
 pub const TITLE: &str = "Commit";
 
 pub const SHAPE: Shape = Shape {

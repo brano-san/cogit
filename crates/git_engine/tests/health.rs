@@ -1,7 +1,7 @@
 // clippy.toml's allow-unwrap-in-tests does not reach helpers beside `#[test]` fns.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-//! What SmartGit warns about when a repository is opened, and what the second machine
+//! What is worth a warning when a repository is opened, and what the second machine
 //! needed to be told: a clone made on Linux and used from Windows (doc/12-risks.md, R-150).
 
 use git_engine::{HealthIssue, RepoHandle, case_sensitive};

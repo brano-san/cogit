@@ -2,7 +2,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 //! A file shown as a summary says why: too large, or binary by its attributes or by a
-//! character text does not hold, in SmartGit's words (R-531).
+//! character text does not hold, in plain words (R-531).
 
 use diff_engine::{
     BinaryCause, BlobSide, Content, DiffOptions, DiffSide, FileDiff, MAX_TEXT_BYTES, diff_bytes,

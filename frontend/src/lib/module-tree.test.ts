@@ -33,7 +33,7 @@ const mod = (path: string, over: Partial<Submodule> = {}): Submodule => ({
 });
 
 describe("splitModulePath", () => {
-  it("keeps the folder apart from the name, the way SmartGit dims it", () => {
+  it("keeps the folder apart from the name, so the folder can be dimmed", () => {
     expect(splitModulePath("cmake/cmake-conan")).toEqual({ dir: "cmake/", name: "cmake-conan" });
   });
 

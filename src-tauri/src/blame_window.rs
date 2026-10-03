@@ -43,7 +43,7 @@ pub const MENU: &[Submenu] = &[
 
 const SHORT_OID: usize = 7;
 
-/// SmartGit's: `<file> - Blame of <path>@<short hash>`.
+/// `<file> - Blame of <path>@<short hash>`.
 pub fn title(path: &str, oid: &str) -> String {
     let name = path.rsplit('/').next().unwrap_or(path);
     let short = oid.get(..SHORT_OID).unwrap_or(oid);

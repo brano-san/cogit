@@ -179,7 +179,7 @@ function connectorOf(
 }
 
 /**
- * Connectors for the blocks near the viewport, from the panes' scroll positions (SmartGit's
+ * Connectors for the blocks near the viewport, from the panes' scroll positions (the
  * ribbons). Plain blocks are found by bisection — their rows are ordered on both sides —
  * so a frame costs O(visible blocks), not O(file). A move joins two far-apart blocks, so
  * moves are all checked; there are few.

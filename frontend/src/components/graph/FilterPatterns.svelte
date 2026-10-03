@@ -4,7 +4,7 @@
   import { menuKey } from "$lib/menu-keys";
   import { graphFilter } from "$stores/graph-filter.svelte";
 
-  /** The magnifier in the graph filter: SmartGit's Remember Pattern and the patterns kept
+  /** The magnifier in the graph filter: Remember Pattern and the patterns kept
       by it (F-563). */
   interface Props {
     /** A remembered pattern was chosen: it goes into the field and filters at once. */

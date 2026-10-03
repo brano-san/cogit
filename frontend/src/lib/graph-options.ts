@@ -43,7 +43,7 @@ const WORKING_TREE = {
   hint: "Off: the Working Tree row is left out while the working tree has no changes.",
 } as const;
 
-/** The menu beside the graph filter, as SmartGit orders it (F-561). The values are the
+/** The menu beside the graph filter, in its order (F-561). The values are the
     settings themselves, so the menu and Preferences never disagree. */
 export function graphOptions(settings: Pick<Settings, "graphColoring" | GraphOptionKey>): GraphOptionEntry[] {
   return [

@@ -20,7 +20,7 @@ pub struct TextFields {
     /// A prefix of the commit id.
     pub id: bool,
     /// Paths the commit changed against its first parent: the file name, or the whole path
-    /// once the text has a `/` in it, as SmartGit matches.
+    /// once the text has a `/` in it.
     pub name: bool,
     /// Lines the commit added or removed against its first parent.
     pub content: bool,

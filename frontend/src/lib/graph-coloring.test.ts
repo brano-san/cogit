@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { GRAPH_COLORINGS, migratedColoring } from "./graph-coloring";
 
 describe("graph colorings", () => {
-  it("are SmartGit's four, in its menu order", () => {
+  it("are four, in menu order", () => {
     expect(GRAPH_COLORINGS).toEqual(["default", "branch", "mergeable", "varying"]);
   });
 

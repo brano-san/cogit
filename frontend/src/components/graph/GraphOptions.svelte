@@ -4,7 +4,7 @@
   import { menuKey } from "$lib/menu-keys";
   import { settings } from "$stores/settings.svelte";
 
-  /** The graph's options, beside its filter (F-561): SmartGit's hamburger menu. */
+  /** The graph's options, beside its filter (F-561): a hamburger menu. */
   interface Props {
     onpreferences: () => void;
   }

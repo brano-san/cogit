@@ -360,8 +360,8 @@
     margin-inline: var(--sp-3);
   }
 
-  /* Icon above, label and caret below: the two click targets of a split button, as in
-     SmartGit. A plain action keeps the same shape so the row stays even. */
+  /* Icon above, label and caret below: the two click targets of a split button.
+     A plain action keeps the same shape so the row stays even. */
   .slot {
     position: relative;
     display: flex;

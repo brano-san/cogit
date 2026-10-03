@@ -669,7 +669,7 @@ export type AvatarRow = {
 	image: string | null,
 };
 
-/**  Why a file is shown as binary, in the terms SmartGit words it (R-531). */
+/**  Why a file is shown as binary, in plain terms (R-531). */
 export type BinaryCause = 
 /**  `.gitattributes` says so: `binary`, or `-diff`. */
 { kind: "attribute"; name: string } | 
@@ -2469,7 +2469,7 @@ export type TextFields = {
 	id?: boolean,
 	/**
 	 *  Paths the commit changed against its first parent: the file name, or the whole path
-	 *  once the text has a `/` in it, as SmartGit matches.
+	 *  once the text has a `/` in it.
 	 */
 	name?: boolean,
 	/**  Lines the commit added or removed against its first parent. */

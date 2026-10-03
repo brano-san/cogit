@@ -23,7 +23,7 @@ fail() { printf '\033[31m[pre-commit] %s\033[0m\n' "$1" >&2; exit 1; }
 BINDINGS=frontend/src/lib/ipc/bindings.ts
 
 # --- locate the toolchain ----------------------------------------------------
-# GUI Git clients (SmartGit, Fork, IntelliJ, VS Code) run hooks with the environment
+# GUI Git clients (Fork, IntelliJ, VS Code) run hooks with the environment
 # they were launched with, so anything installed afterwards is missing from PATH.
 # A hook that trusts the caller's PATH works in the terminal and fails in the GUI,
 # which is the worst of both worlds — so find the tools ourselves.

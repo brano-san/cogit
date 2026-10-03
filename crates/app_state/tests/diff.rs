@@ -287,7 +287,7 @@ fn move_detection_is_on_by_default() {
 }
 
 /// A submodule that has not been checked out is a normal state of a repository, not a
-/// broken one. SmartGit shows "Submodule does not exist!" on both sides; Cogit used to
+/// broken one. Both sides say "Submodule does not exist!"; Cogit used to
 /// answer `Invalid repository state` and show nothing at all.
 #[test]
 fn a_submodule_that_is_not_checked_out_is_described_rather_than_refused() {

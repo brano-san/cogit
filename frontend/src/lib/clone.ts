@@ -1,6 +1,6 @@
 import type { CloneDestination, CloneRequest, RemoteBranches } from "$lib/ipc/clone";
 
-/** Repository ▸ Clone…, SmartGit's three pages (F-575). */
+/** Repository ▸ Clone…, three pages (F-575). */
 export const CLONE_PAGES = ["repository", "selection", "directory"] as const;
 export type ClonePage = (typeof CLONE_PAGES)[number];
 

@@ -111,7 +111,7 @@
     highlightChecked?: boolean;
     /** First parents only (`graphFirstParent`). */
     firstParent?: boolean;
-    /** SmartGit's colorings (`graphColoring`): `branch` brings the clicked commit's branch
+    /** The graph colorings (`graphColoring`): `branch` brings the clicked commit's branch
         forward, `mergeable` dims all a merge of the selected commit would not bring. */
     coloring?: GraphColoring;
     /** The chosen commit's ancestors and descendants stand out (`graphAncestry`). */

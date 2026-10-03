@@ -1,11 +1,11 @@
 import type { BinaryCause, BlobSide } from "./ipc";
 
-/** `1,000,000 bytes`: sizes are exact, as SmartGit shows them (R-531). */
+/** `1,000,000 bytes`: sizes are exact (R-531). */
 export function byteCount(bytes: number): string {
   return `${bytes.toLocaleString("en-US")} ${bytes === 1 ? "byte" : "bytes"}`;
 }
 
-/** In SmartGit's words: `File is considered as binary: invalid character 0x02 in line 1, at
+/** In plain words: `File is considered as binary: invalid character 0x02 in line 1, at
     position 6`, and which version the character is in. */
 export function binaryReason(cause: BinaryCause): string {
   if (cause.kind === "attribute") return `File is considered as binary: .gitattributes marks it ${cause.name}`;

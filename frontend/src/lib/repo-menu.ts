@@ -72,7 +72,7 @@ function moveTo(at: RepoMenuTarget): ContextItem {
   ]);
 }
 
-/** SmartGit's order (#36). PowerShell and Git Shell exist only on Windows and are left
+/** A fixed order (#36). PowerShell and Git Shell exist only on Windows and are left
     out elsewhere; everything else is disabled, not hidden, when it does not apply. */
 export function repoMenu(at: RepoMenuTarget, desktop: DesktopInfo): ContextItem[] {
   const gone = at.missing ? "the folder is missing" : null;

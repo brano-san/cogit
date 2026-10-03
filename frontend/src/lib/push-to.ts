@@ -81,7 +81,7 @@ export function tracksByDefault(source: PushSource): boolean {
 }
 
 /** A branch never pushed, with more than one remote to publish it on: Push opens Push To
-    to pick one, as SmartGit's does (R-551). */
+    to pick one (R-551). */
 export function choosesRemote(source: PushSource, remotes: readonly string[]): boolean {
   return tracksByDefault(source) && remotes.length > 1;
 }

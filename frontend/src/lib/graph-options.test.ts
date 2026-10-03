@@ -30,7 +30,7 @@ describe("graphOptions", () => {
     });
   });
 
-  it("lists the switches in SmartGit's order", () => {
+  it("lists the switches in menu order", () => {
     const labels = graphOptions(DEFAULT_SETTINGS)
       .filter((entry) => entry.kind === "switch")
       .map((entry) => entry.label);

@@ -3,7 +3,7 @@ import type { FoldEntry, Gap } from "./diff-fold";
 import type { DiffRow } from "./ipc";
 
 /**
- * The block model of a split diff (SmartGit's): a file is a list of blocks, each a range of
+ * The block model of a split diff: a file is a list of blocks, each a range of
  * lines on the left and one on the right. Adjacent deletes and inserts with no equal line
  * between are ONE `changed` block. Compact layout: a pane renders only its own lines, one after
  * another — there is no filler to even the sides out; the gutter between them draws the

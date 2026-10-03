@@ -2,8 +2,8 @@
 //! line, and what to call it in a window title.
 //!
 //! The label is read back off the command line that actually ran rather than taken on
-//! trust from the caller. SmartGit shows `Command Delete Branch failed!` above the
-//! output of a push, because there the two travel separately; here they cannot disagree
+//! trust from the caller. A client that shows `Command Delete Branch failed!` above the
+//! output of a push does so because there the two travel separately; here they cannot disagree
 //! because there is only one of them (doc/12-risks.md, R-87).
 
 use serde::Serialize;

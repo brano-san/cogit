@@ -2,7 +2,7 @@ import { shortOid } from "$lib/format";
 import type { Submodule } from "$lib/ipc";
 
 /** A submodule as a row of the repository tree: its own path, how deep it sits, and
-    whether its own submodules are showing. SmartGit draws these as branches of the
+    whether its own submodules are showing. These are drawn as branches of the
     repository they belong to, not as a flat list beside it (doc/12-risks.md, R-110). */
 export interface ModuleRow {
   /** The path from the top repository down, which is what keeps a node expanded across

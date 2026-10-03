@@ -181,7 +181,7 @@ describe("the rest", () => {
     }
   });
 
-  // F-710, after SmartGit: detached, Pull fetches, Push sends what can go, Sync does both;
+  // F-710: detached, Pull fetches, Push sends what can go, Sync does both;
   // none of them is off. The rest never needed a branch.
   it("keeps every network action on for a detached HEAD", () => {
     const detached = facts({ remote: true, detached: true });

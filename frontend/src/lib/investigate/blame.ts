@@ -12,13 +12,13 @@ export function commitOf(tables: BlameTables, line: OriginLine): BlameCommit | u
   return source ? tables.commits[source.commit] : undefined;
 }
 
-/** SmartGit Blame's Status column: `+` added, `~` modified, `M` for a merge commit. */
+/** Blame's Status column: `+` added, `~` modified, `M` for a merge commit. */
 export function markerOf(tables: BlameTables, line: OriginLine): string {
   const merge = commitOf(tables, line)?.merge ? "M" : "";
   return merge + (line.change === "added" ? "+" : "~");
 }
 
-/** Compact age, as SmartGit's `21d`: hours under a day, days under a thousand. */
+/** Compact age, as `21d`: hours under a day, days under a thousand. */
 export function ageOf(timestamp: number, now: number): string {
   const seconds = Math.max(0, now - timestamp);
   const hours = Math.floor(seconds / 3600);

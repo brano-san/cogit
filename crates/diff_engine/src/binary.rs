@@ -7,7 +7,7 @@ fn invalid(byte: u8) -> bool {
 }
 
 /// The first invalid character of `data`: its code, line and position in the line, both
-/// from 1. The whole side is read, as SmartGit reads it, not git's first 8000 bytes: a text
+/// from 1. The whole side is read, not git's first 8000 bytes: a text
 /// limit of a million bytes keeps that cheap (R-531).
 #[must_use]
 pub fn invalid_character(data: &[u8]) -> Option<(u8, u32, u32)> {

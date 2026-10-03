@@ -76,7 +76,7 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 const YEAR = 365 * DAY;
 
-/** The history column's age, SmartGit's short way: `45m`, `5h`, `140d`, `3y`. */
+/** The history column's age, the short way: `45m`, `5h`, `140d`, `3y`. */
 export function age(timestamp: number, now: number): string {
   const elapsed = Math.max(now - timestamp, 0);
   if (elapsed >= YEAR) return `${Math.floor(elapsed / YEAR)}y`;

@@ -22,7 +22,7 @@
     oncontext: (oid: string, x: number, y: number) => void;
     ongroupcontext?: (oids: string[], x: number, y: number) => void;
     onhover?: (repo: RepoId, oid: string) => void;
-    /** A merge, rebase or detached HEAD is said above the history, as SmartGit does (#22). */
+    /** A merge, rebase or detached HEAD is said above the history (#22). */
     banner: Banner | null;
     busy: boolean;
     onbanneraction: (action: BannerAction) => void;

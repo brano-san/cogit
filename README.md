@@ -5,7 +5,7 @@
 <h1 align="center">Cogit</h1>
 
 <p align="center">
-  Blazing-fast, SmartGit-inspired Git GUI client for power users. Built with Rust, Tauri v2 and Svelte 5.
+  Blazing-fast Git GUI client for power users. Built with Rust, Tauri v2 and Svelte 5.
 </p>
 
 <p align="center">

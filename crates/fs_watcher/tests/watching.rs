@@ -457,8 +457,8 @@ fn housekeeping_inside_a_nested_repository_is_not_a_change() {
     let git = nested_repository(&harness);
 
     std::fs::write(git.join("index"), "refreshed").unwrap();
-    std::fs::create_dir_all(git.join("smartgit/logcache")).unwrap();
-    std::fs::write(git.join("smartgit/logcache/nodes4"), "cache").unwrap();
+    std::fs::create_dir_all(git.join("other-client/logcache")).unwrap();
+    std::fs::write(git.join("other-client/logcache/nodes4"), "cache").unwrap();
     std::fs::write(git.join("cogit-case-probe-1"), "").unwrap();
     std::fs::remove_file(git.join("cogit-case-probe-1")).unwrap();
 

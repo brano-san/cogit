@@ -103,7 +103,7 @@ describe("customRefProblem", () => {
 });
 
 describe("pushTitle", () => {
-  it("names the ref and the remote the way SmartGit does", () => {
+  it("names the ref and the remote", () => {
     expect(pushTitle(tracked, "origin")).toBe("Push 'topic' to remote 'origin'");
   });
 });

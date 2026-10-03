@@ -24,8 +24,8 @@ pub(crate) fn line_hunks(before: &[String], after: &[String]) -> Vec<LineHunk> {
         .collect()
 }
 
-/// Which new lines of a hunk replaced an old one: all when as many go in as out (as in
-/// SmartGit's Blame), else those resembling an old line, else the first ones.
+/// Which new lines of a hunk replaced an old one: all when as many go in as out (as Blame
+/// marks them), else those resembling an old line, else the first ones.
 pub(crate) fn replaced_lines(before: &[String], after: &[String]) -> Vec<bool> {
     if before.len() == after.len() {
         return vec![true; after.len()];

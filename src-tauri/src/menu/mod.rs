@@ -14,7 +14,7 @@ pub use model::{Flags, MenuNode, app_menu, child_menu};
 
 /// Item ids are the palette command ids: one place decides what an action is called and
 /// when it is available, and both the menu and the palette read it.
-/// SmartGit's own split: this repository's `.git/config`, and the user's own file.
+/// Split in two: this repository's `.git/config`, and the user's own file.
 const EDIT_CONFIG: &[Entry] = &[
     Entry::Item("edit-config-repository", "Repository…", None),
     Entry::Item("edit-config-user", "User…", None),
@@ -147,7 +147,7 @@ const LOCAL: &[Entry] = &[
     Entry::Item("rollback", "Roll Back Tree To This Commit", None),
 ];
 
-/// SmartGit's Branch | Bisect: the marks act on HEAD, the commit git checked out to test.
+/// Branch ▸ Bisect: the marks act on HEAD, the commit git checked out to test.
 const BISECT: &[Entry] = &[
     Entry::Item("bisect-start", "Start…", None),
     Entry::Separator,
@@ -776,7 +776,7 @@ mod nested_tests {
         assert_eq!(row.section, "Repository");
     }
 
-    /// SmartGit's place for it: Repository ▸ Clone…, beside Open.
+    /// Repository ▸ Clone…, beside Open.
     #[test]
     fn clone_follows_open_in_the_repository_menu() {
         let ids: Vec<&str> = leaves(REPOSITORY)
@@ -916,7 +916,7 @@ mod remote_tests {
     }
 
     #[test]
-    fn bisect_is_under_branch_as_in_smartgit() {
+    fn bisect_is_under_branch() {
         let bisect = BRANCH
             .iter()
             .find_map(|entry| match entry {
@@ -961,7 +961,7 @@ mod remote_tests {
         assert_eq!(ids.len(), count);
     }
 
-    /// #42: Cogit's own settings moved to `Edit ▸ Preferences…`, as in SmartGit.
+    /// #42: Cogit's own settings moved to `Edit ▸ Preferences…`.
     #[test]
     fn settings_in_the_repository_menu_are_the_repository_s() {
         let repository = leaves(REPOSITORY);

@@ -1,4 +1,4 @@
-/** How the graph colours its lines: SmartGit's four colourings (F-561, R-574). */
+/** How the graph colours its lines: four graph colourings (F-561, R-574). */
 export const GRAPH_COLORINGS = ["default", "branch", "mergeable", "varying"] as const;
 export type GraphColoring = (typeof GRAPH_COLORINGS)[number];
 

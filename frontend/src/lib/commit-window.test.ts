@@ -73,7 +73,7 @@ describe("sortedFiles", () => {
 });
 
 describe("counter", () => {
-  it("counts a single modified file the SmartGit way", () => {
+  it("counts a single modified file with its status sign", () => {
     expect(counter([file("a")])).toBe("1 file (~1)");
   });
   it("breaks several files down by kind", () => {

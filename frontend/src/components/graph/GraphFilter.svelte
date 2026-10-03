@@ -114,7 +114,7 @@
     gap: var(--sp-3);
   }
 
-  /* The magnifier sits inside the field, as in SmartGit. */
+  /* The magnifier sits inside the field. */
   .box {
     display: flex;
     align-items: center;

@@ -5,7 +5,7 @@ import type { FoldEntry } from "./diff-fold";
 import type { DiffRow } from "./ipc";
 
 /**
- * The reference case of the SmartGit spec, on a C++ file modelled on `algo_task.cpp`:
+ * The reference case of the diff spec, on a C++ file modelled on `algo_task.cpp`:
  * left 1064-1068 and right 1071-1079 are ONE changed block; each pane shows only its own
  * lines; the unchanged comment lines are not painted word by word; the appended
  * `std::back_inserter(heardAt),` is; the indentation only with the Whitespace option.

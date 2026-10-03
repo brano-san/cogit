@@ -4,7 +4,7 @@
   import { shortOid } from "$lib/format";
   import { lookUpWhenSettled, type Named } from "$lib/rev-lookup";
 
-  /** SmartGit's Branch | Bisect | Start: the bad commit, and a good one now or later. */
+  /** Branch ▸ Bisect ▸ Start: the bad commit, and a good one now or later. */
   interface Props {
     bad: string;
     good: string;

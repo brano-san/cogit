@@ -1,7 +1,7 @@
 // clippy.toml's allow-unwrap-in-tests does not reach helpers beside `#[test]` fns.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-//! The SmartGit layout: an ordered list of active lanes, re-indexed on every row. A lane
+//! The lane layout: an ordered list of active lanes, re-indexed on every row. A lane
 //! that joins another lets the lanes right of it slide left within that row, one that stops
 //! at its node a row later; only lane 0, the primary ref's first parents, never moves.
 

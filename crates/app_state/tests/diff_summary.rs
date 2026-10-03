@@ -2,7 +2,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 //! A file Diff does not show as lines says why, how large each side is and which object
-//! each side is, as SmartGit does (R-531).
+//! each side is (R-531).
 
 use app_state::AppState;
 use diff_engine::{BinaryCause, BlobSide, DiffOptions, DiffSide, FileDiff};

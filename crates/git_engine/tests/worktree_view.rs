@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-//! The Files panel offers SmartGit's view toggles (T6.9). Everything a toggle can show has
+//! The Files panel offers view toggles (T6.9). Everything a toggle can show has
 //! to come out of `worktree_files_with`, because the panel cannot invent it.
 
 use git_engine::{FileStatus, RepoHandle, WorktreeView};
