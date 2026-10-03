@@ -54,7 +54,6 @@ const OLD_COPIES = new Set([
   "components/layout/Notifications.svelte",
   "components/layout/StateBanner.svelte",
   "components/repo-tree/RepositoryList.svelte", // the filter field, an input
-  "components/repo-tree/WorktreeList.svelte",
   "components/solver/SolverWholeFile.svelte",
 ]);
 
