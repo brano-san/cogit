@@ -1,6 +1,7 @@
 import { setTaskbarState, type Flash, type TaskbarSignals } from "$lib/ipc";
 import { signalsFor } from "$lib/taskbar";
 import { network } from "$stores/network.svelte";
+import { errorWindow } from "$stores/error-window.svelte";
 import { notices } from "$stores/notices.svelte";
 import { settings } from "$stores/settings.svelte";
 import { untrack } from "svelte";
@@ -69,6 +70,20 @@ class TaskbarStore {
         seen = new Set(queue.map((notice) => notice.key));
       });
 
+      // A failed git command or a stop on conflicts lives in the Errors window, not in the
+      // notification queue: without this a failed pull showed as a success.
+      let seenEntries = new Set<number>();
+      $effect(() => {
+        const entries = errorWindow.entries;
+        untrack(() => {
+          for (const entry of entries) {
+            if (seenEntries.has(entry.id)) continue;
+            this.event(entry.kind === "error" ? "error" : "warning");
+          }
+        });
+        seenEntries = new Set(entries.map((entry) => entry.id));
+      });
+
       $effect(() => {
         const queue = notices.all;
         const signals = signalsFor({
@@ -76,8 +91,10 @@ class TaskbarStore {
           flashEnabled: settings.current.notificationsTaskbarFlash,
           running: network.running !== null,
           line: network.progress,
-          errors: queue.filter((notice) => notice.severity === "error").length,
-          warnings: queue.filter((notice) => notice.severity === "warning").length,
+          errors: queue.filter((notice) => notice.severity === "error").length + errorWindow.errorCount,
+          warnings:
+            queue.filter((notice) => notice.severity === "warning").length +
+            (errorWindow.warningPresent ? 1 : 0),
           unviewed: this.#unviewed,
           flash: this.#flash,
         });
