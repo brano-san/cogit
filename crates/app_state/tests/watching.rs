@@ -251,9 +251,8 @@ fn a_repository_recreated_in_its_folder_is_watched_again_after_a_reread() {
     std::fs::remove_dir(&root).unwrap();
     std::thread::sleep(SETTLE);
     std::fs::create_dir(&root).unwrap();
-    let init = std::process::Command::new("git")
+    let init = test_fixtures::git_command_in(&root)
         .args(["init", "-q"])
-        .current_dir(&root)
         .status()
         .unwrap();
     assert!(init.success());
