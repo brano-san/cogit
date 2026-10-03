@@ -431,14 +431,24 @@
       void terminalChoices().then((found) => (terminals = found));
       const wanted = session.active;
       const remembered = wanted === null ? null : session.selected(wanted);
-      void timed("startup", "restore the session", () => repository.restore()).then(async () => {
-        const back =
-          repository.openRepos.find((entry) => entry.root === wanted) ?? repository.openRepos[0];
-        try {
-          if (back) await activate(back.root, back.root === wanted ? remembered : null);
-        } finally {
-          // Only now is "nothing open" the answer rather than the first frame.
-          repository.markReady();
+      // The one to show opens first, through the phase (Opening…, the 30 s timeout), so a dead
+      // network path among the others cannot keep the window empty and without a status.
+      const early = wanted !== null && session.repositories.includes(wanted) ? wanted : null;
+      const first =
+        early === null
+          ? Promise.resolve()
+          : activate(early, remembered).finally(() => repository.markReady());
+      void timed("startup", "restore the session", () => repository.restore(early)).then(async () => {
+        await first;
+        if (early === null || repository.phase.kind === "closed") {
+          const back =
+            repository.openRepos.find((entry) => entry.root === wanted) ?? repository.openRepos[0];
+          try {
+            if (back) await activate(back.root, back.root === wanted ? remembered : null);
+          } finally {
+            // Only now is "nothing open" the answer rather than the first frame.
+            repository.markReady();
+          }
         }
         // The open has settled (Open or Failed) and the setting is read: now it is known
         // whether the window would stay empty. Nothing waits on this; it only sets state.

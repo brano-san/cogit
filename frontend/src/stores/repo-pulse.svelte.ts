@@ -1,5 +1,6 @@
 import { pullProbe, repoPulse as readPulse, type RepoPulse } from "$lib/ipc/repo-rows";
 import { PulseQueue } from "$lib/pulse-queue";
+import { within } from "$lib/within";
 
 /** A server that has not answered in this long stops holding the queue; the process runs
     on, its answer is not listened to, and its root is not asked again until it ends. */
@@ -11,22 +12,6 @@ const REVISIT_MS = 60_000;
     write or a click reads it, and a status of every node inside that action held the next
     one up (R-617). */
 export const MODULE_QUIET_MS = 1_500;
-
-function within<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(fallback), ms);
-    void work.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      () => {
-        clearTimeout(timer);
-        resolve(fallback);
-      },
-    );
-  });
-}
 
 /** Indicators of the rows of the Repositories list that the panels do not show, open or
     closed, kept fresh in the background (R-353). */

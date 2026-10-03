@@ -13,6 +13,7 @@ import {
   workingState,
 } from "$lib/ipc";
 import { trace } from "$lib/trace";
+import { within } from "$lib/within";
 import { notices } from "$stores/notices.svelte";
 import { repoList } from "$stores/repo-list.svelte";
 import { session } from "$stores/session.svelte";
@@ -300,17 +301,37 @@ class RepositoryStore {
   /** Reopens everything the previous session had. One that does not open — its folder
       moved, its drive not mounted yet — stays in the list as a closed row, which its pulse
       marks missing, and is named in a notice: dropped, it was gone for good (T3.7). */
-  async restore(): Promise<string[]> {
+  async restore(skip: string | null = null): Promise<string[]> {
     const failed: string[] = [];
     const reasons: string[] = [];
-    for (const root of session.repositories) {
-      try {
-        await openRepository(root);
-      } catch (err) {
-        failed.push(root);
-        reasons.push(`${root}: ${asCogitError(err).message}`);
-      }
-    }
+    const timedOut = `Did not answer within ${Math.round(OPEN_TIMEOUT_MS / 1000)}s`;
+    // Side by side, each under the open timeout: one path on a dead server held the whole
+    // session back, and the window empty. `skip` is opened by the caller, through the phase.
+    // A late answer still registers the repository in the backend; the next list shows it.
+    const roots = session.repositories.filter((root) => root !== skip);
+    let over = false;
+    const outcomes = await Promise.all(
+      roots.map((root) =>
+        within(
+          openRepository(root).then(
+            () => {
+              if (over) void this.refreshList();
+              return null;
+            },
+            (err) => asCogitError(err).message,
+          ),
+          OPEN_TIMEOUT_MS,
+          timedOut,
+        ),
+      ),
+    );
+    over = true;
+    roots.forEach((root, i) => {
+      const reason = outcomes[i];
+      if (reason === null || reason === undefined) return;
+      failed.push(root);
+      reasons.push(`${root}: ${reason}`);
+    });
     for (const root of failed) repoList.closed(root);
     await this.refreshList();
     if (failed.length > 0) {

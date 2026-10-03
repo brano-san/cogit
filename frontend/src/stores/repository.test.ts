@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const commands = {
   openRepository: vi.fn(),
@@ -722,6 +722,43 @@ describe("repository store, restoring the last session", () => {
     expect(repoList.list.closed).not.toContain("C:/repos/one");
     const said = notices.all.map((notice) => `${notice.title}\n${notice.body}`).join("\n");
     expect(said).toContain("Z:/unmounted");
+  });
+});
+
+describe("restoring a session with a path that never answers", () => {
+  beforeEach(() => {
+    commands.openRepository.mockReset();
+    commands.repositories.mockResolvedValue({ status: "ok", data: [] });
+    notices.dismissAll();
+    for (const root of repoList.list.closed) repoList.forget(root);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("gives up on it after the open timeout and still opens the rest", async () => {
+    vi.useFakeTimers();
+    session.remember(["//server/share/repo", "C:/repos/one"]);
+    commands.openRepository.mockImplementation((root: string) =>
+      root.startsWith("//")
+        ? new Promise(() => {})
+        : Promise.resolve({ status: "ok", data: summary(root) }),
+    );
+    commands.repositories.mockResolvedValue({ status: "ok", data: [summary("C:/repos/one")] });
+
+    const done = repository.restore();
+    await vi.advanceTimersByTimeAsync(repository.openTimeoutMs);
+
+    expect(await done).toEqual(["//server/share/repo"]);
+    expect(repoList.list.closed).toContain("//server/share/repo");
+    expect(repository.openRepos.map((entry) => entry.root)).toContain("C:/repos/one");
+  });
+
+  it("does not open the repository the caller opens itself", async () => {
+    session.remember(["C:/repos/one", "C:/repos/two"]);
+    commands.openRepository.mockImplementation(async (root: string) => ({ status: "ok", data: summary(root) }));
+
+    await repository.restore("C:/repos/one");
+
+    expect(commands.openRepository.mock.calls.map((call) => call[0])).toEqual(["C:/repos/two"]);
   });
 });
 
