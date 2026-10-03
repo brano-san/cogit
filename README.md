@@ -1,16 +1,26 @@
-# Cogit
+<p align="center">
+  <img src="src-tauri/icons/128x128@2x.png" alt="Cogit" width="128" height="128">
+</p>
 
-Blazing-fast, SmartGit-inspired Git GUI client for power users. Built with Rust, Tauri v2 and Svelte 5.
+<h1 align="center">Cogit</h1>
 
-[![CI](https://github.com/brano-san/cogit/actions/workflows/ci.yml/badge.svg)](https://github.com/brano-san/cogit/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/brano-san/cogit?include_prereleases&sort=semver)](https://github.com/brano-san/cogit/releases)
-[![License: MIT](https://img.shields.io/github/license/brano-san/cogit)](LICENSE)
+<p align="center">
+  Blazing-fast, SmartGit-inspired Git GUI client for power users. Built with Rust, Tauri v2 and Svelte 5.
+</p>
 
-![Windows 10 | 11](https://img.shields.io/badge/Windows-10%20%7C%2011-brightgreen?logo=windows&logoColor=white)
-![Ubuntu 22.04+](https://img.shields.io/badge/Ubuntu-22.04%2B-brightgreen?logo=ubuntu&logoColor=white)
-![Debian 12+](https://img.shields.io/badge/Debian-12%2B-brightgreen?logo=debian&logoColor=white)
-![macOS experimental](https://img.shields.io/badge/macOS-experimental-yellow?logo=apple&logoColor=white)
-![Git 2.45+](https://img.shields.io/badge/Git-2.45%2B-brightgreen?logo=git&logoColor=white)
+<p align="center">
+  <a href="https://github.com/brano-san/cogit/actions/workflows/ci.yml"><img src="https://github.com/brano-san/cogit/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/brano-san/cogit/releases"><img src="https://img.shields.io/github/v/release/brano-san/cogit?include_prereleases&sort=semver" alt="Release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/brano-san/cogit" alt="License: MIT"></a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-brightgreen?logo=windows&logoColor=white" alt="Windows 10 | 11">
+  <img src="https://img.shields.io/badge/Ubuntu-22.04%2B-brightgreen?logo=ubuntu&logoColor=white" alt="Ubuntu 22.04+">
+  <img src="https://img.shields.io/badge/Debian-12%2B-brightgreen?logo=debian&logoColor=white" alt="Debian 12+">
+  <img src="https://img.shields.io/badge/macOS-experimental-yellow?logo=apple&logoColor=white" alt="macOS experimental">
+  <img src="https://img.shields.io/badge/Git-2.45%2B-brightgreen?logo=git&logoColor=white" alt="Git 2.45+">
+</p>
 
 > **Status: early development.** The application shell runs; Git functionality is being
 > built module by module.
