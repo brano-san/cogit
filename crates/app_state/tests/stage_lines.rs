@@ -100,6 +100,8 @@ fn staging_a_line_of_a_file_that_has_no_committed_version_creates_it_in_the_inde
 fn staging_a_line_of_a_new_executable_keeps_it_executable() {
     use std::os::unix::fs::PermissionsExt as _;
     let f = test_fixtures::linear(1).unwrap();
+    // The fixture turns it off, and then git itself adds a new file as 100644.
+    f.git(&["config", "core.fileMode", "true"]).unwrap();
     f.write_file("run.sh", "one\ntwo\n").unwrap();
     std::fs::set_permissions(
         f.path().join("run.sh"),
