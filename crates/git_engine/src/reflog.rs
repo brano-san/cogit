@@ -137,9 +137,13 @@ impl RepoHandle {
 
     /// As `lost_commits`, reusing what `cache` knows about reachability.
     pub fn lost_commits_with(&self, limit: usize, cache: &mut Reachable) -> Result<Vec<CommitRow>> {
+        let started = std::time::Instant::now();
         self.update_reachable(cache)?;
+        let walked = started.elapsed();
+        let listings = cache.listings;
         let mut dated: Vec<(i64, gix::ObjectId)> = Vec::new();
         self.scan_new_commits(cache)?;
+        let scanned = started.elapsed();
         for &id in &cache.commits {
             if cache.set.contains(&id) {
                 continue;
@@ -172,6 +176,16 @@ impl RepoHandle {
                 });
             }
         }
+        // A cold first scan opens every loose object: the log says which step took the time.
+        tracing::info!(
+            lost = lost.len(),
+            objects = cache.seen.len(),
+            listed = cache.listings > listings,
+            walk_ms = walked.as_millis(),
+            scan_ms = (scanned - walked).as_millis(),
+            total_ms = started.elapsed().as_millis(),
+            "lost commits read"
+        );
         Ok(lost)
     }
 
