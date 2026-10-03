@@ -22,8 +22,9 @@ import { session } from "$stores/session.svelte";
     same thing as one mounted early, which is what the Graph panel did not (R-98).
 
     `repo` rides along on `opening` and `failed` so that re-reading an open repository —
-    which the file watcher does on every ref move — cannot blank the panels while it is
-    in flight or if it goes wrong. */
+    which F5 and a few commands do; the file watcher reads the refs with `refreshRefs`, with
+    no `opening` at all — cannot blank the panels while it is in flight or if it goes
+    wrong. */
 export type RepoPhase =
   | { kind: "closed" }
   | { kind: "opening"; root: string; repo: RepoSummary | null }

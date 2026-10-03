@@ -242,7 +242,7 @@
   import { flow } from "$stores/flow.svelte";
   import { droppedRepositories, openDropped } from "$lib/drop-open";
   import { connect } from "$lib/wiring";
-  import { planFor } from "$lib/disk-change";
+  import { runDiskPass } from "$lib/disk-pass";
   import { DiskPasses } from "$lib/disk-refresh";
   import { clear as freshen, mark as markStale } from "$lib/staleness";
   import { unsavedSummary } from "$lib/unsaved";
@@ -960,44 +960,31 @@
     kinds: ReadonlySet<import("$lib/ipc").ChangeKind>,
     arrived: () => ReadonlySet<import("$lib/ipc").ChangeKind>,
   ) {
-    const id = repository.current?.repo;
-    const epoch = repository.epoch;
-    const left = () => repository.epoch !== epoch;
-    const plan = planFor(kinds);
-    // What changed again while this pass read stays marked for the pass after it.
-    const freshened = (panels: PanelId[]) => (stale = freshen(stale, panels, arrived()));
-    if (!id) return;
-
-    // A hook edited outside Cogit is only interesting while the panel is open.
-    if (plan.hooks && hooks.open) void hooks.refresh(id);
-    if (!plan.cascade) return;
-
-    if (plan.refs) {
-      protection = new Map();
-      headness = new Map();
-      await repository.refresh();
-      if (left()) return;
-    }
-    freshened(["repositories", "refs"]);
-
-    if (plan.worktree && commit.oid === null) {
-      await worktree.load(id);
-      if (left()) return;
-      freshened(["files", "commit"]);
-    }
-    void worktrees.refresh(id);
-
-    // Reads the status itself, which is why nothing above does it a second time.
-    await afterMutation();
-    if (left()) return;
-    freshened(["files", "commit"]);
-    if (plan.worktree || plan.refs) await diff.refreshFromDisk();
-    if (left()) return;
-    freshened(["diff"]);
-
-    if (plan.authors && commit.oid) void commit.select(id, commit.oid);
-    if (plan.refs || plan.authors) await graph.load(id, graph.query);
-    freshened(["graph", "refs"]);
+    await runDiskPass(
+      {
+        repo: () => repository.current?.repo ?? null,
+        epoch: () => repository.epoch,
+        commitSelected: () => commit.oid !== null,
+        refreshRefs: () => repository.refreshRefs(),
+        resetProtection: () => {
+          protection = new Map();
+          headness = new Map();
+        },
+        hooksOpen: () => hooks.open,
+        refreshHooks: (id) => void hooks.refresh(id),
+        loadWorktree: (id) => worktree.load(id),
+        refreshWorktrees: (id) => void worktrees.refresh(id),
+        afterMutation,
+        refreshDiff: () => diff.refreshFromDisk(),
+        reselectCommit: (id) => {
+          if (commit.oid) void commit.select(id, commit.oid);
+        },
+        loadGraph: (id) => graph.load(id, graph.query),
+        // What changed again while the pass read stays marked for the pass after it.
+        freshened: (panels) => (stale = freshen(stale, panels, arrived())),
+      },
+      kinds,
+    );
   }
 
   function filterGraph(query: import("$lib/ipc").CommitQuery) {
@@ -1155,13 +1142,12 @@
     const epoch = repository.epoch;
     commit.clear();
     diff.clear();
-    await repository.refresh();
+    await repository.refreshRefs();
     if (repository.epoch !== epoch) return;
+    void graph.load(id, graph.query);
     await worktree.load(id);
     if (repository.epoch !== epoch) return;
     await afterMutation();
-    if (repository.epoch !== epoch) return;
-    void graph.load(id, graph.query);
   }
 
   const refTreeBase = $derived({
