@@ -122,47 +122,47 @@
           label="Skip large files (partial clone)"
           onchange={(on) => (wizard.skipLarge = on)}
         />
-        <!-- Hidden, not removed, while the box is clear: the space stays reserved, so the
-             centered dialog does not jump each time it is ticked. -->
-        <div class="partial" class:hidden={!wizard.skipLarge}>
-          <div class="limit">
-            <label class="limit-line">
-              <span class="limit-label">Omit files larger than</span>
-              <input
-                type="text"
-                class="size"
-                inputmode="numeric"
-                maxlength="6"
-                aria-label="Size limit"
-                aria-invalid={sizeProblem !== null}
-                disabled={!wizard.skipLarge}
-                value={wizard.limitValue}
-                oninput={(event) => (wizard.limitValue = event.currentTarget.value)}
-              />
-            </label>
-            <span class="unit">
-              <Select
-                value={wizard.limitUnit}
-                label="Size unit"
-                options={LIMIT_UNITS}
-                disabled={!wizard.skipLarge}
-                onchange={(next) => (wizard.limitUnit = next)}
-              />
-            </span>
-            <span
-              class="info"
-              role="img"
-              aria-label="About omitted files"
-              title="The files being checked out are always downloaded; larger ones elsewhere in the history stay on the server until a command needs them."
-              >i</span
-            >
+        <!-- Out of the layout while the box is clear, like More Options in the Pull
+             dialog: the centered dialog grows when it is ticked. -->
+        {#if wizard.skipLarge}
+          <div class="partial">
+            <div class="limit">
+              <label class="limit-line">
+                <span class="limit-label">Omit files larger than</span>
+                <input
+                  type="text"
+                  class="size"
+                  inputmode="numeric"
+                  maxlength="6"
+                  aria-label="Size limit"
+                  aria-invalid={sizeProblem !== null}
+                  value={wizard.limitValue}
+                  oninput={(event) => (wizard.limitValue = event.currentTarget.value)}
+                />
+              </label>
+              <span class="unit">
+                <Select
+                  value={wizard.limitUnit}
+                  label="Size unit"
+                  options={LIMIT_UNITS}
+                  onchange={(next) => (wizard.limitUnit = next)}
+                />
+              </span>
+              <span
+                class="info"
+                role="img"
+                aria-label="About omitted files"
+                title="The files being checked out are always downloaded; larger ones elsewhere in the history stay on the server until a command needs them."
+                >i</span
+              >
+            </div>
+            {#if sizeProblem !== null}
+              <span class="limit-note problem-text" role="alert">{sizeProblem}</span>
+            {:else}
+              <span class="limit-note mono">{limitPreview(wizard.limitValue, wizard.limitUnit)}</span>
+            {/if}
           </div>
-          {#if wizard.skipLarge && sizeProblem !== null}
-            <span class="limit-note problem-text" role="alert">{sizeProblem}</span>
-          {:else}
-            <span class="limit-note mono">{limitPreview(wizard.limitValue, wizard.limitUnit)}</span>
-          {/if}
-        </div>
+        {/if}
       </div>
       <div class="field">
         <span>Check out branch</span>
@@ -291,11 +291,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--sp-3);
-  }
-
-  /* Out of sight, of the tab order and of screen readers; its room kept. */
-  .partial.hidden {
-    visibility: hidden;
   }
 
   .limit-line {
