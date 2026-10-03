@@ -136,8 +136,14 @@ describe("graph display settings (#23)", () => {
     expect(merge({ dateFormat: "both" }).graphTimeFormat).toBe("dateTime");
   });
 
-  it("keeps a graph time format a file saved over the dateTime default", () => {
-    expect(merge({ graphTimeFormat: "date" }).graphTimeFormat).toBe("date");
+  it("moves an older file's date to dateTime once, then keeps a date chosen after", () => {
+    const old = merge({ graphTimeFormat: "date" });
+    expect(old.graphTimeFormat).toBe("dateTime");
+    expect(old.settingsVersion).toBe(1);
+    expect(merge({ graphTimeFormat: "date", settingsVersion: 1 }).graphTimeFormat).toBe("date");
+    expect(merge({ ...old, graphTimeFormat: "date" }).graphTimeFormat).toBe("date");
+    expect(merge({ graphTimeFormat: "relative" }).graphTimeFormat).toBe("relative");
+    expect(merge({ theme: "light" }).graphTimeFormat).toBe("dateTime");
   });
 
   it("lets a stored graph time format win over the old date setting", () => {

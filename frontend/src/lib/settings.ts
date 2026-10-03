@@ -75,6 +75,8 @@ export interface Settings {
   graphColumns: GraphColumn[];
   /** The graph's time column only; `dateFormat` stays for Blame and commit details (R-370). */
   graphTimeFormat: GraphTimeFormat;
+  /** Which one-time migrations the file has been through (`SETTINGS_VERSION`); not a preference. */
+  settingsVersion: number;
   graphDensity: GraphDensity;
   graphStripes: boolean;
   /** A note icon on commits that have a git note; hover shows the note. */
@@ -107,6 +109,11 @@ export interface Settings {
   backgroundFetchMinutes: number;
 }
 
+/** 1: a stored graph `date` became `dateTime` (R-370). */
+export const SETTINGS_VERSION = 1;
+/** Kept in the file but never shown in Preferences. */
+export const INTERNAL_SETTINGS: readonly (keyof Settings)[] = ["settingsVersion"];
+
 export const DEFAULT_SETTINGS: Settings = {
   theme: "dark",
   dateFormat: "smart",
@@ -135,6 +142,7 @@ export const DEFAULT_SETTINGS: Settings = {
   refsShowPseudoRefs: false,
   graphColumns: ["author", "avatar", "time", "hash"],
   graphTimeFormat: "dateTime",
+  settingsVersion: SETTINGS_VERSION,
   graphDensity: "normal",
   graphStripes: true,
   graphShowNotes: true,
@@ -200,6 +208,10 @@ function knownColumns(value: unknown): GraphColumn[] | undefined {
 /** Before the graph had its own time format it followed `dateFormat`: a file written then
     keeps the graph as it looked. */
 function migratedTimeFormat(stored: Record<string, unknown>): GraphTimeFormat | undefined {
+  // The whole file is written on every save, so an old `date` was most likely never chosen:
+  // `dateTime` became the default for everyone, once (R-370).
+  const version = typeof stored.settingsVersion === "number" ? stored.settingsVersion : 0;
+  if (stored.graphTimeFormat === "date" && version < 1) return "dateTime";
   if (stored.graphTimeFormat !== undefined) return undefined;
   return stored.dateFormat === "relative" ? "relative" : undefined;
 }
@@ -250,6 +262,7 @@ export function merge(stored: Partial<Settings> | null | undefined): Settings {
     (merged[key] as unknown) = value;
   }
   merged.graphTimeFormat = migratedTimeFormat(record) ?? merged.graphTimeFormat;
+  merged.settingsVersion = SETTINGS_VERSION;
   merged.graphColoring = migratedColoring(record) ?? merged.graphColoring;
   return merged;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_SETTINGS, type Settings } from "./settings";
+import { DEFAULT_SETTINGS, INTERNAL_SETTINGS, type Settings } from "./settings";
 import {
   CATEGORIES,
   disabledBy,
@@ -42,7 +42,9 @@ describe("CATEGORIES", () => {
     const placed = CATEGORIES.flatMap((category) =>
       category.groups.flatMap((group) => group.fields.map((field) => field.key)),
     ).filter(isSetting);
-    const keys = Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[];
+    const keys = (Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]).filter(
+      (key) => !INTERNAL_SETTINGS.includes(key),
+    );
 
     expect([...placed].sort()).toEqual([...keys].sort());
   });
