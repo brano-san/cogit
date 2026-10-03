@@ -364,11 +364,11 @@ mod tests {
 
     #[cfg(windows)]
     #[test]
-    fn an_installer_record_names_a_folder_with_cmd_git() {
+    fn an_installer_record_is_an_absolute_folder() {
+        // The folder may be gone (removed by hand), so only the record's shape is checked.
         for machine_wide in [true, false] {
             if let Some(root) = git_for_windows_install(machine_wide) {
-                let git = root.join("cmd").join("git.exe");
-                assert!(git.is_file(), "{}", git.display());
+                assert!(root.is_absolute(), "{}", root.display());
             }
         }
     }
