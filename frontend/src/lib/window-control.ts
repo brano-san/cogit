@@ -1,5 +1,5 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import type { Edge, FrameState } from "./titlebar";
+import type { FrameState } from "./titlebar";
 
 /** The window this page lives in, for a titlebar the page draws. Close is not here: it goes
     through `close_this_window`, the path every window closes by (R-86). */
@@ -8,7 +8,6 @@ export const windowControl = {
   toggleMaximize: () => getCurrentWindow().toggleMaximize(),
   title: () => getCurrentWindow().title(),
   startDragging: () => getCurrentWindow().startDragging(),
-  startResize: (edge: Edge) => getCurrentWindow().startResizeDragging(edge),
 
   async state(): Promise<FrameState> {
     const window = getCurrentWindow();

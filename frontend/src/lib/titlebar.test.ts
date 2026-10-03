@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EDGES, edgeCursor, edgesFor, maximizeButton, startsDrag, topRow } from "./titlebar";
+import { DRAG_SLOP, maximizeButton, pastSlop, startsDrag, topRow } from "./titlebar";
 
 const idle = { maximized: false, fullscreen: false };
 const own = { customTitlebar: true, webMenus: true };
@@ -29,27 +29,13 @@ describe("maximizeButton", () => {
   });
 });
 
-describe("edgesFor", () => {
-  it("has all eight grips on a free window and none otherwise", () => {
-    expect(edgesFor(own, idle)).toEqual(EDGES);
-    expect(edgesFor(own, { maximized: true, fullscreen: false })).toEqual([]);
-    expect(edgesFor(own, { maximized: false, fullscreen: true })).toEqual([]);
-    expect(edgesFor(native, idle)).toEqual([]);
-  });
-
-  it("names the Tauri resize directions", () => {
-    expect([...EDGES].sort()).toEqual(
-      ["East", "North", "NorthEast", "NorthWest", "South", "SouthEast", "SouthWest", "West"],
-    );
-  });
-});
-
-describe("edgeCursor", () => {
-  it("points along the edge it drags", () => {
-    expect(edgeCursor("North")).toBe("ns-resize");
-    expect(edgeCursor("West")).toBe("ew-resize");
-    expect(edgeCursor("NorthEast")).toBe("nesw-resize");
-    expect(edgeCursor("SouthEast")).toBe("nwse-resize");
+describe("pastSlop", () => {
+  it("drags only once the held pointer left the slop", () => {
+    const at = { x: 10, y: 10 };
+    expect(pastSlop(at, at)).toBe(false);
+    expect(pastSlop(at, { x: 10 + DRAG_SLOP, y: 10 - DRAG_SLOP })).toBe(false);
+    expect(pastSlop(at, { x: 11 + DRAG_SLOP, y: 10 })).toBe(true);
+    expect(pastSlop(at, { x: 10, y: 9 - DRAG_SLOP })).toBe(true);
   });
 });
 

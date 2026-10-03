@@ -23,29 +23,14 @@ export function maximizeButton(state: FrameState): { title: string; glyph: "maxi
   return state.maximized ? { title: "Restore", glyph: "restore" } : { title: "Maximize", glyph: "maximize" };
 }
 
-export const EDGES = ["North", "South", "East", "West", "NorthEast", "NorthWest", "SouthEast", "SouthWest"] as const;
-export type Edge = (typeof EDGES)[number];
+/** How far the pointer travels, button held, before the bar hands it to the window manager.
+    A press alone never does: the manager keeps the button release, WebKitGTK never sees it
+    and goes on treating the button as held, so hover, press and the next click of the page
+    under the bar break, and a double click loses its second click (R-728). */
+export const DRAG_SLOP = 4;
 
-/** The grips a window without decorations needs: none while maximized or fullscreen, where
-    there is nothing to drag. */
-export function edgesFor(chrome: ChromeFlags, state: FrameState): readonly Edge[] {
-  return chrome.customTitlebar && !state.maximized && !state.fullscreen ? EDGES : [];
-}
-
-export function edgeCursor(edge: Edge): string {
-  switch (edge) {
-    case "North":
-    case "South":
-      return "ns-resize";
-    case "East":
-    case "West":
-      return "ew-resize";
-    case "NorthEast":
-    case "SouthWest":
-      return "nesw-resize";
-    default:
-      return "nwse-resize";
-  }
+export function pastSlop(from: { x: number; y: number }, to: { x: number; y: number }): boolean {
+  return Math.abs(to.x - from.x) > DRAG_SLOP || Math.abs(to.y - from.y) > DRAG_SLOP;
 }
 
 /** Only the primary button drags, and a click on a control inside the bar is its own. */

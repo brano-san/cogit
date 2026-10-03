@@ -3,7 +3,6 @@
   import { topRow } from "$lib/titlebar";
   import { webMenus } from "$stores/web-menus.svelte";
   import ContextMenu from "./ContextMenu.svelte";
-  import ResizeEdges from "./ResizeEdges.svelte";
   import Titlebar from "./Titlebar.svelte";
 
   /** What every window mounts: the page the window is for, under the row that is the
@@ -27,7 +26,6 @@
   {#if row !== "none"}<Titlebar showIcon={main} />{/if}
   <div class="body"><Page /></div>
 </div>
-<ResizeEdges />
 <ContextMenu />
 
 <style>

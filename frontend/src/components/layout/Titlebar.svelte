@@ -1,6 +1,6 @@
 <script lang="ts">
   import { commands } from "$lib/ipc/bindings";
-  import { maximizeButton, startsDrag } from "$lib/titlebar";
+  import { maximizeButton, pastSlop, startsDrag } from "$lib/titlebar";
   import { windowControl } from "$lib/window-control";
   import { webMenus } from "$stores/web-menus.svelte";
   import MenuBar from "./MenuBar.svelte";
@@ -8,7 +8,8 @@
 
   /** The row on top of a window with no decorations of its own, or the bare menu bar when
       only the menus are the page's. Drag moves the window, a double click maximizes it,
-      the buttons are Windows': minimize, maximize or restore, close. */
+      the buttons are Windows': minimize, maximize or restore, close. Resizing needs nothing
+      here: Tauri grips the edges of an undecorated window itself (R-728). */
   interface Props {
     /** The application icon at the left: the main window only. */
     showIcon?: boolean;
@@ -19,10 +20,22 @@
   const own = $derived(webMenus.chrome.customTitlebar);
   const button = $derived(maximizeButton(webMenus.frame));
   let bar: HTMLElement | undefined = $state();
+  /** Where the primary button went down on the empty bar; the drag starts once it moves. */
+  let pressed: { x: number; y: number } | null = null;
 
   function press(event: PointerEvent) {
-    if (!own || !bar || !startsDrag(event, bar)) return;
-    if (event.detail > 1) return;
+    pressed = own && bar && event.detail <= 1 && startsDrag(event, bar) ? { x: event.clientX, y: event.clientY } : null;
+    // A quick pull off the bar still counts; released below before the manager takes over,
+    // or the page under the bar would keep losing its pointer to it.
+    if (pressed) bar?.setPointerCapture(event.pointerId);
+  }
+
+  function move(event: PointerEvent) {
+    if (!pressed) return;
+    if ((event.buttons & 1) === 0) return void (pressed = null);
+    if (!pastSlop(pressed, { x: event.clientX, y: event.clientY })) return;
+    pressed = null;
+    bar?.releasePointerCapture(event.pointerId);
     void windowControl.startDragging().catch(() => {});
   }
 
@@ -39,6 +52,8 @@
   bind:this={bar}
   role="presentation"
   onpointerdown={press}
+  onpointermove={move}
+  onpointerup={() => (pressed = null)}
   ondblclick={toggle}
 >
   {#if own && showIcon}<img class="icon" src={icon} alt="" width="16" height="16" />{/if}
