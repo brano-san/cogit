@@ -36,6 +36,8 @@ class ErrorWindowStore {
   #owner = false;
   #loading = new Set<number>();
   #born = new Map<number, number>();
+  /** A burst of failures opens the window once: a call already on its way covers them. */
+  #opening: Promise<void> | null = null;
 
   /** Failed commands still waiting: the footer's `Error` burns while there are any. */
   get errorCount(): number {
@@ -94,7 +96,15 @@ class ErrorWindowStore {
       this.entries = pushEntry(this.entries, entry);
       this.#publish();
     });
-    void openErrorsWindow().catch(() => {});
+    this.#open();
+  }
+
+  #open(): void {
+    if (this.#opening) return;
+    this.#opening = openErrorsWindow()
+      .then(() => {})
+      .catch(() => {})
+      .finally(() => (this.#opening = null));
   }
 
   /** Warnings of a repository whose conflicts are all resolved go away with them. */
@@ -119,6 +129,7 @@ class ErrorWindowStore {
       this.entries = this.entries.filter((entry) => !this.#viewed.has(entry.id));
       this.#viewed = new Set();
       this.#publish();
+      // Not coalesced: an open on its way may be the one this close has just undone.
       if (this.entries.length > 0) void openErrorsWindow().catch(() => {});
       return;
     }

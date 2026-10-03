@@ -90,6 +90,14 @@ describe("a failed command and the Errors window", () => {
     expect(emitted.queue.at(-1)).toHaveLength(1);
   });
 
+  // Two reads failing together opened the Errors window twice.
+  it("opens the window once for a burst of failures", async () => {
+    await Promise.all([errorWindow.command(event(7)), errorWindow.command(event(8))]);
+
+    expect(errorWindow.entries).toHaveLength(2);
+    expect(commands.openErrorsWindow).toHaveBeenCalledTimes(1);
+  });
+
   it("takes the operation's own repository and command", async () => {
     await errorWindow.command(event(7));
 
