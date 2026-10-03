@@ -9,10 +9,8 @@ use std::path::Path;
 /// it; short enough to paste into a chat window.
 pub const TAIL_LINES: usize = 200;
 
-/// The last `lines` lines, oldest first.
-///
-/// Reads the whole file rather than seeking backwards: the log is capped at 10 MB by
-/// rotation, and a diagnostics copy happens once, by hand.
+/// The last `lines` lines of `text`, oldest first. `read_tail` hands it only the end of the
+/// file, so it never sees (or copies) the whole log.
 #[must_use]
 pub fn tail(text: &str, lines: usize) -> String {
     let all: Vec<&str> = text.lines().collect();
@@ -90,6 +88,26 @@ mod tests {
         let lines: Vec<&str> = got.lines().collect();
         assert_eq!(lines.len(), 200);
         assert_eq!((lines[0], lines[199]), ("line 199801", "line 200000"));
+    }
+
+    // The file is not read whole: a few enormous lines still leave only the last bytes.
+    #[test]
+    fn a_log_of_huge_lines_is_cut_to_the_bytes_that_are_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("huge.log");
+        let line = "x".repeat(100 * 1024);
+        std::fs::write(
+            &path,
+            format!(
+                "{line}
+"
+            )
+            .repeat(10),
+        )
+        .unwrap();
+        let got = read_tail(&path, 200);
+        assert!(got.len() as u64 <= TAIL_BYTES, "{} bytes", got.len());
+        assert!(got.ends_with('x'));
     }
 
     #[test]
