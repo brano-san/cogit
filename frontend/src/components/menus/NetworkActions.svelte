@@ -22,6 +22,9 @@
   import { fetchAllTargets } from "$lib/repo-list";
   import { measurer } from "$lib/timing";
   import { currentRemote, remotePlan, syncSteps, type SyncOrder } from "$lib/toolbar-prefs";
+  import { NOTHING_PUSHABLE, pullDoneText, pushDoneText, syncDoneText } from "$lib/toolbar";
+  import type { Pushed } from "$lib/ipc";
+  import { notices } from "$stores/notices.svelte";
   import { confirmation } from "$stores/confirm.svelte";
   import { errors } from "$stores/errors.svelte";
   import { network } from "$stores/network.svelte";
@@ -41,6 +44,8 @@
     afterFetch: (worked: RepoId) => Promise<void>;
     afterRefChange: (worked?: RepoId) => Promise<void>;
     pushNeedsDialog: () => boolean;
+    /** Push To for HEAD: a detached HEAD with nothing else to push asks where it goes. */
+    pushHeadTo: () => void;
     openedModule: (key: string) => Promise<{ repo: RepoId } | null>;
     announceHooks: (id: RepoId, stage: "push") => Promise<void>;
     hooksDone: () => void;
@@ -52,6 +57,7 @@
     afterFetch,
     afterRefChange,
     pushNeedsDialog,
+    pushHeadTo,
     openedModule,
     announceHooks,
     hooksDone,
@@ -66,6 +72,8 @@
   }
 
   const pullRemote = $derived(currentRemote(tracked?.upstream, network.remotes));
+  /** Pull only fetches, Push sends what can go (F-710, `DETACHED_HINTS`). */
+  const detached = $derived(repository.current?.head.kind === "detached");
   /** branch.<name>.pushRemote, else remote.pushDefault, as git itself pushes (D2). */
   const pushRemote = $derived(
     tracked?.pushRemote && network.remotes.includes(tracked.pushRemote) ? tracked.pushRemote : network.primary,
@@ -84,7 +92,7 @@
   export async function run(kind: "fetch" | "pull" | "push") {
     // One Pull everywhere: the remote HEAD tracks and the fast-forward setting (#26).
     if (kind === "pull") return pullNow();
-    if (kind === "push" && pushNeedsDialog()) return openPush();
+    if (kind === "push" && !detached && pushNeedsDialog()) return openPush();
     const id = repository.current?.repo;
     const root = repository.current?.root;
     const remote = kind === "fetch" ? pullRemote : pushRemote;
@@ -118,6 +126,8 @@
     const id = repository.current?.repo;
     const root = repository.current?.root;
     if (!id || !root) return;
+    const headless = detached;
+    let pushed: Pushed | null = null;
     const ran = await runGuarded(host, failure, async () => {
       const plan = remotePlan(steps, {
         remotes: network.remotes,
@@ -127,15 +137,17 @@
         ffOnly: settings.current.pullMode === "ffOnly",
         deleteMerged: toolbar.prefs.deleteMergedAfterPull,
         branch: tracked,
+        detached: headless,
       });
       for (const step of plan) {
         if (step.kind === "fetch") await network.fetch(id, step.remote);
         if (step.kind === "pull") await pullWithDefaults(id, step.remote, step.ffOnly);
         if (step.kind === "deleteMerged") await deleteMergedBranches(id);
-        if (step.kind === "push") await network.push(id, step.remote, false);
+        if (step.kind === "push") pushed = await network.push(id, step.remote, false);
       }
     });
     if (ran === null) return;
+    if (headless) successToast.show(steps.includes("push") ? syncDoneText(pushed) : pullDoneText("fetchedDetached"));
     if (steps.includes("pull")) repoPulse.fetched(root);
     await afterRefChange(id);
   }
@@ -162,7 +174,9 @@
   async function pushWithDefaults(id: RepoId, remote: string) {
     const head = tracked;
     if (!head) {
-      await network.push(id, remote, false);
+      // Detached: the backend sends what can go; with nothing, Push To asks for HEAD (F-710).
+      const pushed = await network.push(id, remote, false);
+      if (pushed !== null && pushDoneText(pushed) === null) pushHeadTo();
       return;
     }
     const target = pushTargetOf(head, network.remotes, network.primary);
@@ -190,13 +204,16 @@
       remotes: network.remotes,
       ffOnly: settings.current.pullMode === "ffOnly",
       defaults: await defaultsOf(id),
+      detached,
     };
   }
 
-  export async function openPush() {
+  export async function openPush(): Promise<void> {
     const id = repository.current?.repo;
     const head = tracked;
     if (!id) return;
+    // The Push dialog is about one branch; detached, Push sends what can go (F-710).
+    if (detached) return run("push");
     if (!head) {
       errors.message("HEAD is not on a branch. Check out the branch you want to push.", "Could not push");
       return;
@@ -230,7 +247,7 @@
       if (remember) await saveNetworkDefaults(id, mergeDefaults(request.defaults, { pull: choice }));
       if (action === "fetch") {
         await pullFlow(networkApi, flowUi, id, remote, { fetchOnly: fetchOptionsOf(choice) });
-        successToast.show("Fetch succeeded");
+        successToast.show(request.detached ? pullDoneText("fetchedDetached") : "Fetch succeeded");
       } else {
         await pullFlow(networkApi, flowUi, id, remote, pullOptionsOf(choice, request.ffOnly));
         successToast.show("Pull succeeded");
@@ -353,7 +370,11 @@
       if (kind === "pull") {
         await network.pull(id, remote, settings.current.pullMode === "ffOnly");
         if (target.kind === "repository") repoPulse.fetched(target.root);
-      } else await network.push(id, remote, false);
+      } else {
+        // A submodule is detached by design: Push sent what could go, or nothing (F-710).
+        const pushed = await network.push(id, remote, false);
+        if (pushed !== null && pushDoneText(pushed) === null) notices.inform("Nothing to push", NOTHING_PUSHABLE);
+      }
     } catch (err) {
       errors.report(err, `Could not ${kind}`);
     }

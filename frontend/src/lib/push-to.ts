@@ -1,6 +1,6 @@
-/** What Push To sends: a local branch or a tag. */
+/** What Push To sends: a local branch, a tag, or a detached HEAD (F-710). */
 export interface PushSource {
-  kind: "branch" | "tag";
+  kind: "branch" | "tag" | "head";
   name: string;
   upstream: string | null;
   /** The remote Push To opens on: the one whose heading in Branches it was asked from. */
@@ -55,6 +55,8 @@ export function targetRef(
 ): string {
   const namespace = source.kind === "tag" ? "refs/tags/" : "refs/heads/";
   if (target.mode === "custom") return qualify(target.ref, namespace);
+  // A detached HEAD tracks nothing: it goes only where it is told.
+  if (source.kind === "head") return "";
   if (source.kind === "tag") return `refs/tags/${source.name}`;
   const tracked = source.upstream ? splitUpstream(source.upstream, remotes) : null;
   return tracked?.remote === remote
@@ -68,7 +70,8 @@ export function pushRefspec(
   remote: string,
   remotes: readonly string[],
 ): string {
-  const from = source.kind === "tag" ? `refs/tags/${source.name}` : `refs/heads/${source.name}`;
+  const from =
+    source.kind === "head" ? "HEAD" : source.kind === "tag" ? `refs/tags/${source.name}` : `refs/heads/${source.name}`;
   return `${from}:${targetRef(source, target, remote, remotes)}`;
 }
 

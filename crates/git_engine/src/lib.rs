@@ -12,6 +12,7 @@ mod commit;
 mod commit_write;
 mod config_file;
 mod conflicts;
+mod detached;
 pub mod discover;
 mod error;
 mod file_log;
@@ -102,6 +103,7 @@ pub use config_file::{
     user_config_by_rules, user_config_path,
 };
 pub use conflicts::{ConflictSide, ConflictSides, ConflictStages, ConflictText, EntryKind};
+pub use detached::{PullOutcome, Pushed};
 pub use error::{GitCommandError, GitError};
 pub use file_log::{FileChange, FileRevision};
 pub use file_ops::{IgnoreRule, IndexEditorSides, IndexFlag};

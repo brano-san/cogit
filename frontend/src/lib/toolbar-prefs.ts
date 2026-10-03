@@ -90,6 +90,8 @@ export interface RemoteFacts {
   deleteMerged: boolean;
   /** The checked-out branch, as the last fetch left it. */
   branch?: { name: string; upstream: string | null; ahead: number; behind: number } | null;
+  /** HEAD is detached: Pull only fetches (F-710). */
+  detached?: boolean;
 }
 
 /** A pull that is sure to fail says so before it starts: `--ff-only` cannot join two
@@ -113,6 +115,13 @@ export function remotePlan(steps: readonly ("pull" | "push")[], facts: RemoteFac
     if (!remote) throw new Error("This repository has no remote.");
     if (step === "push") {
       plan.push({ kind: "push", remote });
+      continue;
+    }
+    // No branch to merge into: fetch only, as many remotes as Pull would, and never touch
+    // HEAD or delete a branch (F-710).
+    if (facts.detached) {
+      const { fetch, pull } = pullSteps(facts.scope, facts.remotes, remote);
+      plan.push(...[pull, ...fetch].map((name) => ({ kind: "fetch" as const, remote: name })));
       continue;
     }
     // Nothing to merge: the backend fetches every remote in this one step (R-552).

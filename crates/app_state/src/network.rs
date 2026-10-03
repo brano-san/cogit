@@ -2,7 +2,7 @@
 //! asks its own helper, and the token this looks up is only for the hosting API.
 
 use crate::{AppState, RepoId, token_host};
-use git_engine::NetworkStop;
+use git_engine::{NetworkStop, PullOutcome, Pushed};
 
 /// A network command running as one queue operation; `cancel_network` finds it until
 /// this is dropped.
@@ -65,7 +65,8 @@ impl AppState {
     }
 
     /// On a branch that tracks nothing there is nothing to merge: Pull fetches every
-    /// remote and says nothing more (R-552).
+    /// remote and says nothing more (R-552). On a detached HEAD it only fetches `remote`
+    /// and never moves HEAD (F-710).
     pub fn pull(
         &self,
         repo: RepoId,
@@ -73,11 +74,16 @@ impl AppState {
         ff_only: bool,
         stop: &NetworkStop,
         on_line: impl FnMut(&str),
-    ) -> Result<(), git_engine::GitError> {
+    ) -> Result<PullOutcome, git_engine::GitError> {
         let _quiet = self.quiet_briefly(repo);
         let handle = self.handle(repo)?.with_stop(stop.clone());
+        if matches!(handle.head()?, git_engine::Head::Detached { .. }) {
+            handle.fetch(remote, |url| self.token_for(url), on_line)?;
+            return Ok(PullOutcome::FetchedDetached);
+        }
         if handle.head_tracks_nothing() {
-            return handle.fetch_all(remote, |url| self.token_for(url), on_line);
+            handle.fetch_all(remote, |url| self.token_for(url), on_line)?;
+            return Ok(PullOutcome::Pulled);
         }
         // Listed before the pull: a submodule the user deinitialised stays that way (#42).
         let known = handle
@@ -96,9 +102,12 @@ impl AppState {
         if let Some(known) = known {
             handle.init_submodules_added_since(&known)?;
         }
-        Ok(())
+        Ok(PullOutcome::Pulled)
     }
 
+    /// On a detached HEAD there is no current branch: every branch ahead of where it
+    /// pushes and every tag `remote` lacks go instead, never forced, and `Some` says what
+    /// went — empty when nothing could, and then nothing ran (F-710).
     pub fn push(
         &self,
         repo: RepoId,
@@ -106,10 +115,16 @@ impl AppState {
         force: bool,
         stop: &NetworkStop,
         on_line: impl FnMut(&str),
-    ) -> Result<(), git_engine::GitError> {
+    ) -> Result<Option<Pushed>, git_engine::GitError> {
         let _quiet = self.quiet_briefly(repo);
         let handle = self.handle(repo)?.with_stop(stop.clone());
-        handle.push(remote, None, force, |url| self.token_for(url), on_line)
+        if matches!(handle.head()?, git_engine::Head::Detached { .. }) {
+            return handle
+                .push_pushable(remote, |url| self.token_for(url), on_line)
+                .map(Some);
+        }
+        handle.push(remote, None, force, |url| self.token_for(url), on_line)?;
+        Ok(None)
     }
 
     /// Remote ▸ Fetch More; `false` when nothing new came (R-553).

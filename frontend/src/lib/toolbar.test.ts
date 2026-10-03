@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   ACTIONS,
   DEFAULT_LAYOUT,
+  DETACHED_HINTS,
   actionOf,
+  pullDoneText,
+  pushDoneText,
+  syncDoneText,
   hintOf,
   NO_FACTS,
   SEPARATOR,
@@ -169,13 +173,31 @@ describe("the rest", () => {
     expect(reasonOf("push", facts({ remote: true, branch: true }))).toBeUndefined();
   });
 
-  // In a detached HEAD, mid-rebase or on a branch that tracks nothing every click on Pull,
-  // Push or Sync ended in a git error: "You are not currently on a branch".
-  it("pulls and syncs only on a branch", () => {
+  // Unborn HEAD: nothing to pull into and nothing to push.
+  it("pulls and syncs only on a branch or a detached HEAD", () => {
     for (const id of ["pull", "sync"]) {
       expect(reasonOf(id, facts({ remote: true })), id).toBe("HEAD is not on a branch");
       expect(reasonOf(id, facts({ remote: true, branch: true, upstream: true })), id).toBeUndefined();
     }
+  });
+
+  // F-710, after SmartGit: detached, Pull fetches, Push sends what can go, Sync does both;
+  // none of them is off. The rest never needed a branch.
+  it("keeps every network action on for a detached HEAD", () => {
+    const detached = facts({ remote: true, detached: true });
+    for (const id of ["pull", "push", "sync", "pull-defaults", "push-defaults", "push-to", "fetch-remotes", "sync-order"]) {
+      expect(reasonOf(id, detached), id).toBeUndefined();
+    }
+    expect(reasonOf("push", facts({ detached: true }))).toBe("This repository has no remote");
+  });
+
+  it("keeps the other buttons as they are on a branch", () => {
+    const at = (over: Partial<ToolbarFacts>) => ({ ...over, detached: true, branch: false });
+    expect(reasonOf("stage", tree(at({ unstaged: ["a"] })))).toBeUndefined();
+    expect(reasonOf("stash", facts(at({ unstaged: ["a"] })))).toBeUndefined();
+    expect(reasonOf("merge", facts(at({ commit: OTHER, merged: false })))).toBeUndefined();
+    expect(reasonOf("rebase", facts(at({ commit: OTHER })))).toBeUndefined();
+    expect(reasonOf("tag", facts(at({})))).toBeUndefined();
   });
 
   // Was off on a branch that tracks nothing (FS-030). Pull there fetches every remote
@@ -487,5 +509,40 @@ describe("Pull and Push with defaults", () => {
       expect(reasonOf(id, facts({ remote: true })), id).toBe("HEAD is not on a branch");
       expect(reasonOf(id, facts({ remote: true, branch: true })), id).toBeUndefined();
     }
+  });
+});
+
+// F-710: on a detached HEAD the tooltips and the notification say what Pull, Push and
+// Sync actually do.
+describe("detached HEAD", () => {
+  const detached: MenuContext = { ...NO_MENU_CONTEXT, detached: true };
+  const hint = (id: string, context = detached) => hintOf(actionOf(id)!, context);
+
+  it("states the adapted behavior in the tooltips", () => {
+    expect(hint("pull")).toBe("Detached HEAD: Pull will only fetch");
+    expect(hint("push")).toMatch(/^Detached HEAD: Push sends every branch ahead of its upstream/);
+    expect(hint("sync")).toMatch(/^Detached HEAD: Sync will only fetch/);
+    expect(hint("stage")).toBe(actionOf("stage")!.hint);
+    expect(hint("pull", NO_MENU_CONTEXT)).toBe(actionOf("pull")!.hint);
+  });
+
+  it("states it in the dropdown items too", () => {
+    const hintIn = (menu: string, id: string) =>
+      menuOf(menu, detached).find((entry): entry is Extract<MenuEntry, { id: string }> => "id" in entry && entry.id === id)
+        ?.hint;
+    expect(hintIn("pull", "pull-defaults")).toBe(DETACHED_HINTS["pull-defaults"]);
+    expect(hintIn("push", "push-defaults")).toBe(DETACHED_HINTS["push-defaults"]);
+    expect(hintIn("push", "push-to")).toBe(DETACHED_HINTS["push-to"]);
+    expect(hintIn("pull", "fetch-remotes")).toBe("Update the refs of every remote of this repository");
+  });
+
+  it("reports what was done", () => {
+    expect(pullDoneText("fetchedDetached")).toBe("Fetched only — HEAD is detached");
+    expect(pullDoneText("pulled")).toBe("Pull succeeded");
+    expect(pushDoneText(null)).toBe("Push succeeded");
+    expect(pushDoneText({ branches: ["topic"], tags: ["v2"] })).toBe("Pushed topic, tag v2 — HEAD is detached");
+    expect(pushDoneText({ branches: [], tags: [] })).toBeNull();
+    expect(syncDoneText({ branches: [], tags: ["v2"] })).toBe("Fetched only; pushed tag v2 — HEAD is detached");
+    expect(syncDoneText({ branches: [], tags: [] })).toBe("Fetched only, nothing to push — HEAD is detached");
   });
 });

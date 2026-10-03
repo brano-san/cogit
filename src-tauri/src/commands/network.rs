@@ -121,7 +121,7 @@ pub async fn pull(
     remote: String,
     ff_only: bool,
     on_progress: tauri::ipc::Channel<String>,
-) -> Result<(), GitError> {
+) -> Result<git_engine::PullOutcome, GitError> {
     let app_state = state.state.clone();
     networking(
         &state.state,
@@ -145,7 +145,7 @@ pub async fn push(
     remote: String,
     force: bool,
     on_progress: tauri::ipc::Channel<String>,
-) -> Result<(), GitError> {
+) -> Result<Option<git_engine::Pushed>, GitError> {
     let app_state = state.state.clone();
     networking(
         &state.state,

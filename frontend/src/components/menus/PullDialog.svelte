@@ -7,6 +7,7 @@
   import { remoteInfo } from "$lib/ipc/remotes";
   import { pullChoiceOf, pullCommandLine, type PullChoice } from "$lib/network-dialogs";
   import { networkDialog, type PullRequest } from "$stores/network-dialog.svelte";
+  import { DETACHED_HINTS } from "$lib/toolbar";
 
   /** Pull and Fetch Only (item 12), after SmartGit's Pull dialog. */
   interface Props {
@@ -43,11 +44,21 @@
     {
       label: "Fetch Only",
       tip: "Updates the remote-tracking branches and tags; your branch is not touched",
+      primary: request.detached,
       onclick: () => onrun("fetch", remote, choice, remember),
     },
-    { label: "Pull", primary: true, onclick: () => onrun("pull", remote, choice, remember) },
+    {
+      label: "Pull",
+      primary: !request.detached,
+      disabled: request.detached,
+      tip: request.detached ? DETACHED_HINTS.pull : undefined,
+      onclick: () => onrun("pull", remote, choice, remember),
+    },
   ]}
 >
+  {#if request.detached}
+    <p class="sub">HEAD is detached: there is no branch to integrate into, so Pull will only fetch.</p>
+  {/if}
   <p class="sub">
     Pull fetches the commits of the remote and integrates them into the current branch. Fetch Only only
     updates what is known of the remote.

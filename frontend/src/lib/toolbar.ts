@@ -3,6 +3,7 @@
  * Kept out of the component so the rules can be tested; the component only draws them.
  */
 
+import type { PullOutcome, Pushed } from "$lib/ipc";
 import { prettyKeys, shortcutOf, type Keymap } from "$lib/keymap";
 import {
   DEFAULT_PREFS,
@@ -169,9 +170,50 @@ export interface MenuContext {
   /** The remote Pull uses; see `currentRemote`. */
   current: string | null;
   prefs: ToolbarPrefs;
+  /** HEAD is detached: the network items say what they do instead (`DETACHED_HINTS`). */
+  detached?: boolean;
 }
 
 export const NO_MENU_CONTEXT: MenuContext = { remotes: [], current: null, prefs: DEFAULT_PREFS };
+
+/** What Pull, Push and Sync do on a detached HEAD, where there is no branch to pull into
+    or push (F-710). The one answer: tooltips and menu items read it, `remotePlan` and the
+    backend's `pull`/`push` do it, and `pullDoneText`/`pushDoneText` report it. */
+export const DETACHED_HINTS: Readonly<Record<string, string>> = {
+  pull: "Detached HEAD: Pull will only fetch",
+  "pull-defaults": "Detached HEAD: only fetch, no dialog",
+  push: "Detached HEAD: Push sends every branch ahead of its upstream and every tag the remote lacks; with none, it asks where to push HEAD",
+  "push-defaults": "Detached HEAD: send every branch ahead of its upstream and every tag the remote lacks",
+  "push-to": "Detached HEAD: choose the ref on the remote to push HEAD to",
+  sync: "Detached HEAD: Sync will only fetch, then push what can be pushed",
+};
+
+const DETACHED_NOTE = "HEAD is detached";
+
+/** Push on a detached HEAD where nothing qualified, for a repository not on screen. */
+export const NOTHING_PUSHABLE =
+  "HEAD is detached, no branch is ahead of its upstream and the remote has every tag. Open the repository and use Push To to push HEAD.";
+
+/** The notification after a pull. */
+export function pullDoneText(outcome: PullOutcome): string {
+  return outcome === "fetchedDetached" ? `Fetched only — ${DETACHED_NOTE}` : "Pull succeeded";
+}
+
+/** The notification after a push: `null` from the backend is an ordinary push. An empty
+    `Pushed` sent nothing, and gets `null` back: Push then asks where HEAD goes. */
+export function pushDoneText(pushed: Pushed | null): string | null {
+  if (!pushed) return "Push succeeded";
+  const sent = [...pushed.branches, ...pushed.tags.map((tag) => `tag ${tag}`)];
+  return sent.length === 0 ? null : `Pushed ${sent.join(", ")} — ${DETACHED_NOTE}`;
+}
+
+/** The notification after Sync on a detached HEAD: it fetched, and pushed what could go. */
+export function syncDoneText(pushed: Pushed | null): string {
+  const push = pushed === null ? null : pushDoneText(pushed);
+  return push === null
+    ? `Fetched only, nothing to push — ${DETACHED_NOTE}`
+    : `Fetched only; ${push.charAt(0).toLowerCase()}${push.slice(1)}`;
+}
 
 const item = (id: string, label: string, hint: string): MenuEntry => ({
   kind: "item",
@@ -250,6 +292,8 @@ export function shortcutOfAction(action: ToolbarAction, keys: Keymap, onMac: boo
 
 /** The tooltip of a button whose action depends on a remembered choice. */
 export function hintOf(action: ToolbarAction, context: MenuContext = NO_MENU_CONTEXT): string {
+  const detached = context.detached ? DETACHED_HINTS[action.id] : undefined;
+  if (detached) return detached;
   if (action.id === "sync") {
     return context.prefs.syncOrder === "pushThenPull" ? "Push, then pull" : "Pull, then push";
   }
@@ -260,6 +304,13 @@ export function hintOf(action: ToolbarAction, context: MenuContext = NO_MENU_CON
 }
 
 export function menuOf(id: string, context: MenuContext = NO_MENU_CONTEXT): MenuEntry[] {
+  if (!context.detached) return plainMenuOf(id, context);
+  return plainMenuOf(id, context).map((entry) =>
+    entry.kind !== "separator" && DETACHED_HINTS[entry.id] ? { ...entry, hint: DETACHED_HINTS[entry.id] ?? entry.hint } : entry,
+  );
+}
+
+function plainMenuOf(id: string, context: MenuContext): MenuEntry[] {
   switch (id) {
     case "pull":
       return pullMenu(context);
@@ -303,6 +354,8 @@ export interface ToolbarFacts {
   commit: string | null;
   head: string | null;
   branch: boolean;
+  /** HEAD is detached: Pull, Push and Sync adapt rather than turn off (`DETACHED_HINTS`). */
+  detached: boolean;
   /** HEAD's branch tracks a remote branch, which Pull and Sync bring down. */
   upstream: boolean;
   /** Whether HEAD already contains `commit`; `undefined` while that is being asked. */
@@ -322,6 +375,7 @@ export const NO_FACTS: ToolbarFacts = {
   commit: null,
   head: null,
   branch: false,
+  detached: false,
   upstream: false,
   merged: undefined,
   stashes: 0,
@@ -359,11 +413,15 @@ const needRepository: Rule = (f) => (f.repository ? undefined : "No repository i
 const needRemote: Rule = (f) =>
   needRepository(f) ?? (f.remote ? undefined : "This repository has no remote");
 
-const needBranch: Rule = (f) => needRemote(f) ?? (f.branch ? undefined : "HEAD is not on a branch");
+/** A detached HEAD passes: Pull, Push and Sync adapt to it (`DETACHED_HINTS`, F-710). An
+    unborn one does not. */
+const needBranch: Rule = (f) =>
+  needRemote(f) ?? (f.branch || f.detached ? undefined : "HEAD is not on a branch");
 
-/** Sync without an upstream would push a branch Pull has nothing to merge into. */
+/** Sync without an upstream would push a branch Pull has nothing to merge into. Detached,
+    it fetches and pushes what can go, and needs neither. */
 const needUpstream: Rule = (f) =>
-  needBranch(f) ?? (f.upstream ? undefined : "The branch tracks no remote branch");
+  needBranch(f) ?? (f.upstream || f.detached ? undefined : "The branch tracks no remote branch");
 
 const needWorkingTree: Rule = (f) =>
   needRepository(f) ??

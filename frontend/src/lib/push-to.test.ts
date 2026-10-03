@@ -165,3 +165,13 @@ describe("remoteCopy", () => {
     expect(remoteCopy(tag, [], null)).toBeNull();
   });
 });
+
+// F-710: Push To for a detached HEAD sends HEAD itself, to a ref the user names.
+describe("a detached HEAD", () => {
+  const head: PushSource = { kind: "head", name: "HEAD", upstream: null };
+
+  it("pushes HEAD to the custom ref and tracks nothing", () => {
+    expect(pushRefspec(head, { mode: "custom", ref: "rescue" }, "origin", remotes)).toBe("HEAD:refs/heads/rescue");
+    expect(tracksByDefault(head)).toBe(false);
+  });
+});

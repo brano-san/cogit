@@ -391,6 +391,11 @@
   export function pushToCurrent() {
     const summary = repository.current;
     const head = summary?.head;
+    // Detached: HEAD itself goes to a ref the user names (F-710).
+    if (head?.kind === "detached") {
+      refDialogs.push = { kind: "head", name: "HEAD", upstream: null };
+      return;
+    }
     if (!summary || head?.kind !== "branch") {
       errors.message("HEAD is not on a branch. Check out the branch you want to push.", "Push To");
       return;

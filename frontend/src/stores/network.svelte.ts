@@ -8,8 +8,11 @@ import {
   remoteUrl,
   tokenHost as tokenHostOf,
   storeToken,
+  type PullOutcome,
+  type Pushed,
   type RepoId,
 } from "$lib/ipc";
+import { pullDoneText, pushDoneText } from "$lib/toolbar";
 import { notices } from "$stores/notices.svelte";
 import { successToast } from "$stores/success-toast.svelte";
 
@@ -96,14 +99,20 @@ class NetworkStore {
     successToast.show("Fetch succeeded");
   }
 
-  async pull(repo: RepoId, remote: string, ffOnly: boolean): Promise<void> {
-    await this.run(repo, "Pulling", (onLine) => pullRemote(repo, remote, ffOnly, onLine));
-    successToast.show("Pull succeeded");
+  /** On a detached HEAD the backend only fetches, and the toast says so (F-710). */
+  async pull(repo: RepoId, remote: string, ffOnly: boolean): Promise<PullOutcome> {
+    const outcome = await this.run(repo, "Pulling", (onLine) => pullRemote(repo, remote, ffOnly, onLine));
+    successToast.show(pullDoneText(outcome));
+    return outcome;
   }
 
-  async push(repo: RepoId, remote: string, force: boolean): Promise<void> {
-    await this.run(repo, "Pushing", (onLine) => pushRemote(repo, remote, force, onLine));
-    successToast.show("Push succeeded");
+  /** `Pushed` on a detached HEAD: what went, empty when nothing could and nothing ran,
+      and then no toast — the caller asks where HEAD goes (F-710). */
+  async push(repo: RepoId, remote: string, force: boolean): Promise<Pushed | null> {
+    const pushed = await this.run(repo, "Pushing", (onLine) => pushRemote(repo, remote, force, onLine));
+    const text = pushDoneText(pushed);
+    if (text !== null) successToast.show(text);
+    return pushed;
   }
 
   /** Operations that ended in an error; the taskbar must not count them as finished well. */

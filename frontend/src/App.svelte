@@ -670,6 +670,7 @@
     commit: commit.oid,
     head: headOid,
     branch: repo?.head.kind === "branch",
+    detached: repo?.head.kind === "detached",
     upstream: Boolean(tracked?.upstream),
     merged: toolbar.merged,
     stashes: stashes.entries.length,
@@ -681,6 +682,7 @@
     remotes: network.remotes,
     current: networkActions?.currentPullRemote() ?? null,
     prefs: toolbar.prefs,
+    detached: repo?.head.kind === "detached",
   });
 
   /** What Remote ▸ LFS ▸ Lock and Submodule act on: the ticked files, or the one in Diff. */
@@ -4071,6 +4073,7 @@ ${event.error}`,
     {afterFetch}
     {afterRefChange}
     pushNeedsDialog={() => refActions?.pushNeedsDialog() ?? false}
+    pushHeadTo={() => refActions?.pushToCurrent()}
     {openedModule}
     {announceHooks}
     hooksDone={() => (runningHooks = undefined)}

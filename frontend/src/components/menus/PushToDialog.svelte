@@ -28,7 +28,8 @@
 
   // svelte-ignore state_referenced_locally
   let remote = $state(initialRemote(source, remotes, primary) ?? "");
-  let mode = $state<"tracked" | "custom">("tracked");
+  // svelte-ignore state_referenced_locally
+  let mode = $state<"tracked" | "custom">(source.kind === "head" ? "custom" : "tracked");
   let custom = $state("");
   // svelte-ignore state_referenced_locally
   let track = $state(tracksByDefault(source));
@@ -73,7 +74,13 @@
 
     <fieldset>
       <legend class="caption">Push To:</legend>
-      <Radio name="push-to" checked={mode === "tracked"} onchange={() => (mode = "tracked")} label="Tracked or matching branch" />
+      <Radio
+        name="push-to"
+        checked={mode === "tracked"}
+        disabled={source.kind === "head"}
+        onchange={() => (mode = "tracked")}
+        label="Tracked or matching branch"
+      />
       <Radio name="push-to" checked={mode === "custom"} onchange={() => (mode = "custom")} label="Custom Ref" />
       <div class="nested">
         <input

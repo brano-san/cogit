@@ -15,6 +15,8 @@ export interface PullRequest {
   /** Preferences ▸ Pull: a merge may not create a merge commit. */
   ffOnly: boolean;
   defaults: NetworkDefaults;
+  /** HEAD is detached: only Fetch Only runs (F-710). */
+  detached?: boolean;
 }
 
 export interface PushRequest {

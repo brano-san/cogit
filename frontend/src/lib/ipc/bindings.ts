@@ -174,8 +174,11 @@ export const commands = {
 	pushTo: (repo: RepoId, remote: string, refspec: string, track: boolean, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("push_to", { repo, remote, refspec, track, onProgress })),
 	remotes: (repo: RepoId) => typedError<string[], GitError>(__TAURI_INVOKE("remotes", { repo })),
 	fetch: (repo: RepoId, remote: string, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("fetch", { repo, remote, onProgress })),
-	pull: (repo: RepoId, remote: string, ffOnly: boolean, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("pull", { repo, remote, ffOnly, onProgress })),
-	push: (repo: RepoId, remote: string, force: boolean, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("push", { repo, remote, force, onProgress })),
+	pull: (repo: RepoId, remote: string, ffOnly: boolean, onProgress: Channel<string>) => typedError<PullOutcome, GitError>(__TAURI_INVOKE("pull", { repo, remote, ffOnly, onProgress })),
+	push: (repo: RepoId, remote: string, force: boolean, onProgress: Channel<string>) => typedError<{
+	branches: string[],
+	tags: string[],
+} | null, GitError>(__TAURI_INVOKE("push", { repo, remote, force, onProgress })),
 	/**  Fetch Only of the Pull dialog; the answer names notes that diverged. */
 	fetchWith: (repo: RepoId, remote: string, options: FetchOptions, onProgress: Channel<string>) => typedError<NotesFetch, GitError>(__TAURI_INVOKE("fetch_with", { repo, remote, options, onProgress })),
 	pullWith: (repo: RepoId, remote: string, options: PullOptions, onProgress: Channel<string>) => typedError<NotesFetch, GitError>(__TAURI_INVOKE("pull_with", { repo, remote, options, onProgress })),
@@ -1884,6 +1887,9 @@ export type PullOptions = {
 	fetch: FetchOptions,
 };
 
+/**  Detached, a pull only fetches: there is no branch to merge into. */
+export type PullOutcome = "pulled" | "fetchedDetached";
+
 export type PushCommit = {
 	oid: string,
 	summary: string,
@@ -1916,6 +1922,12 @@ export type PushPreview = {
 	 */
 	notesUnpushed: number | null,
 	hasLocalNotes: boolean,
+};
+
+/**  What went; both empty: nothing qualified and nothing ran. */
+export type Pushed = {
+	branches: string[],
+	tags: string[],
 };
 
 export type RebaseOptions = {

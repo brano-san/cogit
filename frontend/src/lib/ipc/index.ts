@@ -53,6 +53,8 @@ import type {
 
 export type {
   ErrorAction,
+  PullOutcome,
+  Pushed,
   ErrorEntry,
   ErrorKind,
   Flash,

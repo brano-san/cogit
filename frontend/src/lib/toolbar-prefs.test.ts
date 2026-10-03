@@ -116,6 +116,19 @@ describe("remotePlan", () => {
     expect(plan.map((step) => step.kind)).toEqual(["push", "pull"]);
   });
 
+  // F-710: no branch to merge into, so Pull and Sync only fetch — every remote or the
+  // current one, as the scope says — and never delete a branch.
+  it("only fetches on a detached HEAD, then pushes for Sync", () => {
+    expect(remotePlan(["pull", "push"], { ...facts, detached: true })).toEqual([
+      { kind: "fetch", remote: "origin" },
+      { kind: "fetch", remote: "fork" },
+      { kind: "push", remote: "origin" },
+    ]);
+    expect(remotePlan(["pull"], { ...facts, scope: "current", detached: true })).toEqual([
+      { kind: "fetch", remote: "origin" },
+    ]);
+  });
+
   // Pull on a branch that tracks nothing is a fetch of every remote in one git call
   // (R-552): fetching the others first would fetch them twice, and nothing was merged.
   it("pulls a branch that tracks nothing with one step and deletes nothing", () => {
