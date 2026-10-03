@@ -120,9 +120,7 @@ pub fn record(
     capacity: usize,
     entry: git_engine::GitOutput,
 ) {
-    while log.len() >= capacity.max(1) {
-        log.pop_front();
-    }
+    log.retain_back(capacity.max(1) - 1);
     log.push_back(entry);
 }
 
