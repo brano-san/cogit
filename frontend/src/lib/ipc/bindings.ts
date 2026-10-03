@@ -505,7 +505,7 @@ export const commands = {
 	 */
 	hasToken: (url: string) => typedError<boolean, GitError>(__TAURI_INVOKE("has_token", { url })),
 	/**  Whose token a remote's is: the one rule, so the page names the host it will store under. */
-	tokenHost: (url: string) => __TAURI_INVOKE<string | null>("token_host", { url }),
+	tokenHost: (url: string) => typedError<string | null, GitError>(__TAURI_INVOKE("token_host", { url })),
 	storeToken: (url: string, token: string) => typedError<null, GitError>(__TAURI_INVOKE("store_token", { url, token })),
 	forgetToken: (url: string) => typedError<null, GitError>(__TAURI_INVOKE("forget_token", { url })),
 	listHooks: (repo: RepoId) => typedError<HookOverview, GitError>(__TAURI_INVOKE("list_hooks", { repo })),

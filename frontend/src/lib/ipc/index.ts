@@ -933,7 +933,7 @@ export async function hasToken(url: string) {
 }
 
 export async function tokenHost(url: string) {
-  return await commands.tokenHost(url);
+  return unwrap(await commands.tokenHost(url));
 }
 
 export async function storeToken(url: string, token: string) {

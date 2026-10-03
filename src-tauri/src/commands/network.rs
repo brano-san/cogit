@@ -187,8 +187,12 @@ pub async fn has_token(
 /// Whose token a remote's is: the one rule, so the page names the host it will store under.
 #[tauri::command]
 #[specta::specta]
-pub fn token_host(state: tauri::State<'_, crate::AppContext>, url: String) -> Option<String> {
-    state.state.token_host(&url)
+pub async fn token_host(
+    state: tauri::State<'_, crate::AppContext>,
+    url: String,
+) -> Result<Option<String>, GitError> {
+    let app_state = state.state.clone();
+    blocking("token_host", move || Ok(app_state.token_host(&url))).await
 }
 
 #[tauri::command]
