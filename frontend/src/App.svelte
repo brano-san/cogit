@@ -45,6 +45,7 @@
   import { suppressBrowserFind } from "$lib/browser-find";
   import { suppressBrowserNavigation } from "$lib/browser-navigation";
   import { findModuleRow, isModulePath, onOpenModule } from "$lib/module-open";
+  import { onPushHead } from "$lib/push-head";
   import { onTreeChange } from "$lib/tree-sync";
   import { emptyStateVisible, footerRepository, panelView } from "$lib/repo-phase";
   import StartScreen from "$components/layout/StartScreen.svelte";
@@ -88,7 +89,7 @@
   import { fileFormat, shortOid } from "$lib/format";
   import { checkedIds, disabledIds, rememberCommand, type PaletteCommand } from "$lib/palette";
   import type { Context } from "$lib/availability";
-  import { localRevision, reasonOf, refAt, splitMarked, targetsOf, type MenuContext, type ToolbarFacts } from "$lib/toolbar";
+  import { localRevision, NOTHING_PUSHABLE, reasonOf, refAt, splitMarked, targetsOf, type MenuContext, type ToolbarFacts } from "$lib/toolbar";
   import { toolbar } from "$stores/toolbar.svelte";
   import { stashDialog } from "$stores/stash-dialog.svelte";
   import { settle, step } from "$lib/panel-focus";
@@ -1806,6 +1807,14 @@ ${event.error}`,
   $effect(() =>
     onOpenModule((request) => {
       if (repository.current?.repo.valueOf() === request.repo.valueOf()) void openModuleAt(request.path);
+    }),
+  );
+
+  // Commit and Push on a detached HEAD found nothing to push: Push To for HEAD, as Push does.
+  $effect(() =>
+    onPushHead((request) => {
+      if (repository.current?.repo.valueOf() === request.repo.valueOf()) refActions?.pushToCurrent();
+      else notices.inform("Nothing to push", NOTHING_PUSHABLE);
     }),
   );
 

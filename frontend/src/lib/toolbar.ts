@@ -5,6 +5,7 @@
 
 import type { PullOutcome, Pushed } from "$lib/ipc";
 import { prettyKeys, shortcutOf, type Keymap } from "$lib/keymap";
+import type { PushSource } from "$lib/push-to";
 import {
   DEFAULT_PREFS,
   remotesInOrder,
@@ -193,6 +194,18 @@ const DETACHED_NOTE = "HEAD is detached";
 /** Push on a detached HEAD where nothing qualified, for a repository not on screen. */
 export const NOTHING_PUSHABLE =
   "HEAD is detached and no branch is ahead of its upstream. Open the repository and use Push To to push HEAD.";
+
+/** Push To for a detached HEAD: only a Custom Ref, `HEAD:refs/heads/<name>`. `remote`: the
+    one it opens on, when asked from a remote's heading in Branches. */
+export function headPushSource(remote?: string): PushSource {
+  return { kind: "head", name: "HEAD", upstream: null, remote };
+}
+
+/** A detached push that found nothing to send: the caller opens Push To for HEAD
+    (`headPushSource`) or, with no window to open it in, says `NOTHING_PUSHABLE`. */
+export function nothingPushed(pushed: Pushed | null): boolean {
+  return pushed !== null && pushed.branches.length === 0;
+}
 
 /** The notification after a pull. */
 export function pullDoneText(outcome: PullOutcome): string {

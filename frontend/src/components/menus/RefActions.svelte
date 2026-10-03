@@ -82,7 +82,7 @@
   import { resetChoice } from "$lib/reset-modes";
   import { baseBefore, fullMessage, modifyPlan, rewordPlan, squashPlan } from "$lib/rewrite-plans";
   import { tagRequest } from "$lib/tag-dialog";
-  import { branchRevision } from "$lib/toolbar";
+  import { branchRevision, headPushSource } from "$lib/toolbar";
   import { branchNameProblem, textProblem } from "$lib/names";
   import { notedCommitsStore } from "$stores/noted-commits.svelte";
   import { commit } from "$stores/commit.svelte";
@@ -393,7 +393,7 @@
     const head = summary?.head;
     // Detached: HEAD itself goes to a ref the user names (F-710).
     if (head?.kind === "detached") {
-      refDialogs.push = { kind: "head", name: "HEAD", upstream: null };
+      refDialogs.push = headPushSource();
       return;
     }
     if (!summary || head?.kind !== "branch") {

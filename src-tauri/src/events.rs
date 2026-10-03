@@ -76,6 +76,15 @@ pub struct TreeChanged {
     pub path: String,
 }
 
+/// Commit and Push on a detached HEAD found no branch to push: the main window opens Push To
+/// for HEAD, as the toolbar's Push does (F-710). The page emits it itself.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
+#[serde(rename_all = "camelCase")]
+#[tauri_specta(event_name = "cogit://push-head")]
+pub struct PushHead {
+    pub repo: app_state::RepoId,
+}
+
 /// A native menu item was chosen. The payload is the palette command id, so the frontend
 /// runs the same code path the palette would.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]

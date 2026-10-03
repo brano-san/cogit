@@ -58,6 +58,7 @@ const facts = (over: Partial<RemoteFacts> = {}): RemoteFacts => ({
   remote: "origin",
   configured: true,
   head: { name: "main", upstream: "origin/main" },
+  detached: false,
   upstreamRemote: "origin",
   url: "https://example.com/x.git",
   shallow: false,
@@ -90,6 +91,16 @@ describe("remoteMenu", () => {
 
   it("deepens only a shallow clone", () => {
     expect(off(remoteMenu(facts()))).toEqual(["Set Depth… (not a shallow clone)", "Fetch Full History (not a shallow clone)"]);
+  });
+
+  // F-710: detached, Pull only fetches this remote and Push To pushes HEAD, as the toolbar's.
+  it("keeps Pull and Push To on a detached HEAD", () => {
+    const detached = facts({ head: null, detached: true, upstreamRemote: null, remote: "fork" });
+    expect(off(remoteMenu(detached))).toEqual([
+      "Set Depth… (not a shallow clone)",
+      "Fetch Full History (not a shallow clone)",
+    ]);
+    expect(remotePull(detached)).toBe("pull");
   });
 
   it("pushes and pulls only from a branch, and pulls only the remote it tracks", () => {

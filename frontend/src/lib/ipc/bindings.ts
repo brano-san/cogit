@@ -588,6 +588,7 @@ export const commands = {
 export const events = {
 	avatarReady: makeEvent<AvatarReady>("avatar-ready"),
 	cogitOpenModule: makeEvent<OpenModule>("cogit://open-module"),
+	cogitPushHead: makeEvent<PushHead>("cogit://push-head"),
 	cogitSettingsChanged: makeEvent<SettingsChanged>("cogit://settings-changed"),
 	cogitTreeChanged: makeEvent<TreeChanged>("cogit://tree-changed"),
 	commandRecorded: makeEvent<CommandRecorded>("command-recorded"),
@@ -1892,6 +1893,14 @@ export type PullOutcome = "pulled" | "fetchedDetached";
 export type PushCommit = {
 	oid: string,
 	summary: string,
+};
+
+/**
+ *  Commit and Push on a detached HEAD found no branch to push: the main window opens Push To
+ *  for HEAD, as the toolbar's Push does (F-710). The page emits it itself.
+ */
+export type PushHead = {
+	repo: RepoId,
 };
 
 export type PushOptions = {

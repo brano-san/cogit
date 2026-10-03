@@ -9,7 +9,7 @@ export const GROUP_MENU_PREFIX = "refgroup:";
 const id = (name: string) => `${GROUP_MENU_PREFIX}${name}`;
 
 const NOT_CONFIGURED = "not a configured remote";
-const DETACHED = "HEAD is not on a branch";
+const NO_BRANCH = "HEAD is not on a branch";
 
 export function claimsNode(node: RefNode): boolean {
   return node.kind === "head" || node.kind === "group" || node.kind === "folder";
@@ -31,8 +31,10 @@ export interface RemoteFacts {
   remote: string;
   /** False for a heading of remote branches left behind by a remote that is gone. */
   configured: boolean;
-  /** HEAD's branch; null when HEAD is detached. */
+  /** HEAD's branch; null when HEAD is not on one. */
   head: { name: string; upstream: string | null } | null;
+  /** HEAD is detached: Pull fetches and Push To pushes HEAD, as the toolbar's do (F-710). */
+  detached: boolean;
   /** The remote of HEAD's upstream, split by the configured names. */
   upstreamRemote: string | null;
   url: string | null;
@@ -41,8 +43,10 @@ export interface RemoteFacts {
 }
 
 /** Pull from this remote: a pull of the branch that tracks it, a fetch of it when the
-    branch tracks nothing (R-552), null when the branch tracks another remote. */
+    branch tracks nothing (R-552), null when the branch tracks another remote. Detached, a
+    pull: the backend's Pull only fetches that remote then (F-710). */
 export function remotePull(facts: RemoteFacts): "pull" | "fetch" | null {
+  if (facts.detached) return "pull";
   if (facts.head === null) return null;
   if (facts.head.upstream === null) return "fetch";
   return facts.upstreamRemote === facts.remote ? "pull" : null;
@@ -50,14 +54,14 @@ export function remotePull(facts: RemoteFacts): "pull" | "fetch" | null {
 
 function pullBlocked(facts: RemoteFacts): string | null {
   if (!facts.configured) return NOT_CONFIGURED;
-  if (facts.head === null) return DETACHED;
-  return remotePull(facts) === null ? `${facts.head.name} tracks ${facts.head.upstream}` : null;
+  if (facts.head === null && !facts.detached) return NO_BRANCH;
+  return remotePull(facts) === null ? `${facts.head?.name} tracks ${facts.head?.upstream}` : null;
 }
 
 export function remoteMenu(facts: RemoteFacts): ContextItem[] {
   const gone = facts.configured ? null : NOT_CONFIGURED;
   return tidy([
-    offer(id("push-to"), "Push To…", gone ?? (facts.head === null ? DETACHED : null)),
+    offer(id("push-to"), "Push To…", gone ?? (facts.head === null && !facts.detached ? NO_BRANCH : null)),
     SEPARATOR,
     offer(id("pull"), "Pull", pullBlocked(facts)),
     offer(id("fetch"), "Fetch", gone),

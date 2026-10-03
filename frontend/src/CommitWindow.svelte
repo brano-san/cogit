@@ -36,6 +36,7 @@
     commitTemplate,
     isPublished,
     listRemotes,
+    pushRemote,
     recentCommits,
     repoRefs,
     type CommitDetails,
@@ -44,6 +45,7 @@
   import { ON_MAC, primary } from "$lib/platform";
   import { publishedOrAssume } from "$lib/published";
   import { menuPush } from "$lib/push-to";
+  import { pushDetached } from "$lib/push-head";
   import { placePopup, type Box, type Placed } from "$lib/popup-place";
   import { followSettings } from "$lib/settings-sync";
   import { notices } from "$stores/notices.svelte";
@@ -254,14 +256,20 @@
     void closeThisWindow();
   }
 
-  /** The branch's own push, as the ref menu's Push would do it; false when it failed. */
+  /** The branch's own push, as the ref menu's Push would do it; detached, the toolbar's
+      Push (F-710). False when it failed. */
   async function push(repo: number): Promise<boolean> {
     try {
       const [refs, remotes] = await Promise.all([repoRefs(repo), listRemotes(repo)]);
       const head = refs.head;
+      const primary = remotes.includes("origin") ? "origin" : (remotes[0] ?? null);
+      if (head.kind === "detached") {
+        if (primary === null) throw new Error("Committed, but this repository has no remote to push to.");
+        await pushDetached(repo, primary, (id, remote) => pushRemote(id, remote, false, () => {}));
+        return true;
+      }
       if (head.kind !== "branch") throw new Error("Committed, but HEAD is not on a branch, so nothing was pushed.");
       const branch = refs.branches.find((entry) => entry.kind === "local" && entry.name === head.name);
-      const primary = remotes.includes("origin") ? "origin" : (remotes[0] ?? null);
       const plan = menuPush(
         { kind: "branch", name: head.name, upstream: branch?.upstream ?? null, remote: branch?.pushRemote ?? undefined },
         remotes,

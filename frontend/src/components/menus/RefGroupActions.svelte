@@ -17,6 +17,7 @@
   import { prefetcher } from "$lib/prefetch";
   import { branchNameProblem } from "$lib/names";
   import { splitUpstream } from "$lib/push-to";
+  import { headPushSource } from "$lib/toolbar";
   import {
     GROUP_MENU_PREFIX,
     claimsNode,
@@ -127,6 +128,7 @@
       remote: name,
       configured,
       head: head?.kind === "branch" ? { name: head.name, upstream } : null,
+      detached: head?.kind === "detached",
       upstreamRemote: upstream ? (splitUpstream(upstream, network.remotes)?.remote ?? null) : null,
       url: info?.url ?? null,
       shallow: info?.shallow ?? false,
@@ -176,7 +178,8 @@
     const remote = facts.remote;
     switch (name) {
       case "push-to":
-        if (facts.head) refDialogs.push = { kind: "branch", name: facts.head.name, upstream: facts.head.upstream, remote };
+        if (facts.detached) refDialogs.push = headPushSource(remote);
+        else if (facts.head) refDialogs.push = { kind: "branch", name: facts.head.name, upstream: facts.head.upstream, remote };
         return;
       case "pull":
         return remotePull(facts) === "pull" ? pull(id, remote) : fetch(id, facts);

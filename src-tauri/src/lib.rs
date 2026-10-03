@@ -34,8 +34,8 @@ mod window_place;
 use app_state::AppState;
 pub use events::{
     AvatarReady, CommandRecorded, ErrorQueue, ErrorReported, ErrorsAction, MenuCommand,
-    MergeResolved, MergeToolFinished, OpenModule, OperationChanged, RepoChanged, RevealCommit,
-    SessionEnding, SettingsChanged, TreeChanged, WatchLimited,
+    MergeResolved, MergeToolFinished, OpenModule, OperationChanged, PushHead, RepoChanged,
+    RevealCommit, SessionEnding, SettingsChanged, TreeChanged, WatchLimited,
 };
 use specta_typescript::Typescript;
 use std::path::PathBuf;
@@ -126,7 +126,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             ErrorsAction,
             SettingsChanged,
             OpenModule,
-            TreeChanged
+            TreeChanged,
+            PushHead
         ])
         .commands(collect_commands![
             commands::app_info,

@@ -22,7 +22,7 @@
   import { fetchAllTargets } from "$lib/repo-list";
   import { measurer } from "$lib/timing";
   import { currentRemote, remotePlan, syncSteps, type SyncOrder } from "$lib/toolbar-prefs";
-  import { NOTHING_PUSHABLE, pullDoneText, pushDoneText, syncDoneText } from "$lib/toolbar";
+  import { NOTHING_PUSHABLE, nothingPushed, pullDoneText, syncDoneText } from "$lib/toolbar";
   import type { Pushed } from "$lib/ipc";
   import { notices } from "$stores/notices.svelte";
   import { confirmation } from "$stores/confirm.svelte";
@@ -176,7 +176,7 @@
     if (!head) {
       // Detached: the backend sends what can go; with nothing, Push To asks for HEAD (F-710).
       const pushed = await network.push(id, remote, false);
-      if (pushed !== null && pushDoneText(pushed) === null) pushHeadTo();
+      if (nothingPushed(pushed)) pushHeadTo();
       return;
     }
     const target = pushTargetOf(head, network.remotes, network.primary);
@@ -373,7 +373,7 @@
       } else {
         // A submodule is detached by design: Push sent what could go, or nothing (F-710).
         const pushed = await network.push(id, remote, false);
-        if (pushed !== null && pushDoneText(pushed) === null) notices.inform("Nothing to push", NOTHING_PUSHABLE);
+        if (nothingPushed(pushed)) notices.inform("Nothing to push", NOTHING_PUSHABLE);
       }
     } catch (err) {
       errors.report(err, `Could not ${kind}`);
