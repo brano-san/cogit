@@ -324,12 +324,18 @@ impl Route {
 
     fn classify(&self, path: &Path) -> Option<RepoChanged> {
         // The private directory first: in a linked worktree it lies inside the common one.
-        let inside_git = path
-            .strip_prefix(&self.git_dir)
-            .or_else(|_| path.strip_prefix(&self.common_dir));
-        let relative = if let Ok(inside) = inside_git {
+        let private = path.strip_prefix(&self.git_dir).ok();
+        let shared = private
+            .is_none()
+            .then(|| path.strip_prefix(&self.common_dir).ok());
+        let relative = if let Some(inside) = private.or(shared.flatten()) {
             let relative = to_slash(inside);
             if relative.starts_with("objects/") || relative == "objects" {
+                return None;
+            }
+            // HEAD, the index and the operation markers at the top of the common folder
+            // are the main worktree's, not this one's.
+            if private.is_none() && !is_shared(&relative) {
                 return None;
             }
             return classify_git_path(&relative).map(|kind| RepoChanged { kind });
@@ -344,6 +350,19 @@ impl Route {
             kind: ChangeKind::WorkingTree,
         })
     }
+}
+
+/// What every worktree of a repository shares, at the top of the common folder.
+fn is_shared(relative: &str) -> bool {
+    relative == "refs"
+        || relative.starts_with("refs/")
+        || relative == "packed-refs"
+        || relative == "config"
+        || relative == "shallow"
+        || relative == "hooks"
+        || relative.starts_with("hooks/")
+        || relative.starts_with("info/")
+        || relative.starts_with("logs/refs/stash")
 }
 
 /// Events were lost, so anything may have moved.
@@ -582,6 +601,32 @@ mod tests {
 
         let kinds: Vec<ChangeKind> = seen.iter().map(|(kind, _)| *kind).collect();
         assert_eq!(kinds, [ChangeKind::WorkingTree]);
+    }
+
+    // The main worktree's HEAD, index and merge state sit in the common folder a linked
+    // worktree watches for packed-refs and config.
+    #[test]
+    fn a_linked_worktree_ignores_the_main_ones_head_and_index() {
+        let common = PathBuf::from("C:/main/.git");
+        let route = Route {
+            root: PathBuf::from("C:/wt"),
+            git_dir: common.join("worktrees/wt"),
+            common_dir: common.clone(),
+            paused: Arc::new(AtomicBool::new(false)),
+            quiet_until: Arc::new(Mutex::new(None)),
+            held: Arc::new(AtomicUsize::new(0)),
+        };
+
+        let main = [
+            common.join("HEAD"),
+            common.join("index"),
+            common.join("MERGE_HEAD"),
+        ];
+        assert!(route.coalesce(&main).is_empty());
+        let shared = route.coalesce(&[common.join("packed-refs")]);
+        assert_eq!(shared[0].kind, ChangeKind::Refs);
+        let own = route.coalesce(&[route.git_dir.join("HEAD")]);
+        assert_eq!(own[0].kind, ChangeKind::Head);
     }
 
     fn event(kind: EventKind, path: PathBuf) -> notify::Result<Event> {

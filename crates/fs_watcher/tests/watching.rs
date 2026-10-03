@@ -337,6 +337,31 @@ fn a_linked_worktree_hears_about_refs_in_the_common_directory() {
     assert!(seen.iter().any(|c| c.kind == ChangeKind::Refs), "{seen:?}");
 }
 
+#[test]
+fn a_linked_worktree_does_not_hear_the_main_ones_index() {
+    let dir = tempfile::tempdir().unwrap();
+    let common = dir.path().join("main/.git");
+    let private = common.join("worktrees/linked");
+    let root = dir.path().join("linked");
+    std::fs::create_dir_all(common.join("refs/heads")).unwrap();
+    std::fs::create_dir_all(&private).unwrap();
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(private.join("HEAD"), "ref: refs/heads/wt\n").unwrap();
+
+    let (tx, events) = mpsc::channel();
+    let _watcher = RepoWatcher::start(&root, &private, &common, move |change| {
+        let _ = tx.send(change);
+    })
+    .unwrap();
+    std::thread::sleep(Duration::from_millis(300));
+    while events.try_recv().is_ok() {}
+
+    std::fs::write(common.join("index"), "x").unwrap();
+    std::fs::write(common.join("HEAD"), "ref: refs/heads/other\n").unwrap();
+
+    assert!(events.recv_timeout(settle()).is_err());
+}
+
 // A submodule keeps its git directory under the parent's `.git/modules`, outside its own
 // root; hooks were only ever heard through the root's recursive watch, so an edit to a
 // submodule's hook never reached the Hooks panel.
