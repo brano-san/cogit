@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tokenColor } from "$lib/theme-colors";
   import { shortOid } from "$lib/format";
-  import { ON_MAC, primary } from "$lib/platform";
+  import { foreign, ON_MAC, primary } from "$lib/platform";
   import VirtualList from "$components/common/VirtualList.svelte";
   import { dateOf, shortAuthor } from "$lib/investigate/blame";
   import { segmentsOf, type GraphRow } from "$lib/investigate/graph";
@@ -78,7 +78,7 @@
   }
 
   function onkeydown(event: KeyboardEvent) {
-    if (event.altKey || primary(event, ON_MAC)) return;
+    if (event.altKey || primary(event, ON_MAC) || foreign(event, ON_MAC)) return;
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       move(event.key === "ArrowDown" ? 1 : -1);

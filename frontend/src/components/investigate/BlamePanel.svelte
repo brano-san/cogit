@@ -4,7 +4,7 @@
   import VirtualList from "$components/common/VirtualList.svelte";
   import OriginCard from "./OriginCard.svelte";
   import { highlightLines, loadLanguage, mergePieces } from "$lib/highlight";
-  import { ON_MAC, primary } from "$lib/platform";
+  import { foreign, ON_MAC, primary } from "$lib/platform";
   import {
     ageOf,
     commitOf,
@@ -77,7 +77,7 @@
   }
 
   function onkeydown(event: KeyboardEvent) {
-    if (!tables || event.altKey || primary(event, ON_MAC)) return;
+    if (!tables || event.altKey || primary(event, ON_MAC) || foreign(event, ON_MAC)) return;
     const at = session.selectedLine ?? -1;
     if (event.key === "ArrowDown" && at < tables.lines.length - 1) session.selectLine(at + 1);
     else if (event.key === "ArrowUp" && at > 0) session.selectLine(at - 1);
