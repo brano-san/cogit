@@ -680,6 +680,11 @@ export async function resolveConflictText(
   return unwrap(await commands.resolveConflictText(repo, path, text, stages));
 }
 
+/** Edit: the file in a window of its own, or the window already editing it (F-722). */
+export async function openEditorWindow(repo: RepoId, path: string) {
+  return unwrap(await commands.openEditorWindow(repo, path));
+}
+
 /** The solver's Save: the working file only; the conflict stays until Mark Resolved. */
 export async function saveConflictText(repo: RepoId, path: string, text: string, stages: ConflictStages | null = null) {
   return unwrap(await commands.saveConflictText(repo, path, text, stages));

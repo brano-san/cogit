@@ -6,6 +6,7 @@
     "main",
     "compare-*",
     "solver-*",
+    "editor-*",
     "blame-*",
     "investigate-*",
     "commit-*",

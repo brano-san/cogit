@@ -89,6 +89,20 @@ pub async fn save_conflict_text(
     .await
 }
 
+/// Edit: the working file in a window of its own, or the window already editing it.
+#[tauri::command]
+#[specta::specta]
+pub async fn open_editor_window(
+    app: tauri::AppHandle,
+    repo: RepoId,
+    path: String,
+) -> Result<(), GitError> {
+    blocking("open_editor_window", move || {
+        crate::editor_window::reveal_or_open(&app, repo.0, &path)
+    })
+    .await
+}
+
 /// The Conflict Solver for one file: a window of its own, or the one already open for it.
 /// `external_tool` has it start the merge tool as soon as it is up.
 #[tauri::command]

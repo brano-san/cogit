@@ -4,6 +4,7 @@ mod child_window;
 mod commands;
 mod commit_window;
 mod diagnostics;
+mod editor_window;
 mod errors_window;
 mod events;
 mod fatal;
@@ -252,6 +253,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::conflicts::resolve_conflict,
             commands::conflicts::resolve_conflict_text,
             commands::conflicts::save_conflict_text,
+            commands::conflicts::open_editor_window,
             commands::find_object,
             commands::branches::rename_branch,
             commands::branches::branch_reflog,

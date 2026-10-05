@@ -219,6 +219,7 @@
     type RepoId,
     type WorkingState,
     openErrorsWindow,
+    openEditorWindow,
   } from "$lib/ipc";
   import { openBlame } from "$lib/blame-window";
   import { ShownRepository } from "$lib/shown-repository";
@@ -2300,7 +2301,7 @@ ${event.error}`,
     openVersion: (path, rev) => void withRepo((id) => fileMenus.openReadOnly(id, rev, path), "Could not open the file"),
     reveal: (path) => void onDesktop((root) => fileMenus.revealOnDesktop(`${root}/${path}`), "Could not reveal the file"),
     showChanges: (path) => openInWindow(path, fileSpec(path)),
-    edit: (path) => void editWorkingFile(path),
+    edit: (path) => void withRepo((id) => openEditorWindow(id, path), "Could not open the editor"),
     compareWithWorkTree: (path, rev) => openInWindow(path, { kind: "commitVsWorkTree", oid: rev }),
     log: (path) => filterGraph({ ...graph.query, path }),
     blame: (path) => void blameOne(path),
@@ -3266,15 +3267,6 @@ ${event.error}`,
   // A save in the Diff panel's editor reads the status and the Files list again at once,
   // without waiting for the watcher.
   diffEdit.onSaved = (path) => void afterWorkingTreeChange([path]);
-
-  /** Edit from the file menu: the file alone, no diff, in the Diff panel. */
-  async function editWorkingFile(path: string) {
-    const id = repository.current?.repo;
-    if (!id) return;
-    const spec = { kind: "workTreeVsIndex" } as const;
-    await diff.load(id, spec, path);
-    if (diff.path === path) await diffEdit.start(id, spec, path, "single");
-  }
 
   /** The window is already in front: show the repository, and the Errors window on a failure. */
   async function onNotificationClicked(event: import("$lib/ipc").NotificationClicked) {

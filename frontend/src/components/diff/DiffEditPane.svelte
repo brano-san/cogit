@@ -6,11 +6,13 @@
   /** The Diff panel editing the working file (F-722): beside the diff's base, read-only, as
       the 2-way diff opens it; or alone, from the file menu's Edit. */
   interface Props {
-    /** Back to the read-only diff; asks first when there are unsaved edits. */
+    /** Back to the read-only diff (or the window closes); asks first about unsaved edits. */
     ondone: () => void;
+    /** "Done" beside a diff; "Close" in a window of its own. */
+    doneLabel?: string;
   }
 
-  let { ondone }: Props = $props();
+  let { ondone, doneLabel = "Done" }: Props = $props();
 
   let host: HTMLDivElement | undefined = $state();
   let editor: DiffEditor | null = null;
@@ -72,7 +74,7 @@
       disabled={!diffEdit.dirty || diffEdit.saving}
       onclick={() => void save()}>Save</button
     >
-    <button type="button" class="btn sm" title="Back to the diff (Esc)" onclick={ondone}>Done</button>
+    <button type="button" class="btn sm" title="{doneLabel} (Esc)" onclick={ondone}>{doneLabel}</button>
   </div>
 
   {#if diffEdit.changedOnDisk}
