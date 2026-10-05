@@ -616,14 +616,17 @@
     await afterMutation(paths, state);
   }
 
-  /** `state`: the counters from a file-list read made just before, so one walk serves both. */
-  async function afterMutation(paths: string[] = [], state: WorkingState | null = null, rereadDiff = true) {
+  /** `state`: the counters from a file-list read made just before, so one walk serves both.
+      `before`: what the lost commits wait for besides this refresh — the graph, on open. */
+  async function afterMutation(
+    paths: string[] = [],
+    state: WorkingState | null = null,
+    rereadDiff = true,
+    before: Promise<unknown> = Promise.resolve(),
+  ) {
     void diff.afterWrite(paths, rereadDiff);
     const id = repository.current?.repo;
     const conflicted = state && id ? repository.applyState(id, state) : await repository.refreshStatus();
-    // Not waited for: the first scan of a repository's objects can take seconds on a cold
-    // disk, and nothing an open or a mutation finishes needs the lost commits (R-731).
-    if (id) void recovery.refresh(id).catch((err) => errors.report(err, "Could not read the lost commits"));
     // One store that cannot read must not cancel the others, nor the diff and the graph
     // after them.
     const settled = await Promise.allSettled([
@@ -641,6 +644,15 @@
     ]);
     const failed = settled.find((result) => result.status === "rejected");
     if (failed) errors.report(failed.reason, "Could not refresh after a change");
+    // Last and not waited for: the first scan of a repository's objects can take seconds
+    // on a cold disk and competes for the same cores, while nothing an open or a mutation
+    // finishes needs the lost commits (R-731).
+    if (id) {
+      void before
+        .catch(() => undefined)
+        .then(() => recovery.refresh(id))
+        .catch((err) => errors.report(err, "Could not read the lost commits"));
+    }
   }
 
   /** What every command rule reads (issue 2). One object, one definition. */
@@ -1923,11 +1935,11 @@ ${event.error}`,
         // Waits for the graph to reach it: the list opens at the top otherwise.
         graph.requestReveal(restoreOid);
       }
-      void timed(story, "graph", () => reloadGraph());
+      const graphShown = timed(story, "graph", () => reloadGraph());
       void refs.loadUrls(opened.repo);
       void worktrees.refresh(opened.repo);
       await timed(story, "repository list", () => repository.refreshList());
-      await timed(story, "everything else", () => afterMutation());
+      await timed(story, "everything else", () => afterMutation([], null, true, graphShown));
       trace(story, "activate: done");
     } else {
       trace(story, "activate: nothing opened, graph cleared");
