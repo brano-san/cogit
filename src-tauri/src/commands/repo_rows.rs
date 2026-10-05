@@ -30,7 +30,7 @@ pub async fn repo_pulse(
 #[tauri::command]
 #[specta::specta]
 #[must_use]
-pub fn backend_labels(roots: Vec<String>) -> Vec<String> {
+pub async fn backend_labels(roots: Vec<String>) -> Vec<String> {
     roots
         .iter()
         .map(|root| app_state::location::RepoLocation::of(std::path::Path::new(root)).label())
