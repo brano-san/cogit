@@ -201,11 +201,14 @@
     font-size: 10px;
   }
 
+  /* One row while it fits; narrower, the options wrap as whole units under the counter
+     and the Commit button keeps its size at the right. A label never breaks. */
   .bar {
     display: flex;
     flex: none;
+    flex-wrap: wrap;
     align-items: center;
-    gap: var(--sp-4);
+    gap: var(--sp-2) var(--sp-4);
     margin-top: var(--sp-3);
     font-size: var(--fs-dense);
   }
@@ -215,10 +218,13 @@
   }
 
   .option {
+    flex: none;
+    white-space: nowrap;
     color: var(--text-secondary);
   }
 
   .count {
+    flex: none;
     font-size: 11px;
     color: var(--text-secondary);
     white-space: nowrap;
@@ -239,6 +245,8 @@
   }
 
   button {
+    flex: none;
+    margin-left: auto;
     height: 22px;
     padding: 0 var(--sp-5);
     background: var(--surface-input);
