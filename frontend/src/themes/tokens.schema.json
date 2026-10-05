@@ -85,6 +85,14 @@
       "type": "color",
       "description": "Text and glyphs on a solid accent or status background."
     },
+    "accent.solid": {
+      "type": "color",
+      "description": "A solid fill in the accent color under text: a primary button, a checked box. Dark enough for white text at WCAG AA (4.5:1)."
+    },
+    "fg.onAccentSolid": {
+      "type": "color",
+      "description": "Text and glyphs on accent.solid: the same in every theme and every window."
+    },
     "focus.ring": {
       "type": "color-alpha",
       "description": "Keyboard focus outline. The only token that may carry alpha."

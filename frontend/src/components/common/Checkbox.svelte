@@ -106,9 +106,9 @@
 
   .native:checked + .box,
   .native:indeterminate + .box {
-    background: var(--status-ref);
-    border-color: var(--status-ref);
-    color: var(--fg-on-accent);
+    background: var(--accent-solid);
+    border-color: var(--accent-solid);
+    color: var(--fg-on-accent-solid);
   }
 
   .native:focus-visible + .box {

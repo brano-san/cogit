@@ -23,6 +23,8 @@
     "accent": "#0969da",
     "accent.hover": "#0757b8",
     "fg.onAccent": "#ffffff",
+    "accent.solid": "#0969da",
+    "fg.onAccentSolid": "#ffffff",
     "focus.ring": "#0969da66",
     "toggle.on.bg": "#ddf4ff",
     "toggle.on.fg": "#0550ae",

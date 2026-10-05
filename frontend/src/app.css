@@ -240,20 +240,22 @@ body {
 .btn.primary,
 .btn.danger,
 .btn.warning {
-  background: var(--status-ref);
-  border-color: var(--status-ref);
-  color: var(--fg-on-accent);
+  background: var(--accent-solid);
+  border-color: var(--accent-solid);
+  color: var(--fg-on-accent-solid);
   font-weight: 600;
 }
 
 .btn.warning {
   background: var(--status-modify);
   border-color: var(--status-modify);
+  color: var(--fg-on-accent);
 }
 
 .btn.danger {
   background: var(--status-danger);
   border-color: var(--status-danger);
+  color: var(--fg-on-accent);
 }
 
 .btn.primary:hover:not(:disabled),

@@ -86,8 +86,8 @@
   }
 
   button.primary {
-    background: var(--status-ref);
-    color: var(--fg-on-accent);
-    border-color: var(--status-ref);
+    background: var(--accent-solid);
+    color: var(--fg-on-accent-solid);
+    border-color: var(--accent-solid);
   }
 </style>
