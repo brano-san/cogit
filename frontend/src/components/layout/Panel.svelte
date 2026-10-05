@@ -130,11 +130,16 @@
     white-space: nowrap;
   }
 
+  /* Narrow, a field in it gives way (its own `min-width` says how far); a button never
+     shrinks below its label, so it is never the one cut. */
   .panel-actions {
     display: flex;
     align-items: center;
     gap: var(--sp-3);
+    flex: 0 1 auto;
+    min-width: 0;
   }
+
 
   .panel-body {
     display: flex;

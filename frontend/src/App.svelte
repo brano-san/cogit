@@ -4518,8 +4518,11 @@ ${event.error}`,
     flex: 1 1 0;
   }
 
+  /* Shrinks before the sort buttons beside it are cut. */
   .ref-filter {
+    flex: 0 1 140px;
     width: 140px;
+    min-width: 48px;
     height: 18px;
     padding: 0 var(--sp-3);
     background: var(--surface-input);
