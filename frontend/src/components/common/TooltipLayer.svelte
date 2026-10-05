@@ -2,13 +2,17 @@
   import { placeTip, TIP_DELAY_MS, type Placement } from "$lib/tooltip";
 
   /** The one tooltip of the window. It answers every `title` and every `data-tip` (what
-      `Tooltip` sets), so all of them look alike and wait the same time (R-181). The title is
-      moved aside while the pointer is over its element, which keeps the native one away. */
+      `Tooltip` sets), so all of them look alike and wait the same time (R-181). Every title on
+      the way up from the pointer is moved aside while it is there — the element's own and its
+      titled ancestors' (a tag inside a titled row) — or the browser shows the nearest one left
+      as a second, native tooltip. The nearest ancestor's text joins the bubble as context. */
   const STASH = "data-cogit-title";
   const SELECTOR = `[title], [data-tip], [${STASH}]`;
 
   interface Shown {
     text: string;
+    /** The titled element around the one pointed at: a row around its tag. */
+    context: string | null;
     hint: string | null;
     anchor: DOMRect;
     below: boolean;
@@ -18,7 +22,25 @@
   let placed = $state.raw<Placement | null>(null);
   let bubble: HTMLElement | undefined = $state();
   let current: Element | null = null;
+  /** Every element whose title is moved aside now, `current` first. */
+  let held: Element[] = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
+  /** A title Svelte writes back while the pointer is there (a live status) goes aside again. */
+  const watcher =
+    typeof MutationObserver === "undefined"
+      ? null
+      : new MutationObserver((records) => {
+          for (const record of records) {
+            if (record.target instanceof Element && held.includes(record.target)) stash(record.target);
+          }
+        });
+
+  function stash(element: Element) {
+    const title = element.getAttribute("title");
+    if (title === null) return;
+    element.setAttribute(STASH, title);
+    element.removeAttribute("title");
+  }
 
   function anchorOf(node: EventTarget | null): Element | null {
     return node instanceof Element ? node.closest(SELECTOR) : null;
@@ -29,10 +51,10 @@
     disarm();
     if (!element) return;
     current = element;
-    const title = element.getAttribute("title");
-    if (title !== null) {
-      element.setAttribute(STASH, title);
-      element.removeAttribute("title");
+    for (let node: Element | null = element; node; node = node.parentElement?.closest(SELECTOR) ?? null) {
+      held.push(node);
+      stash(node);
+      watcher?.observe(node, { attributes: true, attributeFilter: ["title"] });
     }
     timer = setTimeout(show, TIP_DELAY_MS);
   }
@@ -43,24 +65,34 @@
     current = null;
     shown = null;
     placed = null;
+    watcher?.disconnect();
+    const restore = held;
+    held = [];
     if (!element) return;
-    const stashed = element.getAttribute(STASH);
-    element.removeAttribute(STASH);
-    if (stashed !== null && !element.hasAttribute("title")) element.setAttribute("title", stashed);
+    for (const node of restore) {
+      const stashed = node.getAttribute(STASH);
+      node.removeAttribute(STASH);
+      if (stashed !== null && !node.hasAttribute("title")) node.setAttribute("title", stashed);
+    }
+  }
+
+  function textOf(element: Element | undefined): string {
+    return (element?.getAttribute("data-tip") ?? element?.getAttribute(STASH) ?? "").trim();
   }
 
   function show() {
     const element = current;
     if (!element?.isConnected) return;
-    const fresh = element.getAttribute("title");
-    if (fresh !== null) {
-      element.setAttribute(STASH, fresh);
-      element.removeAttribute("title");
+    for (const node of held) stash(node);
+    const text = textOf(element);
+    const around = held.slice(1).map(textOf).find((each) => each !== "") ?? null;
+    if (text === "" && around === null) return;
+    if (import.meta.env.DEV && text !== "" && around !== null && text === around) {
+      console.warn("tooltip: an element repeats the title of the one around it", element);
     }
-    const text = element.getAttribute("data-tip") ?? element.getAttribute(STASH) ?? "";
-    if (text.trim() === "") return;
     shown = {
-      text,
+      text: text || (around ?? ""),
+      context: text !== "" && around !== text ? around : null,
       hint: element.getAttribute("data-tip-hint"),
       anchor: element.getBoundingClientRect(),
       below: element.hasAttribute("data-tip-below"),
@@ -105,7 +137,9 @@
     style:top="{placed?.top ?? 0}px"
     style:visibility={placed ? "visible" : "hidden"}
   >
-    <span class="text">{shown.text}</span>{#if shown.hint}<span class="hint">{shown.hint}</span>{/if}
+    <span class="text">{shown.text}</span>{#if shown.hint}<span class="hint">{shown.hint}</span>{/if}{#if shown.context}<span
+        class="context">{shown.context}</span
+      >{/if}
   </div>
 {/if}
 
@@ -114,6 +148,7 @@
     position: fixed;
     z-index: 100;
     display: flex;
+    flex-wrap: wrap;
     gap: var(--sp-3);
     align-items: baseline;
     max-width: 360px;
@@ -140,6 +175,16 @@
     -webkit-line-clamp: 14;
     line-clamp: 14;
     overflow: hidden;
+  }
+
+  /* What the element around it says (the row of a tag): one bubble, the pointed thing first. */
+  .context {
+    flex: 1 0 100%;
+    padding-top: var(--sp-2);
+    border-top: 1px solid var(--divider);
+    color: var(--text-secondary);
+    white-space: pre-line;
+    overflow-wrap: anywhere;
   }
 
   .hint {

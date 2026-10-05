@@ -74,7 +74,7 @@
       <KindIcon kind="worktree" title="Worktree — {entry.path}" />
       <span class="name truncate" title={entry.name}>{entry.name}</span>
       <span class="where truncate" title={where ?? undefined}>{where ?? ""}</span>
-      <span class="path truncate" title={entry.path}>{shortWorktreePath(entry.path, mainPath)}</span>
+      <span class="path truncate">{shortWorktreePath(entry.path, mainPath)}</span>
       <span class="tags">
         {#each worktreeTags(entry) as tag (tag.id)}
           <span class="tag {tag.id}" title={tag.tooltip}>{tag.label}</span>
