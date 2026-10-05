@@ -1260,10 +1260,11 @@ export type FileStatus = "added" | "modified" | "deleted" | "renamed" | "copied"
 "sparse";
 
 /**
- *  `Short` blinks the button a few times (a background operation ended); `Persistent`
- *  blinks until the window is focused (an error or a warning).
+ *  Blinks until the window is focused: only an error or a warning asks for attention. A
+ *  success never flashes — a short flash cannot be stopped on focus (`FLASHW_TRAY` without
+ *  `FLASHW_TIMERNOFG` blinks its count out) and reads as an alarm.
  */
-export type Flash = "short" | "persistent";
+export type Flash = "persistent";
 
 export type FlowBranch = {
 	kind: FlowKind,

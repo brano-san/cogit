@@ -22,12 +22,17 @@ class TaskbarStore {
     return this.#unviewed;
   }
 
+  get flash(): Flash | null {
+    return this.#flash;
+  }
+
   /** Counts and flashes only while the window is in the background: in front, the user
-      sees the result themselves. An error or a warning blinks until focus, a success briefly. */
+      sees the result themselves. An error or a warning blinks until focus; a success only
+      counts — a flash reads as an alarm, and the system notification tells it. */
   event(kind: TaskbarEvent): void {
     if (this.focused) return;
     this.#unviewed += 1;
-    this.#flash = kind === "success" && this.#flash !== "persistent" ? "short" : "persistent";
+    if (kind !== "success") this.#flash = "persistent";
   }
 
   /** The window got focus: whatever piled up is seen. */

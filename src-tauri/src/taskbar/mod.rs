@@ -31,15 +31,10 @@ pub fn apply(window: &tauri::Window, shown: &Appearance) -> tauri::Result<()> {
     let icon = overlay_rgba(shown.overlay).map(|rgba| Image::new_owned(rgba, ICON_SIZE, ICON_SIZE));
     platform::set_overlay(window, icon)?;
 
-    // Never flash a window the user is looking at; Windows stops a persistent flash on focus.
-    if let Some(flash) = shown.flash
-        && !window.is_focused().unwrap_or(false)
-    {
-        let kind = match flash {
-            Flash::Short => UserAttentionType::Informational,
-            Flash::Persistent => UserAttentionType::Critical,
-        };
-        window.request_user_attention(Some(kind))?;
+    // Never flash a window the user is looking at. `Critical` is `FLASHW_ALL |
+    // FLASHW_TIMERNOFG`: Windows stops it the moment the window comes to the foreground.
+    if shown.flash == Some(Flash::Persistent) && !window.is_focused().unwrap_or(false) {
+        window.request_user_attention(Some(UserAttentionType::Critical))?;
     }
     Ok(())
 }

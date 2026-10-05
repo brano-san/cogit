@@ -51,6 +51,6 @@ describe("signalsFor", () => {
     expect(signals.errors).toBe(1);
   });
   it("sends the empty state when the taskbar is off, so the last one is cleared", () => {
-    expect(signalsFor({ ...idle, enabled: false, running: true, errors: 4, flash: "short" })).toEqual({});
+    expect(signalsFor({ ...idle, enabled: false, running: true, errors: 4, flash: "persistent" })).toEqual({});
   });
 });

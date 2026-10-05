@@ -20,4 +20,14 @@ describe("taskbar events", () => {
     taskbar.setFocused(true);
     expect(taskbar.unviewed).toBe(0);
   });
+
+  it("flashes for an error, never for a success", () => {
+    taskbar.setFocused(false);
+    taskbar.event("success");
+    expect(taskbar.flash).toBeNull();
+    taskbar.event("error");
+    expect(taskbar.flash).toBe("persistent");
+    taskbar.setFocused(true);
+    expect(taskbar.flash).toBeNull();
+  });
 });

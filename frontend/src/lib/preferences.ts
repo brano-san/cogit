@@ -108,8 +108,8 @@ export const CATEGORIES: Category[] = [
           },
           {
             key: "notificationsTaskbarFlash",
-            label: "Flash the taskbar button while Cogit is in the background",
-            hint: "Only when another window has focus.",
+            label: "Flash the taskbar button when something needs attention",
+            hint: "Errors and conflicts only, and only while another window has focus. Stops as soon as you switch back. A success never flashes.",
             keywords: ["flash", "blink", "attention", "taskbar", "notification"],
             dependsOn: "notificationsTaskbar",
           },
