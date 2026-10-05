@@ -188,6 +188,13 @@ export const MIN_COLUMN_WIDTH: Record<ColumnKey, number> = {
   path: 80,
 };
 
+/** The table's own width as a CSS length: the columns, the gaps between them and the side
+    padding. Every list scrolls sideways only past it, never because of its headings. */
+export function tableWidth(shown: readonly ColumnKey[], widths?: Partial<ColumnWidths>): string {
+  const sum = shown.reduce((total, key) => total + (widths?.[key] ?? DEFAULT_COLUMN_WIDTHS[key]), 0);
+  return `calc(${sum}px + ${Math.max(0, shown.length - 1)} * var(--file-column-gap) + 2 * var(--sp-5))`;
+}
+
 /** Fixed pixel column widths so table content can be resized and overflow gracefully. */
 export function gridColumns(shown: readonly ColumnKey[], widths?: Partial<ColumnWidths>): string {
   return shown

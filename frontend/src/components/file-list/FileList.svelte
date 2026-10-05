@@ -10,7 +10,7 @@
   import { compile } from "$lib/file-search";
   import type { ListContext } from "$lib/file-switches";
   import Caret from "$components/common/Caret.svelte";
-  import { COLUMN_LABELS, DEFAULT_COLUMN_WIDTHS, gridColumns, nextSort, shownColumns, sortRows, type ColumnKey } from "$lib/file-columns";
+  import { COLUMN_LABELS, DEFAULT_COLUMN_WIDTHS, gridColumns, nextSort, tableWidth, shownColumns, sortRows, type ColumnKey } from "$lib/file-columns";
   import { filesView } from "$stores/files-view.svelte";
   import { remoteOps } from "$stores/remote-ops.svelte";
   import { repository } from "$stores/repository.svelte";
@@ -195,6 +195,23 @@
 
   $effect(() => () => contents?.set(null));
 
+  let wrap: HTMLDivElement | undefined = $state();
+  /** How far the lists are scrolled sideways; the column headings are moved by as much. */
+  let scrollX = $state(0);
+
+  /** A list scrolled sideways: the other list and the headings go with it, so the columns of
+      Unstaged, Staged and the headings stay one table. */
+  function followScroll(event: Event) {
+    const source = event.target;
+    if (!(source instanceof HTMLElement) || !source.classList.contains("scroll") || !wrap) return;
+    const x = source.scrollLeft;
+    if (x === scrollX) return;
+    scrollX = x;
+    for (const list of wrap.querySelectorAll<HTMLElement>(".scroll")) {
+      if (list !== source && list.scrollLeft !== x) list.scrollLeft = x;
+    }
+  }
+
   const groups = $derived(
     shownSections(sections).map((section) => {
       const index = sections.indexOf(section);
@@ -353,8 +370,19 @@
   {:else if shownCount === 0}
     <p class="message">{nothingMatches()}</p>
   {:else}
-    <div class="table-wrap">
-      <div class="columns" style:--file-grid={gridColumns(columns, filesView.widths)}>
+    <!-- One sideways position for the headings and every list: each list scrolls itself, only
+         past the table's width; the others and the headings follow it. -->
+    <div
+      class="table-wrap"
+      bind:this={wrap}
+      style:--file-table-width={tableWidth(columns, filesView.widths)}
+      onscrollcapture={followScroll}
+    >
+      <div
+        class="columns"
+        style:--file-grid={gridColumns(columns, filesView.widths)}
+        style:transform="translateX({-scrollX}px)"
+      >
         {#each columns as key, i (key)}
           <div class="column-header">
             <button
@@ -457,8 +485,7 @@
     flex-direction: column;
     flex: 1 1 auto;
     min-height: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
+    overflow: hidden;
   }
 
   /* In line with the rows of FilePane: the same grid, gap and padding, and the room of the
@@ -472,6 +499,7 @@
     padding: 0 calc(var(--sp-5) + var(--scrollbar-size)) 0 var(--sp-5);
     border-bottom: 1px solid var(--divider);
     min-width: max-content;
+    will-change: transform;
   }
 
   .column-header {
@@ -537,7 +565,7 @@
     flex-direction: column;
     flex: 1 1 auto;
     min-height: 0;
-    min-width: max-content;
+    min-width: 0;
   }
 
   .slot {

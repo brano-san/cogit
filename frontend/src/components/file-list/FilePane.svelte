@@ -309,6 +309,12 @@
     scrollbar-gutter: stable;
   }
 
+  /* As wide as the table, not the pane: the list scrolls sideways exactly when the columns do
+     not fit (FileList keeps the lists and the headings at one position). */
+  .pane :global(.rows) {
+    min-width: var(--file-table-width, 100%);
+  }
+
   .cell {
     min-width: 0;
   }
@@ -370,9 +376,9 @@
   }
 
   /* The count gives way before the buttons do: they are the heading's reason to be (R-593). */
+  /* The section's name stays whole; past it the "… all" buttons are cut on the right. */
   .grow {
-    flex: 1 1 auto;
-    min-width: 0;
+    flex: 1 0 auto;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
