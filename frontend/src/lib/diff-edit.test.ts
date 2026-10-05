@@ -10,6 +10,7 @@ describe("editOffer", () => {
     expect(editOffer({ kind: "commitVsWorkTree", oid: "abc" }, text)).toEqual({ blocked: null });
     expect(editOffer({ kind: "indexVsHead" }, text)).toBeNull();
     expect(editOffer({ kind: "commitVsParent", oid: "abc" }, text)).toBeNull();
+    expect(editOffer({ kind: "commitVsCommit", a: "abc", b: "def" }, text)).toBeNull();
   });
 
   it("explains why a binary, large or converted file is not editable", () => {

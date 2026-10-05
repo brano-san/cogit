@@ -270,6 +270,8 @@ export const commands = {
 	ours: string | null,
 	theirs: string | null,
 } | null) => typedError<null, GitError>(__TAURI_INVOKE("save_conflict_text", { repo, path, text, stages })),
+	/**  Edit: the working file in a window of its own, or the window already editing it. */
+	openEditorWindow: (repo: RepoId, path: string) => typedError<null, GitError>(__TAURI_INVOKE("open_editor_window", { repo, path })),
 	findObject: (repo: RepoId, query: string, limit: number) => typedError<Found[], GitError>(__TAURI_INVOKE("find_object", { repo, query, limit })),
 	renameBranch: (repo: RepoId, from: string, to: string, force: boolean) => typedError<null, GitError>(__TAURI_INVOKE("rename_branch", { repo, from, to, force })),
 	branchReflog: (repo: RepoId, branch: string) => typedError<ReflogEntry[], GitError>(__TAURI_INVOKE("branch_reflog", { repo, branch })),

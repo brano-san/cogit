@@ -117,7 +117,8 @@
   }: Props = $props();
 
   /** The right pane of a working-tree diff is the file: a plain click there (not a drag that
-      selects) opens the editor with the caret at that line and column, as in SmartGit. */
+      selects) opens the editor with the caret at that line and column, as in SmartGit. In
+      Unified the file's lines are the added and the unchanged ones. */
   function clickToEdit(event: MouseEvent) {
     if (!edit || edit.blocked !== null || !onedit || event.button !== 0) return;
     if (!(window.getSelection()?.isCollapsed ?? true)) return;
@@ -802,6 +803,7 @@
     class:marked={!stageable && picked}
     class:flash={flashed(row)}
     style:top="{index * ROW_HEIGHT}px"
+    data-line={row.type === "delete" ? undefined : (row.new ?? undefined)}
   >
     {@render gutterCell(row.key)}
     <span class="num {tone}">{row.old ?? ""}</span>
@@ -978,7 +980,16 @@
   {:else if diff.kind === "tooLarge"}
     <FileSummary reason={tooLargeReason(diff.limit)} old={diff.old} next={diff.new} />
   {:else if mode === "unified"}
-    <div class="scroll" data-select-text="diff" bind:this={unifiedEl} onscroll={onunified} {onwheel}>
+    <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+    <div
+      class="scroll"
+      class:editable={edit?.blocked === null && onedit !== undefined}
+      data-select-text="diff"
+      bind:this={unifiedEl}
+      onscroll={onunified}
+      onclick={clickToEdit}
+      {onwheel}
+    >
       <div class="rows" style:height="{model.unified.length * ROW_HEIGHT}px" style:--shift="{shift}px">
         <div class="line ruler" aria-hidden="true">
           <span class="gutter"></span>
@@ -1248,7 +1259,8 @@
     background: var(--bg-editor);
   }
 
-  /* The working file: it reads as text one can type into. */
+  /* The working file: it reads as text one can type into (a deleted line is not in it). */
+  .scroll.editable [data-line] .code,
   .pane.editable .code {
     cursor: text;
   }

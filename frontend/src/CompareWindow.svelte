@@ -1,6 +1,13 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import DiffView from "$components/diff/DiffView.svelte";
+  import DiffEditPane from "$components/diff/DiffEditPane.svelte";
+  import UnsavedDialog from "$components/common/UnsavedDialog.svelte";
+  import { editOffer } from "$lib/diff-edit";
+  import { diffEdit } from "$stores/diff-edit.svelte";
+  import { unsavedPrompt } from "$stores/unsaved-prompt.svelte";
+  import { closeGuard } from "$lib/child-window";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
   import ImageDiff from "$components/diff/ImageDiff.svelte";
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
   import { webMenus } from "$stores/web-menus.svelte";
@@ -67,6 +74,26 @@
   };
   diff.useMutation(mutation);
 
+  // A save here reads this diff again and tells the main window, as a stage would.
+  diffEdit.onSaved = (path) => void mutation.after([path], null);
+
+  // Unsaved edits are saved or dropped on purpose before the window goes.
+  $effect(() => {
+    const guard = closeGuard(
+      () => diffEdit.dirty,
+      async () => {
+        const opened = diffEdit.opened;
+        if (!opened) return true;
+        const choice = await unsavedPrompt.ask("Unsaved Edits", opened.path);
+        if (choice === "cancel") return false;
+        if (choice === "save") return diffEdit.save(diffEdit.currentText());
+        return true;
+      },
+    );
+    const pending = getCurrentWindow().onCloseRequested(guard);
+    return () => void pending.then((stop) => stop()).catch(() => {});
+  });
+
   function stageLines(selected: ReadonlySet<string>, reverse: boolean) {
     const path = diff.shownPath;
     if (path) void runMutation(mutation, () => diff.stageLines(selected, reverse), [path], false);
@@ -88,6 +115,14 @@
 </script>
 
 <TooltipLayer />
+{#if unsavedPrompt.open}
+  <UnsavedDialog
+    title={unsavedPrompt.open.title}
+    path={unsavedPrompt.open.path}
+    cancellable={unsavedPrompt.open.cancellable}
+    onanswer={(choice) => unsavedPrompt.answer(choice)}
+  />
+{/if}
 <Notifications onopenurl={() => {}} onshowoutput={() => {}} onaction={() => {}} />
 
 <div class="window">
@@ -114,8 +149,16 @@
         newSize={diff.diff.newSize}
         mime={diff.diff.mime}
       />
+    {:else if diffEdit.isFor(diff.shownPath)}
+      <DiffEditPane ondone={() => void diffEdit.leave()} />
     {:else if diff.diff && diff.shownPath}
       <DiffView
+        edit={diff.shownSpec ? editOffer(diff.shownSpec, diff.diff) : null}
+        onedit={(at) => {
+          const spec = diff.shownSpec;
+          const path = diff.shownPath;
+          if (request && spec && path) void diffEdit.start(request.repo, spec, path, "diff", at ?? null);
+        }}
         diff={diff.diff}
         path={diff.shownPath}
         stageable={diff.stageable}

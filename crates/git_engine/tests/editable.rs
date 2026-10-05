@@ -72,4 +72,13 @@ fn a_staged_or_committed_side_is_never_editable() {
         read(&repo, &DiffSpec::IndexVsHead),
         EditableFile::Refused { .. }
     ));
+    let head = repo.commit_details("HEAD").unwrap().oid;
+    let commits = DiffSpec::CommitVsCommit {
+        a: head.clone(),
+        b: head,
+    };
+    assert!(matches!(
+        read(&repo, &commits),
+        EditableFile::Refused { .. }
+    ));
 }
