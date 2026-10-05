@@ -308,10 +308,8 @@
         }}
       />
       {@render repoMarks(sync, "submodule")}
-      <span class="modpath shrink-last"
-        >{#if folder}<span class="dir truncate shrink-first">{folder}/</span>{/if}<span
-          class="modname truncate shrink-last">{parts.name}</span
-        ></span
+      <span class="modpath truncate shrink-last"
+        >{#if folder}<span class="dir">{folder}/</span>{/if}<span class="modname">{parts.name}</span></span
       >
       {#if repoStateTag(node.module.repoState, true)}
         <span class="op" title={STATE_TAG_HINT}>{repoStateTag(node.module.repoState, true)}</span>
@@ -502,11 +500,10 @@
     padding: var(--sp-4) 0;
   }
 
-  /* Cut on the right like every list (R-243), the folder first: it is the secondary text,
-     and the name is what tells two modules of one folder apart (F-242, R-436). */
+  /* One path, cut on the right like every list (R-243): `import/SignalGenerator200` is read
+     as a whole, so the folder is never shortened ahead of the name. */
   .modpath {
-    display: flex;
-    overflow: hidden;
+    min-width: 0;
   }
 
   .dir {
