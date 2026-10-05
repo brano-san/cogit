@@ -21,6 +21,7 @@
     class="avatar"
     style:--avatar-size="{size}px"
     style:background={face?.image ? "transparent" : (face?.color ?? "var(--surface-raised)")}
+    style:color={face?.color ? "var(--fg-on-accent-solid)" : "var(--text-secondary)"}
     title={email}
   >
     {#if face?.image}
@@ -39,7 +40,6 @@
     height: var(--avatar-size);
     border-radius: var(--r-sm);
     overflow: hidden;
-    color: var(--text-on-accent);
     font-size: calc(var(--avatar-size) * 0.56);
     font-weight: 600;
     line-height: var(--avatar-size);
