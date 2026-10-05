@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { Branch, FileEntry, WorktreeEntry } from "$lib/ipc";
 import {
   changeCounts,
-  shortWorktreePath,
+  compactCounts,
+  middlePath,
   hasStale,
   linkedCount,
   listedRows,
@@ -86,32 +87,33 @@ describe("worktreeTags", () => {
     expect(tag?.tooltip).toContain("on a usb stick");
   });
 
-  it("marks uncommitted changes", () => {
-    expect(worktreeTags(entry({ dirty: true })).map((tag) => tag.id)).toEqual(["dirty"]);
+  it("leaves uncommitted changes to the counters, not to a badge", () => {
+    expect(worktreeTags(entry({ dirty: true }))).toEqual([]);
   });
 
-  it("counts the changes instead of saying dirty", () => {
-    const [tag] = worktreeTags(entry({ dirty: true, changed: 3, untracked: 2 }));
-    expect(tag?.label).toBe("3 changed, 2 untracked");
-    expect(tag?.tooltip).toContain("3 changed, 2 untracked");
+  it("counts the changes compactly, in words in the tooltip", () => {
+    expect(compactCounts(entry({ dirty: true, changed: 93, untracked: 2 }))).toEqual({
+      text: "93 ✎ · 2 ?",
+      tooltip: "Uncommitted changes: 93 changed, 2 untracked",
+    });
+    expect(compactCounts(entry({ dirty: false }))).toBeNull();
+    expect(compactCounts(entry({ dirty: true, missing: true }))).toBeNull();
     expect(changeCounts(entry({ dirty: true, untracked: 1 }))).toBe("1 untracked");
   });
 });
 
-describe("shortWorktreePath", () => {
-  it("cuts the main worktree's parent folder off", () => {
-    expect(shortWorktreePath("D:/src/cogit-wt", "D:/src/cogit")).toBe("…/cogit-wt");
-    expect(shortWorktreePath("D:/src/wt/feature", "D:/src/cogit")).toBe("…/wt/feature");
-    expect(shortWorktreePath("d:/SRC/x", "D:/src/cogit")).toBe("…/x");
+describe("middlePath", () => {
+  it("keeps the first and the last folder and leaves the middle out", () => {
+    expect(middlePath("D:/Work1/projects/dtv_device")).toBe("D:/…/dtv_device");
+    expect(middlePath("/home/me/src/x")).toBe("/…/x");
   });
 
-  it("keeps a path elsewhere whole", () => {
-    expect(shortWorktreePath("E:/other/x", "D:/src/cogit")).toBe("E:/other/x");
-    expect(shortWorktreePath("E:/other/x", undefined)).toBe("E:/other/x");
+  it("keeps a short path whole", () => {
+    expect(middlePath("D:/dtv_device")).toBe("D:/dtv_device");
+    expect(middlePath("D:/Work1/dtv_device")).toBe("D:/Work1/dtv_device");
   });
 });
 
-// The main worktree alone was a row and an empty state under it, saying two things at once.
 describe("listedRows", () => {
   const main = entry({ isMain: true, isCurrent: true });
 

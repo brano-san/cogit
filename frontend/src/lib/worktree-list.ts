@@ -2,18 +2,25 @@ import { shortOid } from "$lib/format";
 import type { Branch, FileEntry, WorktreeEntry } from "$lib/ipc";
 
 export interface WorktreeTag {
-  id: "primary" | "open" | "bare" | "locked" | "missing" | "dirty";
+  id: "primary" | "open" | "bare" | "locked" | "missing";
   label: string;
   tooltip: string;
 }
 
-/** The folder as the row shows it inline: from the main worktree's parent on, so siblings
-    and nested ones read short; elsewhere in full. The tooltip has the full path. */
-export function shortWorktreePath(path: string, mainPath: string | undefined): string {
-  const cut = mainPath?.lastIndexOf("/") ?? -1;
-  if (mainPath === undefined || cut <= 0) return path;
-  const parent = mainPath.slice(0, cut + 1);
-  return path.toLowerCase().startsWith(parent.toLowerCase()) ? `…/${path.slice(parent.length)}` : path;
+/** `D:/…/dtv_device`: the drive or first folder and the worktree's own, the middle left out.
+    The row's tooltip has the whole path. */
+export function middlePath(path: string): string {
+  const parts = path.split("/").filter((part, at) => part !== "" || at === 0);
+  return parts.length <= 3 ? path : `${parts[0]}/…/${parts[parts.length - 1]}`;
+}
+
+/** `93 ✎ · 2 ?` on the row, `93 changed, 2 untracked` in its tooltip; null when clean. */
+export function compactCounts(entry: WorktreeEntry): { text: string; tooltip: string } | null {
+  if (entry.missing || !entry.dirty) return null;
+  const parts: string[] = [];
+  if (entry.changed > 0) parts.push(`${entry.changed} ✎`);
+  if (entry.untracked > 0) parts.push(`${entry.untracked} ?`);
+  return { text: parts.length > 0 ? parts.join(" · ") : "✎", tooltip: `Uncommitted changes: ${changeCounts(entry)}` };
 }
 
 /** `3 changed, 2 untracked`: what the bare `dirty` mark used to leave unsaid. */
@@ -67,12 +74,6 @@ export function worktreeTags(entry: WorktreeEntry): WorktreeTag[] {
           ? "Missing (prunable): the folder is not there. Prune forgets the registration; "
           : "Missing: the folder is not there, and Git keeps a locked one until it is unlocked. ") +
         "Repair points it at the folder's new place.",
-    });
-  } else if (entry.dirty) {
-    tags.push({
-      id: "dirty",
-      label: changeCounts(entry),
-      tooltip: `Uncommitted changes: ${changeCounts(entry)}. Commit or stash them before removing it.`,
     });
   }
   return tags;

@@ -2,7 +2,7 @@
   import KindIcon from "$components/common/KindIcon.svelte";
   import { striped } from "$lib/graph-geometry";
   import type { WorktreeEntry } from "$lib/ipc";
-  import { listedRows, shortWorktreePath, worktreeRowKey, worktreeTags, worktreeWhere } from "$lib/worktree-list";
+  import { compactCounts, listedRows, middlePath, worktreeRowKey, worktreeTags, worktreeWhere } from "$lib/worktree-list";
   import { pruneBlocked } from "$lib/worktree-menu";
   import { TypeAhead, moveFocus } from "$lib/list-keys";
   import { settings } from "$stores/settings.svelte";
@@ -28,7 +28,6 @@
   const stripes = $derived(settings.current.graphStripes);
   const typing = new TypeAhead();
   const rows = $derived(listedRows(entries));
-  const mainPath = $derived(entries.find((entry) => entry.isMain)?.path);
 
   /** 11 §10: the arrows and typing move the selection; Enter opens, as before. */
   function onkeydown(event: KeyboardEvent) {
@@ -44,6 +43,7 @@
 <div class="list key-list" role="listbox" aria-label="Worktrees" bind:this={list} {onkeydown}>
   {#each rows as entry, at (entry.path)}
     {@const where = worktreeWhere(entry)}
+    {@const counts = compactCounts(entry)}
     <div
       class="row"
       class:striped={striped(at, stripes)}
@@ -72,13 +72,18 @@
       }}
     >
       <KindIcon kind="worktree" title="Worktree — {entry.path}" />
-      <span class="name truncate" title={entry.name}>{entry.name}</span>
-      <span class="where truncate" title={where ?? undefined}>{where ?? ""}</span>
-      <span class="path truncate">{shortWorktreePath(entry.path, mainPath)}</span>
-      <span class="tags">
-        {#each worktreeTags(entry) as tag (tag.id)}
-          <span class="tag {tag.id}" title={tag.tooltip}>{tag.label}</span>
-        {/each}
+      <span class="lines">
+        <span class="line">
+          <span class="name truncate" title={entry.name}>{entry.name}</span>
+          {#each worktreeTags(entry) as tag (tag.id)}
+            <span class="tag {tag.id}" title={tag.tooltip}>{tag.label}</span>
+          {/each}
+        </span>
+        <span class="line sub">
+          {#if where}<span class="where truncate" title={where}>{where}</span>{/if}
+          <span class="path truncate">{middlePath(entry.path)}</span>
+          {#if counts}<span class="counts" title={counts.tooltip}>{counts.text}</span>{/if}
+        </span>
       </span>
       <span class="actions">
       {#if entry.missing}
@@ -116,30 +121,70 @@
 </div>
 
 <style>
-  /* One grid for every row, so the columns line up down the list: icon | name | branch |
-     path | badges. Name and branch keep their width; the path gives way first. The actions
-     float over the row's end and take no column, so a missing row does not narrow the rest. */
   .list {
-    display: grid;
-    grid-template-columns: auto minmax(6ch, max-content) minmax(6ch, max-content) minmax(0, 1fr) auto;
-    align-content: start;
-    width: 100%;
-    min-width: 0;
     padding: var(--sp-3) 0;
     overflow-y: auto;
   }
 
+  /* Two lines, so the panel needs no width for what used to sit in one: the name and its
+     badges, then branch · path · counters, smaller. Narrow, the path gives way first, then
+     the branch; the name and the counters stay. */
   .row {
     position: relative;
-    grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: subgrid;
+    display: flex;
     align-items: center;
-    column-gap: var(--sp-3);
-    height: var(--h-row-dense);
-    padding: 0 var(--sp-5);
+    gap: var(--sp-3);
+    padding: var(--sp-2) var(--sp-5);
     font-size: var(--fs-dense);
     white-space: nowrap;
+  }
+
+  .lines {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .line {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    min-width: 0;
+    height: var(--h-row-dense);
+  }
+
+  .line.sub {
+    height: auto;
+    color: var(--text-secondary);
+    font-size: var(--fs-header);
+  }
+
+  .name {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  .where {
+    flex: 0 1 auto;
+    min-width: 4ch;
+  }
+
+  /* Its own width, but the first to give way: a thousand times the branch's shrink. */
+  .path {
+    flex: 0 1000 auto;
+    min-width: 0;
+    opacity: 0.8;
+  }
+
+  .where + .path::before,
+  .path + .counts::before {
+    content: "· ";
+  }
+
+  .counts {
+    flex: none;
+    color: var(--badge-warning-fg);
   }
 
   /* By the row's place in the list (#41), before hover and selection, which cover it. */
@@ -164,15 +209,6 @@
     font-weight: 600;
   }
 
-  .where {
-    color: var(--text-secondary);
-  }
-
-  .path {
-    color: var(--text-secondary);
-    opacity: 0.8;
-  }
-
   .row.missing .name,
   .row.missing .where,
   .row.missing .path {
@@ -181,7 +217,6 @@
     opacity: 0.75;
   }
 
-  .tags,
   .actions {
     display: flex;
     gap: var(--sp-2);
@@ -207,6 +242,7 @@
   /* A state, not a control: a tinted pill with no border and no hover or press, so it never
      reads as one of the buttons beside it. Neutral, accent, warning, error by meaning. */
   .tag {
+    flex: none;
     padding: 0 var(--sp-3);
     border-radius: 999px;
     background: var(--badge-remote-bg);
@@ -220,11 +256,6 @@
   .tag.open {
     background: var(--badge-branch-bg);
     color: var(--badge-branch-fg);
-  }
-
-  .tag.dirty {
-    background: var(--badge-warning-bg);
-    color: var(--badge-warning-fg);
   }
 
   .tag.missing {
