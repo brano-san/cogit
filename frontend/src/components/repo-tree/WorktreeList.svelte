@@ -72,18 +72,20 @@
       }}
     >
       <KindIcon kind="worktree" title="Worktree — {entry.path}" />
-      <span class="name truncate shrink-last">{entry.name}</span>
-      {#if where}<span class="where truncate shrink-first">{where}</span>{/if}
-      <span class="path truncate shrink-first">{shortWorktreePath(entry.path, mainPath)}</span>
-      {#each worktreeTags(entry) as tag (tag.id)}
-        <span class="tag {tag.id}" title={tag.tooltip}>{tag.label}</span>
-      {/each}
+      <span class="name truncate" title={entry.name}>{entry.name}</span>
+      <span class="where truncate" title={where ?? undefined}>{where ?? ""}</span>
+      <span class="path truncate" title={entry.path}>{shortWorktreePath(entry.path, mainPath)}</span>
+      <span class="tags">
+        {#each worktreeTags(entry) as tag (tag.id)}
+          <span class="tag {tag.id}" title={tag.tooltip}>{tag.label}</span>
+        {/each}
+      </span>
+      <span class="actions">
       {#if entry.missing}
         {@const blocked = pruneBlocked(entry)}
-        <span class="grow"></span>
         <button
           type="button"
-          class="inline"
+          
           disabled={blocked !== null}
           title={blocked === null
             ? "Forget this registration; nothing on disk is touched"
@@ -95,7 +97,7 @@
         >
         <button
           type="button"
-          class="inline"
+          
           title="Locate the folder where it is now and point Git at it"
           onclick={(event) => {
             event.stopPropagation();
@@ -103,6 +105,7 @@
           }}>Repair</button
         >
       {/if}
+      </span>
     </div>
   {/each}
 
@@ -113,15 +116,22 @@
 </div>
 
 <style>
+  /* One grid for every row, so the columns line up down the list: icon | name | branch |
+     path | badges | actions. Name and branch keep their width; the path gives way first. */
   .list {
+    display: grid;
+    grid-template-columns: auto minmax(6ch, max-content) minmax(6ch, max-content) minmax(0, 1fr) auto auto;
+    align-content: start;
     padding: var(--sp-3) 0;
     overflow-y: auto;
   }
 
   .row {
-    display: flex;
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: subgrid;
     align-items: center;
-    gap: var(--sp-3);
+    column-gap: var(--sp-3);
     height: var(--h-row-dense);
     padding: 0 var(--sp-5);
     font-size: var(--fs-dense);
@@ -167,43 +177,47 @@
     opacity: 0.75;
   }
 
+  .tags,
+  .actions {
+    display: flex;
+    gap: var(--sp-2);
+    justify-content: flex-end;
+  }
+
+  /* A state, not a control: a tinted pill with no border and no hover or press, so it never
+     reads as one of the buttons beside it. Neutral, accent, warning, error by meaning. */
   .tag {
-    flex: none;
-    padding: 0 var(--sp-2);
-    border: 1px solid var(--divider);
-    border-radius: var(--r-sm);
-    color: var(--text-secondary);
+    padding: 0 var(--sp-3);
+    border-radius: 999px;
+    background: var(--badge-remote-bg);
+    color: var(--badge-remote-fg);
     font-size: 10px;
-    line-height: 14px;
-  }
-
-  .tag.missing {
-    color: var(--status-delete);
-    border-color: var(--status-delete);
-  }
-
-  .tag.dirty {
-    color: var(--status-modify);
-    border-color: var(--status-modify);
-  }
-
-  /* Filled, unlike a branch name or the outlined states: the main worktree, and the open one. */
-  .tag.primary {
-    background: var(--surface-input);
-    color: var(--text-primary);
+    line-height: 15px;
+    cursor: default;
+    user-select: none;
   }
 
   .tag.open {
-    color: var(--status-ref);
-    border-color: var(--status-ref);
+    background: var(--badge-branch-bg);
+    color: var(--badge-branch-fg);
   }
 
-  .grow {
-    flex: 1 1 auto;
+  .tag.dirty {
+    background: var(--badge-warning-bg);
+    color: var(--badge-warning-fg);
   }
 
-  .inline {
-    flex: none;
+  .tag.missing {
+    background: var(--badge-error-bg);
+    color: var(--badge-error-fg);
+  }
+
+  /* Real buttons, and only where they can be pressed: the hovered, focused or selected row. */
+  .row:not(:hover, :focus-within, .selected) .actions {
+    visibility: hidden;
+  }
+
+  .actions button {
     height: 18px;
     padding: 0 var(--sp-3);
     background: var(--surface-input);
@@ -214,11 +228,11 @@
     cursor: default;
   }
 
-  .inline:hover:not(:disabled) {
+  .actions button:hover:not(:disabled) {
     border-color: var(--status-ref);
   }
 
-  .inline:disabled {
+  .actions button:disabled {
     opacity: 0.45;
   }
 

@@ -253,6 +253,14 @@
       "type": "color",
       "description": "A warning badge, e.g. LF to CRLF: text."
     },
+    "badge.error.bg": {
+      "type": "color",
+      "description": "An error badge, e.g. a missing worktree: background."
+    },
+    "badge.error.fg": {
+      "type": "color",
+      "description": "An error badge, e.g. a missing worktree: text."
+    },
     "diff.add.line": {
       "type": "color",
       "description": "Added line background."

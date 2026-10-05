@@ -3605,6 +3605,7 @@ ${event.error}`,
           active={focused === "worktrees"}
           view={panelState}
           count={linkedCount(worktrees.entries)}
+          countTitle="Linked worktrees; the main worktree is listed too but not counted"
         >
           {#snippet actions()}
             {#if repo}

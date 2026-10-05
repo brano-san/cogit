@@ -65,6 +65,8 @@
     "badge.tag.fg": "#e3b341",
     "badge.warning.bg": "#33290e",
     "badge.warning.fg": "#e3b341",
+    "badge.error.bg": "#3b1a1d",
+    "badge.error.fg": "#ff7b72",
     "diff.add.line": "#16291d",
     "diff.add.word": "#1f5a32",
     "diff.add.gutter": "#1a3323",

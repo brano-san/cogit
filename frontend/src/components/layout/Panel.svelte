@@ -16,6 +16,8 @@
     /** Optional count shown next to the title, e.g. "Files (23)". Zero is not worth the
         parentheses: three panels showing "(0)" is three ways of saying nothing is here. */
     count?: number;
+    /** What the count counts, when the rows below are not simply that many. */
+    countTitle?: string;
     actions?: Snippet;
     children?: Snippet;
     /** Something changed on disk and this panel has not caught up yet. */
@@ -32,6 +34,7 @@
     title,
     view = "content",
     count,
+    countTitle,
     actions,
     children,
     stale = false,
@@ -51,7 +54,7 @@
 <section class="panel" class:editor={surface === "editor"} class:active aria-busy={view === "opening"}>
   <header class="panel-header" class:active>
     <h2 class="panel-title">
-      {title}{#if ready && count}&nbsp;({count}{#if busy}<span title="Loading the rest">…</span>{/if}){/if}
+      {title}{#if ready && count}&nbsp;<span title={countTitle}>({count}{#if busy}<span title="Loading the rest">…</span>{/if})</span>{/if}
     </h2>
     {#if dotShown}
       <span class="stale" title="Something changed on disk; this is being reloaded">•</span>
