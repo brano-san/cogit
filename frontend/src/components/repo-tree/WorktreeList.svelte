@@ -117,16 +117,20 @@
 
 <style>
   /* One grid for every row, so the columns line up down the list: icon | name | branch |
-     path | badges | actions. Name and branch keep their width; the path gives way first. */
+     path | badges. Name and branch keep their width; the path gives way first. The actions
+     float over the row's end and take no column, so a missing row does not narrow the rest. */
   .list {
     display: grid;
-    grid-template-columns: auto minmax(6ch, max-content) minmax(6ch, max-content) minmax(0, 1fr) auto auto;
+    grid-template-columns: auto minmax(6ch, max-content) minmax(6ch, max-content) minmax(0, 1fr) auto;
     align-content: start;
+    width: 100%;
+    min-width: 0;
     padding: var(--sp-3) 0;
     overflow-y: auto;
   }
 
   .row {
+    position: relative;
     grid-column: 1 / -1;
     display: grid;
     grid-template-columns: subgrid;
@@ -182,6 +186,22 @@
     display: flex;
     gap: var(--sp-2);
     justify-content: flex-end;
+  }
+
+  .actions {
+    position: absolute;
+    inset: 0 var(--sp-5) 0 auto;
+    align-items: center;
+    padding-left: var(--sp-3);
+    background: inherit;
+  }
+
+  .row:hover .actions {
+    background: var(--state-hover);
+  }
+
+  .row.selected .actions {
+    background: var(--state-selected);
   }
 
   /* A state, not a control: a tinted pill with no border and no hover or press, so it never
