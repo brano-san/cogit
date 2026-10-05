@@ -14,6 +14,7 @@ mod config_file;
 mod conflicts;
 mod detached;
 pub mod discover;
+pub mod editable;
 mod error;
 mod file_log;
 mod file_ops;

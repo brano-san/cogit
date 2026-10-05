@@ -76,6 +76,29 @@ impl AppState {
         self.handle(repo)?.set_index_flag(paths, flag, on)
     }
 
+    /// The working file for the diff view's editor, or why it cannot be edited (F-722).
+    pub fn read_editable(
+        &self,
+        repo: RepoId,
+        path: &str,
+    ) -> Result<git_engine::editable::EditableFile> {
+        self.handle(repo)?.read_editable(path)
+    }
+
+    /// Not quiet: the watcher's refresh is what re-reads the diff after a save.
+    pub fn save_editable(
+        &self,
+        repo: RepoId,
+        path: &str,
+        text: &str,
+        shape: git_engine::editable::Shape,
+        stamp: &str,
+        force: bool,
+    ) -> Result<git_engine::editable::SaveOutcome> {
+        self.handle(repo)?
+            .save_editable(path, text, shape, stamp, force)
+    }
+
     pub fn index_editor_sides(&self, repo: RepoId, path: &str) -> Result<IndexEditorSides> {
         self.handle(repo)?.index_editor_sides(path)
     }

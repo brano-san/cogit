@@ -409,6 +409,9 @@ export const commands = {
 	indexEditorSides: (repo: RepoId, path: string) => typedError<IndexEditorSides, GitError>(__TAURI_INVOKE("index_editor_sides", { repo, path })),
 	/**  A side sent as `null` was not edited and stays as it is. */
 	writeIndexEditor: (repo: RepoId, path: string, index: string | null, worktree: string | null) => typedError<null, GitError>(__TAURI_INVOKE("write_index_editor", { repo, path, index, worktree })),
+	readEditable: (repo: RepoId, path: string) => typedError<EditableFile, GitError>(__TAURI_INVOKE("read_editable", { repo, path })),
+	/**  `stamp`: what `read_editable` gave; `force` writes over a file changed since. */
+	saveEditable: (repo: RepoId, path: string, text: string, shape: Shape, stamp: string, force: boolean) => typedError<SaveOutcome, GitError>(__TAURI_INVOKE("save_editable", { repo, path, text, shape, stamp, force })),
 	/**  `target` is an absolute path the user picked in the save dialog. */
 	saveBlob: (repo: RepoId, rev: string, path: string, target: string) => typedError<null, GitError>(__TAURI_INVOKE("save_blob", { repo, rev, path, target })),
 	/**  A read-only copy of the version in `rev`, opened in the application paired with it. */
@@ -1068,8 +1071,16 @@ export type DisplayInfo = {
 	primary: boolean,
 };
 
+export type EditableFile = { kind: "text"; text: string; shape: Shape; 
+/**  Blob id of the bytes read: a save checks the file still has it. */
+stamp: string } | 
+/**  Why the editor is not offered, in words for the panel. */
+{ kind: "refused"; reason: string };
+
 /**  What the sides are: a link or a submodule is taken whole, whatever its bytes look like. */
 export type EntryKind = "regular" | "symlink" | "submodule";
+
+export type Eol = "lf" | "crlf";
 
 export type EolInfo = {
 	old: LineEnding,
@@ -2187,6 +2198,10 @@ export type SafetyEntry = {
 	undoable: boolean,
 };
 
+export type SaveOutcome = { kind: "saved"; stamp: string } | 
+/**  Someone else wrote the file since it was read: nothing was written. */
+{ kind: "changedOnDisk" };
+
 /**
  *  What travels up the channel while a folder scan runs; `Started` carries the id
  *  `cancel_operation` takes.
@@ -2237,6 +2252,17 @@ export type SessionEnding = {
 export type SettingsChanged = string;
 
 export type Severity = "success" | "warning" | "failure";
+
+/**
+ *  How the bytes on disk were made; `text` is the same content with `\n` line breaks and
+ *  without the final one.
+ */
+export type Shape = {
+	encoding: TextEncoding,
+	bom: boolean,
+	eol: Eol,
+	finalNewline: boolean,
+};
 
 export type Signature = {
 	name: string,
@@ -2472,6 +2498,8 @@ export type TerminalChoice = {
 	id: string,
 	label: string,
 };
+
+export type TextEncoding = "utf8" | "utf16Le" | "utf16Be";
 
 /**  Where the free text of the filter is looked for; any one field matching is enough. */
 export type TextFields = {

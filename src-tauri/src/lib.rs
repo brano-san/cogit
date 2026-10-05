@@ -321,6 +321,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::file_ops::set_index_flag,
             commands::file_ops::index_editor_sides,
             commands::file_ops::write_index_editor,
+            commands::file_ops::read_editable,
+            commands::file_ops::save_editable,
             commands::file_ops::save_blob,
             commands::file_ops::open_read_only,
             commands::file_ops::apply_commit_file,

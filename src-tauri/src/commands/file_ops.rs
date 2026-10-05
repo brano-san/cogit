@@ -78,6 +78,43 @@ pub async fn index_editor_sides(
     .await
 }
 
+#[tauri::command]
+#[specta::specta]
+pub async fn read_editable(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    path: String,
+) -> Result<git_engine::editable::EditableFile, GitError> {
+    let app_state = state.state.clone();
+    blocking("read_editable", move || {
+        app_state.read_editable(repo, &path)
+    })
+    .await
+}
+
+/// `stamp`: what `read_editable` gave; `force` writes over a file changed since.
+#[tauri::command]
+#[specta::specta]
+pub async fn save_editable(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    path: String,
+    text: String,
+    shape: git_engine::editable::Shape,
+    stamp: String,
+    force: bool,
+) -> Result<git_engine::editable::SaveOutcome, GitError> {
+    let app_state = state.state.clone();
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Other,
+        "save_editable",
+        move || app_state.save_editable(repo, &path, &text, shape, &stamp, force),
+    )
+    .await
+}
+
 /// A side sent as `null` was not edited and stays as it is.
 #[tauri::command]
 #[specta::specta]
