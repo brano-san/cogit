@@ -47,7 +47,7 @@
     docsForDeleted,
     docsFromRegions,
     nextHunk,
-    paneTone,
+    hunkTone,
     textToLines,
     type Hunk,
     type TakeAction,
@@ -214,7 +214,7 @@
   const hunkOf = $derived(new Map(hunks.map((hunk) => [hunk.id, hunk])));
   const tone = (side: "ours" | "theirs") => (id: number) => {
     const hunk = hunkOf.get(id);
-    return hunk ? paneTone(hunk, side, prefs.baseChanges) : null;
+    return hunk ? hunkTone(hunk, side, prefs.baseChanges, new Set(snapshot?.unresolved ?? [])) : null;
   };
   const shows = (side: "ours" | "theirs") => (id: number) => {
     const at = indexOf.get(id);
@@ -816,8 +816,11 @@
     grid-area: bandt;
   }
 
+  /* The bands start where the editors' scroll areas do, under the panes' headers: their
+     geometry is measured from there, and without this every ribbon sat a header too high. */
   .slot {
     min-height: 0;
+    padding-top: var(--h-solver-pane-header);
   }
 
   .layout-all .band-top,
@@ -847,7 +850,7 @@
     display: flex;
     flex: 0 0 auto;
     align-items: center;
-    height: 22px;
+    height: var(--h-solver-pane-header);
     padding: 0 var(--sp-4);
     background: var(--bg-panel);
     border-bottom: 1px solid var(--border);

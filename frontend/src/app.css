@@ -51,6 +51,8 @@
   --h-button-sm: 20px;
   /* The ones in a dialog footer, where there is room and they carry the decision. */
   --h-button: 26px;
+  /* The name above each pane of the Conflict Solver; the bands between panes start below it. */
+  --h-solver-pane-header: 22px;
   /* A filter field in a panel header, and how far it gives way before the buttons beside it. */
   --w-panel-filter: 140px;
   --w-panel-filter-min: 48px;

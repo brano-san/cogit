@@ -46,7 +46,8 @@ import {
 } from "./solver-blocks";
 import {
   isUnresolved,
-  paneTone,
+  hunkLegend,
+  hunkTone,
   visibleActions,
   type Hunk,
   type SolverDocs,
@@ -88,9 +89,15 @@ class Pad extends WidgetType {
 }
 
 class Bar extends GutterMarker {
-  override elementClass = "sv-bar-on";
+  override elementClass: string;
+  constructor(done: boolean) {
+    super();
+    this.elementClass = done ? "sv-bar-done" : "sv-bar-on";
+  }
 }
-const BAR = new Bar();
+const BAR = new Bar(false);
+/** A conflict decided in the Result keeps a mark of it, green instead of red. */
+const BAR_DONE = new Bar(true);
 
 /** The page sets `user-select: none` on the body; WebKitGTK carries it into the contenteditable
     editors, where the text of all three panes then does not paint (gutters, outside the
@@ -137,6 +144,12 @@ export const themeSpec = {
   ".sv-bar": { width: "4px" },
   ".sv-bar .cm-gutterElement": { padding: "0", width: "4px" },
   ".sv-bar-on": { backgroundColor: "var(--status-danger)" },
+  ".sv-bar-done": { backgroundColor: "var(--status-add)" },
+  ".sv-conflict": { backgroundColor: "var(--merge-conflict-line)" },
+  ".sv-resolved": { backgroundColor: "var(--merge-resolved-line)" },
+  ".sv-from-ours": { boxShadow: "inset 3px 0 0 var(--status-ref)" },
+  ".sv-from-theirs": { boxShadow: "inset 3px 0 0 var(--diff-move-word)" },
+  ".sv-from-both": { boxShadow: "inset 3px 0 0 var(--fg-secondary)" },
 };
 
 const theme = EditorView.theme(themeSpec);
@@ -201,9 +214,17 @@ function resultDecorations(state: EditorState): DecorationSet {
     if (!hunks.has(block.id)) return;
     const { start, count } = rows[at] ?? { start: 0, count: 0 };
     const open = unresolved.has(block.id);
-    const cls = `sv-changed${current === block.id ? " sv-current" : ""}`;
+    const hunk = hunks.get(block.id);
+    const kind =
+      hunk?.kind === "conflict"
+        ? open
+          ? "sv-conflict"
+          : "sv-resolved"
+        : `sv-changed sv-from-${hunk?.kind === "theirs" ? "theirs" : hunk?.kind === "ours" ? "ours" : "both"}`;
+    const cls = `${kind}${current === block.id ? " sv-current" : ""}`;
+    const title = hunk ? hunkLegend(hunk, open) : "";
     for (let line = start; line < start + count; line++) {
-      ranges.push(Decoration.line({ class: cls }).range(lineStart(state, line)));
+      ranges.push(Decoration.line({ class: cls, attributes: { title } }).range(lineStart(state, line)));
     }
     const pad = others.aligned ? Math.max((others.rows[at] ?? 0) - count, 0) : 0;
     if (pad > 0) {
@@ -221,10 +242,12 @@ const resultBar = gutter({
   lineMarker(view, line) {
     const state = view.state;
     const unresolved = state.facet(unresolvedFacet);
-    if (unresolved.size === 0) return null;
+    const conflicts = new Set(state.facet(hunksFacet).flatMap((hunk) => (hunk.kind === "conflict" ? [hunk.id] : [])));
+    // Its own lines only: an empty block is marked by its pad (`widgetMarker`), not by the
+    // first line of the equal region after it.
     for (const block of blocksOf(state)) {
-      if (unresolved.has(block.id) && line.from >= block.from && line.from < Math.max(block.to, block.from + 1)) {
-        return BAR;
+      if (conflicts.has(block.id) && line.from >= block.from && line.from < block.to) {
+        return unresolved.has(block.id) ? BAR : BAR_DONE;
       }
     }
     return null;
@@ -387,6 +410,9 @@ export class SolverEditors {
         } else if (update.selectionSet) {
           this.#followSelection(name);
         }
+        // A resize, a monitor of another scale, a font that arrived: the bands are measured
+        // again, not only when something scrolls.
+        if (update.geometryChanged || update.viewportChanged) this.#schedule();
       });
     const make = (name: PaneName, parent: HTMLElement, doc: string, extensions: Extension) =>
       new EditorView({
@@ -496,11 +522,12 @@ export class SolverEditors {
 
   #paint(name: "ours" | "theirs", pads: number[], baseChanges: boolean): void {
     const view = this.views[name];
+    const unresolved = unresolvedIds(this.views.result.state);
     const rows = name === "ours" ? this.#docs.oursRows : this.#docs.theirsRows;
     const spec: PaneSpec = {
       rows,
       ids: this.#docs.hunks.map((hunk) => hunk.id),
-      tones: this.#docs.hunks.map((hunk) => paneTone(hunk, name, baseChanges)),
+      tones: this.#docs.hunks.map((hunk) => hunkTone(hunk, name, baseChanges, unresolved)),
       pads,
       current: this.#current,
     };

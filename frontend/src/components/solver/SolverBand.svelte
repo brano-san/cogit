@@ -7,7 +7,7 @@
   interface Props {
     connectors: BandConnector[];
     /** How the pane next to the button colors that hunk. */
-    tone: (id: number) => "add" | "del" | "changed" | null;
+    tone: (id: number) => import("$lib/solver-model").Tone | null;
     current: number | null;
     /** Undecided conflicts: their ribbon has the outline of danger. */
     open: ReadonlySet<number>;
@@ -108,6 +108,22 @@
 
   .edge.del {
     stroke: var(--diff-del-word);
+  }
+
+  .fill.conflict {
+    fill: var(--merge-conflict-line);
+  }
+
+  .edge.conflict {
+    stroke: var(--status-danger);
+  }
+
+  .fill.resolved {
+    fill: var(--merge-resolved-line);
+  }
+
+  .edge.resolved {
+    stroke: var(--status-add);
   }
 
   .edge.open {

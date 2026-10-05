@@ -137,7 +137,37 @@ export function nextHunk(ids: readonly number[], current: number | null, directi
   return [...ids].reverse().find((id) => id < current) ?? ids.at(-1) ?? null;
 }
 
-export type Tone = "add" | "del" | "changed";
+export type Tone = "add" | "del" | "changed" | "conflict" | "resolved";
+
+/** A conflict is its own color, undecided or decided, whatever the sides did; any other
+    hunk is colored as the side pane shows it (`paneTone`). */
+export function hunkTone(
+  hunk: Hunk,
+  side: "ours" | "theirs",
+  baseChanges: boolean,
+  unresolved: ReadonlySet<number>,
+): Tone | null {
+  if (hunk.kind === "conflict") return unresolved.has(hunk.id) ? "conflict" : "resolved";
+  return paneTone(hunk, side, baseChanges);
+}
+
+/** What a block of the Result is, in words for its tooltip (the legend). */
+export function hunkLegend(hunk: Hunk, unresolved: boolean): string {
+  switch (hunk.kind) {
+    case "conflict":
+      return unresolved
+        ? "Conflict: both sides changed these lines. Take Ours, Take Theirs, both, or edit them."
+        : "Resolved conflict: decided here.";
+    case "ours":
+      return "Merged automatically: only Ours changed these lines.";
+    case "theirs":
+      return "Merged automatically: only Theirs changed these lines.";
+    case "both":
+      return "Merged automatically: both sides made the same change.";
+    case "syntactic":
+      return "Merged automatically: both sides changed different parts of the code here.";
+  }
+}
 
 /** How Ours or Theirs colors a hunk. Without Base Changes: where the two sides differ from
     each other. With it: what that side did to the base. */

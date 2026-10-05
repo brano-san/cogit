@@ -76,6 +76,8 @@
     "diff.del.word": "#6b2a2c",
     "diff.del.gutter": "#3f1d1f",
     "diff.changed.line": "#2b2414",
+    "merge.conflict.line": "#40231a",
+    "merge.resolved.line": "#18321f",
     "diff.changed.word": "#6b4c12",
     "diff.changed.gutter": "#352b17",
     "diff.move.line": "#261f3a",

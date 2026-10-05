@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { SolverRegion } from "./ipc";
 import {
+  hunkLegend,
+  hunkTone,
   buildResult,
   composeSave,
   conflictsLeftLabel,
@@ -277,5 +279,25 @@ describe("the documents of the three panes", () => {
     expect(docs.hunks).toEqual([]);
     expect(docsForDeleted({ ours: "mine\n", theirs: null }).resultText).toBe("mine\n");
     expect(docsForDeleted({ ours: null, theirs: null }).resultText).toBe("");
+  });
+});
+
+describe("hunkTone", () => {
+  const conflict = { id: 1, kind: "conflict", base: ["a"], ours: ["b"], theirs: ["c"] } as unknown as Hunk;
+  const fromOurs = { id: 2, kind: "ours", base: ["a"], ours: ["b"], theirs: ["a"] } as unknown as Hunk;
+
+  it("gives a conflict its own color, undecided or decided", () => {
+    expect(hunkTone(conflict, "ours", false, new Set([1]))).toBe("conflict");
+    expect(hunkTone(conflict, "theirs", true, new Set())).toBe("resolved");
+  });
+
+  it("colors a one-sided change as the pane does", () => {
+    expect(hunkTone(fromOurs, "ours", true, new Set())).toBe("changed");
+    expect(hunkTone(fromOurs, "theirs", true, new Set())).toBeNull();
+  });
+
+  it("explains each kind in the legend", () => {
+    expect(hunkLegend(conflict, true)).toMatch(/^Conflict/);
+    expect(hunkLegend(fromOurs, false)).toMatch(/only Ours/);
   });
 });

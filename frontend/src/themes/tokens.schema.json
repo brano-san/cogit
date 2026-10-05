@@ -297,6 +297,14 @@
       "type": "color",
       "description": "Changed block (both sides, split view): line background."
     },
+    "merge.conflict.line": {
+      "type": "color",
+      "description": "An undecided conflict in the Conflict Solver: a color of its own, apart from the changes either side made."
+    },
+    "merge.resolved.line": {
+      "type": "color",
+      "description": "A conflict decided in the Conflict Solver."
+    },
     "diff.changed.word": {
       "type": "color",
       "description": "Changed block: changed word (inline) background."
