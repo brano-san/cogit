@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_VIEW,
   backendView,
+  foldersOf,
   groupByDirectory,
   hiddenCount,
   hidingSwitches,
@@ -185,13 +186,24 @@ describe("groupByDirectory", () => {
 
   it("names the repository root by an empty path, not by a slash", () => {
     const rows = groupByDirectory([file("c.rs", "modified")], true);
-    expect(rows[0]).toEqual({ kind: "dir", path: "", count: 1 });
+    expect(rows[0]).toEqual({ kind: "dir", path: "", count: 1, open: true });
   });
 
   it("counts what is under each directory", () => {
     const files = [file("src/a.rs", "modified"), file("src/b.rs", "modified")];
     const rows = groupByDirectory(files, true);
-    expect(rows[0]).toEqual({ kind: "dir", path: "src/", count: 2 });
+    expect(rows[0]).toEqual({ kind: "dir", path: "src/", count: 2, open: true });
+  });
+
+  it("keeps a folded folder's heading and count, and hides its files", () => {
+    const files = [file("src/a.rs", "modified"), file("src/b.rs", "modified"), file("top.rs", "modified")];
+    const rows = groupByDirectory(files, true, new Set(["src/"]));
+    expect(rows).toEqual([
+      { kind: "dir", path: "src/", count: 2, open: false },
+      { kind: "dir", path: "", count: 1, open: true },
+      { kind: "file", file: files[2] },
+    ]);
+    expect(foldersOf(rows)).toEqual(["src/", ""]);
   });
 });
 
