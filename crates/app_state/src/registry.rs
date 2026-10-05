@@ -436,6 +436,7 @@ impl Steps {
             .collect();
         tracing::info!(
             path = %path.display(),
+            location = ?crate::location::RepoLocation::of(path),
             branches,
             total_ms = total,
             steps = %breakdown.join(" "),

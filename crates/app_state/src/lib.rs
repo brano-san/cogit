@@ -44,6 +44,7 @@ mod config;
 mod conflicts;
 mod history;
 mod journal;
+pub mod location;
 mod registry;
 mod rows;
 mod staging;
