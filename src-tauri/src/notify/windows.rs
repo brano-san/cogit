@@ -12,6 +12,8 @@ use windows::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID;
 use windows::core::{HSTRING, IInspectable};
 
 static APP_ID: OnceLock<String> = OnceLock::new();
+/// The icon file `register_identity` wrote, as a `file:` URI for the toast's own logo.
+static ICON_URI: OnceLock<String> = OnceLock::new();
 /// A toast dropped here stops answering clicks; the last few are kept alive.
 static SHOWN: Mutex<Vec<ToastNotification>> = Mutex::new(Vec::new());
 const KEPT: usize = 16;
@@ -47,12 +49,19 @@ pub fn register_identity(config_dir: &std::path::Path) {
                 .and_then(|()| key.set_string("IconUri", icon.to_string_lossy().as_ref()))
                 .map_err(|err| err.to_string())
         });
-    if let Err(err) = written {
-        tracing::warn!(error = %err, "cannot register the name and icon for notifications");
+    match written {
+        Ok(()) => {
+            let uri = format!("file:///{}", icon.to_string_lossy().replace('\\', "/"));
+            let _ = ICON_URI.set(uri);
+        }
+        Err(err) => {
+            tracing::warn!(error = %err, "cannot register the name and icon for notifications");
+        }
     }
 }
 
-const ICON_PNG: &[u8] = include_bytes!("../../icons/128x128.png");
+/// The window's own icon at 256 px, so no scale of the shell has to stretch a smaller one.
+const ICON_PNG: &[u8] = include_bytes!("../../icons/128x128@2x.png");
 
 fn escape(text: &str) -> String {
     text.replace('&', "&amp;")
@@ -67,8 +76,16 @@ pub fn show(
     body: &str,
     on_click: impl Fn() + Send + Sync + 'static,
 ) -> Result<(), String> {
+    // The logo in the toast itself too: whatever the shell takes for the app's icon (the
+    // registration, a shortcut, a stale entry of its own), the notification shows Cogit's.
+    let logo = ICON_URI.get().map_or_else(String::new, |uri| {
+        format!(
+            r#"<image placement="appLogoOverride" src="{}"/>"#,
+            escape(uri)
+        )
+    });
     let xml = format!(
-        r#"<toast><visual><binding template="ToastGeneric"><text>{}</text><text>{}</text></binding></visual></toast>"#,
+        r#"<toast><visual><binding template="ToastGeneric"><text>{}</text><text>{}</text>{logo}</binding></visual></toast>"#,
         escape(title),
         escape(body)
     );
