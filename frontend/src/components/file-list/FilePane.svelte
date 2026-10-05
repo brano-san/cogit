@@ -108,6 +108,12 @@
     reveal = at;
   });
 
+  /** Folded from one of its files: the keyboard stays on the folder row, as in a tree. */
+  async function focusFolder(folder: string) {
+    await tick();
+    pane?.querySelector<HTMLElement>(`[data-folder="${CSS.escape(folder)}"]`)?.focus();
+  }
+
   async function goTo(to: number, extend: boolean) {
     const target = files[to];
     if (!target) return;
@@ -118,9 +124,11 @@
     pane?.querySelector<HTMLElement>(`[data-path="${CSS.escape(target.path)}"]`)?.focus();
   }
 
-  /** Enter is the focused row's own click, and a pane has nothing to fold. */
+  /** Enter is the focused row's own click. Left and Right fold the folder the keyboard is on:
+      a focused folder row, or the folder of the selected file (the tree's rule, R-350). */
   function onkeydown(event: KeyboardEvent) {
     const press = pressOf(event, ON_MAC);
+    const folderRow = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-folder]");
     const from = cursor !== null && files.some((file) => file.path === cursor) ? cursor : selected;
     const found = files.findIndex((file) => file.path === from);
     const at = found === -1 ? null : found;
@@ -133,6 +141,14 @@
       return;
     }
     const action = listKey(press, at, files.length, pageRows(pane, LIST_ROW_HEIGHT));
+    if (action?.kind === "fold" && nested) {
+      const folder = folderRow?.dataset.folder ?? (from === null ? null : directoryOf(from));
+      if (folder === null || folder === undefined) return;
+      event.preventDefault();
+      filesView.toggleFolder(folder, action.open);
+      if (!action.open) void focusFolder(folder);
+      return;
+    }
     if (action?.kind !== "move") return;
     event.preventDefault();
     void goTo(action.to, action.extend);
@@ -164,8 +180,24 @@
     {#snippet row(entry, at)}
         {#if entry.kind === "dir"}
           {@const group = entry}
-          <div class="folder" class:striped={striped(at, stripes)} style:top="{at * LIST_ROW_HEIGHT}px">
-            <Disclosure open />
+          <div
+            class="folder"
+            class:striped={striped(at, stripes)}
+            style:top="{at * LIST_ROW_HEIGHT}px"
+            role="button"
+            aria-expanded={group.open}
+            tabindex="0"
+            data-folder={group.path}
+            ondblclick={() => filesView.toggleFolder(group.path)}
+          >
+            <Disclosure
+              open={group.open}
+              label={group.open ? "Collapse folder" : "Expand folder"}
+              onclick={(event) => {
+                event.stopPropagation();
+                filesView.toggleFolder(group.path);
+              }}
+            />
             <span class="truncate">{group.path === "" ? "(root)" : group.path}</span>
             <span class="count">{group.count}</span>
           </div>

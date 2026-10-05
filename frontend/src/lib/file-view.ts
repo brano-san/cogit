@@ -111,11 +111,18 @@ export function hidingSwitches(files: readonly FileEntry[], view: FileView): (ke
 export type ListFile = FileEntry & { indexState?: "staged" | "partly" };
 
 export type ViewRow =
-  | { kind: "dir"; path: string; count: number }
+  | { kind: "dir"; path: string; count: number; open: boolean }
   | { kind: "file"; file: ListFile };
 
-/** The repository root is `""`, not `"/"`: a leading slash reads like an absolute path. */
-export function groupByDirectory(files: readonly ListFile[], on: boolean): ViewRow[] {
+const NONE: ReadonlySet<string> = new Set();
+
+/** The repository root is `""`, not `"/"`: a leading slash reads like an absolute path. A
+    folder in `collapsed` keeps its heading, with its count, and hides its files. */
+export function groupByDirectory(
+  files: readonly ListFile[],
+  on: boolean,
+  collapsed: ReadonlySet<string> = NONE,
+): ViewRow[] {
   if (!on) return files.map((file) => ({ kind: "file", file }));
 
   const order: string[] = [];
@@ -134,10 +141,16 @@ export function groupByDirectory(files: readonly ListFile[], on: boolean): ViewR
   const rows: ViewRow[] = [];
   for (const directory of order) {
     const bucket = groups.get(directory) ?? [];
-    rows.push({ kind: "dir", path: directory, count: bucket.length });
-    for (const file of bucket) rows.push({ kind: "file", file });
+    const open = !collapsed.has(directory);
+    rows.push({ kind: "dir", path: directory, count: bucket.length, open });
+    if (open) for (const file of bucket) rows.push({ kind: "file", file });
   }
   return rows;
+}
+
+/** The folders the tree draws, in its order: what Collapse All folds. */
+export function foldersOf(rows: readonly ViewRow[]): string[] {
+  return rows.flatMap((row) => (row.kind === "dir" ? [row.path] : []));
 }
 
 export function mergeView(stored: unknown): FileView {

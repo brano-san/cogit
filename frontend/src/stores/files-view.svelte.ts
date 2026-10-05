@@ -45,6 +45,33 @@ class FilesViewStore {
     remember(COMMIT_STORAGE_KEY, this.commit);
   }
 
+  /** Folders folded in Show directories, by path: a refresh keeps them as they are. */
+  collapsed = $state.raw<ReadonlySet<string>>(new Set());
+  /** Every folder the lists draw now, reported by them: Collapse All folds these. */
+  folders = $state.raw<readonly string[]>([]);
+
+  get anyCollapsed(): boolean {
+    return this.folders.some((folder) => this.collapsed.has(folder));
+  }
+
+  toggleFolder(path: string, open?: boolean): void {
+    const next = new Set(this.collapsed);
+    const fold = open === undefined ? !next.has(path) : !open;
+    if (fold) next.add(path);
+    else next.delete(path);
+    this.collapsed = next;
+  }
+
+  /** Expand All when something is folded, Collapse All otherwise. */
+  toggleAll(): void {
+    this.collapsed = this.anyCollapsed ? new Set() : new Set(this.folders);
+  }
+
+  setFolders(folders: readonly string[]): void {
+    if (folders.length === this.folders.length && folders.every((folder, at) => folder === this.folders[at])) return;
+    this.folders = folders;
+  }
+
   setColumns(columns: FileColumns): void {
     this.columns = columns;
     this.#rememberTable();

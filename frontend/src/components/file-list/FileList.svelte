@@ -16,6 +16,7 @@
   import { repository } from "$stores/repository.svelte";
   import {
     DEFAULT_VIEW,
+    foldersOf,
     groupByDirectory,
     hiddenCount,
     hidingSwitches,
@@ -224,11 +225,17 @@
         files,
         paths,
         keys: paths.map((path) => rowKey(index, path)),
-        rows: groupByDirectory(files, active.directories),
+        rows: groupByDirectory(files, active.directories, filesView.collapsed),
       };
     }),
   );
   type Group = (typeof groups)[number];
+
+  // What Collapse All in the toolbar folds: every folder these lists draw, once.
+  $effect(() => {
+    const folders = active.directories ? [...new Set(groups.flatMap((group) => foldersOf(group.rows)))] : [];
+    untrack(() => filesView.setFolders(folders));
+  });
 
   $effect(() => {
     const shown = sections.map((section) => groups.find((group) => group.section === section)?.paths ?? []);

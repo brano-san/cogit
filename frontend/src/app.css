@@ -101,6 +101,8 @@
   --t-fast: 80ms;
   --t-medium: 120ms;
   --t-dialog: 140ms;
+  /* A control sliding in or out of a toolbar, its neighbors moving with it. */
+  --t-reveal: 150ms;
   --ease-out: cubic-bezier(0.2, 0, 0, 1);
 }
 
@@ -109,6 +111,7 @@
     --t-fast: 0ms;
     --t-medium: 0ms;
     --t-dialog: 0ms;
+    --t-reveal: 0ms;
   }
 }
 

@@ -100,7 +100,13 @@
     skipped: "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12ZM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM3 3l18 18",
     missing: "M6 3h8l5 5v13H6zM14 3v5h5M9 14h6",
     columns: "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM9 3v18M15 3v18",
+    expandAll: "m7 15 5 5 5-5M7 9l5-5 5 5",
+    collapseAll: "m7 20 5-5 5 5M7 4l5 5 5-5",
   } as const;
+
+  /** Shown only beside Show directories turned on; Expand All while anything is folded. */
+  const foldAll = $derived(view.directories && !disabled);
+  const foldAllTitle = $derived(filesView.anyCollapsed ? "Expand All Folders" : "Collapse All Folders");
 
   const switches = $derived(stateSwitches(context));
   const layout = $derived(layoutToggle(view.directories));
@@ -198,6 +204,19 @@
   >
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d={I[layout.icon]} /></svg>
   </button>
+  <!-- Slides in beside Show directories and out again; the buttons after it move with it. -->
+  <span class="fold-all" class:shown={foldAll} aria-hidden={!foldAll}>
+    <button
+      type="button"
+      class="tool"
+      tabindex={foldAll ? 0 : -1}
+      aria-label={foldAllTitle}
+      title={foldAllTitle}
+      onclick={() => filesView.toggleAll()}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d={filesView.anyCollapsed ? I.expandAll : I.collapseAll} /></svg>
+    </button>
+  </span>
 
   <span class="rule" aria-hidden="true"></span>
 
@@ -399,6 +418,22 @@
     border-radius: var(--r-sm);
     color: var(--text-secondary);
     cursor: default;
+  }
+
+  .fold-all {
+    display: inline-flex;
+    flex: none;
+    max-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition:
+      max-width var(--t-reveal) var(--ease-out),
+      opacity var(--t-reveal) var(--ease-out);
+  }
+
+  .fold-all.shown {
+    max-width: var(--h-button-sm);
+    opacity: 1;
   }
 
   .tool svg {
