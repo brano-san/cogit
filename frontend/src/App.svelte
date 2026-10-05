@@ -257,6 +257,7 @@
   import { DiskPasses } from "$lib/disk-refresh";
   import { clear as freshen, mark as markStale } from "$lib/staleness";
   import { unsavedSummary } from "$lib/unsaved";
+  import { foldActions } from "$lib/fold-actions";
   import { diffEdit } from "$stores/diff-edit.svelte";
   import { overlap } from "$stores/overlap.svelte";
   import { settings } from "$stores/settings.svelte";
@@ -283,6 +284,8 @@
   // Ctrl+A goes to the panel in focus (the one with the underlined header); behind a modal, to nothing.
   $effect(() => installSelectAll(window, () => (modals.any ? "modal" : focused)));
   let running = $state.raw<Map<number, string>>(new Map());
+  /** The Worktrees header has no room for Add… and Prune All… beside its title. */
+  let worktreesFolded = $state(false);
   /** Network operations whose git the footer's Cancel can stop, oldest first. */
   let networkOps = $state.raw<number[]>([]);
   const gitMissing = new GitMissingStore({
@@ -3619,23 +3622,33 @@ ${event.error}`,
               <button
                 type="button"
                 class="panel-act worktrees-more"
+                class:shown={worktreesFolded}
                 title="Worktree actions"
                 aria-label="Worktree actions"
                 onclick={(event) => void worktreeActions?.headerMenu(event.currentTarget)}>⋯</button
               >
-              <button
-                type="button"
-                class="panel-act worktrees-wide"
-                title="Add Worktree…"
-                onclick={() => worktreeActions?.openAdd()}>Add…</button
+              <span
+                class="worktrees-wide"
+                class:folded={worktreesFolded}
+                aria-hidden={worktreesFolded}
+                use:foldActions={(folded) => (worktreesFolded = folded)}
               >
-              <button
-                type="button"
-                class="panel-act worktrees-wide"
-                disabled={pruneAll.disabled}
-                title={pruneAll.tip}
-                onclick={() => void worktreeActions?.pruneAll()}>{pruneAll.label}</button
-              >
+                <button
+                  type="button"
+                  class="panel-act"
+                  tabindex={worktreesFolded ? -1 : 0}
+                  title="Add Worktree…"
+                  onclick={() => worktreeActions?.openAdd()}>Add…</button
+                >
+                <button
+                  type="button"
+                  class="panel-act"
+                  tabindex={worktreesFolded ? -1 : 0}
+                  disabled={pruneAll.disabled}
+                  title={pruneAll.tip}
+                  onclick={() => void worktreeActions?.pruneAll()}>{pruneAll.label}</button
+                >
+              </span>
             {/if}
           {/snippet}
           <WorktreesPanel
@@ -4438,27 +4451,35 @@ ${event.error}`,
 
   .worktrees-pane {
     min-height: var(--worktrees-panel-min);
-    container: worktrees / inline-size;
   }
 
-  /* Too narrow for the title and both buttons: they fold into one menu button. */
+  /* Too narrow for the title and both buttons, as measured (`foldActions`): they fold into one
+     menu button, and stay laid out out of sight so their width is still known. */
   .worktrees-more {
     display: none;
   }
 
-  @container worktrees (max-width: 240px) {
-    .worktrees-wide {
-      display: none;
-    }
+  .worktrees-more.shown {
+    display: inline-flex;
+  }
 
-    .worktrees-more {
-      display: inline-block;
-    }
+  .worktrees-wide {
+    display: inline-flex;
+    gap: var(--sp-3);
+  }
+
+  .worktrees-wide.folded {
+    position: absolute;
+    visibility: hidden;
+    pointer-events: none;
   }
 
   .panel-act {
+    display: inline-flex;
+    align-items: center;
     height: 18px;
     padding: 0 var(--sp-3);
+    line-height: 1;
     background: var(--surface-input);
     color: var(--text-primary);
     border: 1px solid var(--field-border);

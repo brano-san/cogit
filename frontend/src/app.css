@@ -210,6 +210,9 @@ body {
   border-radius: var(--r-sm);
   font: inherit;
   font-size: var(--fs-dense);
+  /* The body's 20px line box is taller than a small button's content: centred by flex it
+     still left the glyphs sitting low, on the bottom border. One line, as tall as the text. */
+  line-height: 1;
   white-space: nowrap;
   cursor: default;
 }

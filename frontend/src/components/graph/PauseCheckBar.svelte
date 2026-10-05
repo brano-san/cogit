@@ -76,8 +76,11 @@
 
   /* The same small button as the commit actions beside the graph. */
   .check button {
+    display: inline-flex;
+    align-items: center;
     height: 20px;
     padding: 0 var(--sp-4);
+    line-height: 1;
     background: var(--surface-input);
     color: var(--text-primary);
     border: 1px solid var(--field-border);
