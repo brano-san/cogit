@@ -4,7 +4,7 @@
   import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
   import SolverBand from "$components/solver/SolverBand.svelte";
-  import SolverCloseDialog from "$components/solver/SolverCloseDialog.svelte";
+  import UnsavedDialog from "$components/common/UnsavedDialog.svelte";
   import SolverToolbar from "$components/solver/SolverToolbar.svelte";
   import SolverWholeFile from "$components/solver/SolverWholeFile.svelte";
   import { visibleCenter } from "$lib/diff-band";
@@ -287,8 +287,9 @@
   }
 
   /** Ctrl+S: the working file gets the Result and the window stays; nothing is staged, so
-      the file is still conflicted until Mark Resolved. True when it was written. */
-  async function save(): Promise<boolean> {
+      the file is still conflicted until Mark Resolved, which is offered right after (as in
+      SmartGit) unless the window is closing. True when it was written. */
+  async function save(offerResolve = true): Promise<boolean> {
     if (!editors || !request || !docs || saving || toolRunning) return false;
     const { repo, path } = request;
     saving = true;
@@ -297,6 +298,7 @@
       await saveConflictText(repo, path, textToWrite(), data?.stages ?? null);
       editors.markSaved();
       note = "Saved. The file stays conflicted until you Mark Resolved.";
+      if (offerResolve && (snapshot?.unresolved.length ?? 0) === 0) void offerMarkResolved(path);
       return true;
     } catch (err) {
       saveFailed = err instanceof Error ? err.message : String(err);
@@ -304,6 +306,15 @@
     } finally {
       saving = false;
     }
+  }
+
+  async function offerMarkResolved(path: string) {
+    const yes = await confirmation.ask({
+      title: "Mark Resolved",
+      message: `${path} is saved with every conflict decided. Mark it resolved and stage it now?`,
+      confirm: "Mark Resolved",
+    });
+    if (yes) await markResolved();
   }
 
   async function markResolved() {
@@ -445,7 +456,7 @@
     closing = false;
     closeAnswer = null;
     const after = afterCloseChoice(choice);
-    if (after.save) void save().then((written) => written && closeThisWindow());
+    if (after.save) void save(false).then((written) => written && closeThisWindow());
     return after.close;
   }
 
@@ -662,7 +673,7 @@
 </div>
 
 {#if closing}
-  <SolverCloseDialog path={request?.path ?? ""} onanswer={(choice) => closeAnswer?.(choice)} />
+  <UnsavedDialog title="Unsaved Resolution" path={request?.path ?? ""} onanswer={(choice) => closeAnswer?.(choice)} />
 {/if}
 
 {#if confirmation.open}

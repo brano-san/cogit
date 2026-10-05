@@ -28,6 +28,8 @@
   import CommandPalette from "$components/layout/CommandPalette.svelte";
   import AboutDialog from "$components/common/AboutDialog.svelte";
   import ExitDialog from "$components/common/ExitDialog.svelte";
+  import UnsavedDialog from "$components/common/UnsavedDialog.svelte";
+  import { unsavedPrompt } from "$stores/unsaved-prompt.svelte";
   import ConfigEditor from "$components/common/ConfigEditor.svelte";
   import Notifications from "$components/layout/Notifications.svelte";
   import SuccessToast from "$components/layout/SuccessToast.svelte";
@@ -2298,6 +2300,7 @@ ${event.error}`,
     openVersion: (path, rev) => void withRepo((id) => fileMenus.openReadOnly(id, rev, path), "Could not open the file"),
     reveal: (path) => void onDesktop((root) => fileMenus.revealOnDesktop(`${root}/${path}`), "Could not reveal the file"),
     showChanges: (path) => openInWindow(path, fileSpec(path)),
+    edit: (path) => void editWorkingFile(path),
     compareWithWorkTree: (path, rev) => openInWindow(path, { kind: "commitVsWorkTree", oid: rev }),
     log: (path) => filterGraph({ ...graph.query, path }),
     blame: (path) => void blameOne(path),
@@ -3260,6 +3263,19 @@ ${event.error}`,
 
   /** A folder dropped on the window is a repository to open. Anything that is not one is
       refused by the backend and reported like any other failed open. */
+  // A save in the Diff panel's editor reads the status and the Files list again at once,
+  // without waiting for the watcher.
+  diffEdit.onSaved = (path) => void afterWorkingTreeChange([path]);
+
+  /** Edit from the file menu: the file alone, no diff, in the Diff panel. */
+  async function editWorkingFile(path: string) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    const spec = { kind: "workTreeVsIndex" } as const;
+    await diff.load(id, spec, path);
+    if (diff.path === path) await diffEdit.start(id, spec, path, "single");
+  }
+
   /** The window is already in front: show the repository, and the Errors window on a failure. */
   async function onNotificationClicked(event: import("$lib/ipc").NotificationClicked) {
     const open = event.repo === null ? undefined : repository.openRepos.find((each) => each.repo.valueOf() === event.repo?.valueOf());
@@ -3483,6 +3499,14 @@ ${event.error}`,
 />
 
 <TooltipLayer />
+{#if unsavedPrompt.open}
+  <UnsavedDialog
+    title={unsavedPrompt.open.title}
+    path={unsavedPrompt.open.path}
+    cancellable={unsavedPrompt.open.cancellable}
+    onanswer={(choice) => unsavedPrompt.answer(choice)}
+  />
+{/if}
 
 <div class="app">
   <Toolbar

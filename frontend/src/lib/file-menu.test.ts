@@ -26,6 +26,7 @@ describe("worktreeFileMenu", () => {
       "Open File",
       "Reveal in Explorer",
       "Show Changes",
+      "Edit",
       "Log",
       "Blame",
       "Investigate",

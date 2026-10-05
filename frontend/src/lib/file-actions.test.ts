@@ -17,6 +17,7 @@ function spyActions(): FileActions {
     "openVersion",
     "reveal",
     "showChanges",
+    "edit",
     "compareWithWorkTree",
     "log",
     "blame",

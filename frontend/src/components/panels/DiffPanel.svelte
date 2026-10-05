@@ -5,7 +5,7 @@
   import DiffView from "$components/diff/DiffView.svelte";
   import DiffEditPane from "$components/diff/DiffEditPane.svelte";
   import { editOffer } from "$lib/diff-edit";
-  import { diffEdit } from "$stores/diff-edit.svelte";
+  import { diffEdit, type CaretAt } from "$stores/diff-edit.svelte";
   import { untrack } from "svelte";
   import ImageDiff from "$components/diff/ImageDiff.svelte";
   import SubmoduleDiff from "$components/diff/SubmoduleDiff.svelte";
@@ -47,23 +47,24 @@
 
   const offer = $derived(diff.diff && diff.shownSpec ? editOffer(diff.shownSpec, diff.diff) : null);
 
-  // Another file, a commit, another repository: the editor goes, its edits saved or dropped
-  // on purpose (the store asks).
+  // Another file asks before it is shown (`diff.load`); a diff gone for other reasons (another
+  // repository, the panel cleared) takes the editor with it, its edits saved or dropped.
   $effect(() => {
     const path = diff.path;
     const repo = diff.repo;
     untrack(() => {
       const opened = diffEdit.opened;
       const moved = diffEdit.target !== null && (diffEdit.target !== path || (opened !== null && opened.repo !== repo));
-      if (moved) void diffEdit.leave();
+      if (moved) void diffEdit.leave(false);
     });
   });
 
-  function startEdit() {
+  /** A click in the right pane of a working-tree diff: the caret goes where it was. */
+  function startEdit(at?: CaretAt) {
     const repo = diff.repo;
     const spec = diff.shownSpec;
     const path = diff.shownPath;
-    if (repo !== null && spec && path) void diffEdit.start(repo, spec, path);
+    if (repo !== null && spec && path) void diffEdit.start(repo, spec, path, "diff", at ?? null);
   }
 </script>
 

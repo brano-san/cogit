@@ -16,6 +16,7 @@ import { splitSelection } from "$lib/selection";
 import { runMutation, type MutationContext } from "$lib/mutation";
 import { isAbsentFromBothSides } from "$lib/diff-toolbar";
 import { settings } from "./settings.svelte";
+import { diffEdit } from "./diff-edit.svelte";
 
 const DEFAULT_CONTEXT = 3;
 
@@ -110,7 +111,9 @@ class DiffStore {
   /** Clicking down the file list outruns the backend; stale diffs lose. */
   #generation = 0;
 
+  /** Another file while the editor has unsaved edits: Save, Discard or stay (F-722). */
   async load(repo: RepoId, spec: DiffSpec, path: string): Promise<void> {
+    if (!(await diffEdit.leaveFor(path, spec))) return;
     const generation = ++this.#generation;
     if (path !== this.path) this.context = null;
     this.#repo = repo;

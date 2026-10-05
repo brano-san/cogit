@@ -3,8 +3,8 @@
   import { diffEdit } from "$stores/diff-edit.svelte";
   import { untrack } from "svelte";
 
-  /** The Diff panel in Edit mode: the diff's base read-only on the left, the working file
-      editable on the right, re-diffed while typing (F-722). */
+  /** The Diff panel editing the working file (F-722): beside the diff's base, read-only, as
+      the 2-way diff opens it; or alone, from the file menu's Edit. */
   interface Props {
     /** Back to the read-only diff; asks first when there are unsaved edits. */
     ondone: () => void;
@@ -16,6 +16,7 @@
   let editor: DiffEditor | null = null;
 
   const opened = $derived(diffEdit.opened);
+  const single = $derived(opened?.mode === "single");
   const baseCaption = $derived(
     opened?.spec.kind === "commitVsWorkTree" ? `${opened.spec.oid.slice(0, 7)}` : "Index",
   );
@@ -28,15 +29,16 @@
     if (!target || !file) return;
     const made = untrack(
       () =>
-        new DiffEditor(target, file.base, file.text, {
+        new DiffEditor(target, file.mode === "single" ? null : file.base, file.text, {
           changed: () => (diffEdit.dirty = made.dirty),
           save: () => void save(),
+          done: ondone,
         }),
     );
     editor = made;
-    diffEdit.attach(() => made.text(), { focused: () => made.focused, save: () => void save() });
+    diffEdit.attach({ text: () => made.text(), focused: () => made.focused, save: () => void save() });
     void made.useLanguageOf(file.path);
-    made.focus();
+    made.focusAt(file.at?.line ?? null, file.at?.column ?? 0);
     return () => {
       diffEdit.detach();
       made.destroy();
@@ -53,13 +55,14 @@
 
 <div class="edit">
   <div class="bar">
-    <span class="side base" title="The diff's left side: not a file you can write">
-      <span aria-hidden="true">🔒</span>
-      {baseCaption} · read-only
-    </span>
-    <span class="side work">
-      Working tree{#if diffEdit.dirty}<span class="dirty" title="Unsaved edits"> ●</span>{/if}
-    </span>
+    <span class="file truncate" title={opened?.path}>{opened?.path ?? ""}{diffEdit.dirty ? " *" : ""}</span>
+    {#if !single}
+      <span class="side base" title="The diff's left side: not a file you can write">
+        <span aria-hidden="true">🔒</span>
+        {baseCaption} · read-only
+      </span>
+      <span class="side">Working tree</span>
+    {/if}
     <button type="button" class="btn sm" title="Undo (Ctrl+Z)" disabled={!opened} onclick={() => editor?.undo()}>Undo</button>
     <button type="button" class="btn sm" title="Redo (Ctrl+Y)" disabled={!opened} onclick={() => editor?.redo()}>Redo</button>
     <button
@@ -69,7 +72,7 @@
       disabled={!diffEdit.dirty || diffEdit.saving}
       onclick={() => void save()}>Save</button
     >
-    <button type="button" class="btn sm" title="Back to the diff" onclick={ondone}>Done</button>
+    <button type="button" class="btn sm" title="Back to the diff (Esc)" onclick={ondone}>Done</button>
   </div>
 
   {#if diffEdit.changedOnDisk}
@@ -117,20 +120,19 @@
     font-size: var(--fs-dense);
   }
 
+  .file {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-family: var(--font-mono);
+  }
+
   .side {
-    flex: 1 1 0;
+    flex: 0 1 auto;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  .base {
     color: var(--fg-secondary);
-  }
-
-  .dirty {
-    color: var(--status-modify);
   }
 
   .banner {
@@ -156,7 +158,8 @@
     overflow: auto;
   }
 
-  .host :global(.cm-mergeView) {
+  .host :global(.cm-mergeView),
+  .host :global(.cm-editor) {
     min-height: 100%;
   }
 

@@ -91,7 +91,8 @@
     active?: boolean;
     /** Edit in place (F-722): `null` or absent shows no button; `blocked` says why it is off. */
     edit?: { blocked: string | null } | null;
-    onedit?: () => void;
+    /** `at`: a click in the right pane put the caret there. */
+    onedit?: (at?: { line: number; column: number }) => void;
     /** Off where the file is named already: the compare window's title and header. */
     showPath?: boolean;
     /** What the panes hold, above each; from the diff's spec when the host knows no better
@@ -114,6 +115,25 @@
     edit = null,
     onedit,
   }: Props = $props();
+
+  /** The right pane of a working-tree diff is the file: a plain click there (not a drag that
+      selects) opens the editor with the caret at that line and column, as in SmartGit. */
+  function clickToEdit(event: MouseEvent) {
+    if (!edit || edit.blocked !== null || !onedit || event.button !== 0) return;
+    if (!(window.getSelection()?.isCollapsed ?? true)) return;
+    const row = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-line]");
+    if (!row) return;
+    const text = row.querySelector<HTMLElement>(".text");
+    let column = 0;
+    const caret = document.caretPositionFromPoint?.(event.clientX, event.clientY);
+    if (text && caret && text.contains(caret.offsetNode)) {
+      const range = document.createRange();
+      range.setStart(text, 0);
+      range.setEnd(caret.offsetNode, caret.offset);
+      column = range.toString().length;
+    }
+    onedit({ line: Number(row.dataset.line), column });
+  }
 
   /** Converted lines are not the file's bytes: a patch built from them would not apply. */
   const stageable = $derived(stageableFile && !(diff.kind === "text" && diff.converted));
@@ -752,6 +772,7 @@
         class:marked={!stageable && picked}
         class:flash={flashed(row)}
         style:top="{index * ROW_HEIGHT}px"
+        data-line={side === "right" ? row.line : undefined}
       >
         {#if side === "left"}{@render gutterCell(row.key)}{/if}
         <span class="num {tone}">{row.line}</span>
@@ -865,7 +886,7 @@
         class="btn sm"
         disabled={edit.blocked !== null}
         title={edit.blocked ?? "Edit the working tree file here; the left side stays read-only"}
-        onclick={() => onedit()}>Edit</button
+        onclick={() => onedit?.()}>Edit</button
       >
     {/if}
     {#if diff.kind === "text"}
@@ -1095,7 +1116,16 @@
           {/each}
         </div>
       </div>
-      <div class="pane right" data-select-text="diff" bind:this={rightEl} onscroll={() => onpane("right")} {onwheel}>
+      <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+      <div
+        class="pane right"
+        class:editable={edit?.blocked === null && onedit !== undefined}
+        data-select-text="diff"
+        bind:this={rightEl}
+        onscroll={() => onpane("right")}
+        onclick={clickToEdit}
+        {onwheel}
+      >
         <div class="rows" style:height="{model.right.length * ROW_HEIGHT}px">
           <div class="line ruler" aria-hidden="true">
             <span class="num"></span>
@@ -1216,6 +1246,11 @@
     flex: 1 1 auto;
     min-height: 0;
     background: var(--bg-editor);
+  }
+
+  /* The working file: it reads as text one can type into. */
+  .pane.editable .code {
+    cursor: text;
   }
 
   .pane {

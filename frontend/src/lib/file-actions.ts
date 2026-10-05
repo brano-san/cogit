@@ -17,6 +17,8 @@ export interface FileActions {
   openVersion(path: string, rev: string): void;
   reveal(path: string): void;
   showChanges(path: string): void;
+  /** The working file alone in the Diff panel's editor (F-722). */
+  edit(path: string): void;
   compareWithWorkTree(path: string, rev: string): void;
   log(path: string): void;
   blame(path: string): void;
@@ -106,6 +108,9 @@ export function runFileMenuCommand(
       return true;
     case "file-changes":
       actions.showChanges(path);
+      return true;
+    case "file-edit":
+      actions.edit(path);
       return true;
     case "file-compare-worktree":
       if (rev) actions.compareWithWorkTree(path, rev);

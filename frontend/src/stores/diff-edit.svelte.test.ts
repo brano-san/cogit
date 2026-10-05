@@ -7,7 +7,7 @@ const ipc = vi.hoisted(() => ({
 const ask = vi.hoisted(() => vi.fn());
 
 vi.mock("$lib/ipc/editable", () => ipc);
-vi.mock("$stores/confirm.svelte", () => ({ confirmation: { ask } }));
+vi.mock("$stores/unsaved-prompt.svelte", () => ({ unsavedPrompt: { ask } }));
 
 const { diffEdit } = await import("./diff-edit.svelte");
 
@@ -21,7 +21,7 @@ beforeEach(async () => {
   diffEdit.stop();
   ipc.readEditable.mockResolvedValue(file("a", "s1"));
   await diffEdit.start(repo, spec, "a.txt");
-  diffEdit.attach(() => "edited", { focused: () => true, save: () => {} });
+  diffEdit.attach({ text: () => "edited", focused: () => true, save: () => {} });
 });
 
 describe("diffEdit", () => {
@@ -61,7 +61,7 @@ describe("diffEdit", () => {
 
   it("never leaves unsaved edits behind without asking", async () => {
     diffEdit.dirty = true;
-    ask.mockResolvedValue(true);
+    ask.mockResolvedValue("save");
     ipc.saveEditable.mockResolvedValue({ kind: "saved", stamp: "s2" });
 
     expect(await diffEdit.leave()).toBe(true);
@@ -69,5 +69,21 @@ describe("diffEdit", () => {
     expect(ask).toHaveBeenCalledOnce();
     expect(ipc.saveEditable).toHaveBeenCalledWith(repo, "a.txt", "edited", shape, "s1", false);
     expect(diffEdit.active).toBe(false);
+  });
+
+  it("stays on the file when the question is answered Cancel", async () => {
+    diffEdit.dirty = true;
+    ask.mockResolvedValue("cancel");
+
+    expect(await diffEdit.leaveFor("other.txt", spec)).toBe(false);
+
+    expect(ipc.saveEditable).not.toHaveBeenCalled();
+    expect(diffEdit.opened?.path).toBe("a.txt");
+  });
+
+  it("lets the same file through without a question", async () => {
+    diffEdit.dirty = true;
+    expect(await diffEdit.leaveFor("a.txt", spec)).toBe(true);
+    expect(ask).not.toHaveBeenCalled();
   });
 });

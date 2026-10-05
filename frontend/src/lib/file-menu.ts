@@ -75,6 +75,7 @@ export function worktreeFileMenu(at: WorktreeFileTarget): ContextItem[] {
     offer("file-open", "Open File", single ?? (onDisk ? null : "not on disk")),
     offer("file-reveal", `Reveal in ${at.fileManager}`, single ?? (onDisk ? null : "not on disk")),
     offer("file-changes", "Show Changes", single),
+    offer("file-edit", "Edit", single ?? worktreeOnly ?? (onDisk ? null : "not on disk")),
     item("file-log", "Log", history),
     item("file-blame", "Blame", history, "CmdOrCtrl+Shift+L"),
     item("file-investigate", "Investigate", history, "CmdOrCtrl+Alt+Shift+L"),
