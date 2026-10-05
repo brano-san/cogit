@@ -68,8 +68,22 @@
       }
     },
     "windows": {
-      "webviewInstallMode": { "type": "downloadBootstrapper" },
-      "nsis": { "installMode": "currentUser" }
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "installerHooks": "./windows/installer-hooks.nsh",
+        "sidebarImage": "./windows/nsis-sidebar.bmp",
+        "headerImage": "./windows/nsis-header.bmp",
+        "installerIcon": "./icons/icon.ico",
+        "uninstallerHeaderImage": "./windows/nsis-header.bmp",
+        "uninstallerIcon": "./icons/icon.ico"
+      },
+      "wix": {
+        "bannerPath": "./windows/wix-banner.bmp",
+        "dialogImagePath": "./windows/wix-dialog.bmp"
+      }
     }
   },
   "plugins": {
