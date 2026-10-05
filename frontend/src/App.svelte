@@ -257,6 +257,7 @@
   import { DiskPasses } from "$lib/disk-refresh";
   import { clear as freshen, mark as markStale } from "$lib/staleness";
   import { unsavedSummary } from "$lib/unsaved";
+  import { diffEdit } from "$stores/diff-edit.svelte";
   import { overlap } from "$stores/overlap.svelte";
   import { settings } from "$stores/settings.svelte";
   import { layout } from "$stores/layout.svelte";
@@ -1067,7 +1068,10 @@ ${event.error}`,
         refreshWorktrees: (id) => void worktrees.refresh(id),
         // `refreshDiff` follows and reads the diff itself.
         afterMutation: (state) => afterMutation([], state, false),
-        refreshDiff: () => diff.refreshFromDisk(),
+        refreshDiff: () => {
+          void diffEdit.diskChanged();
+          return diff.refreshFromDisk();
+        },
         reselectCommit: (id) => {
           if (commit.oid) void commit.select(id, commit.oid);
         },
@@ -1703,6 +1707,7 @@ ${event.error}`,
 
   /** The Stash dialog: a name and Stash All, + Keep Index or + Keep Working Tree (#29). */
   async function stashAll() {
+    if (diffEdit.saveShortcut()) return;
     const id = repository.current?.repo;
     if (!id) return;
     const choice = await stashDialog.create();
@@ -3193,6 +3198,7 @@ ${event.error}`,
     return unsavedSummary({
       hook: hooks.dirty ? hooks.editing : null,
       merge: conflicts.regions.length > 0 ? conflicts.path : null,
+      edited: diffEdit.dirty ? diffEdit.target : null,
       // The Hooks dialog is dirty for the same hook, which is named already.
       dialogs: modals.unsaved.filter((title) => !(hooks.dirty && title === "Hooks")),
     });

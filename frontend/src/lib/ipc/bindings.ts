@@ -409,7 +409,7 @@ export const commands = {
 	indexEditorSides: (repo: RepoId, path: string) => typedError<IndexEditorSides, GitError>(__TAURI_INVOKE("index_editor_sides", { repo, path })),
 	/**  A side sent as `null` was not edited and stays as it is. */
 	writeIndexEditor: (repo: RepoId, path: string, index: string | null, worktree: string | null) => typedError<null, GitError>(__TAURI_INVOKE("write_index_editor", { repo, path, index, worktree })),
-	readEditable: (repo: RepoId, path: string) => typedError<EditableFile, GitError>(__TAURI_INVOKE("read_editable", { repo, path })),
+	readEditable: (repo: RepoId, spec: DiffSpec, path: string) => typedError<EditableFile, GitError>(__TAURI_INVOKE("read_editable", { repo, spec, path })),
 	/**  `stamp`: what `read_editable` gave; `force` writes over a file changed since. */
 	saveEditable: (repo: RepoId, path: string, text: string, shape: Shape, stamp: string, force: boolean) => typedError<SaveOutcome, GitError>(__TAURI_INVOKE("save_editable", { repo, path, text, shape, stamp, force })),
 	/**  `target` is an absolute path the user picked in the save dialog. */
@@ -1071,7 +1071,12 @@ export type DisplayInfo = {
 	primary: boolean,
 };
 
-export type EditableFile = { kind: "text"; text: string; shape: Shape; 
+export type EditableFile = { kind: "text"; 
+/**
+ *  The left side, read-only: the index or the commit the diff compares against,
+ *  shown with `\n` breaks and no final one, like `text`.
+ */
+base: string; text: string; shape: Shape; 
 /**  Blob id of the bytes read: a save checks the file still has it. */
 stamp: string } | 
 /**  Why the editor is not offered, in words for the panel. */

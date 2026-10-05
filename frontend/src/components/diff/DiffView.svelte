@@ -89,6 +89,9 @@
     /** Whether the window's keys are the diff's (11 §7): in the main window only while the
         Diff panel has the focus; a window of its own has nothing else to give them to. */
     active?: boolean;
+    /** Edit in place (F-722): `null` or absent shows no button; `blocked` says why it is off. */
+    edit?: { blocked: string | null } | null;
+    onedit?: () => void;
     /** Off where the file is named already: the compare window's title and header. */
     showPath?: boolean;
     /** What the panes hold, above each; from the diff's spec when the host knows no better
@@ -108,6 +111,8 @@
     active = true,
     showPath = true,
     captions,
+    edit = null,
+    onedit,
   }: Props = $props();
 
   /** Converted lines are not the file's bytes: a patch built from them would not apply. */
@@ -852,6 +857,15 @@
         title={wsButton.title}
         onclick={() => onwhitespace(wsButton.next)}
         >{wsButton.label}</button
+      >
+    {/if}
+    {#if edit && onedit}
+      <button
+        type="button"
+        class="btn sm"
+        disabled={edit.blocked !== null}
+        title={edit.blocked ?? "Edit the working tree file here; the left side stays read-only"}
+        onclick={() => onedit()}>Edit</button
       >
     {/if}
     {#if diff.kind === "text"}

@@ -80,9 +80,10 @@ impl AppState {
     pub fn read_editable(
         &self,
         repo: RepoId,
+        spec: &git_engine::DiffSpec,
         path: &str,
     ) -> Result<git_engine::editable::EditableFile> {
-        self.handle(repo)?.read_editable(path)
+        self.handle(repo)?.read_editable(spec, path)
     }
 
     /// Not quiet: the watcher's refresh is what re-reads the diff after a save.

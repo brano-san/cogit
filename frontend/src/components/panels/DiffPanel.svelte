@@ -3,6 +3,10 @@
   import ConflictView from "$components/diff/ConflictView.svelte";
   import MergeView from "$components/diff/MergeView.svelte";
   import DiffView from "$components/diff/DiffView.svelte";
+  import DiffEditPane from "$components/diff/DiffEditPane.svelte";
+  import { editOffer } from "$lib/diff-edit";
+  import { diffEdit } from "$stores/diff-edit.svelte";
+  import { untrack } from "svelte";
   import ImageDiff from "$components/diff/ImageDiff.svelte";
   import SubmoduleDiff from "$components/diff/SubmoduleDiff.svelte";
   import type { ConflictSide, Whitespace } from "$lib/ipc";
@@ -40,6 +44,27 @@
     fallback,
     active,
   }: Props = $props();
+
+  const offer = $derived(diff.diff && diff.shownSpec ? editOffer(diff.shownSpec, diff.diff) : null);
+
+  // Another file, a commit, another repository: the editor goes, its edits saved or dropped
+  // on purpose (the store asks).
+  $effect(() => {
+    const path = diff.path;
+    const repo = diff.repo;
+    untrack(() => {
+      const opened = diffEdit.opened;
+      const moved = diffEdit.target !== null && (diffEdit.target !== path || (opened !== null && opened.repo !== repo));
+      if (moved) void diffEdit.leave();
+    });
+  });
+
+  function startEdit() {
+    const repo = diff.repo;
+    const spec = diff.shownSpec;
+    const path = diff.shownPath;
+    if (repo !== null && spec && path) void diffEdit.start(repo, spec, path);
+  }
 </script>
 
 {#if conflicts.path && conflicts.autoResolved(conflicts.path)}
@@ -95,8 +120,12 @@
     newSize={diff.diff.newSize}
     mime={diff.diff.mime}
   />
+{:else if diffEdit.isFor(diff.shownPath)}
+  <DiffEditPane ondone={() => void diffEdit.leave()} />
 {:else if diff.diff && diff.shownPath}
   <DiffView
+    edit={offer}
+    onedit={startEdit}
     diff={diff.diff}
     path={diff.shownPath}
     stageable={diff.stageable}

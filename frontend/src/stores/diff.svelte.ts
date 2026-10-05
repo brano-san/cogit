@@ -87,6 +87,11 @@ class DiffStore {
     };
   }
 
+  /** The spec of the lines on screen; `spec` moves to the next file at once. */
+  get shownSpec(): DiffSpec | null {
+    return this.#shown?.spec ?? null;
+  }
+
   get stageable(): boolean {
     const kind = this.#shown?.spec.kind;
     return kind === "workTreeVsIndex" || kind === "indexVsHead";

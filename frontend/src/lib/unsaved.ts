@@ -5,6 +5,8 @@ export interface UnsavedState {
   merge: string | null;
   /** Titles of the dialogs holding typed work (`ModalStack.unsaved`). */
   dialogs?: readonly string[];
+  /** The file edited in the Diff panel, when the editor differs from the disk. */
+  edited?: string | null;
 }
 
 /** What would be lost by closing now, in a sentence, or null when nothing would be. */
@@ -12,6 +14,7 @@ export function unsavedSummary(state: UnsavedState): string | null {
   const parts: string[] = [];
   if (state.hook) parts.push(`the ${state.hook} hook`);
   if (state.merge) parts.push(`the resolution of ${state.merge}`);
+  if (state.edited) parts.push(`your edits to ${state.edited}`);
   for (const title of state.dialogs ?? []) parts.push(`“${title}”`);
   if (parts.length === 0) return null;
   return `${parts.join(" and ")} ${parts.length === 1 ? "has" : "have"} unsaved changes.`;

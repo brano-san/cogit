@@ -83,11 +83,12 @@ pub async fn index_editor_sides(
 pub async fn read_editable(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,
+    spec: git_engine::DiffSpec,
     path: String,
 ) -> Result<git_engine::editable::EditableFile, GitError> {
     let app_state = state.state.clone();
     blocking("read_editable", move || {
-        app_state.read_editable(repo, &path)
+        app_state.read_editable(repo, &spec, &path)
     })
     .await
 }

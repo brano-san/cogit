@@ -39,6 +39,9 @@ pub enum Eol {
 #[serde(rename_all = "camelCase", tag = "kind")]
 pub enum EditableFile {
     Text {
+        /// The left side, read-only: the index or the commit the diff compares against,
+        /// shown with `\n` breaks and no final one, like `text`.
+        base: String,
         text: String,
         shape: Shape,
         /// Blob id of the bytes read: a save checks the file still has it.
@@ -148,6 +151,17 @@ pub fn encode(text: &str, shape: Shape) -> Vec<u8> {
     }
 }
 
+/// The read-only side: never written back, so a lossy read only costs how it looks.
+fn plain(bytes: &[u8]) -> String {
+    match decode(bytes) {
+        Ok((text, _)) => text,
+        Err(_) => {
+            let text = String::from_utf8_lossy(bytes).replace("\r\n", "\n");
+            text.strip_suffix('\n').unwrap_or(&text).to_owned()
+        }
+    }
+}
+
 fn utf8(bytes: &[u8]) -> std::result::Result<String, String> {
     String::from_utf8(bytes.to_vec()).map_err(|_| {
         "The file is not UTF-8 or UTF-16 with a BOM; edit it in your editor.".to_owned()
@@ -185,7 +199,17 @@ impl RepoHandle {
             .unwrap_or_default()
     }
 
-    pub fn read_editable(&self, path: &str) -> Result<EditableFile> {
+    /// Only a diff whose right side is the working tree is editable.
+    pub fn read_editable(&self, spec: &crate::DiffSpec, path: &str) -> Result<EditableFile> {
+        if !matches!(
+            spec,
+            crate::DiffSpec::WorkTreeVsIndex | crate::DiffSpec::CommitVsWorkTree { .. }
+        ) {
+            return Ok(EditableFile::Refused {
+                reason: "Only the working tree side can be edited; this one is a committed or staged version."
+                    .to_owned(),
+            });
+        }
         let file = match self.editable_path(path) {
             Ok(file) => file,
             Err(GitError::InvalidState(reason)) => return Ok(EditableFile::Refused { reason }),
@@ -194,6 +218,10 @@ impl RepoHandle {
         let bytes = std::fs::read(&file)?;
         Ok(match decode(&bytes) {
             Ok((text, shape)) => EditableFile::Text {
+                base: self
+                    .diff_sides(spec, path)?
+                    .0
+                    .map_or_else(String::new, |old| plain(&old)),
                 text,
                 shape,
                 stamp: self.stamp_of(&bytes),
