@@ -315,7 +315,14 @@ export async function languageExtension(path: string): Promise<Extension | null>
   }
 }
 
-const common: Extension = [gitLines, theme, lineNumbers(), syntaxHighlighting(classHighlighter)];
+/** Tauri puts a nonce on the page's own style tags, and a CSP with a nonce ignores
+    'unsafe-inline': CodeMirror's style tag needs the same nonce or none of its rules apply. */
+export function styleNonce(): Extension {
+  const nonce = typeof document === "undefined" ? "" : (document.querySelector<HTMLStyleElement>("style[nonce]")?.nonce ?? "");
+  return nonce ? EditorView.cspNonce.of(nonce) : [];
+}
+
+const common: Extension = [styleNonce(), gitLines, theme, lineNumbers(), syntaxHighlighting(classHighlighter)];
 
 export interface EditorOptions {
   aligned: boolean;

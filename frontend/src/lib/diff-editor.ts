@@ -4,7 +4,7 @@ import { MergeView } from "@codemirror/merge";
 import { EditorState, StateEffect, Text, type Extension } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { classHighlighter } from "@lezer/highlight";
-import { languageExtension, themeSpec } from "$lib/solver-editor";
+import { languageExtension, styleNonce, themeSpec } from "$lib/solver-editor";
 
 /** The solver's editor look, with the merge view's own marks in the diff tokens. The left
     side is read-only and looks it: dimmed gutter, no caret, a label above it. */
@@ -22,7 +22,7 @@ const theme = EditorView.theme({
   ".cm-merge-a .cm-gutters": { opacity: "0.7" },
 });
 
-const common: Extension = [theme, lineNumbers(), syntaxHighlighting(classHighlighter)];
+const common: Extension = [styleNonce(), theme, lineNumbers(), syntaxHighlighting(classHighlighter)];
 
 export interface DiffEditorEvents {
   /** Any edit, undo or redo: the page compares against the saved text itself. */
