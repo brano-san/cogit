@@ -3805,11 +3805,13 @@ ${event.error}`,
         />
         {/if}
         {#if filesColumn}
+        <!-- Basis 0, not auto: the table inside (Show directories drops the Path column) must not
+             move the split with the Graph panel. -->
         <div
           class="files-column"
           bind:clientHeight={filesColumnHeight}
           class:grow={!shown.graph}
-          style:flex={shown.graph ? `1 1 auto` : undefined}
+          style:flex={shown.graph ? `1 1 0` : undefined}
         >
         {#if shown.files}
         <div
