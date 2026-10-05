@@ -85,12 +85,13 @@
           {#if counts}<span class="counts" title={counts.tooltip}>{counts.text}</span>{/if}
         </span>
       </span>
-      <span class="actions">
+      <!-- Only where there is something to press: an empty overlay painted the row's hover
+           over the end of the counters and hid the last of them. -->
       {#if entry.missing}
-        {@const blocked = pruneBlocked(entry)}
+      {@const blocked = pruneBlocked(entry)}
+      <span class="actions">
         <button
           type="button"
-          
           disabled={blocked !== null}
           title={blocked === null
             ? "Forget this registration; nothing on disk is touched"
@@ -102,15 +103,14 @@
         >
         <button
           type="button"
-          
           title="Locate the folder where it is now and point Git at it"
           onclick={(event) => {
             event.stopPropagation();
             onrepair(entry);
           }}>Repair</button
         >
-      {/if}
       </span>
+      {/if}
     </div>
   {/each}
 
