@@ -9,6 +9,7 @@ import {
   type ErrorEntry,
 } from "$lib/ipc";
 import { entryOf, pushEntry } from "$lib/error-window";
+import { credentialTrouble } from "$lib/credentials";
 import { untrack } from "svelte";
 
 /** A warning younger than this is not cleared by a conflict list that is still the one read
@@ -38,6 +39,8 @@ class ErrorWindowStore {
   #born = new Map<number, number>();
   /** A burst of failures opens the window once: a call already on its way covers them. */
   #opening: Promise<void> | null = null;
+  /** A closed sign-in window is the user's cancel, not a failure: told neutrally elsewhere. */
+  onSignInCanceled: ((operation: string, repo: string) => void) | null = null;
 
   /** Failed commands still waiting: the footer's `Error` burns while there are any. */
   get errorCount(): number {
@@ -80,6 +83,10 @@ class ErrorWindowStore {
     this.#loading.add(run.id);
     const record = await commandOutcome(run.id).catch(() => null);
     this.#loading.delete(run.id);
+    if (record && credentialTrouble(`${record.stderr}\n${record.stdout}`) === "canceled") {
+      this.onSignInCanceled?.(record.operation || run.operation, run.repo);
+      return;
+    }
     const entry = entryOf({
       command: "",
       stoppedOnConflicts: false,

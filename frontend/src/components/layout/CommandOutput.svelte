@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { NO_PROMPT_ADVICE, credentialTrouble } from "$lib/credentials";
   import VirtualList from "$components/common/VirtualList.svelte";
   import { CopyFeedback } from "$lib/copy-feedback.svelte";
   import { splitLinks } from "$lib/links";
@@ -47,6 +48,8 @@
   const WRAP_MAX = 5_000;
 
   const lines = $derived(logLines(entry.stdout, entry.stderr));
+  /** Above the raw output, never instead of it: what to do when no credentials could be asked for. */
+  const noPrompt = $derived(credentialTrouble(`${entry.stderr}\n${entry.stdout}`) === "noPrompt");
   const failed = $derived(accent === undefined ? entry.severity === "failure" : !accent);
   const heading = $derived(
     given ??
@@ -233,6 +236,10 @@
         <dd class="tabular">{new Date(entry.startedAtMs).toLocaleString()}</dd>
       </dl>
 
+      {#if noPrompt}
+        <p class="advice" role="note">{NO_PROMPT_ADVICE}</p>
+      {/if}
+
       {#if finding}
         <div class="find">
           <input
@@ -319,6 +326,16 @@
 {/if}
 
 <style>
+  .advice {
+    margin: 0 0 var(--sp-4);
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--badge-warning-bg);
+    color: var(--badge-warning-fg);
+    border-radius: var(--r-sm);
+    font-size: var(--fs-dense);
+    user-select: text;
+  }
+
   .window {
     position: fixed;
     z-index: 30;

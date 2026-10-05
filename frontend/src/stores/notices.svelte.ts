@@ -56,6 +56,12 @@ class NoticeStore {
     });
   }
 
+  /** Set once: the Errors window hands a canceled sign-in back as a neutral notice. */
+  constructor() {
+    errorWindow.onSignInCanceled = (operation) =>
+      this.inform(`${operation || "The operation"} canceled`, "Sign-in was canceled; nothing was sent or fetched.");
+  }
+
   /** How an operation ended, behind every error and warning; shown when nothing else is. */
   inform(title: string, body: string): void {
     untrack(() => {
