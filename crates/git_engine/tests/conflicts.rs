@@ -136,6 +136,21 @@ fn writing_a_hand_edited_resolution_stages_exactly_that_text() {
 }
 
 #[test]
+fn saving_a_resolution_writes_the_file_and_leaves_it_conflicted() {
+    let (f, path) = three_sided();
+    let repo = open(&f);
+
+    repo.save_conflict_text(&path, "half done\nkeep\n", None)
+        .unwrap();
+
+    assert_eq!(
+        std::fs::read_to_string(f.path().join(&path)).unwrap(),
+        "half done\nkeep\n"
+    );
+    assert_eq!(repo.conflicted_paths().unwrap(), [path]);
+}
+
+#[test]
 fn resolving_a_path_that_is_not_conflicted_is_refused() {
     let f = test_fixtures::linear(2).unwrap();
 

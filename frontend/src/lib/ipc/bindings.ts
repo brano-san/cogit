@@ -264,6 +264,12 @@ export const commands = {
 	ours: string | null,
 	theirs: string | null,
 } | null) => typedError<null, GitError>(__TAURI_INVOKE("resolve_conflict_text", { repo, path, text, stages })),
+	/**  Writes the working file and leaves the conflict in the index: Mark Resolved stages it. */
+	saveConflictText: (repo: RepoId, path: string, text: string, stages: {
+	base: string | null,
+	ours: string | null,
+	theirs: string | null,
+} | null) => typedError<null, GitError>(__TAURI_INVOKE("save_conflict_text", { repo, path, text, stages })),
 	findObject: (repo: RepoId, query: string, limit: number) => typedError<Found[], GitError>(__TAURI_INVOKE("find_object", { repo, query, limit })),
 	renameBranch: (repo: RepoId, from: string, to: string, force: boolean) => typedError<null, GitError>(__TAURI_INVOKE("rename_branch", { repo, from, to, force })),
 	branchReflog: (repo: RepoId, branch: string) => typedError<ReflogEntry[], GitError>(__TAURI_INVOKE("branch_reflog", { repo, branch })),

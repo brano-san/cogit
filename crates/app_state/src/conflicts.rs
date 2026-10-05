@@ -75,6 +75,20 @@ impl AppState {
         self.record_what_was_done(repo, &handle, format!("Resolve {path}"), path, kept, done)
     }
 
+    /// The solver's Save: the working file only, the conflict stays (Mark Resolved stages it).
+    pub fn save_conflict_text(
+        &self,
+        repo: RepoId,
+        path: &str,
+        text: &str,
+        expected: Option<&git_engine::ConflictStages>,
+    ) -> Result<(), git_engine::GitError> {
+        let handle = self.handle(repo)?;
+        let kept = keep_for_undo(&handle, path)?;
+        let done = handle.save_conflict_text(path, text, expected);
+        self.record_what_was_done(repo, &handle, format!("Save {path}"), path, kept, done)
+    }
+
     /// A step after the first change can fail (a smudge filter, a file held open): the
     /// error is returned, but a conflict already settled in the index, or a working file
     /// already rewritten, still gets its entry, or nothing could bring it back.

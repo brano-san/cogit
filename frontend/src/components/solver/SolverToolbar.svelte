@@ -22,6 +22,10 @@
     ondelete: () => void;
     onexternal: () => void;
     onsave: () => void;
+    /** Stage the file as resolved, then close the window. */
+    onresolve: () => void;
+    /** The Result differs from the file on disk. */
+    dirty?: boolean;
     /** An external tool has the file: nothing here acts until it is done. */
     locked: boolean;
     saving: boolean;
@@ -44,6 +48,8 @@
     ondelete,
     onexternal,
     onsave,
+    onresolve,
+    dirty = false,
     locked,
     saving,
   }: Props = $props();
@@ -109,13 +115,22 @@
   {/if}
   <span class="grow"></span>
   <button type="button" class="btn sm" disabled={locked} title="Run the merge tool set in Preferences or in the Git config on this file" onclick={onexternal}>Open in external tool</button>
+  {#if merged}
+    <button
+      type="button"
+      class="btn sm"
+      disabled={locked || saving || !dirty}
+      title="Write the Result to the working file; it stays conflicted until Mark Resolved (Ctrl+S)"
+      onclick={onsave}>Save</button
+    >
+  {/if}
   {#if merged || deleted}
     <button
       type="button"
       class="btn sm primary"
       disabled={locked || saving}
-      title="Write the Result and stage the file (Ctrl+S)"
-      onclick={onsave}>Save</button
+      title="Write the Result, stage the file as resolved and close"
+      onclick={onresolve}>Mark Resolved</button
     >
   {/if}
 </div>

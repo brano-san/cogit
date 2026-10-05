@@ -680,6 +680,11 @@ export async function resolveConflictText(
   return unwrap(await commands.resolveConflictText(repo, path, text, stages));
 }
 
+/** The solver's Save: the working file only; the conflict stays until Mark Resolved. */
+export async function saveConflictText(repo: RepoId, path: string, text: string, stages: ConflictStages | null = null) {
+  return unwrap(await commands.saveConflictText(repo, path, text, stages));
+}
+
 export async function imageSides(repo: RepoId, spec: DiffSpec, path: string) {
   return unwrap(await commands.imageSides(repo, spec, path));
 }

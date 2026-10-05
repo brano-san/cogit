@@ -254,6 +254,43 @@ impl RepoHandle {
         text: &str,
         expected: Option<&ConflictStages>,
     ) -> Result<()> {
+        let blob = self.conflict_blob(path, text, expected)?;
+        let mode = self.conflict_mode(path)?;
+        self.run_git_literal(&[
+            "update-index",
+            "--cacheinfo",
+            &format!("{mode},{blob},{path}"),
+        ])?;
+        self.run_git_literal(&["checkout-index", "-f", "-u", "--", path])
+            .map(drop)
+    }
+
+    /// The solver's Save: the working file gets the text, through the same filters a
+    /// checkout applies, and the conflict stays in the index until Mark Resolved.
+    pub fn save_conflict_text(
+        &self,
+        path: &str,
+        text: &str,
+        expected: Option<&ConflictStages>,
+    ) -> Result<()> {
+        let blob = self.conflict_blob(path, text, expected)?;
+        let bytes = self.run_git_bytes_literal(&[
+            "cat-file",
+            "--filters",
+            &format!("--path={path}"),
+            &blob,
+        ])?;
+        std::fs::write(self.root().join(path), bytes)?;
+        Ok(())
+    }
+
+    /// The text as a blob of the repository's form, after the checks both ways of writing it need.
+    fn conflict_blob(
+        &self,
+        path: &str,
+        text: &str,
+        expected: Option<&ConflictStages>,
+    ) -> Result<String> {
         self.check_stages(path, expected)?;
         let sides = self.conflict_sides(path)?;
         if sides.kind != EntryKind::Regular {
@@ -283,14 +320,7 @@ impl RepoHandle {
             &["hash-object", "-w", "--no-filters", "--stdin"],
             shaped_like(text, like).as_bytes(),
         )?;
-        let mode = self.conflict_mode(path)?;
-        self.run_git_literal(&[
-            "update-index",
-            "--cacheinfo",
-            &format!("{mode},{},{path}", blob.stdout.trim()),
-        ])?;
-        self.run_git_literal(&["checkout-index", "-f", "-u", "--", path])
-            .map(drop)
+        Ok(blob.stdout.trim().to_owned())
     }
 
     /// The mode of the first side that has an entry, as git prints it (`100755`).

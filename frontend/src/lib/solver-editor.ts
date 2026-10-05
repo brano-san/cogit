@@ -9,6 +9,7 @@ import {
   StateField,
   type Extension,
   type Range,
+  type Text,
 } from "@codemirror/state";
 import {
   Decoration,
@@ -364,6 +365,8 @@ export class SolverEditors {
   #expected: Record<PaneName, number | null> = { ours: null, result: null, theirs: null };
   readonly #onchange: () => void;
   #destroyed = false;
+  /** The Result as last written: dirty is a difference from it, not an undo depth. */
+  #saved: Text | null = null;
 
   constructor(hosts: Hosts, docs: SolverDocs, options: EditorOptions, onchange: () => void) {
     this.#docs = docs;
@@ -388,6 +391,7 @@ export class SolverEditors {
       theirs: make("theirs", hosts.theirs, docs.theirsText, sideExtensions("Theirs")),
       result: make("result", hosts.result, docs.resultText, resultExtensions(docs)),
     };
+    this.#saved = this.views.result.state.doc;
     this.#snapshot = this.#compute();
     for (const name of ["ours", "result", "theirs"] as const) {
       this.views[name].scrollDOM.addEventListener("scroll", () => this.#scrolled(name));
@@ -455,7 +459,7 @@ export class SolverEditors {
         const block = blocks[at];
         return block ? visibleActions(hunk, blockLines(state, block)) : { ours: false, theirs: false };
       }),
-      dirty: undoDepth(state) > 0,
+      dirty: this.#saved === null ? undoDepth(state) > 0 : !state.doc.eq(this.#saved),
       currentId: this.#current,
     };
   }
@@ -652,6 +656,13 @@ export class SolverEditors {
       start: rows[at]?.start ?? 0,
       count: rows[at]?.count ?? 0,
     }));
+  }
+
+  /** Save wrote the Result: what is on screen is what the file holds. */
+  markSaved(): void {
+    this.#saved = this.views.result.state.doc;
+    this.#snapshot = this.#compute();
+    this.#onchange();
   }
 
   focusResult(): void {

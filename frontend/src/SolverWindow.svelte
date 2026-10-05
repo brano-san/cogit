@@ -19,6 +19,7 @@
     popupContextMenu,
     resolveConflict,
     resolveConflictText,
+    saveConflictText,
     solverData,
     type MergeToolFinished,
     type SolverData,
@@ -276,7 +277,36 @@
     await closeThisWindow();
   }
 
-  async function save() {
+  /** The Result as the file should hold it: undecided hunks as conflict markers. */
+  function textToWrite(): string {
+    if (!editors || !docs) return "";
+    const left = snapshot?.unresolved.length ?? 0;
+    return left > 0
+      ? composeSave(textToLines(editors.resultText), editors.spans(), docs.hunks, labels(), editors.decided())
+      : editors.resultText;
+  }
+
+  /** Ctrl+S: the working file gets the Result and the window stays; nothing is staged, so
+      the file is still conflicted until Mark Resolved. True when it was written. */
+  async function save(): Promise<boolean> {
+    if (!editors || !request || !docs || saving || toolRunning) return false;
+    const { repo, path } = request;
+    saving = true;
+    saveFailed = null;
+    try {
+      await saveConflictText(repo, path, textToWrite(), data?.stages ?? null);
+      editors.markSaved();
+      note = "Saved. The file stays conflicted until you Mark Resolved.";
+      return true;
+    } catch (err) {
+      saveFailed = err instanceof Error ? err.message : String(err);
+      return false;
+    } finally {
+      saving = false;
+    }
+  }
+
+  async function markResolved() {
     if (!editors || !request || !docs || saving || toolRunning) return;
     const { repo, path } = request;
     const stages = data?.stages;
@@ -415,7 +445,7 @@
     closing = false;
     closeAnswer = null;
     const after = afterCloseChoice(choice);
-    if (after.save) void save();
+    if (after.save) void save().then((written) => written && closeThisWindow());
     return after.close;
   }
 
@@ -522,6 +552,8 @@
         ondelete={() => void deleteFile()}
         onexternal={() => void runExternal()}
         onsave={() => void save()}
+        onresolve={() => void markResolved()}
+        dirty={snapshot?.dirty ?? false}
         locked={toolRunning}
         {saving}
       />
@@ -569,7 +601,9 @@
         </div>
 
         <section class="pane result" aria-label="Result">
-          <header title="Working Tree"><span class="truncate">{titleOf("result")}</span></header>
+          <header title="Working Tree"
+            ><span class="truncate">{titleOf("result")}</span>{#if snapshot?.dirty}<span class="dirty" title="Unsaved edits">&nbsp;●</span>{/if}</header
+          >
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div class="host" bind:this={resultEl} oncontextmenu={(e) => void oncontext(e, "result")}>
             {#each belowButtons as button (button.id)}
@@ -661,6 +695,10 @@
     color: var(--status-danger);
     user-select: text;
     white-space: pre-wrap;
+  }
+
+  .dirty {
+    color: var(--status-modify);
   }
 
   .banner {

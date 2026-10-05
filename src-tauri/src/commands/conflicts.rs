@@ -68,6 +68,27 @@ pub async fn resolve_conflict_text(
     .await
 }
 
+/// Writes the working file and leaves the conflict in the index: Mark Resolved stages it.
+#[tauri::command]
+#[specta::specta]
+pub async fn save_conflict_text(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    path: String,
+    text: String,
+    stages: Option<git_engine::ConflictStages>,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Merge,
+        "save_conflict_text",
+        move || app_state.save_conflict_text(repo, &path, &text, stages.as_ref()),
+    )
+    .await
+}
+
 /// The Conflict Solver for one file: a window of its own, or the one already open for it.
 /// `external_tool` has it start the merge tool as soon as it is up.
 #[tauri::command]
