@@ -11,7 +11,7 @@ mod stub;
 #[cfg(not(windows))]
 use stub as platform;
 
-pub use platform::register_app_id;
+pub use platform::{register_app_id, register_identity};
 
 /// What a click on the notification hands back to the page.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]

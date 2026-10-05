@@ -507,6 +507,7 @@ pub fn run() -> anyhow::Result<()> {
                 None => (app.path().app_log_dir()?, app.path().app_config_dir()?),
             };
             let (guard, log_path) = logging::init(&log_dir, &config_dir)?;
+            notify::register_identity(&config_dir);
             logging::install_panic_hook(&log_dir);
             app_state::legacy_dirs::log_outcomes(&migrated);
             webview_memory::spawn(std::process::id());

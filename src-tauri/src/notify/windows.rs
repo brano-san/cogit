@@ -1,6 +1,7 @@
 //! Windows: a toast through WinRT, under the AppUserModelID both installers put on the Start
 //! menu shortcut (the bundle `identifier`). Without that ID a toast shows under a wrong name or
-//! not at all; the portable build has no shortcut, so the ID is registered under HKCU too.
+//! not at all; the portable build has no shortcut, so the ID, its name and its icon are
+//! registered under HKCU for every build (`register_identity`).
 
 use parking_lot::Mutex;
 use std::sync::OnceLock;
@@ -25,14 +26,33 @@ pub fn register_app_id(id: &str) {
     if let Err(err) = unsafe { SetCurrentProcessExplicitAppUserModelID(&HSTRING::from(id)) } {
         tracing::warn!(error = %err, "cannot set the AppUserModelID");
     }
-    let key = format!(r"Software\Classes\AppUserModelId\{id}");
-    let written = windows_registry::CURRENT_USER
-        .create(&key)
-        .and_then(|key| key.set_string("DisplayName", "Cogit"));
+}
+
+/// The name and icon a toast shows. An unpackaged app has them from this registration, not
+/// from the executable: without `IconUri` the toast drew a generic tile. The icon is written
+/// next to the config, so the installed and the portable build both have a file to point at.
+pub fn register_identity(config_dir: &std::path::Path) {
+    let Some(id) = APP_ID.get() else {
+        return;
+    };
+    let icon = config_dir.join("notification-icon.png");
+    let written = std::fs::create_dir_all(config_dir)
+        .and_then(|()| std::fs::write(&icon, ICON_PNG))
+        .map_err(|err| err.to_string())
+        .and_then(|()| {
+            let key = windows_registry::CURRENT_USER
+                .create(format!(r"Software\Classes\AppUserModelId\{id}"))
+                .map_err(|err| err.to_string())?;
+            key.set_string("DisplayName", "Cogit")
+                .and_then(|()| key.set_string("IconUri", icon.to_string_lossy().as_ref()))
+                .map_err(|err| err.to_string())
+        });
     if let Err(err) = written {
-        tracing::warn!(error = %err, "cannot register the AppUserModelID for notifications");
+        tracing::warn!(error = %err, "cannot register the name and icon for notifications");
     }
 }
+
+const ICON_PNG: &[u8] = include_bytes!("../../icons/128x128.png");
 
 fn escape(text: &str) -> String {
     text.replace('&', "&amp;")

@@ -2,6 +2,8 @@
 
 pub fn register_app_id(_id: &str) {}
 
+pub fn register_identity(_config_dir: &std::path::Path) {}
+
 pub fn show(
     _app: &tauri::AppHandle,
     _title: &str,
