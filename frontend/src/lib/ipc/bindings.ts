@@ -134,6 +134,11 @@ export const commands = {
 	openErrorsWindow: () => typedError<null, GitError>(__TAURI_INVOKE("open_errors_window")),
 	/**  `Show conflicts` in the Errors window: the main window comes forward. */
 	focusMainWindow: () => typedError<null, GitError>(__TAURI_INVOKE("focus_main_window")),
+	/**
+	 *  The page asks once an operation ended in the background; a click brings the window back
+	 *  and answers with `NotificationClicked`.
+	 */
+	showNotification: (title: string, body: string, repo: number | null, failed: boolean) => typedError<null, GitError>(__TAURI_INVOKE("show_notification", { title, body, repo, failed })),
 	commandProblems: () => __TAURI_INVOKE<number>("command_problems"),
 	clearCommandLog: () => __TAURI_INVOKE<void>("clear_command_log"),
 	safetyLog: () => __TAURI_INVOKE<SafetyEntry[]>("safety_log"),
@@ -600,6 +605,7 @@ export const events = {
 	menuCommand: makeEvent<MenuCommand>("menu-command"),
 	mergeResolved: makeEvent<MergeResolved>("merge-resolved"),
 	mergeToolFinished: makeEvent<MergeToolFinished>("merge-tool-finished"),
+	notificationClicked: makeEvent<NotificationClicked>("notification-clicked"),
 	operationChanged: makeEvent<OperationChanged>("operation-changed"),
 	repoChanged: makeEvent<RepoChanged>("repo-changed"),
 	revealCommit: makeEvent<RevealCommit>("reveal-commit"),
@@ -1699,6 +1705,12 @@ export type NotesFetch = {
 	remote: string,
 	/**  `refs/notes/<name>` names, as `git notes --ref` takes them without the prefix. */
 	diverged: string[],
+};
+
+/**  What a click on the notification hands back to the page. */
+export type NotificationClicked = {
+	repo: RepoId | null,
+	failed: boolean,
 };
 
 /**

@@ -717,6 +717,7 @@ dependencies = [
  "webview2-com",
  "windows",
  "windows-core",
+ "windows-registry",
 ]
 
 [[package]]

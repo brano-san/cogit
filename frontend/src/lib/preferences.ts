@@ -98,6 +98,31 @@ export const CATEGORIES: Category[] = [
     parent: "ui",
     groups: [
       {
+        title: "System notifications",
+        fields: [
+          {
+            key: "notificationsSystem",
+            label: "Show system notifications when operations finish",
+            hint: "Only while another window has focus, and only for operations that took more than 3 seconds: clone, fetch, pull, push, merge, rebase and the like. A click brings Cogit back with that repository.",
+            keywords: ["notification", "toast", "system", "finished", "done", "background", "alert"],
+          },
+          {
+            key: "notificationsSystemSuccess",
+            label: "When an operation succeeds",
+            hint: "The notification says what happened, \"Pushed 3 commits to origin/main\".",
+            keywords: ["notification", "success", "toast"],
+            dependsOn: "notificationsSystem",
+          },
+          {
+            key: "notificationsSystemFailure",
+            label: "When an operation fails or stops on conflicts",
+            hint: "A click opens the Errors window with the full git output.",
+            keywords: ["notification", "failure", "error", "conflict", "toast"],
+            dependsOn: "notificationsSystem",
+          },
+        ],
+      },
+      {
         title: "Taskbar",
         fields: [
           {

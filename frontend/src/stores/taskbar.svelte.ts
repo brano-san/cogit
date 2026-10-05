@@ -1,6 +1,7 @@
 import { setTaskbarState, type Flash, type TaskbarSignals } from "$lib/ipc";
 import { signalsFor } from "$lib/taskbar";
 import { network } from "$stores/network.svelte";
+import { operationNotices } from "$stores/op-notify.svelte";
 import { errorWindow } from "$stores/error-window.svelte";
 import { notices } from "$stores/notices.svelte";
 import { settings } from "$stores/settings.svelte";
@@ -98,7 +99,7 @@ class TaskbarStore {
         const signals = signalsFor({
           enabled: settings.current.notificationsTaskbar,
           flashEnabled: settings.current.notificationsTaskbarFlash,
-          running: network.running !== null,
+          running: network.running !== null || operationNotices.busy > 0,
           line: network.progress,
           errors: queue.filter((notice) => notice.severity === "error").length + errorWindow.errorCount,
           warnings:

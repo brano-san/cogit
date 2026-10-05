@@ -33,6 +33,7 @@ import type {
   CommandNotice,
   TaskbarSignals,
   RevealCommit,
+  NotificationClicked,
   OperationChanged,
   PatchRequest,
   RebaseOptions,
@@ -151,6 +152,7 @@ export type {
   OperationChanged,
   Origin,
   RevealCommit,
+  NotificationClicked,
   Overlap,
   OverlapRow,
   PresetStatus,
@@ -511,6 +513,11 @@ export async function openErrorsWindow() {
 
 export async function focusMainWindow() {
   return unwrap(await commands.focusMainWindow());
+}
+
+/** A system notification; a click focuses the main window and fires `notificationClicked`. */
+export async function showNotification(title: string, body: string, repo: RepoId | null, failed: boolean) {
+  return unwrap(await commands.showNotification(title, body, repo, failed));
 }
 
 /** A page that is not the main one reports a failed command; the main window queues it. */
@@ -1101,6 +1108,11 @@ export async function revealCommit(repo: RepoId, oid: string) {
 
 export async function onRevealCommit(handler: (event: RevealCommit) => void) {
   return await counted(events.revealCommit.listen((event) => handler(event.payload)));
+}
+
+/** The user clicked a system notification this window showed. */
+export async function onNotificationClicked(handler: (event: NotificationClicked) => void) {
+  return await counted(events.notificationClicked.listen((event) => handler(event.payload)));
 }
 
 /** The three sides already merged into regions, for the four-panel merge view. */

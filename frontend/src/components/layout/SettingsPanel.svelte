@@ -564,6 +564,18 @@
               <div class="row check nested">
                 <Checkbox checked={draft.notificationsTaskbarFlash} disabled={disabledBy(draft, field.dependsOn)} onchange={(checked) => set("notificationsTaskbarFlash", checked)} label={field.label} />
               </div>
+            {:else if field.key === "notificationsSystem"}
+              <div class="row check">
+                <Checkbox checked={draft.notificationsSystem} onchange={(checked) => set("notificationsSystem", checked)} label={field.label} />
+              </div>
+            {:else if field.key === "notificationsSystemSuccess"}
+              <div class="row check nested">
+                <Checkbox checked={draft.notificationsSystemSuccess} disabled={disabledBy(draft, field.dependsOn)} onchange={(checked) => set("notificationsSystemSuccess", checked)} label={field.label} />
+              </div>
+            {:else if field.key === "notificationsSystemFailure"}
+              <div class="row check nested">
+                <Checkbox checked={draft.notificationsSystemFailure} disabled={disabledBy(draft, field.dependsOn)} onchange={(checked) => set("notificationsSystemFailure", checked)} label={field.label} />
+              </div>
             {:else if field.key === "autoUpdate"}
               <div class="row check">
                 <Checkbox checked={draft.autoUpdate} onchange={(checked) => set("autoUpdate", checked)} label={field.label} />

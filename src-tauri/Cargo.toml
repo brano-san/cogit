@@ -58,6 +58,7 @@ gtk.workspace = true
 webview2-com.workspace = true
 windows.workspace = true
 windows-core.workspace = true
+windows-registry.workspace = true
 
 [features]
 # The portable build: the data folder beside the binary, no updater, no legacy migration.

@@ -10,7 +10,9 @@ import {
   onWatchLimited,
   onRevealCommit,
   onSessionEnding,
+  onNotificationClicked,
   type CommandNotice,
+  type NotificationClicked,
   type MergeResolved,
   type OperationChanged,
   type RepoChanged,
@@ -36,6 +38,7 @@ export interface Handlers {
   /** The system is ending the session and waits because operations run. */
   sessionEnding: () => void;
   dragDrop: (event: DragDropEvent) => void;
+  notificationClicked: (event: NotificationClicked) => void;
 }
 
 type Stop = () => void;
@@ -56,6 +59,7 @@ export function connect(handlers: Handlers): Stop {
     onRevealCommit(handlers.revealCommit),
     onCommandRecorded(handlers.commandRecorded),
     onSessionEnding(handlers.sessionEnding),
+    onNotificationClicked(handlers.notificationClicked),
     counted(
       getCurrentWindow().onCloseRequested(async (event) => {
         if (!(await handlers.closeRequested())) event.preventDefault();

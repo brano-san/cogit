@@ -70,6 +70,12 @@ export interface Settings {
   notificationsTaskbar: boolean;
   /** Blinking the taskbar button while the window is in the background; needs `notificationsTaskbar`. */
   notificationsTaskbarFlash: boolean;
+  /** A system notification when an operation of more than a few seconds ends in the background. */
+  notificationsSystem: boolean;
+  /** Needs `notificationsSystem`. */
+  notificationsSystemSuccess: boolean;
+  /** Failures and conflicts; needs `notificationsSystem`. */
+  notificationsSystemFailure: boolean;
   /** Branches ▸ Other Refs also lists ORIG_HEAD, MERGE_HEAD and the other pseudo-refs. */
   refsShowPseudoRefs: boolean;
   /** The visible columns, left to right; a hidden one is simply absent. */
@@ -140,6 +146,9 @@ export const DEFAULT_SETTINGS: Settings = {
   confirmLocalCheckout: true,
   notificationsTaskbar: true,
   notificationsTaskbarFlash: true,
+  notificationsSystem: true,
+  notificationsSystemSuccess: true,
+  notificationsSystemFailure: true,
   refsShowPseudoRefs: false,
   graphColumns: ["author", "avatar", "time", "hash"],
   graphTimeFormat: "dateTime",

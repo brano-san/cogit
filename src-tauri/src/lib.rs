@@ -12,6 +12,7 @@ mod key_capture;
 mod logging;
 mod menu;
 mod native_theme;
+mod notify;
 mod portable_mode;
 #[cfg_attr(not(feature = "portable"), allow(dead_code))]
 mod portable_window_state;
@@ -127,7 +128,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             SettingsChanged,
             OpenModule,
             TreeChanged,
-            PushHead
+            PushHead,
+            notify::NotificationClicked
         ])
         .commands(collect_commands![
             commands::app_info,
@@ -166,6 +168,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::close_this_window,
             commands::open_errors_window,
             commands::focus_main_window,
+            commands::show_notification,
             commands::command_problems,
             commands::clear_command_log,
             commands::safety_log,
@@ -464,6 +467,7 @@ pub fn run() -> anyhow::Result<()> {
         builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
     }
     let mut context = tauri::generate_context!();
+    notify::register_app_id(&context.config().identifier);
     if portable.is_some() {
         portable_mode::hold_config_windows(&mut context);
     }

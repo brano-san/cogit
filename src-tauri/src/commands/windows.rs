@@ -118,6 +118,24 @@ pub async fn open_errors_window(app: tauri::AppHandle) -> Result<(), GitError> {
     .await
 }
 
+/// The page asks once an operation ended in the background; a click brings the window back
+/// and answers with `NotificationClicked`.
+#[tauri::command]
+#[specta::specta]
+pub async fn show_notification(
+    app: tauri::AppHandle,
+    title: String,
+    body: String,
+    repo: Option<app_state::RepoId>,
+    failed: bool,
+) -> Result<(), GitError> {
+    let clicked = crate::notify::NotificationClicked { repo, failed };
+    tauri::async_runtime::spawn_blocking(move || crate::notify::show(&app, &title, &body, clicked))
+        .await
+        .map_err(|err| GitError::Internal(format!("notification task failed: {err}")))?
+        .map_err(|err| GitError::Internal(format!("cannot show a notification: {err}")))
+}
+
 /// `Show conflicts` in the Errors window: the main window comes forward.
 #[tauri::command]
 #[specta::specta]

@@ -216,6 +216,7 @@
     type Branch,
     type RepoId,
     type WorkingState,
+    openErrorsWindow,
   } from "$lib/ipc";
   import { openBlame } from "$lib/blame-window";
   import { ShownRepository } from "$lib/shown-repository";
@@ -233,6 +234,7 @@
   import { hooksNote, pendingHooks } from "$lib/pending-hooks";
   import { output } from "$stores/output.svelte";
   import { taskbar } from "$stores/taskbar.svelte";
+  import { operationNotices } from "$stores/op-notify.svelte";
   import { network } from "$stores/network.svelte";
   import { recovery } from "$stores/recovery.svelte";
   import { safety } from "$stores/safety.svelte";
@@ -3248,6 +3250,13 @@ ${event.error}`,
 
   /** A folder dropped on the window is a repository to open. Anything that is not one is
       refused by the backend and reported like any other failed open. */
+  /** The window is already in front: show the repository, and the Errors window on a failure. */
+  async function onNotificationClicked(event: import("$lib/ipc").NotificationClicked) {
+    const open = event.repo === null ? undefined : repository.openRepos.find((each) => each.repo.valueOf() === event.repo?.valueOf());
+    if (open && repository.current?.root !== open.root) await activate(open.root);
+    if (event.failed) await openErrorsWindow().catch((err) => errors.report(err, "Could not open the Errors window"));
+  }
+
   function onDragDrop(event: import("@tauri-apps/api/webview").DragDropEvent) {
     if (event.type === "enter") dropping = true;
     else if (event.type === "leave") dropping = false;
@@ -3310,6 +3319,11 @@ ${event.error}`,
         running = applyOperation(running, event);
         networkOps = trackCancellable(networkOps, event);
         exitFlow.observe(event);
+        operationNotices.observe(
+          event,
+          (id) => repository.openRepos.find((open) => open.repo.valueOf() === id.valueOf())?.name ?? null,
+          () => taskbar.focused,
+        );
       },
       avatarReady: (email) => void avatars.refresh(email),
       mergeResolved: (event) =>
@@ -3328,6 +3342,7 @@ ${event.error}`,
       closeRequested: mayClose,
       sessionEnding: () => void onSessionEnding(),
       dragDrop: onDragDrop,
+      notificationClicked: (event) => void onNotificationClicked(event),
     }),
   );
 
