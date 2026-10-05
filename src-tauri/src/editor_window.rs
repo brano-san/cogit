@@ -2,6 +2,7 @@
 //! One window per file: Edit on a file already open brings its window forward.
 
 use git_engine::GitError;
+use parking_lot::Mutex;
 use tauri::Manager as _;
 
 use crate::child_window::{self, Shape};
@@ -59,22 +60,48 @@ pub fn is_window_for(open: &tauri::Url, repo: u32, path: &str) -> bool {
     same_repo && same_path
 }
 
+/// Which window edits which file, by label. Its address alone is not enough: a window just
+/// built has none yet, and a second Edit right after the first opened a second window.
+static OPEN: Mutex<Vec<(u32, String, String)>> = Mutex::new(Vec::new());
+
 /// Brings forward the window already editing this file, or opens one on the main
 /// window's monitor. Blocks while the window is built, so never call it on the main thread.
 pub fn reveal_or_open(app: &tauri::AppHandle, repo: u32, path: &str) -> Result<(), GitError> {
-    for (label, window) in app.webview_windows() {
-        let shown = window
-            .url()
-            .is_ok_and(|url| is_window_for(&url, repo, path));
-        if label.starts_with("editor-") && shown {
-            return window
-                .unminimize()
-                .and_then(|()| window.set_focus())
-                .map_err(|err| GitError::Internal(format!("cannot focus the editor: {err}")));
-        }
+    let mut open = OPEN.lock();
+    open.retain(|(_, _, label)| app.get_webview_window(label).is_some());
+    let known = open
+        .iter()
+        .find(|(r, p, _)| *r == repo && p == path)
+        .and_then(|(_, _, label)| app.get_webview_window(label));
+    let found = known.or_else(|| {
+        app.webview_windows()
+            .into_iter()
+            .find_map(|(label, window)| {
+                let shown = window
+                    .url()
+                    .is_ok_and(|url| is_window_for(&url, repo, path));
+                (label.starts_with("editor-") && shown).then_some(window)
+            })
+    });
+    if let Some(window) = found {
+        return window
+            .unminimize()
+            .and_then(|()| window.set_focus())
+            .map_err(|err| GitError::Internal(format!("cannot focus the editor: {err}")));
     }
     child_window::open(app, "editor", url(repo, path), title(path), SHAPE)
-        .map_err(|err| GitError::Internal(format!("cannot open the editor: {err}")))
+        .map_err(|err| GitError::Internal(format!("cannot open the editor: {err}")))?;
+    // The newest editor window is the one just built: labels count up (`editor-N`).
+    let newest = app
+        .webview_windows()
+        .into_keys()
+        .filter(|label| !open.iter().any(|(_, _, known)| known == label))
+        .filter_map(|label| Some((label.strip_prefix("editor-")?.parse::<u64>().ok()?, label)))
+        .max();
+    if let Some((_, label)) = newest {
+        open.push((repo, path.to_owned(), label));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
