@@ -43,7 +43,6 @@ impl RepoHandle {
 
     /// `git mv` when tracked, a move on disk otherwise; never over an existing file.
     pub fn move_path(&self, from: &str, to: &str) -> Result<()> {
-        let (from, to) = (from.trim_end_matches('/'), to.trim_end_matches('/'));
         if from == to {
             return Ok(());
         }
@@ -484,13 +483,7 @@ impl RepoHandle {
         }
 
         for path in paths {
-            let target = self.root().join(path.trim_end_matches('/'));
-            let result = if target.is_dir() {
-                std::fs::remove_dir_all(&target)
-            } else {
-                std::fs::remove_file(&target)
-            };
-            result?;
+            std::fs::remove_file(self.root().join(path))?;
         }
         Ok(())
     }

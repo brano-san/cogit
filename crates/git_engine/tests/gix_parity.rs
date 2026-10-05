@@ -502,30 +502,11 @@ mod unstaged {
         out
     }
 
-    /// The panel shows a folder of nothing but new files as one row, as `git status` does by
-    /// default; git's files under such a row fold into it. A row with no new file of git's
-    /// under it still differs. `-unormal` itself is no reference: it drops a folder that
-    /// took a deleted file's name.
+    /// The panel lists every new file on a row of its own, as `git status -uall` does.
     fn matches(f: &Fixture, count: usize) {
-        let ours = ours(f);
-        let folders: Vec<&str> = ours
-            .iter()
-            .filter_map(|entry| entry.strip_prefix("?\t"))
-            .filter(|path| path.ends_with('/'))
-            .collect();
-        let mut expected: Vec<String> = git(f)
-            .into_iter()
-            .map(|entry| {
-                let folder = entry
-                    .strip_prefix("?\t")
-                    .and_then(|path| folders.iter().find(|folder| path.starts_with(**folder)));
-                folder.map_or(entry.clone(), |folder| format!("?\t{folder}"))
-            })
-            .collect();
-        expected.sort();
-        expected.dedup();
+        let expected = git(f);
         assert_eq!(expected.len(), count, "{expected:#?}");
-        assert_eq!(ours, expected);
+        assert_eq!(ours(f), expected);
     }
 
     #[test]
@@ -536,7 +517,7 @@ mod unstaged {
         f.write_file("new/deeper/still/a.txt", "fresh\n").unwrap();
         f.write_file("new/b.txt", "fresh\n").unwrap();
 
-        matches(&f, 3);
+        matches(&f, 4);
     }
 
     #[test]
@@ -640,11 +621,11 @@ mod unstaged {
         matches(&f, 1);
     }
 
-    /// The four counters of `status()` from the same porcelain. A folder of new files is one
-    /// untracked entry, as in the list: one walk feeds both (R-316).
+    /// The four counters of `status()` from the same porcelain. Every new file counts, as in
+    /// the list: one walk feeds both (R-316).
     fn counters(f: &Fixture) -> (git_engine::RepoStatus, git_engine::RepoStatus) {
         let text = f
-            .git(&["status", "--porcelain=v2", "--untracked-files=normal", "-z"])
+            .git(&["status", "--porcelain=v2", "--untracked-files=all", "-z"])
             .unwrap();
         let mut git = git_engine::RepoStatus::default();
         let mut fields = text.split('\0').filter(|field| !field.is_empty());
@@ -685,7 +666,7 @@ mod unstaged {
             git_engine::RepoStatus {
                 staged: 2,
                 unstaged: 2,
-                untracked: 2,
+                untracked: 3,
                 conflicted: 0
             }
         );

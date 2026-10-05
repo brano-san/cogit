@@ -18,9 +18,8 @@
   import { tick } from "svelte";
   import Disclosure from "$components/common/Disclosure.svelte";
   import FileStateIcon from "$components/common/FileStateIcon.svelte";
-  import KindIcon from "$components/common/KindIcon.svelte";
   import VirtualList from "$components/common/VirtualList.svelte";
-  import { directoryOf, extensionOf, fileType, gridColumns, lfsLabel, TYPE_LABELS, type ColumnKey } from "$lib/file-columns";
+  import { directoryOf, extensionOf, gridColumns, lfsLabel, type ColumnKey } from "$lib/file-columns";
   import { fileState, sideOfRow, type StateSide } from "$lib/file-state";
   import { fileName, indexNote } from "$lib/files";
   import { copiedText } from "$lib/file-actions";
@@ -204,14 +203,10 @@
             }}
           >
             <span class="cell name">
-              {#if file.path.endsWith("/") && file.mode !== "submodule"}
-                <KindIcon kind="directory" />
-              {:else}
-                <FileStateIcon
-                  base={file.mode === "submodule" ? "repository" : "page"}
-                  state={fileState(file, sideOfRow(file.indexState, side)).icon}
-                />
-              {/if}
+              <FileStateIcon
+                base={file.mode === "submodule" ? "repository" : "page"}
+                state={fileState(file, sideOfRow(file.indexState, side)).icon}
+              />
               <span class="truncate shrink-last" title={absolutePath(file.path)}>{fileName(file.path)}</span>
               {#if file.oldPath}
                 <span class="from truncate shrink-first" title="from {file.oldPath}"
@@ -219,9 +214,6 @@
                 >
               {/if}
             </span>
-            {#if shows.has("type")}
-              <span class="cell type truncate">{TYPE_LABELS[fileType(file)]}</span>
-            {/if}
             {#if shows.has("extension")}
               <span class="cell truncate">{extensionOf(file.path)}</span>
             {/if}
@@ -438,8 +430,7 @@
     font-size: 10px;
   }
 
-  .dir,
-  .type {
+  .dir {
     color: var(--text-secondary);
     font-size: 11px;
   }

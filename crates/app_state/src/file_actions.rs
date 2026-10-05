@@ -22,13 +22,8 @@ impl AppState {
     ) -> Result<()> {
         let _quiet = self.quiet(repo);
         let root = self.root_of(repo)?;
-        let absolute: Vec<PathBuf> = paths
-            .iter()
-            .map(|path| root.join(path.trim_end_matches('/')))
-            .collect();
-        let recovery = if absolute.iter().any(|path| path.is_dir()) {
-            Recovery::None
-        } else {
+        let absolute: Vec<PathBuf> = paths.iter().map(|path| root.join(path)).collect();
+        let recovery = {
             let kept = self
                 .handle(repo)?
                 .keep_files(paths)

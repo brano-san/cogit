@@ -956,12 +956,6 @@
     <p class="message">Image ({diff.mime}) — {diff.oldSize} bytes → {diff.newSize} bytes.</p>
   {:else if diff.kind === "tooLarge"}
     <FileSummary reason={tooLargeReason(diff.limit)} old={diff.old} next={diff.new} />
-  {:else if diff.kind === "folder"}
-    <p class="message">
-      {diff.repository
-        ? "A repository nested inside this one, not a submodule: Git tracks none of its files. Add it as a submodule or ignore it."
-        : "An untracked folder: Git tracks none of its files yet. Stage it to add them all, or ignore it."}
-    </p>
   {:else if mode === "unified"}
     <div class="scroll" data-select-text="diff" bind:this={unifiedEl} onscroll={onunified} {onwheel}>
       <div class="rows" style:height="{model.unified.length * ROW_HEIGHT}px" style:--shift="{shift}px">

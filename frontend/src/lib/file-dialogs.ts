@@ -8,9 +8,8 @@ export function removeRows(paths: readonly string[]): RemoveRow[] {
   return [...new Set(paths)]
     .sort((a, b) => a.localeCompare(b))
     .map((path) => {
-      const bare = path.replace(/\/+$/, "");
-      const cut = bare.lastIndexOf("/");
-      return { path, name: bare.slice(cut + 1), directory: cut < 0 ? "" : bare.slice(0, cut) };
+      const cut = path.lastIndexOf("/");
+      return { path, name: path.slice(cut + 1), directory: cut < 0 ? "" : path.slice(0, cut) };
     });
 }
 

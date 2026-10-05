@@ -61,7 +61,7 @@ impl RepoHandle {
 
         let mut platform = self
             .status_platform()?
-            .untracked_files(UntrackedFiles::Collapsed);
+            .untracked_files(UntrackedFiles::Files);
         if skip_submodules {
             platform = platform.index_worktree_submodules(gix::status::Submodule::Given {
                 ignore: gix::submodule::config::Ignore::All,
@@ -71,7 +71,7 @@ impl RepoHandle {
         if view.ignored {
             platform = platform.index_worktree_options_mut(|options| {
                 if let Some(walk) = options.dirwalk_options.as_mut() {
-                    walk.set_emit_ignored(Some(gix::dir::walk::EmissionMode::CollapseDirectory));
+                    walk.set_emit_ignored(Some(gix::dir::walk::EmissionMode::Matching));
                 }
             });
         }
@@ -108,13 +108,9 @@ impl RepoHandle {
                         gix::dir::entry::Status::Ignored(_) if view.ignored => FileStatus::Ignored,
                         _ => continue,
                     };
-                    // A collapsed directory arrives without its trailing slash; the
-                    // UI has to tell "generated/" from a file called "generated".
-                    let mut path = found.rela_path.to_string();
-                    if found.disk_kind == Some(gix::dir::entry::Kind::Directory) {
-                        path.push('/');
-                    }
-                    files.unstaged.push(entry(path, status));
+                    files
+                        .unstaged
+                        .push(entry(found.rela_path.to_string(), status));
                 }
                 Item::IndexWorktree(_) => {}
             }

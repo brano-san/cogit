@@ -188,13 +188,6 @@ impl RepoHandle {
         }))
     }
 
-    /// A folder at `path` in the working tree, and whether it holds a repository of its own.
-    #[must_use]
-    pub fn folder_on_disk(&self, path: &str) -> Option<bool> {
-        let folder = self.root().join(path);
-        (!self.is_bare() && folder.is_dir()).then(|| folder.join(".git").exists())
-    }
-
     fn gitlink_in_index(&self, path: &str) -> Option<String> {
         let index = self.current_index().ok()?;
         let entry = index.entry_by_path(path.into())?;

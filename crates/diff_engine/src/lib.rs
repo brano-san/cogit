@@ -247,11 +247,6 @@ pub enum FileDiff {
     /// Nothing but whitespace changed, and the active option hides it. Told apart from
     /// `Unchanged` so the UI can say the diff is being filtered (T7.10).
     WhitespaceOnly,
-    /// A folder on disk Git tracks nothing in: one untracked entry, or a repository cloned
-    /// inside this one without being its submodule. A normal state, not a missing path.
-    Folder {
-        repository: bool,
-    },
     /// A gitlink: what changed is which commit the parent records, not any file. A
     /// submodule that was never checked out has nothing else to show, and that is a
     /// normal state of a repository rather than a broken one (doc/12-risks.md, R-139).

@@ -9,9 +9,7 @@ import {
   directoryOf,
   extensionOf,
   lfsLabel,
-  fileType,
   gridColumns,
-  isBinaryPath,
   mergeTable,
   nextSort,
   shownColumns,
@@ -24,29 +22,6 @@ function entry(path: string, status: FileEntry["status"] = "modified", mode: Fil
 }
 
 const paths = (files: readonly FileEntry[]) => files.map((file) => file.path);
-
-describe("the type of a row", () => {
-  it("names a submodule a repository, by its mode", () => {
-    expect(fileType(entry("import/lib", "modified", "submodule"))).toBe("repository");
-  });
-
-  it("knows a binary file by its extension, without reading it", () => {
-    expect(fileType(entry("assets/logo.PNG"))).toBe("binary");
-    expect(fileType(entry("build/app.exe"))).toBe("binary");
-    expect(fileType(entry("src/main.rs"))).toBe("file");
-    expect(fileType(entry("Makefile"))).toBe("file");
-  });
-
-  it("keeps a symbolic link and an untracked folder apart from files", () => {
-    expect(fileType(entry("latest", "modified", "symlink"))).toBe("symlink");
-    expect(fileType(entry("generated/", "untracked"))).toBe("directory");
-  });
-
-  it("does not take a dot folder for an extension", () => {
-    expect(isBinaryPath("cache.png/readme")).toBe(false);
-    expect(isBinaryPath(".png")).toBe(false);
-  });
-});
 
 describe("sorting the rows", () => {
   const files = [
@@ -81,19 +56,14 @@ describe("sorting the rows", () => {
     ]);
   });
 
-  it("groups by type, then by name", () => {
-    const mixed = [entry("b.png"), entry("a.txt"), entry("sub", "modified", "submodule"), entry("a.png")];
-    expect(paths(sortRows(mixed, { key: "type", descending: false }, false))).toEqual(["a.txt", "sub", "a.png", "b.png"]);
-  });
-
   it("keeps folders in path order in the tree and sorts inside each", () => {
     const sorted = sortRows(files, { key: "name", descending: true }, true);
     expect(paths(sorted)).toEqual(["beta.txt", "docs/alpha.md", "src/zeta.rs", "src/lib/alpha.rs"]);
   });
 
   // Shift+click ticks a range in the order of the list; the tree has to draw that order.
-  it("lists the rows in the order the tree draws them, an untracked folder included", () => {
-    const tree = [entry("b.txt"), entry("gen/", "untracked"), entry("a.txt"), entry("src/x.rs")];
+  it("lists the rows in the order the tree draws them", () => {
+    const tree = [entry("b.txt"), entry("gen/a.txt", "untracked"), entry("a.txt"), entry("src/x.rs")];
     const sorted = sortRows(tree, DEFAULT_SORT, true);
     const drawn = groupByDirectory(sorted, true).flatMap((row) => (row.kind === "file" ? [row.file.path] : []));
     expect(paths(sorted)).toEqual(drawn);
@@ -115,29 +85,27 @@ describe("a click on a column heading", () => {
 });
 
 describe("the path column", () => {
-  it("shows the folder a row is in, not an untracked folder itself", () => {
+  it("shows the folder a row is in", () => {
     expect(directoryOf("src/lib/a.ts")).toBe("src/lib/");
     expect(directoryOf("README.md")).toBe("");
-    expect(directoryOf("generated/")).toBe("");
-    expect(directoryOf("src/generated/")).toBe("src/");
   });
 });
 
 describe("the columns shown", () => {
-  it("shows all four by default, the name always", () => {
-    expect(shownColumns(DEFAULT_COLUMNS, false)).toEqual(["name", "type", "change", "path"]);
-    expect(shownColumns({ type: false, extension: false, change: false, lfs: false, path: false }, false)).toEqual(["name"]);
+  it("shows three by default, the name always", () => {
+    expect(shownColumns(DEFAULT_COLUMNS, false)).toEqual(["name", "change", "path"]);
+    expect(shownColumns({ extension: false, change: false, lfs: false, path: false }, false)).toEqual(["name"]);
   });
 
   it("leaves the path to the folder rows of the tree", () => {
-    expect(shownColumns(DEFAULT_COLUMNS, true)).toEqual(["name", "type", "change"]);
+    expect(shownColumns(DEFAULT_COLUMNS, true)).toEqual(["name", "change"]);
     expect(columnReason("path", true)).toMatch(/folder/);
     expect(columnReason("path", false)).toBeNull();
     expect(columnReason("name", false)).toMatch(/always/);
   });
 
   it("formats pixel widths for grid columns", () => {
-    expect(gridColumns(["name", "type", "change", "path"])).toBe("180px 65px 130px 260px");
+    expect(gridColumns(["name", "change", "path"])).toBe("180px 130px 260px");
     expect(gridColumns(["name", "change"], { name: 200, change: 80 })).toBe("200px 80px");
   });
 });
@@ -145,8 +113,8 @@ describe("the columns shown", () => {
 describe("the stored table settings", () => {
   it("falls back to the defaults for anything missing or malformed", () => {
     expect(mergeTable(null)).toEqual({ columns: DEFAULT_COLUMNS, sort: DEFAULT_SORT, widths: expect.any(Object) });
-    expect(mergeTable({ columns: { type: false, path: "no" }, sort: { key: "size", descending: true } })).toEqual({
-      columns: { ...DEFAULT_COLUMNS, type: false },
+    expect(mergeTable({ columns: { change: false, path: "no" }, sort: { key: "size", descending: true } })).toEqual({
+      columns: { ...DEFAULT_COLUMNS, change: false },
       sort: DEFAULT_SORT,
       widths: expect.any(Object),
     });
@@ -159,9 +127,8 @@ describe("the stored table settings", () => {
 // Size that was always off (#34).
 describe("the columns in Customise View", () => {
   it("lists the columns, the name always on and not to be turned off", () => {
-    expect(columnItems({ type: false, extension: false, change: true, lfs: true, path: true }, false)).toEqual([
+    expect(columnItems({ extension: false, change: true, lfs: true, path: true }, false)).toEqual([
       { key: "name", label: "Name", checked: true, reason: "The name is always shown" },
-      { key: "type", label: "Type", checked: false, reason: null },
       { key: "extension", label: "Extension", checked: false, reason: null },
       { key: "change", label: "State", checked: true, reason: null },
       { key: "lfs", label: "LFS", checked: true, reason: null },
@@ -175,7 +142,7 @@ describe("the columns in Customise View", () => {
   });
 
   it("turns one column over and leaves the others", () => {
-    expect(toggleColumn(DEFAULT_COLUMNS, "type")).toEqual({ ...DEFAULT_COLUMNS, type: false });
+    expect(toggleColumn(DEFAULT_COLUMNS, "change")).toEqual({ ...DEFAULT_COLUMNS, change: false });
     expect(toggleColumn(DEFAULT_COLUMNS, "name")).toEqual(DEFAULT_COLUMNS);
   });
 });
@@ -185,7 +152,6 @@ describe("the extension and LFS columns", () => {
     expect(extensionOf("src/app.Test.ts")).toBe("ts");
     expect(extensionOf(".gitignore")).toBe("");
     expect(extensionOf("Makefile")).toBe("");
-    expect(extensionOf("dir.d/")).toBe("");
   });
 
   it("sorts by extension, then by name", () => {

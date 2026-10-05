@@ -160,7 +160,7 @@ impl RepoHandle {
     /// header counts and the list agree and one walk can serve both (R-316).
     fn status_items(&self) -> Result<gix::status::Iter> {
         self.status_platform()?
-            .untracked_files(UntrackedFiles::Collapsed)
+            .untracked_files(UntrackedFiles::Files)
             .into_iter(None::<gix::bstr::BString>)
             .map_err(|err| GitError::Internal(format!("cannot read status: {err}")))
     }

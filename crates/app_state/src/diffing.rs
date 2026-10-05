@@ -495,14 +495,7 @@ fn pointer_diff(
             checked_out: pointer.checked_out,
             in_index: pointer.in_index,
         }),
-        None => match spec {
-            git_engine::DiffSpec::WorkTreeVsIndex
-            | git_engine::DiffSpec::CommitVsWorkTree { .. } => handle
-                .folder_on_disk(path)
-                .map(|repository| diff_engine::FileDiff::Folder { repository })
-                .ok_or_else(|| absent(path)),
-            _ => Err(absent(path)),
-        },
+        None => Err(absent(path)),
     }
 }
 

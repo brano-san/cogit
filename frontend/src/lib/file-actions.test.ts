@@ -52,10 +52,10 @@ const SCOPE: FileScope = {
 
 describe("copiedText", () => {
   it("copies names, relative paths and absolute paths, one per line", () => {
-    const paths = ["src/a.ts", "generated/"];
-    expect(copiedText("name", paths, WINDOWS)).toBe("a.ts\ngenerated");
-    expect(copiedText("relative", paths, WINDOWS)).toBe("src/a.ts\ngenerated");
-    expect(copiedText("path", paths, WINDOWS)).toBe("D:\\work\\repo\\src\\a.ts\nD:\\work\\repo\\generated");
+    const paths = ["src/a.ts", "generated.txt"];
+    expect(copiedText("name", paths, WINDOWS)).toBe("a.ts\ngenerated.txt");
+    expect(copiedText("relative", paths, WINDOWS)).toBe("src/a.ts\ngenerated.txt");
+    expect(copiedText("path", paths, WINDOWS)).toBe("D:\\work\\repo\\src\\a.ts\nD:\\work\\repo\\generated.txt");
     expect(copiedText("path", ["src/a.ts"], LINUX)).toBe("/home/me/repo/src/a.ts");
   });
 

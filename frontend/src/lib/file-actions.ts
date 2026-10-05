@@ -62,13 +62,13 @@ export function flagTurnsOn(statuses: readonly string[], flag: IndexFlag): boole
   return !(statuses.length > 0 && statuses.every((status) => status === FLAGGED[flag]));
 }
 
+/** A root as the platform gives it may end in a separator. */
 function bare(path: string): string {
-  return path.replace(/\/+$/, "");
+  return path.replace(new RegExp("/+$"), "");
 }
 
 export function fileName(path: string): string {
-  const trimmed = bare(path);
-  return trimmed.slice(trimmed.lastIndexOf("/") + 1);
+  return path.slice(path.lastIndexOf("/") + 1);
 }
 
 /** One line per file; an absolute path is written the way the platform writes it. */
@@ -80,8 +80,8 @@ export function copiedText(
   return paths
     .map((path) => {
       if (kind === "name") return fileName(path);
-      if (kind === "relative") return bare(path);
-      const absolute = `${bare(place.root)}/${bare(path)}`;
+      if (kind === "relative") return path;
+      const absolute = `${bare(place.root)}/${path}`;
       return place.separator === "/" ? absolute : absolute.replaceAll("/", place.separator);
     })
     .join("\n");

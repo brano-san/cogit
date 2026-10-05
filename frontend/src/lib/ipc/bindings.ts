@@ -1196,11 +1196,6 @@ converted: string | null } | { kind: "eolOnly"; from: LineEnding; to: LineEnding
  */
 { kind: "whitespaceOnly" } | 
 /**
- *  A folder on disk Git tracks nothing in: one untracked entry, or a repository cloned
- *  inside this one without being its submodule. A normal state, not a missing path.
- */
-{ kind: "folder"; repository: boolean } | 
-/**
  *  A gitlink: what changed is which commit the parent records, not any file. A
  *  submodule that was never checked out has nothing else to show, and that is a
  *  normal state of a repository rather than a broken one (doc/12-risks.md, R-139).

@@ -99,6 +99,9 @@ fn ten_thousand_entries_in_one_answer_stay_within_a_frame_budget() {
     measured.push(check("blame", blame.len(), cost(&blame)));
 
     f.git(&["rm", "-r", "-q", "--cached", "."]).unwrap();
+    // Ten thousand staged deletions; the same files, now untracked, would be ten thousand
+    // more rows in the same answer (R-735), which is not what this measures.
+    std::fs::write(f.path().join(".git/info/exclude"), "*\n").unwrap();
     let worktree = state
         .worktree_files(repo, git_engine::WorktreeView::default())
         .unwrap();

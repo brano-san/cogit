@@ -178,41 +178,28 @@ fn each_section_is_sorted_by_path() {
 }
 
 #[test]
-fn an_untracked_directory_is_one_row_not_one_per_file() {
+fn every_untracked_file_is_a_row_of_its_own() {
     let f = test_fixtures::linear(1).unwrap();
-    let junk = f.path().join("generated");
-    std::fs::create_dir_all(junk.join("deep")).unwrap();
-    for i in 0..200 {
-        std::fs::write(junk.join(format!("file-{i}.txt")), "x").unwrap();
-        std::fs::write(junk.join("deep").join(format!("file-{i}.txt")), "x").unwrap();
-    }
+    f.write_file("generated/a.txt", "x").unwrap();
+    f.write_file("generated/deep/b.txt", "x").unwrap();
     let repo = open(&f);
 
     let files = repo.worktree_files().unwrap();
 
     assert_eq!(
-        files.unstaged.len(),
-        1,
-        "400 files in one untracked directory must collapse: {:?}",
-        paths(&files.unstaged)
+        paths(&files.unstaged),
+        ["generated/a.txt", "generated/deep/b.txt"]
     );
-    assert_eq!(files.unstaged[0].path, "generated/");
+    assert!(
+        files
+            .unstaged
+            .iter()
+            .all(|file| file.status == FileStatus::Untracked)
+    );
 }
 
 #[test]
-fn a_collapsed_directory_is_still_marked_untracked() {
-    let f = test_fixtures::linear(1).unwrap();
-    std::fs::create_dir_all(f.path().join("build")).unwrap();
-    std::fs::write(f.path().join("build/out.o"), "x").unwrap();
-    let repo = open(&f);
-
-    let files = repo.worktree_files().unwrap();
-
-    assert_eq!(files.unstaged[0].status, FileStatus::Untracked);
-}
-
-#[test]
-fn a_single_untracked_file_is_not_collapsed_into_a_directory() {
+fn a_single_untracked_file_is_listed_by_its_name() {
     let f = test_fixtures::linear(1).unwrap();
     std::fs::write(f.path().join("loose.txt"), "x").unwrap();
     let repo = open(&f);

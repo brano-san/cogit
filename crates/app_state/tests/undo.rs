@@ -1219,21 +1219,6 @@ fn undoing_a_delete_never_writes_over_a_file_made_since() {
     assert_eq!(text(&f, "scratch.txt"), "made again\n");
 }
 
-#[test]
-fn a_deleted_folder_is_left_to_the_bin() {
-    let f = test_fixtures::linear(1).unwrap();
-    f.write_file("generated/out.txt", "built\n").unwrap();
-    let (state, repo) = open(&f);
-
-    state
-        .move_to_trash(repo, &["generated/".to_owned()], thrown_away)
-        .unwrap();
-
-    assert!(!f.path().join("generated").exists());
-    assert!(state.undo_last(repo).is_err());
-    assert!(!state.safety_log().is_empty());
-}
-
 // `git branch -d` drops the branch's section from the config, and Undo recreated only the
 // name and the commit: ahead/behind and Pull were gone from it.
 #[test]

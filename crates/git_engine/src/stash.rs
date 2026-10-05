@@ -252,7 +252,7 @@ impl RepoHandle {
                 .map(|entry| entry.map(|entry| (entry.mode(), entry.object_id())))
         };
         let mut staged = Vec::new();
-        for path in paths.iter().filter(|path| !path.ends_with('/')) {
+        for path in paths {
             if entry(&base, path)? != entry(&index, path)? {
                 staged.push(path.clone());
             }

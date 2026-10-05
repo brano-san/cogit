@@ -118,7 +118,7 @@ fn a_dirty_worktree_is_told_apart_from_a_clean_one() {
 }
 
 /// The row shows counts instead of a bare `dirty`: a path staged and edited again is one
-/// change, and a new folder is one untracked entry, as in Files.
+/// change, and each new file is one untracked entry, as in Files.
 #[test]
 fn a_worktree_counts_its_changed_and_untracked_entries() {
     let f = test_fixtures::with_worktree().unwrap();
@@ -132,7 +132,7 @@ fn a_worktree_counts_its_changed_and_untracked_entries() {
 
     let found = open(&f).worktrees().unwrap();
     let main = found.iter().find(|entry| entry.is_main).unwrap();
-    assert_eq!((main.changed, main.untracked), (1, 2), "{main:?}");
+    assert_eq!((main.changed, main.untracked), (1, 3), "{main:?}");
     assert!(main.dirty && !main.bare, "{main:?}");
     let linked = linked(&f);
     assert_eq!(

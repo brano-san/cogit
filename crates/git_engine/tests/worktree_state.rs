@@ -19,8 +19,8 @@ fn one_walk_gives_the_list_and_the_counters_that_working_state_would() {
 
     let files = repo.worktree_files().unwrap();
     assert_eq!(files.state, repo.working_state().unwrap());
-    // The folder is one row in the list and one in the header.
-    assert_eq!(files.state.status.untracked, 1);
+    // Each new file is a row in the list and one in the header.
+    assert_eq!(files.state.status.untracked, 3);
     assert_eq!(files.state.status.unstaged, 1);
     assert_eq!(files.state.status.staged, 1);
 }

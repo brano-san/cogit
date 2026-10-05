@@ -30,8 +30,7 @@ function sameQuery(a: ContentQuery | null, b: ContentQuery | null): boolean {
   return a.text === b.text && a.regex === b.regex && a.scope === b.scope;
 }
 
-/** Searching contents replaces the name filter rather than adding to it (R-270). A new
-    folder is one `dir/` row: it stays when a file inside it matches. */
+/** Searching contents replaces the name filter rather than adding to it (R-270). */
 export function keepFile(
   file: ListFile,
   pattern: Pattern,
@@ -39,10 +38,7 @@ export function keepFile(
   side: StateSide = "worktree",
 ): boolean {
   if (hits === null) return matches(file, pattern, side);
-  if (hits.has(file.path)) return true;
-  if (!file.path.endsWith("/")) return false;
-  for (const path of hits.keys()) if (path.startsWith(file.path)) return true;
-  return false;
+  return hits.has(file.path);
 }
 
 export type Runner = (

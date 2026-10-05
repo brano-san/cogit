@@ -2,11 +2,10 @@ import type { FileEntry, FileStatus } from "$lib/ipc";
 import { fileName } from "$lib/files";
 
 /** The columns of the Files table (#33), in their order on screen. */
-export type ColumnKey = "name" | "type" | "extension" | "change" | "lfs" | "path";
-export const COLUMN_KEYS: readonly ColumnKey[] = ["name", "type", "extension", "change", "lfs", "path"];
+export type ColumnKey = "name" | "extension" | "change" | "lfs" | "path";
+export const COLUMN_KEYS: readonly ColumnKey[] = ["name", "extension", "change", "lfs", "path"];
 export const COLUMN_LABELS: Record<ColumnKey, string> = {
   name: "Name",
-  type: "Type",
   extension: "Extension",
   change: "State",
   lfs: "LFS",
@@ -15,23 +14,13 @@ export const COLUMN_LABELS: Record<ColumnKey, string> = {
 
 /** Every column but the name can be turned off in Customise View (#34). */
 export type FileColumns = Record<Exclude<ColumnKey, "name">, boolean>;
-export const DEFAULT_COLUMNS: FileColumns = { type: true, extension: false, change: true, lfs: false, path: true };
+export const DEFAULT_COLUMNS: FileColumns = { extension: false, change: true, lfs: false, path: true };
 
 export interface FileSort {
   key: ColumnKey;
   descending: boolean;
 }
 export const DEFAULT_SORT: FileSort = { key: "name", descending: false };
-
-export type FileType = "file" | "symlink" | "directory" | "repository" | "binary";
-export const TYPE_LABELS: Record<FileType, string> = {
-  file: "File",
-  symlink: "Link",
-  directory: "Folder",
-  repository: "Repository",
-  binary: "Binary",
-};
-const TYPE_ORDER: readonly FileType[] = ["file", "symlink", "directory", "repository", "binary"];
 
 /** What needs looking at first: conflicts, then changes, then what only the switches show. */
 const STATE_ORDER: readonly FileStatus[] = [
@@ -49,28 +38,11 @@ const STATE_ORDER: readonly FileStatus[] = [
   "unchanged",
 ];
 
-/** By name, never by content: the status is read for thousands of files and none of them
-    is opened for it. A binary file with an extension not listed here says File (R-596). */
-const BINARY_EXTENSIONS = new Set([
-  ...["png", "jpg", "jpeg", "gif", "bmp", "ico", "icns", "webp", "tif", "tiff", "psd", "heic", "avif"],
-  ...["zip", "gz", "tgz", "bz2", "xz", "zst", "7z", "rar", "tar", "jar", "war", "apk", "aab", "nupkg"],
-  ...["exe", "dll", "so", "dylib", "lib", "a", "o", "obj", "pdb", "ilk", "exp", "class", "pyc", "pyd"],
-  ...["wasm", "node", "bin", "dat", "img", "iso", "dmg", "msi", "cab"],
-  ...["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp"],
-  ...["mp3", "wav", "flac", "ogg", "m4a", "aac", "mp4", "mkv", "avi", "mov", "webm", "wmv"],
-  ...["ttf", "otf", "woff", "woff2", "eot"],
-  ...["sqlite", "db", "mdb", "pftrace", "keystore", "p12", "pfx"],
-]);
-
-/** Without the dot; `""` for a folder, a dotfile or a name with none. */
+/** Without the dot; `""` for a dotfile or a name with none. */
 export function extensionOf(path: string): string {
   const name = fileName(path);
   const dot = name.lastIndexOf(".");
-  return dot <= 0 || path.endsWith("/") ? "" : name.slice(dot + 1);
-}
-
-export function isBinaryPath(path: string): boolean {
-  return BINARY_EXTENSIONS.has(extensionOf(path).toLowerCase());
+  return dot <= 0 ? "" : name.slice(dot + 1);
 }
 
 export interface LfsState {
@@ -85,21 +57,11 @@ export function lfsLabel(state: LfsState | undefined): string {
   return state.lockable ? "lockable" : "LFS";
 }
 
-/** By the entry's mode first (R-180): a submodule is a repository whatever its name. */
-export function fileType(file: FileEntry): FileType {
-  if (file.mode === "submodule") return "repository";
-  if (file.mode === "symlink") return "symlink";
-  if (file.path.endsWith("/")) return "directory";
-  return isBinaryPath(file.path) ? "binary" : "file";
-}
-
 const collator = new Intl.Collator(undefined);
 
-/** The folder a row sits in, `""` at the root; an untracked folder's own slash does not count. */
+/** The folder a row sits in, `""` at the root. */
 export function directoryOf(path: string): string {
-  const trimmed = path.endsWith("/") ? path.slice(0, -1) : path;
-  const cut = trimmed.lastIndexOf("/");
-  return cut === -1 ? "" : trimmed.slice(0, cut + 1);
+  return path.slice(0, path.lastIndexOf("/") + 1);
 }
 
 /** The order of the list. In the tree the folders stay in path order and the sort works
@@ -116,8 +78,7 @@ export function sortRows<F extends FileEntry>(
     let text = "";
     if (sort.key === "extension") text = extensionOf(file.path);
     else if (sort.key === "lfs") text = lfsLabel(lfs(file.path));
-    if (sort.key === "type") rank = TYPE_ORDER.indexOf(fileType(file));
-    else if (sort.key === "change") rank = STATE_ORDER.indexOf(file.status);
+    if (sort.key === "change") rank = STATE_ORDER.indexOf(file.status);
     // The folder groupByDirectory puts the row under, so the order is the order of the rows.
     const folder = directories ? file.path.slice(0, file.path.lastIndexOf("/") + 1) : "";
     return { file, name, rank, text, folder };
@@ -172,7 +133,6 @@ export type ColumnWidths = Record<ColumnKey, number>;
 
 export const DEFAULT_COLUMN_WIDTHS: ColumnWidths = {
   name: 180,
-  type: 65,
   extension: 70,
   change: 130,
   lfs: 110,
@@ -181,7 +141,6 @@ export const DEFAULT_COLUMN_WIDTHS: ColumnWidths = {
 
 export const MIN_COLUMN_WIDTH: Record<ColumnKey, number> = {
   name: 70,
-  type: 45,
   extension: 45,
   change: 45,
   lfs: 45,
