@@ -3725,7 +3725,11 @@ ${event.error}`,
     {/if}
 
     {#if topRow || shown.diff}
-    <div class="right-area" style:min-width={shown.graph ? graphMin : undefined} bind:clientHeight={rightAreaHeight}>
+    <div
+      class="right-area"
+      style:min-width={shown.graph ? (filesColumn ? `calc(${graphMin} + var(--files-column-min) + var(--w-splitter))` : graphMin) : undefined}
+      bind:clientHeight={rightAreaHeight}
+    >
       {#if topRow}
       <div
         class="top-row"
@@ -3737,7 +3741,7 @@ ${event.error}`,
         <div
           class="pane"
           class:grow={!shown.files}
-          style:flex={shown.files ? `0 0 ${fractions.graph * 100}%` : undefined}
+          style:flex={shown.files ? `0 1 ${fractions.graph * 100}%` : undefined}
           style:min-width={graphMin}
           style:min-height={GRAPH_PANEL_MIN_HEIGHT}
           bind:this={graphPane}
@@ -4425,10 +4429,12 @@ ${event.error}`,
     min-height: calc(var(--h-panel-hdr) + 3 * var(--h-row-dense));
   }
 
+  /* The commit box's Subject, Amend, No verify and Commit in one row: below this they wrap
+     and spill, and the Graph panel's doubled minimum would push it there at the smallest window. */
   .files-column {
     display: flex;
     flex-direction: column;
-    min-width: 0;
+    min-width: var(--files-column-min);
     min-height: 0;
   }
 
@@ -4466,12 +4472,9 @@ ${event.error}`,
 
   /* Too narrow for the title and both buttons, as measured (`foldActions`): they fold into one
      menu button, and stay laid out out of sight so their width is still known. */
-  .worktrees-more {
+  /* Two classes: `.panel-act` below sets a display of its own and would win the tie. */
+  .panel-act.worktrees-more:not(.shown) {
     display: none;
-  }
-
-  .worktrees-more.shown {
-    display: inline-flex;
   }
 
   .worktrees-wide {
