@@ -171,3 +171,52 @@ export function bandConnectors(
   });
   return out;
 }
+
+/** Lines of one pane hidden between two hunks, `[from, to)`, and which gap they are: the
+    gaps are numbered alike in every pane (before hunk `gap`, the last one after them all), so
+    a fold opened in one pane opens in all. */
+export interface Fold {
+  gap: number;
+  from: number;
+  to: number;
+}
+
+/** Fewer hidden lines than this are not worth a "lines hidden" row of their own. */
+export const MIN_FOLD = 3;
+
+/** The unchanged runs of a pane folded down to `context` lines around each hunk, as the 2-way
+    diff does; hunks themselves are never folded, nor a gap in `open`. */
+export function foldsOf(
+  blocks: readonly BlockRows[],
+  lines: number,
+  context: number,
+  open: ReadonlySet<number>,
+): Fold[] {
+  const folds: Fold[] = [];
+  for (let gap = 0; gap <= blocks.length; gap += 1) {
+    if (open.has(gap)) continue;
+    const before = blocks[gap - 1];
+    const after = blocks[gap];
+    const start = before ? before.start + before.count + Math.max(context, 1) : 0;
+    const end = after ? after.start - context : lines;
+    if (end - start >= MIN_FOLD) folds.push({ gap, from: start, to: end });
+  }
+  return folds;
+}
+
+/** Rows a fold takes away: its lines, less the one row that says they are hidden. */
+function foldedAbove(folds: readonly Fold[], line: number): number {
+  return folds.reduce((sum, fold) => (fold.to <= line ? sum + (fold.to - fold.from - 1) : sum), 0);
+}
+
+/** `edgesOfBlocks` with folded runs taken out: each fold is one row high. */
+export function foldedEdges(blocks: readonly BlockRows[], pads: readonly number[], folds: readonly Fold[]): Edge[] {
+  return edgesOfBlocks(blocks, pads).map((edge, at) => {
+    const shift = foldedAbove(folds, blocks[at]?.start ?? 0) * LINE_HEIGHT;
+    return { top: edge.top - shift, bottom: edge.bottom - shift };
+  });
+}
+
+export function foldedHeight(lines: number, pads: readonly number[], folds: readonly Fold[]): number {
+  return contentHeight(lines, pads) - foldedAbove(folds, lines) * LINE_HEIGHT;
+}

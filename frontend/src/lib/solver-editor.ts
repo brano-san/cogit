@@ -25,12 +25,14 @@ import { classHighlighter } from "@lezer/highlight";
 import {
   LINE_HEIGHT,
   alignedPads,
-  contentHeight,
-  edgesOfBlocks,
+  foldedEdges,
+  foldedHeight,
+  foldsOf,
   mapScroll,
   scrollToBlock,
   type BlockRows,
   type Edge,
+  type Fold,
   type PaneRows,
 } from "./solver-geometry";
 import {
@@ -96,6 +98,57 @@ class Bar extends GutterMarker {
   }
 }
 const BAR = new Bar(false);
+
+/** One row in place of unchanged lines folded away, the same gap in every pane. A click
+    on it is handled by `SolverEditors` (it opens the gap in all three). */
+class FoldRow extends WidgetType {
+  constructor(
+    readonly hidden: number,
+    readonly gap: number,
+  ) {
+    super();
+  }
+
+  override eq(other: FoldRow): boolean {
+    return other.hidden === this.hidden && other.gap === this.gap;
+  }
+
+  toDOM(): HTMLElement {
+    const row = document.createElement("div");
+    row.className = "sv-fold";
+    row.dataset.gap = String(this.gap);
+    row.title = "Show the unchanged lines, in every pane";
+    row.textContent = `${this.hidden} unchanged lines hidden · show`;
+    return row;
+  }
+
+  override get estimatedHeight(): number {
+    return LINE_HEIGHT;
+  }
+}
+
+export const setFolds = StateEffect.define<Fold[]>();
+const foldsField = StateField.define<Fold[]>({
+  create: () => [],
+  update(value, tr) {
+    for (const effect of tr.effects) if (effect.is(setFolds)) return effect.value as Fold[];
+    return value;
+  },
+});
+
+function foldDecorations(state: EditorState): DecorationSet {
+  const doc = state.doc;
+  const ranges: Range<Decoration>[] = [];
+  for (const fold of state.field(foldsField)) {
+    if (fold.to > doc.lines || fold.from >= fold.to) continue;
+    const from = doc.line(fold.from + 1).from;
+    const to = doc.line(fold.to).to;
+    ranges.push(Decoration.replace({ widget: new FoldRow(fold.to - fold.from, fold.gap), block: true }).range(from, to));
+  }
+  return Decoration.set(ranges, true);
+}
+
+const folding: Extension = [foldsField, EditorView.decorations.compute([foldsField, "doc"], foldDecorations)];
 /** A conflict decided in the Result keeps a mark of it, green instead of red. */
 const BAR_DONE = new Bar(true);
 
@@ -145,6 +198,17 @@ export const themeSpec = {
   ".sv-bar .cm-gutterElement": { padding: "0", width: "4px" },
   ".sv-bar-on": { backgroundColor: "var(--status-danger)" },
   ".sv-bar-done": { backgroundColor: "var(--status-add)" },
+  ".sv-fold": {
+    height: `${LINE_HEIGHT}px`,
+    lineHeight: `${LINE_HEIGHT}px`,
+    padding: "0 6px",
+    backgroundColor: "var(--diff-hunk-header-bg)",
+    color: "var(--diff-hunk-header-fg)",
+    fontFamily: "var(--font-ui)",
+    fontSize: "11px",
+    cursor: "pointer",
+    userSelect: "none",
+  },
   ".sv-conflict": { backgroundColor: "var(--merge-conflict-line)" },
   ".sv-resolved": { backgroundColor: "var(--merge-resolved-line)" },
   ".sv-from-ours": { boxShadow: "inset 3px 0 0 var(--status-ref)" },
@@ -354,6 +418,8 @@ export interface EditorOptions {
   shown: { ours: boolean; theirs: boolean };
   /** Result below: Ours and Theirs line up with each other, the Result is on its own. */
   resultBelow: boolean;
+  /** Unchanged lines kept around each hunk; the rest is folded (Preferences ▸ Context lines). */
+  context: number;
 }
 
 export interface Snapshot {
@@ -397,6 +463,8 @@ export class SolverEditors {
   #destroyed = false;
   /** The Result as last written: dirty is a difference from it, not an undo depth. */
   #saved: Text | null = null;
+  /** Gaps the user unfolded; the same gap number in every pane. */
+  #opened = new Set<number>();
 
   constructor(hosts: Hosts, docs: SolverDocs, options: EditorOptions, onchange: () => void) {
     this.#docs = docs;
@@ -417,7 +485,7 @@ export class SolverEditors {
     const make = (name: PaneName, parent: HTMLElement, doc: string, extensions: Extension) =>
       new EditorView({
         parent,
-        state: EditorState.create({ doc, extensions: [common, language.of([]), extensions, watch(name)] }),
+        state: EditorState.create({ doc, extensions: [common, folding, language.of([]), extensions, watch(name)] }),
       });
     this.views = {
       ours: make("ours", hosts.ours, docs.oursText, sideExtensions("Ours")),
@@ -428,6 +496,14 @@ export class SolverEditors {
     this.#snapshot = this.#compute();
     for (const name of ["ours", "result", "theirs"] as const) {
       this.views[name].scrollDOM.addEventListener("scroll", () => this.#scrolled(name));
+      // A fold row opens its gap in every pane, so they stay alike.
+      this.views[name].dom.addEventListener("mousedown", (event) => {
+        const row = (event.target as HTMLElement | null)?.closest<HTMLElement>(".sv-fold");
+        if (!row) return;
+        event.preventDefault();
+        this.#opened.add(Number(row.dataset.gap));
+        this.#schedule();
+      });
     }
     this.#relayout();
   }
@@ -512,11 +588,29 @@ export class SolverEditors {
     );
     this.#paint("ours", pads.ours, baseChanges);
     this.#paint("theirs", pads.theirs, baseChanges);
+    this.#fold();
     const result = this.views.result;
     const wanted: Others = { rows: others, aligned: aligned && !resultBelow };
     const have = result.state.field(othersField);
     if (have.aligned !== wanted.aligned || have.rows.join() !== wanted.rows.join()) {
       result.dispatch({ effects: setOthers.of(wanted), annotations: [] });
+    }
+  }
+
+  /** The unchanged runs of each pane folded to the context lines, gap by gap alike. */
+  #fold(): void {
+    const context = this.#options.context;
+    const blocks: Record<PaneName, readonly BlockRows[]> = {
+      ours: this.#docs.oursRows,
+      theirs: this.#docs.theirsRows,
+      result: blockRows(this.views.result.state),
+    };
+    for (const name of ["ours", "result", "theirs"] as const) {
+      const view = this.views[name];
+      const folds = foldsOf(blocks[name], view.state.doc.lines, context, this.#opened);
+      if (JSON.stringify(view.state.field(foldsField)) !== JSON.stringify(folds)) {
+        view.dispatch({ effects: setFolds.of(folds) });
+      }
     }
   }
 
@@ -614,14 +708,15 @@ export class SolverEditors {
     const resultRows = blockRows(this.views.result.state);
     const scroller = (name: PaneName) => this.views[name].scrollDOM;
     const lines = (name: PaneName) => this.views[name].state.doc.lines;
+    const folds = (name: PaneName) => this.views[name].state.field(foldsField);
     return {
-      ours: edgesOfBlocks(this.#docs.oursRows, oursPads),
-      theirs: edgesOfBlocks(this.#docs.theirsRows, theirsPads),
-      result: edgesOfBlocks(resultRows, resultPads),
+      ours: foldedEdges(this.#docs.oursRows, oursPads, folds("ours")),
+      theirs: foldedEdges(this.#docs.theirsRows, theirsPads, folds("theirs")),
+      result: foldedEdges(resultRows, resultPads, folds("result")),
       content: {
-        ours: contentHeight(lines("ours"), oursPads),
-        theirs: contentHeight(lines("theirs"), theirsPads),
-        result: contentHeight(lines("result"), resultPads),
+        ours: foldedHeight(lines("ours"), oursPads, folds("ours")),
+        theirs: foldedHeight(lines("theirs"), theirsPads, folds("theirs")),
+        result: foldedHeight(lines("result"), resultPads, folds("result")),
       },
       scroll: { ours: scroller("ours").scrollTop, result: scroller("result").scrollTop, theirs: scroller("theirs").scrollTop },
       viewport: {

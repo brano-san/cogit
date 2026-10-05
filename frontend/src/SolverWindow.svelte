@@ -162,6 +162,7 @@
       baseChanges: prefs.baseChanges,
       shown: { ours: panes.ours, theirs: panes.theirs },
       resultBelow: panes.below,
+      context: settings.current.contextLines,
     };
   }
 
@@ -171,6 +172,7 @@
       baseChanges: prefs.baseChanges,
       shown: { ours: panes.ours, theirs: panes.theirs },
       resultBelow: panes.below,
+      context: settings.current.contextLines,
     };
     const made = editors;
     // The editors report back by writing `tick`, which this effect must not then depend on.

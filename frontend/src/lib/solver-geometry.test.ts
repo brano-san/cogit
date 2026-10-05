@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { BAND_WIDTH } from "./diff-band";
 import {
+  foldedEdges,
+  foldedHeight,
+  foldsOf,
   LINE_HEIGHT,
   alignedPads,
   bandConnectors,
@@ -156,5 +159,33 @@ describe("scrolling a hunk into view", () => {
   it("stays at the top for a hunk near it, and at the bottom for one near the end", () => {
     expect(scrollToBlock({ top: 1 * H, bottom: 2 * H }, 20 * H, 400 * H)).toBe(0);
     expect(scrollToBlock({ top: 395 * H, bottom: 396 * H }, 20 * H, 400 * H)).toBe(380 * H);
+  });
+});
+
+describe("folding the unchanged runs", () => {
+  const blocks = [
+    { start: 10, count: 2 },
+    { start: 30, count: 1 },
+  ];
+
+  it("keeps the context around each hunk and folds the rest, every gap numbered alike", () => {
+    expect(foldsOf(blocks, 40, 3, new Set())).toEqual([
+      { gap: 0, from: 0, to: 7 },
+      { gap: 1, from: 15, to: 27 },
+      { gap: 2, from: 34, to: 40 },
+    ]);
+  });
+
+  it("leaves an opened gap and a short one whole", () => {
+    expect(foldsOf(blocks, 40, 3, new Set([1])).map((fold) => fold.gap)).toEqual([0, 2]);
+    expect(foldsOf([{ start: 4, count: 1 }], 6, 3, new Set())).toEqual([]);
+  });
+
+  it("takes the folded rows out of the edges and the height, one row left for each fold", () => {
+    const folds = foldsOf(blocks, 40, 3, new Set());
+    const edges = foldedEdges(blocks, [0, 0], folds);
+    expect(edges[0]).toEqual({ top: (10 - 6) * LINE_HEIGHT, bottom: (12 - 6) * LINE_HEIGHT });
+    expect(edges[1]).toEqual({ top: (30 - 6 - 11) * LINE_HEIGHT, bottom: (31 - 6 - 11) * LINE_HEIGHT });
+    expect(foldedHeight(40, [0, 0], folds)).toBe((40 - 6 - 11 - 5) * LINE_HEIGHT);
   });
 });
