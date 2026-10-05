@@ -26,6 +26,17 @@ pub async fn repo_pulse(
     .await
 }
 
+/// Per root, the backend it lives on, as the list labels it (M15).
+#[tauri::command]
+#[specta::specta]
+#[must_use]
+pub fn backend_labels(roots: Vec<String>) -> Vec<String> {
+    roots
+        .iter()
+        .map(|root| app_state::location::RepoLocation::of(std::path::Path::new(root)).label())
+        .collect()
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn pull_probe(root: String) -> Result<Option<bool>, GitError> {

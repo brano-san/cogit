@@ -35,6 +35,7 @@
   import { settings } from "$stores/settings.svelte";
   import { TypeAhead, moveFocus } from "$lib/list-keys";
   import { untrack } from "svelte";
+  import { backendLabels } from "$lib/ipc/repo-rows";
   import { moduleTitle } from "$lib/module-tree";
   import { ON_MAC, primary } from "$lib/platform";
 
@@ -106,6 +107,14 @@
 
   const everyListed = $derived(listedRepos(repository.openRepos, repoList.list));
   const everyRoot = $derived(everyListed.map((each) => each.root));
+  /** Shown only when the list mixes backends: a list of one says nothing by naming it. */
+  let backends = $state.raw(new Map<string, string>());
+  $effect(() => {
+    const roots = everyRoot;
+    void backendLabels(roots).then((labels) => {
+      backends = new Set(labels).size > 1 ? new Map(roots.map((root, at) => [root, labels[at] ?? ""])) : new Map();
+    });
+  });
   const ownsTree = (entry: RepoOverview | null) =>
     entry !== null && submodules.owner?.valueOf() === entry.repo.valueOf();
   /** The submodule rows drawn under a repository: its full tree if the panels own it. */
@@ -439,6 +448,7 @@
         {@render topDisclosure(entry.root, submodules.owner?.valueOf() === entry.repo.valueOf())}
         {@render repoMarks(sync)}
         <span class="name truncate shrink-last">{listed.name}</span>
+        {#if backends.get(entry.root)}<span class="backend" title="Where this repository lives">{backends.get(entry.root)}</span>{/if}
         {#if listed.pinned}<span class="pin" title="Pinned to the top of its group">⊤</span>{/if}
         {#if worktrees.ownerRoot === entry.root && repository.current}
           <KindIcon kind="worktree" title="The panels show its worktree {repository.current.root}" />
@@ -475,6 +485,7 @@
             {@render topDisclosure(listed.root, false, true)}
             {@render repoMarks(sync)}
             <span class="name truncate shrink-last">{listed.name}</span>
+            {#if backends.get(listed.root)}<span class="backend" title="Where this repository lives">{backends.get(listed.root)}</span>{/if}
             {#if listed.pinned}<span class="pin" title="Pinned to the top of its group">⊤</span>{/if}
             {#if sync.missing}<span class="gone" title={MISSING_REPOSITORY}>missing</span>{/if}
             {#if sync.branch}<span class="branch truncate shrink-first">{sync.branch}</span>{/if}
@@ -522,6 +533,12 @@
 
   .row.closed :global(.kind) {
     opacity: 0.5;
+  }
+
+  .backend {
+    flex: none;
+    color: var(--text-secondary);
+    font-size: 10px;
   }
 
   .pin {

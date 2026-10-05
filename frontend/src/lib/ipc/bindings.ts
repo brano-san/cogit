@@ -452,6 +452,8 @@ export const commands = {
 	submoduleOutline: (root: string, parent: string) => typedError<Submodule[], GitError>(__TAURI_INVOKE("submodule_outline", { root, parent })),
 	repoPulse: (root: string) => typedError<RepoPulse, GitError>(__TAURI_INVOKE("repo_pulse", { root })),
 	pullProbe: (root: string) => typedError<boolean | null, GitError>(__TAURI_INVOKE("pull_probe", { root })),
+	/**  Per root, the backend it lives on, as the list labels it (M15). */
+	backendLabels: (roots: string[]) => __TAURI_INVOKE<string[]>("backend_labels", { roots }),
 	/**
 	 *  Opens a submodule from its node in the tree: the panels follow it, the Repositories
 	 *  panel does not gain an entry for it (doc/12-risks.md, R-109).

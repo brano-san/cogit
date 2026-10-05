@@ -18,3 +18,8 @@ export async function pullProbe(root: string) {
   return unwrap(await commands.pullProbe(root));
 }
 
+
+/** Per root, the backend it lives on (`local`, `WSL: Ubuntu`, `SSH: host`), in order (M15). */
+export function backendLabels(roots: string[]) {
+  return commands.backendLabels(roots);
+}

@@ -334,6 +334,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::repo_rows::submodule_outline,
             commands::repo_rows::repo_pulse,
             commands::repo_rows::pull_probe,
+            commands::repo_rows::backend_labels,
             commands::open_submodule,
             commands::repository_health,
             commands::trust_directory,
