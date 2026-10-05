@@ -211,9 +211,12 @@
       <span class="dot" aria-hidden="true"></span>
       <span class="title">{docked ? heading : entry.operation} · {repoName}</span>
       <span class="grow"></span>
-      <button bind:this={closer} type="button" class="btn sm" onclick={close} title="Close (Esc)">
-        ✕
-      </button>
+      <!-- Docked, it fills the Errors window, whose title bar has the close button already. -->
+      {#if !docked}
+        <button bind:this={closer} type="button" class="btn sm" onclick={close} title="Close (Esc)">
+          ✕
+        </button>
+      {/if}
     </header>
 
     <div class="body">
