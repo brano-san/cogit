@@ -12,6 +12,7 @@ import {
   rowTextX,
   timeWidth,
 } from "./graph-row";
+import { measuredTimeWidth, timeSamples } from "./graph-row";
 
 const spec = { columns: GRAPH_COLUMNS, avatars: true, time: "date" as const, overlap: false, gap: 6, padding: 12 };
 
@@ -92,5 +93,19 @@ describe("avatarShown", () => {
 
   it("shows every face while off", () => {
     expect(shown(false)).toEqual([true, true, true, true, true]);
+  });
+});
+
+describe("measuredTimeWidth", () => {
+  const now = Date.UTC(2026, 9, 5, 12, 0) / 1000;
+
+  it("is the widest value the format writes, whole pixels", () => {
+    const samples = timeSamples("dateTime", now);
+    const longest = Math.max(...samples.map((text) => text.length));
+    expect(measuredTimeWidth("dateTime", now, (text) => text.length * 6.5)).toBe(Math.ceil(longest * 6.5));
+  });
+
+  it("samples an old date with two-digit day, month and hour", () => {
+    expect(timeSamples("date", now).some((text) => /28/.test(text))).toBe(true);
   });
 });

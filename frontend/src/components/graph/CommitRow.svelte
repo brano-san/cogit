@@ -4,7 +4,8 @@
   import RefCapsule from "$components/graph/RefCapsule.svelte";
   import { capsules, dateTooltip, refLabelKey, shortOid, type RefLabel } from "$lib/format";
   import { linkStubs, linkTitle } from "$lib/graph-links";
-  import { COLUMN_WIDTH, graphTime, timeWidth, type GraphColumn, type GraphTimeFormat } from "$lib/graph-row";
+  import { COLUMN_WIDTH, graphTime, type GraphColumn, type GraphTimeFormat } from "$lib/graph-row";
+  import { timeColumn as timeColumnStore } from "$stores/time-column.svelte";
   import type { GraphEntry } from "$lib/graph-wire";
   import { overlapLabel, overlapTooltip } from "$lib/overlap";
   import { commit as selection } from "$stores/commit.svelte";
@@ -54,7 +55,7 @@
   const CAPSULE_ROOM = 3;
 
   const refs = $derived(capsules(labels, CAPSULE_ROOM));
-  const timeColumn = $derived(timeWidth(timeFormat));
+  const timeColumn = $derived(timeColumnStore.width(timeFormat));
 </script>
 
 {#if folds}
@@ -104,7 +105,7 @@
     <span
       class="date time tabular truncate"
       class:last={at === cells.length - 1}
-      style:flex-basis="{timeColumn}px"
+      style:flex-basis="calc({timeColumn}px + var(--sp-2))"
       title={dateTooltip(entry.commit.timestamp, entry.commit.tzOffsetMinutes)}
       >{graphTime(entry.commit.timestamp, entry.commit.tzOffsetMinutes, now, timeFormat)}</span
     >
@@ -183,8 +184,10 @@
   }
 
   /* Widths of the columns are inline, from `COLUMN_WIDTH`: the row measures them too. */
+  /* After the subject, the author gives way; the date never does (it is measured to fit). */
   .author {
-    flex: 0 0 auto;
+    flex: 0 1 auto;
+    min-width: 0;
     color: var(--text-secondary);
   }
 

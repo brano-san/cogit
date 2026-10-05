@@ -6,7 +6,8 @@ import { textX } from "$lib/graph-geometry";
     that the graph area is cut at its edge rather than its lanes squeezed (R-331). */
 
 export type { GraphColumn, GraphDensity, GraphTimeFormat };
-export { graphTime } from "$lib/graph-columns";
+import { graphTime } from "$lib/graph-columns";
+export { graphTime };
 
 /** How the list looks until Preferences say otherwise: as it always has. */
 export const GRAPH_COLUMNS: readonly GraphColumn[] = ["author", "avatar", "time", "hash"];
@@ -26,7 +27,23 @@ export const DENSITY_ROW_HEIGHT: Record<GraphDensity, number> = {
     the author is its widest, a shorter name leaves the rest to the subject. */
 export const COLUMN_WIDTH = { author: 140, avatar: 16, hash: 48, overlap: 74 } as const;
 
-/** Wide enough for the longest value the format writes, in the 11 px the column uses. */
+/** Every shape a format writes, for measuring the widest: now, minutes and hours ago, each
+    day of the last week, a month ago, last year with two-digit day, month and hour. */
+export function timeSamples(format: GraphTimeFormat, now: number): string[] {
+  const day = 86_400;
+  const spans = [0, 59, 3_540, 18_000, day, 2 * day, 3 * day, 4 * day, 5 * day, 6 * day, 7 * day, 20 * day, 45 * day];
+  const today = new Date(now * 1000);
+  const old = Date.UTC(today.getUTCFullYear() - 1, 11, 28, 23, 58) / 1000;
+  const years = Date.UTC(today.getUTCFullYear() - 12, 11, 28, 23, 58) / 1000;
+  return [...spans.map((ago) => now - ago), old, years].map((when) => graphTime(when, 0, now, format));
+}
+
+/** The widest of `timeSamples` as `measure` sees it, whole pixels. */
+export function measuredTimeWidth(format: GraphTimeFormat, now: number, measure: (text: string) => number): number {
+  return Math.ceil(Math.max(...timeSamples(format, now).map(measure)));
+}
+
+/** Where nothing can measure text (a test, a headless run): the widths measured once by hand. */
 export function timeWidth(format: GraphTimeFormat): number {
   switch (format) {
     case "date":
