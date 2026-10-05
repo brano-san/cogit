@@ -91,7 +91,7 @@
   </span>
 {/if}
 <span class="summary truncate">{entry.commit.summary}</span>
-{#each cells as cell (cell)}
+{#each cells as cell, at (cell)}
   {#if cell === "author"}
     <span class="author truncate" style:max-width="{COLUMN_WIDTH.author}px">{entry.commit.authorName}</span>
   {:else if cell === "avatar"}
@@ -103,6 +103,7 @@
   {:else if cell === "time"}
     <span
       class="date time tabular truncate"
+      class:last={at === cells.length - 1}
       style:flex-basis="{timeColumn}px"
       title={dateTooltip(entry.commit.timestamp, entry.commit.tzOffsetMinutes)}
       >{graphTime(entry.commit.timestamp, entry.commit.tzOffsetMinutes, now, timeFormat)}</span
@@ -199,6 +200,12 @@
      date sat a whole column away from the face it belongs to. */
   .date.time {
     text-align: left;
+  }
+
+  /* With nothing after it the date is the row's edge, and ends where the hash would: a
+     left-aligned short date there left its empty column as a gap before the edge. */
+  .date.time.last {
+    text-align: right;
   }
 
   .overlap.heavy {
