@@ -28,9 +28,30 @@ export async function saveFlow(steps: SaveSteps): Promise<SaveResult> {
 
 export type CloseChoice = "save" | "discard" | "cancel";
 
-/** The window is closing with edits: only Discard lets it. Save closes it itself, once written. */
-export function afterCloseChoice(choice: CloseChoice): { close: boolean; save: boolean } {
-  return { close: choice === "discard", save: choice === "save" };
+/** What closing a still-conflicted file can do: stage it, leave it conflicted (saving the
+    edits first), drop the edits, or stay. */
+export type ResolveChoice = "resolve" | "keep" | "discard" | "cancel";
+
+export interface ResolveClose {
+  /** Left to right; the last is the primary one. */
+  choices: { choice: ResolveChoice; label: string }[];
+  /** What Enter does: Keep Unresolved while markers are in the Result, else Mark Resolved. */
+  primary: ResolveChoice;
+  warning: string | null;
+}
+
+/** One question when the solver closes on a file that is still conflicted, the unsaved
+    edits folded into it rather than asked about in a second dialog (SmartGit's rule). */
+export function resolveClose(dirty: boolean, markers: number): ResolveClose {
+  const choices: ResolveClose["choices"] = [{ choice: "cancel", label: "Cancel" }];
+  if (dirty) choices.push({ choice: "discard", label: "Discard Edits" });
+  choices.push({ choice: "keep", label: dirty ? "Save, Keep Unresolved" : "Keep Unresolved" });
+  choices.push({ choice: "resolve", label: dirty ? "Save and Mark Resolved" : "Mark Resolved" });
+  const warning =
+    markers > 0
+      ? `${markers === 1 ? "1 conflict is" : `${markers} conflicts are`} still undecided: the file is written with conflict markers in place of ${markers === 1 ? "it" : "them"}.`
+      : null;
+  return { choices, primary: markers > 0 ? "keep" : "resolve", warning };
 }
 
 export type ToolFollowUp = "offerResolve" | "stillConflicted" | "canceled" | "alreadyResolved";

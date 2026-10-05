@@ -4,7 +4,7 @@
   import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
   import SolverBand from "$components/solver/SolverBand.svelte";
-  import UnsavedDialog from "$components/common/UnsavedDialog.svelte";
+  import ResolveCloseDialog from "$components/solver/ResolveCloseDialog.svelte";
   import SolverToolbar from "$components/solver/SolverToolbar.svelte";
   import SolverWholeFile from "$components/solver/SolverWholeFile.svelte";
   import { visibleCenter } from "$lib/diff-band";
@@ -31,11 +31,12 @@
   import { followSettings } from "$lib/settings-sync";
   import { SolverEditors, languageExtension, type PaneName, type Snapshot } from "$lib/solver-editor";
   import {
-    afterCloseChoice,
+    resolveClose,
     saveFlow,
     toolFollowUp,
     toolPrompt,
-    type CloseChoice,
+    type ResolveChoice,
+    type ResolveClose,
   } from "$lib/solver-flow";
   import { bandConnectors, panesOf, type SolverLayout } from "$lib/solver-geometry";
   import { solverKey } from "$lib/solver-keys";
@@ -78,8 +79,9 @@
   let note = $state<string | null>(null);
   let toolRunning = $state(false);
   let saving = $state(false);
-  let closing = $state(false);
-  let closeAnswer: ((choice: CloseChoice) => void) | null = null;
+  /** The close question on screen, and how it is answered. */
+  let closing = $state.raw<ResolveClose | null>(null);
+  let closeAnswer: ((choice: ResolveChoice) => void) | null = null;
   /** Written to the index: the window closes behind its own Save without asking. */
   let saved = false;
 
@@ -317,7 +319,8 @@
     if (yes) await markResolved();
   }
 
-  async function markResolved() {
+  /** `warned`: the close question already said markers stay; staging asks nothing more. */
+  async function markResolved(warned = false) {
     if (!editors || !request || !docs || saving || toolRunning) return;
     const { repo, path } = request;
     const stages = data?.stages;
@@ -329,7 +332,7 @@
         ? composeSave(textToLines(editors.resultText), editors.spans(), docs.hunks, labels(), editors.decided())
         : editors.resultText;
     const result = await saveFlow({
-      unresolved: left,
+      unresolved: warned ? 0 : left,
       confirmMarkers: () =>
         confirmation.ask({
           title: "Save with Conflict Markers",
@@ -449,20 +452,37 @@
       if (go) await cancelTool();
       return go;
     }
-    const choice = await new Promise<CloseChoice>((resolve) => {
+    // Undecided conflicts are written as markers; markers typed into the Result count too.
+    const undecided = snapshot?.unresolved.length ?? 0;
+    const typed = /^(<{7}|={7}|>{7})( |$)/m.test(editors?.resultText ?? "") ? 1 : 0;
+    const question = resolveClose(snapshot?.dirty ?? false, undecided || typed);
+    const choice = await new Promise<ResolveChoice>((resolve) => {
       closeAnswer = resolve;
-      closing = true;
+      closing = question;
     });
-    closing = false;
+    closing = null;
     closeAnswer = null;
-    const after = afterCloseChoice(choice);
-    if (after.save) void save(false).then((written) => written && closeThisWindow());
-    return after.close;
+    switch (choice) {
+      case "cancel":
+        return false;
+      case "discard":
+        return true;
+      case "keep":
+        if (!(snapshot?.dirty ?? false)) return true;
+        void save(false).then((written) => written && closeThisWindow());
+        return false;
+      case "resolve":
+        // The markers were warned about in the same question: no second one before staging.
+        void markResolved(true);
+        return false;
+    }
   }
 
   // Esc, Ctrl+W and the ✕ all come here as one close request.
   $effect(() => {
-    const guard = closeGuard(() => !saved && ((snapshot?.dirty ?? false) || toolRunning), askClose);
+    // Still conflicted until Mark Resolved: closing asks whether to resolve it (and about
+    // unsaved edits in the same question).
+    const guard = closeGuard(() => !saved && (docs !== null || toolRunning), askClose);
     const pending = win.onCloseRequested(guard);
     return () => void pending.then((stop) => stop()).catch(() => {});
   });
@@ -673,7 +693,7 @@
 </div>
 
 {#if closing}
-  <UnsavedDialog title="Unsaved Resolution" path={request?.path ?? ""} onanswer={(choice) => closeAnswer?.(choice)} />
+  <ResolveCloseDialog path={request?.path ?? ""} question={closing} onanswer={(choice) => closeAnswer?.(choice)} />
 {/if}
 
 {#if confirmation.open}

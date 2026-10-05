@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { afterCloseChoice, saveFlow, toolFollowUp, toolPrompt } from "./solver-flow";
+import { resolveClose, saveFlow, toolFollowUp, toolPrompt } from "./solver-flow";
 
 function deps(unresolved: number, confirm = true) {
   const calls: string[] = [];
@@ -49,10 +49,25 @@ describe("save", () => {
 });
 
 describe("closing with edits", () => {
-  it("Discard lets the window close; Save and Cancel keep it, and Save closes it after writing", () => {
-    expect(afterCloseChoice("discard")).toEqual({ close: true, save: false });
-    expect(afterCloseChoice("save")).toEqual({ close: false, save: true });
-    expect(afterCloseChoice("cancel")).toEqual({ close: false, save: false });
+  it("asks once on close: resolve, keep or stay, the edits folded in", () => {
+    expect(resolveClose(false, 0)).toEqual({
+      choices: [
+        { choice: "cancel", label: "Cancel" },
+        { choice: "keep", label: "Keep Unresolved" },
+        { choice: "resolve", label: "Mark Resolved" },
+      ],
+      primary: "resolve",
+      warning: null,
+    });
+    const dirty = resolveClose(true, 0);
+    expect(dirty.choices.map((each) => each.choice)).toEqual(["cancel", "discard", "keep", "resolve"]);
+    expect(dirty.choices.at(-1)?.label).toBe("Save and Mark Resolved");
+  });
+
+  it("warns about markers and makes Keep Unresolved the default", () => {
+    const marked = resolveClose(true, 2);
+    expect(marked.primary).toBe("keep");
+    expect(marked.warning).toMatch(/2 conflicts are still undecided/);
   });
 });
 
