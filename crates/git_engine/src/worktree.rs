@@ -82,6 +82,9 @@ impl RepoHandle {
 
         for item in iter {
             let item = item.map_err(|err| GitError::Internal(format!("status failed: {err}")))?;
+            if inert(&item) {
+                continue;
+            }
             match item {
                 Item::TreeIndex(change) => files.staged.push(staged_entry(&change)),
                 Item::IndexWorktree(WorktreeItem::Modification {
@@ -336,6 +339,23 @@ fn conflict_kind(status: &EntryStatus<(), gix::submodule::Status>) -> Option<Con
         C::AddedByUs => ConflictKind::AddedByUs,
         C::AddedByThem => ConflictKind::AddedByThem,
     })
+}
+
+/// Nothing Files could do with it: a submodule whose recorded commit did not move (only
+/// edits or new files inside, which belong to the submodule's own repository) and a
+/// repository nested without a gitlink. SmartGit lists neither; the submodule tree and the
+/// Repositories list show their state where they can be opened (doc/12-risks.md).
+pub(crate) fn inert(item: &Item) -> bool {
+    match item {
+        Item::IndexWorktree(WorktreeItem::Modification {
+            status: EntryStatus::Change(WorktreeChange::SubmoduleModification(inner)),
+            ..
+        }) => inner.checked_out_head_id == inner.index_id,
+        Item::IndexWorktree(WorktreeItem::DirectoryContents { entry, .. }) => {
+            entry.disk_kind == Some(gix::dir::entry::Kind::Repository)
+        }
+        _ => false,
+    }
 }
 
 fn submodule_change(

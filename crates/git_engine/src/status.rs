@@ -45,6 +45,9 @@ impl RepoHandle {
         let mut conflicted = Vec::new();
         for item in self.status_items()? {
             let item = item.map_err(|err| GitError::Internal(format!("status failed: {err}")))?;
+            if crate::worktree::inert(&item) {
+                continue;
+            }
             match item {
                 Item::TreeIndex(_) => status.staged += 1,
                 Item::IndexWorktree(WorktreeItem::Modification {
@@ -95,6 +98,9 @@ impl RepoHandle {
         }
         for item in self.status_items()? {
             let item = item.map_err(|err| GitError::Internal(format!("status failed: {err}")))?;
+            if crate::worktree::inert(&item) {
+                continue;
+            }
             let counts = match item {
                 Item::TreeIndex(_) => true,
                 Item::IndexWorktree(WorktreeItem::Modification { status: entry, .. }) => {
@@ -128,6 +134,9 @@ impl RepoHandle {
         let mut untracked = 0;
         for item in self.status_items()? {
             let item = item.map_err(|err| GitError::Internal(format!("status failed: {err}")))?;
+            if crate::worktree::inert(&item) {
+                continue;
+            }
             match &item {
                 Item::IndexWorktree(WorktreeItem::Modification {
                     status: EntryStatus::NeedsUpdate(_),

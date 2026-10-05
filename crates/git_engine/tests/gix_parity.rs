@@ -440,12 +440,18 @@ mod unstaged {
     use super::*;
     use git_engine::FileStatus;
 
-    /// `status --porcelain=v2 --untracked-files=all`, the worktree half of each entry: what
-    /// the Files panel lists under Changes. A type change counts as `M`, as the client has
-    /// no type change of its own.
+    /// `status --porcelain=v2 --untracked-files=all --ignore-submodules=dirty`, the worktree
+    /// half of each entry: what the Files panel lists under Changes. A submodule is listed only
+    /// when its commit moved. A type change counts as `M`, as the client has no type change.
     fn git(f: &Fixture) -> Vec<String> {
         let text = f
-            .git(&["status", "--porcelain=v2", "--untracked-files=all", "-z"])
+            .git(&[
+                "status",
+                "--porcelain=v2",
+                "--untracked-files=all",
+                "--ignore-submodules=dirty",
+                "-z",
+            ])
             .unwrap();
         let mut fields = text.split('\0').filter(|field| !field.is_empty());
         let mut out = Vec::new();
@@ -568,14 +574,14 @@ mod unstaged {
     }
 
     #[test]
-    fn a_dirty_submodule_is_a_modified_entry() {
+    fn a_submodule_dirty_only_inside_is_no_entry() {
         let f = test_fixtures::with_submodule().unwrap();
         f.write_file("vendor/lib/file0.txt", "edited in the module\n")
             .unwrap();
         f.write_file("vendor/lib/loose.txt", "untracked in the module\n")
             .unwrap();
 
-        matches(&f, 1);
+        matches(&f, 0);
     }
 
     #[test]

@@ -106,12 +106,14 @@ fn a_submodule_on_another_commit_is_a_change() {
 }
 
 #[test]
-fn a_submodule_with_an_edited_file_is_a_change() {
+fn a_submodule_with_an_edited_file_is_no_change_of_the_parent() {
     let f = test_fixtures::with_submodule().unwrap();
     std::fs::write(f.path().join("vendor/lib/file0.txt"), "edited inside\n").unwrap();
 
+    // As in Files: the edit belongs to the submodule, whose own row carries the dot.
     assert_eq!(pulse(f.path()).dirty, status_is_dirty(f.path()));
-    assert!(pulse(f.path()).dirty);
+    assert!(!pulse(f.path()).dirty);
+    assert!(pulse(&f.path().join("vendor/lib")).dirty);
 }
 
 // The other way round: the stat moved, the content did not. The status hashes the file and
