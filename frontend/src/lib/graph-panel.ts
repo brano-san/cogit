@@ -5,10 +5,18 @@ import type { RepoState, RepoStatus } from "$lib/ipc";
     many characters of the subject. Nothing inside it hides a column (#5, R-243). */
 export const GRAPH_MIN_SUBJECT_CHARS = 35;
 
-/** A CSS length, so the characters are measured in the font the rows are drawn in. */
+/** A CSS length, so the characters are measured in the font the rows are drawn in. Twice
+    one lane and the subject: half of that left the graph a sliver beside the Files column. */
 export function graphPanelMinWidth(): string {
-  return `calc(${textX(1)}px + ${GRAPH_MIN_SUBJECT_CHARS}ch)`;
+  return `calc(2 * (${textX(1)}px + ${GRAPH_MIN_SUBJECT_CHARS}ch))`;
 }
+
+/** Twice what any panel keeps (a header and three rows), as a CSS length. */
+export const GRAPH_PANEL_MIN_HEIGHT = "calc(2 * (var(--h-panel-hdr) + 3 * var(--h-row-dense)))";
+/** The same, in pixels, for the splitter: header 28 + three rows of 22, twice. */
+export const GRAPH_PANEL_MIN_HEIGHT_PX = 188;
+/** What the Diff panel below keeps (the generic pane minimum) plus the splitter. */
+export const DIFF_PANEL_MIN_HEIGHT_PX = 95;
 
 /** Pixels the subject keeps before the graph area is cut at its edge (#12, R-331): the same
     characters, now a threshold rather than a floor, so the right columns always fit. */

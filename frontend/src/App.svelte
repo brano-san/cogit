@@ -145,7 +145,7 @@
   import { revealRef } from "$lib/ref-reveal";
   import { applyPreferences, type ApplyHost } from "$lib/preferences-apply";
   import { capFraction, floorFraction, PANELS, worktreesHeightAfterDrag, type PanelId } from "$lib/perspectives";
-  import { graphPanelMinWidth } from "$lib/graph-panel";
+  import { DIFF_PANEL_MIN_HEIGHT_PX, GRAPH_PANEL_MIN_HEIGHT, GRAPH_PANEL_MIN_HEIGHT_PX, graphPanelMinWidth } from "$lib/graph-panel";
   import { closeStep, holdsPanels, reopenClick, repoClick } from "$lib/repo-click";
   import { ModuleInitialiser, moduleClick } from "$lib/module-init";
   import { moduleRoot, shownRowRoot, updateModule } from "$lib/module-tree";
@@ -500,6 +500,7 @@
   const graphMin = graphPanelMinWidth();
   let graphPane = $state<HTMLDivElement | null>(null);
   let topRowWidth = $state(0);
+  let rightAreaHeight = $state(0);
   let workspaceWidth = $state(0);
   /** The Graph panel's CSS minimum in pixels, so the splitters stop where the panel does. */
   const graphMinPx = () => (graphPane ? parseFloat(getComputedStyle(graphPane).minWidth) || 0 : 0);
@@ -3724,12 +3725,13 @@ ${event.error}`,
     {/if}
 
     {#if topRow || shown.diff}
-    <div class="right-area" style:min-width={shown.graph ? graphMin : undefined}>
+    <div class="right-area" style:min-width={shown.graph ? graphMin : undefined} bind:clientHeight={rightAreaHeight}>
       {#if topRow}
       <div
         class="top-row"
         bind:clientWidth={topRowWidth}
         style:flex={shown.diff ? `0 0 ${fractions.topRow * 100}%` : "1 1 auto"}
+        style:min-height={shown.graph ? GRAPH_PANEL_MIN_HEIGHT : undefined}
       >
         {#if shown.graph}
         <div
@@ -3737,6 +3739,7 @@ ${event.error}`,
           class:grow={!shown.files}
           style:flex={shown.files ? `0 0 ${fractions.graph * 100}%` : undefined}
           style:min-width={graphMin}
+          style:min-height={GRAPH_PANEL_MIN_HEIGHT}
           bind:this={graphPane}
           role="region"
         aria-label={PANEL_TITLES.graph}
@@ -3889,7 +3892,15 @@ ${event.error}`,
         direction="horizontal"
         value={fractions.topRow}
         label="Resize diff panel"
-        onchange={(d) => layout.nudge("topRow", d)}
+        onchange={(d) =>
+          layout.set(
+            "topRow",
+            capFraction(
+              floorFraction(fractions.topRow + d, rightAreaHeight, shown.graph ? GRAPH_PANEL_MIN_HEIGHT_PX : 0),
+              rightAreaHeight,
+              DIFF_PANEL_MIN_HEIGHT_PX,
+            ),
+          )}
         onreset={() => layout.resetOne("topRow")}
       />
       {/if}
