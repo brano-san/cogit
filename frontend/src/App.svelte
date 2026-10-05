@@ -3622,7 +3622,7 @@ ${event.error}`,
               {@const pruneAll = pruneAllButton(worktrees.entries)}
               <button
                 type="button"
-                class="panel-act worktrees-more"
+                class="btn sm worktrees-more"
                 class:shown={worktreesFolded}
                 title="Worktree actions"
                 aria-label="Worktree actions"
@@ -3636,14 +3636,14 @@ ${event.error}`,
               >
                 <button
                   type="button"
-                  class="panel-act"
+                  class="btn sm"
                   tabindex={worktreesFolded ? -1 : 0}
                   title="Add Worktree…"
                   onclick={() => worktreeActions?.openAdd()}>Add…</button
                 >
                 <button
                   type="button"
-                  class="panel-act"
+                  class="btn sm"
                   tabindex={worktreesFolded ? -1 : 0}
                   disabled={pruneAll.disabled}
                   title={pruneAll.tip}
@@ -4472,8 +4472,8 @@ ${event.error}`,
 
   /* Too narrow for the title and both buttons, as measured (`foldActions`): they fold into one
      menu button, and stay laid out out of sight so their width is still known. */
-  /* Two classes: `.panel-act` below sets a display of its own and would win the tie. */
-  .panel-act.worktrees-more:not(.shown) {
+  /* Two classes: `.btn` sets a display of its own and would win the tie. */
+  .btn.worktrees-more:not(.shown) {
     display: none;
   }
 
@@ -4488,28 +4488,6 @@ ${event.error}`,
     pointer-events: none;
   }
 
-  .panel-act {
-    display: inline-flex;
-    align-items: center;
-    height: 18px;
-    padding: 0 var(--sp-3);
-    line-height: 1;
-    background: var(--surface-input);
-    color: var(--text-primary);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-sm);
-    font-size: 10px;
-    cursor: default;
-  }
-
-  .panel-act:hover:not(:disabled) {
-    border-color: var(--status-ref);
-  }
-
-  .panel-act:disabled {
-    opacity: 0.45;
-  }
-
   .pane > :global(.panel) {
     flex: 1 1 auto;
   }
@@ -4520,16 +4498,16 @@ ${event.error}`,
 
   /* Shrinks before the sort buttons beside it are cut. */
   .ref-filter {
-    flex: 0 1 140px;
-    width: 140px;
-    min-width: 48px;
-    height: 18px;
+    flex: 0 1 var(--w-panel-filter);
+    width: var(--w-panel-filter);
+    min-width: var(--w-panel-filter-min);
+    height: var(--h-button-sm);
     padding: 0 var(--sp-3);
     background: var(--surface-input);
     color: var(--text-primary);
     border: 1px solid var(--field-border);
     border-radius: var(--r-sm);
-    font-size: 10px;
+    font-size: var(--fs-dense);
   }
 
   /* Raw Git output is never reformatted or truncated (INV-05). */

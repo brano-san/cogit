@@ -51,6 +51,9 @@
   --h-button-sm: 20px;
   /* The ones in a dialog footer, where there is room and they carry the decision. */
   --h-button: 26px;
+  /* A filter field in a panel header, and how far it gives way before the buttons beside it. */
+  --w-panel-filter: 140px;
+  --w-panel-filter-min: 48px;
   /* Wide enough to see and to hit; the grab zone widens further on top of it. */
   --w-splitter: 1px;
   /* Tree triangles and menu carets are SVG in CSS px, so 125% and 150% scale them whole. */
