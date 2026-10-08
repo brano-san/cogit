@@ -6,6 +6,16 @@ import type { MenuRow } from "./menu-nav";
 const shortcut = (keys: string | null | undefined, onMac: boolean) =>
   keys ? prettyKeys(keys, onMac) : null;
 
+/** The bar's item bound to `accelerator`, at any depth. */
+export function itemFor(model: readonly MenuNode[], accelerator: string): MenuNode | null {
+  for (const node of model) {
+    if (node.accelerator === accelerator) return node;
+    const inside = itemFor(node.children, accelerator);
+    if (inside) return inside;
+  }
+  return null;
+}
+
 /** A context menu as the page draws it: separators tidied at every depth (R-133), keys
     formatted for the platform. */
 export function contextRows(items: readonly ContextItem[], onMac: boolean): MenuRow[] {

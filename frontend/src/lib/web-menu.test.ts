@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { MenuNode } from "$lib/ipc/bindings";
 import { SEPARATOR, item, submenu } from "./context-menu";
-import { barRows, contextRows, opensBar } from "./web-menu";
+import { barRows, contextRows, itemFor, opensBar } from "./web-menu";
 
 describe("contextRows", () => {
   it("tidies separators at every depth and formats keys", () => {
@@ -91,5 +91,23 @@ describe("opensBar", () => {
     expect(press("e")).toBe(false);
     expect(press("F10", { ctrlKey: true })).toBe(false);
     expect(press("ArrowLeft", { altKey: true })).toBe(false);
+  });
+});
+
+describe("itemFor", () => {
+  const node = (id: string, accelerator: string | null, children: MenuNode[] = []): MenuNode => ({
+    id,
+    label: id,
+    separator: false,
+    accelerator,
+    enabled: true,
+    checked: null,
+    children,
+  });
+
+  it("finds the item bound to a key at any depth", () => {
+    const model = [node("file", null, [node("open", "CmdOrCtrl+O"), node("sub", null, [node("deep", "CmdOrCtrl+K")])])];
+    expect(itemFor(model, "CmdOrCtrl+K")?.id).toBe("deep");
+    expect(itemFor(model, "CmdOrCtrl+J")).toBeNull();
   });
 });

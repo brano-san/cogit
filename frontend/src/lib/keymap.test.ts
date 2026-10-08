@@ -3,6 +3,7 @@ import type { KeyBinding } from "$lib/ipc/bindings";
 import cases from "./accelerator-cases.json";
 import {
   claimable,
+  pressedAccelerator,
   conflicts,
   effective,
   mergeKeymap,
@@ -227,5 +228,21 @@ describe("withShortcuts", () => {
     const keys = effective([binding("stash", "CmdOrCtrl+S"), binding("panel-graph", "CmdOrCtrl+3")], {});
     const rows = withShortcuts([{ id: "stash" }, { id: "panel-graph" }, { id: "about", shortcut: "stale" }], keys, false);
     expect(rows.map((row) => row.shortcut)).toEqual(["Ctrl+S", "Ctrl+3", undefined]);
+  });
+});
+
+// WSLg with a Russian Windows layout: GTK matched Ctrl+K by «л» and nothing ran.
+describe("pressedAccelerator", () => {
+  const press = (key: string, code: string, over: Partial<KeyboardEvent> = {}) =>
+    ({ key, code, ctrlKey: true, metaKey: false, altKey: false, shiftKey: false, ...over }) as KeyboardEvent;
+
+  it("names a letter by where it sits, whatever the layout types", () => {
+    expect(pressedAccelerator(press("л", "KeyK"), false)).toBe("CmdOrCtrl+K");
+    expect(pressedAccelerator(press("Л", "KeyK", { shiftKey: true }), false)).toBe("CmdOrCtrl+Shift+K");
+    expect(pressedAccelerator(press("б", "Comma"), false)).toBe("CmdOrCtrl+,");
+  });
+
+  it("has nothing for a key without a place", () => {
+    expect(pressedAccelerator(press("Control", "ControlLeft"), false)).toBeNull();
   });
 });

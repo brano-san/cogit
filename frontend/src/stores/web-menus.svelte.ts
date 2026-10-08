@@ -1,9 +1,10 @@
 import { commands, type ContextItem, type MenuNode, type WindowChrome } from "$lib/ipc/bindings";
-import { ON_MAC } from "$lib/platform";
+import { pressedAccelerator } from "$lib/keymap";
+import { ON_MAC, primary } from "$lib/platform";
 import type { MenuRow } from "$lib/menu-nav";
 import type { FrameState } from "$lib/titlebar";
 import { windowControl } from "$lib/window-control";
-import { barRows, contextRows } from "$lib/web-menu";
+import { barRows, contextRows, itemFor } from "$lib/web-menu";
 import { readText } from "@tauri-apps/plugin-clipboard-manager";
 
 /** What an id of the bar means when it is the page that has to answer: the clipboard rows
@@ -42,7 +43,10 @@ class WebMenus {
   async boot(): Promise<void> {
     try {
       this.chrome = await commands.windowChrome();
-      if (this.chrome.webMenus) await this.reloadModel();
+      if (this.chrome.webMenus) {
+        await this.reloadModel();
+        window.addEventListener("keydown", (event) => this.onKey(event));
+      }
       if (this.chrome.customTitlebar || this.chrome.webMenus) void this.watchFrame();
     } catch {
       // No host to ask (a plain browser): the native paths stay.
@@ -99,6 +103,22 @@ class WebMenus {
 
   closeContext(): void {
     this.context = null;
+  }
+
+  /** The hidden native bar keeps the accelerators, but GTK matches them by the character
+      the layout types: under WSLg with a Russian Windows layout Ctrl+K types «л» and no
+      item answers, and the press reaches the page. It is matched here by where the key
+      sits. A Latin press never gets here (GTK took it), so nothing runs twice; the editing
+      keys stay the focused field's own. */
+  onKey(event: KeyboardEvent): void {
+    if (event.defaultPrevented || (!primary(event, ON_MAC) && !event.altKey)) return;
+    if (event.key.length !== 1 || event.key.charCodeAt(0) < 128) return;
+    const keys = pressedAccelerator(event, ON_MAC);
+    const item = keys === null ? null : itemFor(this.model, keys);
+    if (!item || item.id.startsWith("edit-")) return;
+    if (this.live ? this.live.disabled.has(item.id) : !item.enabled) return;
+    event.preventDefault();
+    void this.run(item.id);
   }
 
   async run(id: string, restore?: HTMLElement | null): Promise<void> {

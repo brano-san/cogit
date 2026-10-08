@@ -117,6 +117,18 @@ function keyAt(code: string): string | null {
   return PLACES[code] ?? null;
 }
 
+/** The accelerator a press means by where its key sits, whatever the layout types there:
+    Ctrl+K with a Russian layout is still `CmdOrCtrl+K`. `null` for a key without a place. */
+export function pressedAccelerator(press: KeyPress, onMac: boolean): string | null {
+  const key = keyAt(press.code);
+  if (key === null) return null;
+  const parts: string[] = [];
+  if (primary(press, onMac)) parts.push("CmdOrCtrl");
+  if (press.altKey) parts.push("Alt");
+  if (press.shiftKey) parts.push("Shift");
+  return [...parts, key].join("+");
+}
+
 /** What the keymap editor records for a press: the accelerator, or why the window would
     not run it (R-516). `null` for a bare modifier, so the editor keeps waiting. */
 export function recordKeys(press: KeyPress, onMac: boolean): Recorded | null {
