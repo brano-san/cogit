@@ -36,6 +36,13 @@ class TaskbarStore {
     if (kind !== "success") this.#flash = "persistent";
   }
 
+  /** A dialog waits for an answer while the window is in the background (the close
+      question, a passphrase, a conflict): the button blinks until focus, like an error, and
+      counts nothing. Never for a window in front. */
+  attention(): void {
+    if (!this.focused) this.#flash = "persistent";
+  }
+
   /** The window got focus: whatever piled up is seen. */
   viewed(): void {
     this.#unviewed = 0;

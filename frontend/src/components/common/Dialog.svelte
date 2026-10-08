@@ -3,6 +3,7 @@
   import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
   import { keyIsFor, modalLayer, modals } from "$lib/modal-stack";
   import { closeAnswer, type CloseRequest } from "$lib/unsaved";
+  import { taskbar } from "$stores/taskbar.svelte";
 
   /** The shell every modal in Cogit is made of: one scrim, one panel, one title bar with
       a close button, one footer. It also owns the look of the controls inside it, so a
@@ -108,6 +109,8 @@
   }
 
   onMount(() => {
+    // A question asked behind the user's back waits for them: the taskbar button says so.
+    taskbar.attention();
     void tick().then(() => {
       if (!panel || panel.contains(document.activeElement)) return;
       (panel.querySelector<HTMLElement>("[data-autofocus]") ?? panel).focus();
