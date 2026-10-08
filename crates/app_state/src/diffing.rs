@@ -10,6 +10,32 @@ impl AppState {
         path: &str,
         options: &diff_engine::DiffOptions,
     ) -> Result<diff_engine::FileDiff, git_engine::GitError> {
+        self.diff_with(repo, spec, path, options, None)
+    }
+
+    /// The working file as the editor holds it: the bytes its save would write stand in
+    /// for the file on disk, so the live diff is the one the saved file will show.
+    pub fn diff_edited(
+        &self,
+        repo: RepoId,
+        spec: &git_engine::DiffSpec,
+        path: &str,
+        text: &str,
+        shape: git_engine::editable::Shape,
+        options: &diff_engine::DiffOptions,
+    ) -> Result<diff_engine::FileDiff, git_engine::GitError> {
+        let edited = git_engine::editable::encode(text, shape);
+        self.diff_with(repo, spec, path, options, Some(edited))
+    }
+
+    fn diff_with(
+        &self,
+        repo: RepoId,
+        spec: &git_engine::DiffSpec,
+        path: &str,
+        options: &diff_engine::DiffOptions,
+        edited: Option<Vec<u8>>,
+    ) -> Result<diff_engine::FileDiff, git_engine::GitError> {
         let handle = self.handle(repo)?;
         let source = handle.rename_source(spec, path)?;
         let old_path = source.as_deref().unwrap_or(path);
@@ -17,6 +43,7 @@ impl AppState {
             return Ok(named(diff, &handle, spec, (old_path, path)));
         }
         let (old, new) = handle.diff_sides_from(spec, old_path, path)?;
+        let new = edited.or(new);
         if old.is_none() && new.is_none() {
             return pointer_diff(&handle, spec, path);
         }

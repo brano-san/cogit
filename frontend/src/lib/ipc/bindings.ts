@@ -74,6 +74,8 @@ export const commands = {
 	commitDetails: (repo: RepoId, rev: string) => typedError<CommitDetails, GitError>(__TAURI_INVOKE("commit_details", { repo, rev })),
 	commitFiles: (repo: RepoId, rev: string) => typedError<FileEntry_Serialize[], GitError>(__TAURI_INVOKE("commit_files", { repo, rev })),
 	diffFile: (repo: RepoId, spec: DiffSpec, path: string, options: DiffOptions) => typedError<FileDiff, GitError>(__TAURI_INVOKE("diff_file", { repo, spec, path, options })),
+	/**  The working file being edited, diffed as its save would write it (F-722). */
+	diffEdited: (repo: RepoId, spec: DiffSpec, path: string, text: string, shape: Shape, options: DiffOptions) => typedError<FileDiff, GitError>(__TAURI_INVOKE("diff_edited", { repo, spec, path, text, shape, options })),
 	worktreeFiles: (repo: RepoId, view: WorktreeView) => typedError<WorktreeFiles_Serialize, GitError>(__TAURI_INVOKE("worktree_files", { repo, view })),
 	/**  The counters and the conflicted paths from one read, for the refresh after a mutation. */
 	workingState: (repo: RepoId) => typedError<WorkingState, GitError>(__TAURI_INVOKE("working_state", { repo })),

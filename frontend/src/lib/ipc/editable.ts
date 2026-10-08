@@ -1,4 +1,4 @@
-import { commands, type DiffSpec, type RepoId, type Shape } from "./bindings";
+import { commands, type DiffOptions, type DiffSpec, type RepoId, type Shape } from "./bindings";
 import { unwrap } from "./index";
 
 export type { EditableFile, SaveOutcome, Shape } from "./bindings";
@@ -18,4 +18,16 @@ export async function saveEditable(
   force: boolean,
 ) {
   return unwrap(await commands.saveEditable(repo, path, text, shape, stamp, force));
+}
+
+/** The diff of `text` against the spec's base, as the file will show once `text` is saved. */
+export async function diffEdited(
+  repo: RepoId,
+  spec: DiffSpec,
+  path: string,
+  text: string,
+  shape: Shape,
+  options: DiffOptions,
+) {
+  return unwrap(await commands.diffEdited(repo, spec, path, text, shape, options));
 }

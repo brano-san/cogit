@@ -690,3 +690,55 @@ fn a_file_nothing_changed_in_is_still_unchanged() {
 
     assert!(matches!(shown, FileDiff::Unchanged), "{shown:?}");
 }
+
+fn new_side(diff: &FileDiff) -> Vec<String> {
+    let FileDiff::Text { hunks, .. } = diff else {
+        panic!("expected a text diff, got {diff:?}");
+    };
+    hunks
+        .iter()
+        .flat_map(|hunk| &hunk.rows)
+        .filter_map(|row| match row {
+            diff_engine::DiffRow::Context { text, .. }
+            | diff_engine::DiffRow::Insert { text, .. } => Some(text.clone()),
+            diff_engine::DiffRow::Delete { .. } => None,
+        })
+        .collect()
+}
+
+#[test]
+fn an_edited_working_file_is_diffed_as_its_save_would_write_it() {
+    let f = test_fixtures::linear(1).unwrap();
+    let file = f.path().join("file0.txt");
+    std::fs::write(&file, "content 0\r\non disk\r\n").unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let (_, shape) = git_engine::editable::decode(&std::fs::read(&file).unwrap()).unwrap();
+
+    let options = DiffOptions::default();
+    let edited = state
+        .diff_edited(
+            repo,
+            &DiffSpec::WorkTreeVsIndex,
+            "file0.txt",
+            "content 0\ntyped",
+            shape,
+            &options,
+        )
+        .unwrap();
+    let on_disk = state
+        .diff_file(repo, &DiffSpec::WorkTreeVsIndex, "file0.txt", &options)
+        .unwrap();
+
+    assert_eq!(new_side(&edited), ["content 0", "typed"]);
+    assert_eq!(new_side(&on_disk), ["content 0", "on disk"]);
+    let eol = |diff: &FileDiff| match diff {
+        FileDiff::Text { eol, .. } => format!("{eol:?}"),
+        other => panic!("expected a text diff, got {other:?}"),
+    };
+    assert_eq!(
+        eol(&edited),
+        eol(&on_disk),
+        "the edit keeps the file's CRLF"
+    );
+}

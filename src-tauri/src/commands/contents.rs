@@ -83,6 +83,25 @@ pub async fn diff_file(
     Ok(diff)
 }
 
+/// The working file being edited, diffed as its save would write it (F-722).
+#[tauri::command]
+#[specta::specta]
+pub async fn diff_edited(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    spec: DiffSpec,
+    path: String,
+    text: String,
+    shape: git_engine::editable::Shape,
+    options: DiffOptions,
+) -> Result<FileDiff, GitError> {
+    let app_state = state.state.clone();
+    blocking("diff_edited", move || {
+        app_state.diff_edited(repo, &spec, &path, &text, shape, &options)
+    })
+    .await
+}
+
 /// Every file of a commit in one round trip, diffed in parallel (doc/08-diff-engine.md §9).
 #[tauri::command]
 #[specta::specta]
