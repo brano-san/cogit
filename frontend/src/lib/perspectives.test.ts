@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  commitHeightAfterDrag,
   worktreesHeightAfterDrag,
   capFraction,
   DEFAULT_LAYOUT,
@@ -125,8 +126,25 @@ describe("the commit message panel", () => {
     expect(DEFAULT_PERSPECTIVES.review.hidden).toContain("commit");
   });
 
-  it("has its own share of the column height", () => {
-    expect(DEFAULT_LAYOUT.commitBox).toBeGreaterThan(0);
+  it("has its own share of the right area", () => {
+    expect(DEFAULT_LAYOUT.commitHeight).toBeGreaterThan(0);
+  });
+
+  it("keeps the size it had in a layout saved before that share existed", () => {
+    const merged = mergePerspectives({ main: { fractions: { topRow: 0.5, commitBox: 0.6 }, hidden: [] } });
+    expect(merged.main.fractions.commitHeight).toBeCloseTo(0.2);
+  });
+});
+
+// Resizing Diff resized Commit Message: its height was a share of the Files column.
+describe("commitHeightAfterDrag", () => {
+  it("moves the message by the drag, in pixels of the whole area", () => {
+    expect(commitHeightAfterDrag(0.2, -0.05, 1000, 500, 95, 126) * 1000).toBeCloseTo(250);
+  });
+
+  it("keeps the message its minimum and Files its own", () => {
+    expect(commitHeightAfterDrag(0.2, 0.5, 1000, 500, 95, 126) * 1000).toBeCloseTo(126);
+    expect(commitHeightAfterDrag(0.2, -0.5, 1000, 500, 95, 126) * 1000).toBeCloseTo(405);
   });
 });
 

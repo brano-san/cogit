@@ -146,7 +146,7 @@
   import { foundStep } from "$lib/found";
   import { revealRef } from "$lib/ref-reveal";
   import { applyPreferences, type ApplyHost } from "$lib/preferences-apply";
-  import { capFraction, floorFraction, PANELS, worktreesHeightAfterDrag, type PanelId } from "$lib/perspectives";
+  import { capFraction, commitHeightAfterDrag, floorFraction, PANELS, worktreesHeightAfterDrag, type PanelId } from "$lib/perspectives";
   import { DIFF_PANEL_MIN_HEIGHT_PX, GRAPH_PANEL_MIN_HEIGHT, GRAPH_PANEL_MIN_HEIGHT_PX, graphPanelMinWidth } from "$lib/graph-panel";
   import { closeStep, holdsPanels, reopenClick, repoClick } from "$lib/repo-click";
   import { ModuleInitialiser, moduleClick } from "$lib/module-init";
@@ -492,6 +492,8 @@
   const fractions = $derived(layout.fractions);
   /** `--commit-panel-min` plus the splitter, in the same CSS pixels. */
   const COMMIT_MIN_PX = 126;
+  /** What Files keeps above the Commit Message panel: a pane's minimum and the splitter. */
+  const FILES_MIN_PX = 95;
   let filesColumnHeight = $state(0);
   /** `--worktrees-panel-min` plus the splitter. */
   const WORKTREES_MIN_PX = 65;
@@ -3832,7 +3834,7 @@ ${event.error}`,
         <div
           class="pane"
           class:grow={!(shown.commit && onWorkingTree)}
-          style:flex={shown.commit && onWorkingTree ? `0 1 ${fractions.commitBox * 100}%` : undefined}
+          style:flex={shown.commit && onWorkingTree ? "1 1 0" : undefined}
           role="region"
           aria-label={PANEL_TITLES.files}
           onpointerdown={() => (focused = "files")}>
@@ -3880,17 +3882,22 @@ ${event.error}`,
         {#if shown.files && shown.commit && onWorkingTree}
         <Splitter
           direction="horizontal"
-          value={fractions.commitBox}
+          value={1 - fractions.commitHeight}
           label="Resize commit message panel"
-          extent={filesColumnHeight}
+          extent={rightAreaHeight}
           onchange={(d) =>
-            layout.set("commitBox", capFraction(fractions.commitBox + d, filesColumnHeight, COMMIT_MIN_PX))}
-          onreset={() => layout.resetOne("commitBox")}
+            layout.set(
+              "commitHeight",
+              commitHeightAfterDrag(fractions.commitHeight, d, rightAreaHeight, filesColumnHeight, FILES_MIN_PX, COMMIT_MIN_PX),
+            )}
+          onreset={() => layout.resetOne("commitHeight")}
         />
         {/if}
 
         {#if shown.commit && onWorkingTree}
-        <div class="pane grow commit-pane" role="region"
+        <div class="pane commit-pane" role="region"
+          class:grow={!shown.files}
+          style:flex={shown.files ? `0 1 ${fractions.commitHeight * rightAreaHeight}px` : undefined}
           aria-label={PANEL_TITLES.commit}
           onpointerdown={() => (focused = "commit")}>
           <Panel

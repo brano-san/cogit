@@ -9,8 +9,9 @@ export interface LayoutFractions {
   graph: number;
   /** Height of the Unstaged list inside the Files panel; the rest goes to Staged. */
   filesSplit: number;
-  /** Height the Files panel keeps when the Commit Message panel sits under it. */
-  commitBox: number;
+  /** Height of the Commit Message panel as a share of the whole right area, not of the
+      Files column: the Diff splitter resizes that column and leaves the message alone. */
+  commitHeight: number;
   /** Height of the Worktrees panel as a share of the whole left column, not of the
       Repositories column: resizing Branches moves Repositories and leaves Worktrees alone. */
   worktreesHeight: number;
@@ -22,7 +23,7 @@ export const DEFAULT_LAYOUT: LayoutFractions = {
   topRow: 0.55,
   graph: 0.68,
   filesSplit: 0.55,
-  commitBox: 0.68,
+  commitHeight: 0.18,
   worktreesHeight: 0.25,
 };
 
@@ -47,6 +48,21 @@ export function worktreesHeightAfterDrag(
   minPx: number,
 ): number {
   return floorFraction(capFraction(current - delta, columnPx, minPx), columnPx, minPx);
+}
+
+/** Dragging the Files/Commit Message splitter down by `delta` (a share of the right area)
+    shrinks the message; it keeps `commitMinPx` and leaves Files `filesMinPx` of its column. */
+export function commitHeightAfterDrag(
+  current: number,
+  delta: number,
+  areaPx: number,
+  columnPx: number,
+  filesMinPx: number,
+  commitMinPx: number,
+): number {
+  if (areaPx <= 0) return current;
+  const px = Math.min(Math.max((current - delta) * areaPx, commitMinPx), columnPx - filesMinPx);
+  return Math.max(px, commitMinPx) / areaPx;
 }
 
 /** The panel before the splitter keeps `minPx`, so dragging past it leaves no dead zone. */
@@ -111,6 +127,10 @@ function fractions(stored: unknown): LayoutFractions {
   const merged = { ...DEFAULT_LAYOUT };
   for (const key of Object.keys(DEFAULT_LAYOUT) as (keyof LayoutFractions)[]) {
     if (typeof source[key] === "number") merged[key] = clampFraction(source[key]);
+  }
+  // Before `commitHeight`, the message took what Files left of the top row (`commitBox`).
+  if (typeof source.commitHeight !== "number" && typeof source.commitBox === "number") {
+    merged.commitHeight = clampFraction((1 - clampFraction(source.commitBox)) * merged.topRow);
   }
   return merged;
 }
