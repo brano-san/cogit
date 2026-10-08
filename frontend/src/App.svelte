@@ -1316,11 +1316,6 @@ ${event.error}`,
     void commit.select(id, node.oid);
     void revealRef(node.oid, {
       inWalk: async (oid) => (await graph.indexOf(oid)) !== null,
-      tickable: node.rev !== undefined && !node.disabled && !refs.visible.has(node.id),
-      tick: async () => {
-        refs.set(new Set([...refs.visible, node.id]));
-        await reloadGraph();
-      },
       reveal: (oid) => graph.requestReveal(oid),
     });
   }
