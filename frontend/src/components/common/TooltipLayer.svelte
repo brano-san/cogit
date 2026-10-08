@@ -59,12 +59,29 @@
     timer = setTimeout(show, TIP_DELAY_MS);
   }
 
-  function disarm() {
+  /** The bubble goes (a click, a scroll, Esc), but the titles stay aside while the pointer
+      is still on the element: put back under it, the browser showed its own native tooltip
+      for the very element just clicked. They come back when the pointer leaves. */
+  function hide() {
     clearTimeout(timer);
-    const element = current;
-    current = null;
     shown = null;
     placed = null;
+    if (import.meta.env.DEV) queueMicrotask(checkNoNative);
+  }
+
+  /** Dev builds: a title left on the way up from the pointer is a second, native tooltip. */
+  function checkNoNative() {
+    for (let node: Element | null = current; node; node = node.parentElement) {
+      if (node.hasAttribute("title")) console.warn("tooltip: a native title is live under the pointer", node);
+      if (node.hasAttribute("data-tip") && node.hasAttribute("title"))
+        console.warn("tooltip: an element has both data-tip and title", node);
+    }
+  }
+
+  function disarm() {
+    hide();
+    const element = current;
+    current = null;
     watcher?.disconnect();
     const restore = held;
     held = [];
@@ -84,6 +101,7 @@
     const element = current;
     if (!element?.isConnected) return;
     for (const node of held) stash(node);
+    if (import.meta.env.DEV) checkNoNative();
     const text = textOf(element);
     const around = held.slice(1).map(textOf).find((each) => each !== "") ?? null;
     if (text === "" && around === null) return;
@@ -117,14 +135,14 @@
   onpointerout={(event) => {
     if (event.relatedTarget === null) disarm();
   }}
-  onpointerdown={disarm}
+  onpointerdown={hide}
   onfocusin={(event) => {
     const element = anchorOf(event.target);
     if (element?.hasAttribute("data-tip")) arm(element);
   }}
-  onfocusout={disarm}
-  onkeydown={(event) => event.key === "Escape" && disarm()}
-  onscrollcapture={disarm}
+  onfocusout={hide}
+  onkeydown={(event) => event.key === "Escape" && hide()}
+  onscrollcapture={hide}
 />
 <svelte:window onblur={disarm} />
 
