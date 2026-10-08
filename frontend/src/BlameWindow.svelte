@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from "$components/common/EmptyState.svelte";
   import { untrack } from "svelte";
   import BlameView from "$components/diff/BlameView.svelte";
   import Select from "$components/common/Select.svelte";
@@ -87,7 +88,7 @@
 
 <div class="window">
   {#if !request}
-    <p class="note">This window needs a file. Open it with Blame from the Diff panel or a file's menu.</p>
+    <EmptyState title="This window needs a file. Open it with Blame from the Diff panel or a file's menu." />
   {:else}
     <header class="bar">
       <span class="field">
@@ -111,14 +112,14 @@
       <span class="count tabular">{blame.lines.length} lines</span>
     </header>
     {#if blame.revisionsError}
-      <p class="note error">The versions of this file could not be listed: {blame.revisionsError}</p>
+      <EmptyState tone="error" title="The versions of this file could not be listed: {blame.revisionsError}" />
     {/if}
 
     <div class="main" bind:clientHeight={mainHeight}>
       {#if blame.error}
-        <p class="note error">{blame.error}</p>
+        <EmptyState tone="error" title={blame.error} />
       {:else if blame.loading && blame.lines.length === 0}
-        <p class="note">Blaming {request.path}…</p>
+        <EmptyState title="Blaming {request.path}…" />
       {:else}
         <BlameView
           lines={blame.lines}
@@ -144,7 +145,7 @@
           >
         </div>
         {#if blame.historyError}
-          <p class="note error">{blame.historyError}</p>
+          <EmptyState tone="error" title={blame.historyError} />
         {:else}
           <div class="history-rows" role="list">
             {#each blame.history as version, at (at)}
@@ -288,17 +289,5 @@
     flex: 1 1 auto;
     min-width: 0;
     white-space: pre;
-  }
-
-  .note {
-    margin: 0;
-    padding: var(--sp-5);
-    color: var(--text-secondary);
-    font-size: var(--fs-dense);
-  }
-
-  .error {
-    color: var(--status-delete);
-    user-select: text;
   }
 </style>

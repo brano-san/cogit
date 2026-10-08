@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from "$components/common/EmptyState.svelte";
   import KindIcon from "$components/common/KindIcon.svelte";
   import { striped } from "$lib/graph-geometry";
   import type { WorktreeEntry } from "$lib/ipc";
@@ -116,7 +117,7 @@
 
   {#if rows.length === 0}
     <!-- One line: the header's Add… is the panel's one way to add (one action, one place). -->
-    <p class="empty truncate">No linked worktrees</p>
+    <EmptyState title="No linked worktrees" />
   {/if}
 </div>
 

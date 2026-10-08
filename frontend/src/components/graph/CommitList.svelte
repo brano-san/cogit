@@ -745,7 +745,7 @@
 </script>
 
 {#if graph.error}
-  <p class="message error">{graph.error.message}</p>
+  <EmptyState tone="error" title={graph.error.message} />
 {:else if commitCount === 0 && graph.loading}
   <SkeletonRows rows={14} />
 {:else}

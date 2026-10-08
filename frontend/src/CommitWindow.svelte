@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from "$components/common/EmptyState.svelte";
   import { untrack } from "svelte";
   import Checkbox from "$components/common/Checkbox.svelte";
   import Caret from "$components/common/Caret.svelte";
@@ -222,7 +223,6 @@
   }
 
 
-
   async function start(pushAfter: boolean) {
     if (!canCommit || !request) return;
     if (amend && !unborn && (await publishedOrAssume(isPublished(request.repo, "HEAD")))) {
@@ -304,7 +304,7 @@
 <TooltipLayer />
 
 {#if !request}
-  <p class="note">This window needs a repository. Open it with Ctrl+K in the main window.</p>
+  <EmptyState title="This window needs a repository. Open it with Ctrl+K in the main window." />
 {:else}
   <div class="window">
     <header class="head">
@@ -352,7 +352,7 @@
           {/each}
         </div>
         {#if rows.length === 0}
-          <p class="empty">{worktree.loading || !loaded ? "Reading changes…" : "No files to commit."}</p>
+          <EmptyState title={worktree.loading || !loaded ? "Reading changes…" : "No files to commit."} />
         {:else}
           <VirtualList items={rows} label="Files to commit">
             {#snippet row(file, at)}
@@ -674,12 +674,6 @@
 
   .state.danger {
     color: var(--status-danger);
-  }
-
-  .empty,
-  .note {
-    margin: var(--sp-5);
-    color: var(--text-secondary);
   }
 
   .label {

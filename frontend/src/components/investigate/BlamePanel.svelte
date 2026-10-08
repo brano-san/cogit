@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from "$components/common/EmptyState.svelte";
   import { shortOid } from "$lib/format";
   import Avatar from "$components/common/Avatar.svelte";
   import VirtualList from "$components/common/VirtualList.svelte";
@@ -135,9 +136,9 @@
   </header>
 
   {#if session.loadingBlame && !tables}
-    <p class="note">Blaming {session.location.path}…</p>
+    <EmptyState title="Blaming {session.location.path}…" />
   {:else if session.blameError}
-    <p class="note error">{session.blameError}</p>
+    <EmptyState tone="error" title={session.blameError} />
   {:else if tables}
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
     <div class="lines key-list" tabindex="0" role="listbox" aria-label="Lines with their origin" {onkeydown}>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from "$components/common/EmptyState.svelte";
   import type { ConflictSide, EntryKind } from "$lib/ipc";
   import { sideTitle, wholeReason } from "$lib/conflict-kind";
 
@@ -97,11 +98,11 @@
         <div class="column" data-select-text="diff">
           <div class="head">{side.label}</div>
           {#if tooLarge}
-            <p class="message">Too large to show here — take one side whole or use Resolve….</p>
+            <EmptyState title="Too large to show here — take one side whole or use Resolve…." />
           {:else if side.text === null}
-            <p class="message">Absent on this side.</p>
+            <EmptyState title="Absent on this side." />
           {:else if binary}
-            <p class="message">{wholeReason(kind, true)}</p>
+            <EmptyState title={wholeReason(kind, true)} />
           {:else}
             <pre class="body mono">{side.text}</pre>
           {/if}
@@ -197,12 +198,5 @@
     font-family: var(--font-mono);
     font-size: var(--fs-code);
     resize: none;
-  }
-
-  .message {
-    margin: 0;
-    padding: var(--sp-5);
-    color: var(--text-secondary);
-    font-size: var(--fs-dense);
   }
 </style>

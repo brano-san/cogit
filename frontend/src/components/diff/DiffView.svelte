@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from "$components/common/EmptyState.svelte";
   import { errors } from "$stores/errors.svelte";
   import { diffKey } from "$lib/diff-keys";
   import { modals } from "$lib/modal-stack";
@@ -951,32 +952,27 @@
   {/if}
 
   {#if diff.kind === "unchanged"}
-    <p class="message">No change in this file.</p>
+    <EmptyState title="No change in this file." />
   {:else if diff.kind === "modeOnly"}
-    <p class="message">
-      Only the file mode changed: {modeChangeText(diff.oldMode, diff.newMode)}. The content is
-      identical.
-    </p>
+    <EmptyState
+      title="Only the file mode changed: {modeChangeText(diff.oldMode, diff.newMode)}. The content is identical."
+    />
   {:else if diff.kind === "emptyFile"}
-    <p class="message">
-      {diff.added ? "An empty file was added" : "An empty file was deleted"}: there are no lines
-      to show.
-    </p>
+    <EmptyState title="{diff.added ? 'An empty file was added' : 'An empty file was deleted'}: there are no lines to show." />
   {:else if diff.kind === "whitespaceOnly"}
-    <p class="message warn">
-      Only whitespace changed, and {wsButton.label} hides it.
-      {onwhitespace
+    <EmptyState
+      tone="warn"
+      title="Only whitespace changed, and {wsButton.label} hides it."
+      hint={onwhitespace
         ? `Click ${wsButton.label} in the bar above until it reads ${WHITESPACE_SHOWN_LABEL} to see the diff.`
         : "Choose Show every change in Preferences ▸ Diff View ▸ Whitespace to see the diff."}
-    </p>
+    />
   {:else if diff.kind === "eolOnly"}
-    <p class="message">
-      Only the line endings changed: {eolChangeText(diff.from, diff.to)}. The content is identical.
-    </p>
+    <EmptyState title="Only the line endings changed: {eolChangeText(diff.from, diff.to)}. The content is identical." />
   {:else if diff.kind === "binary"}
     <FileSummary reason={binaryReason(diff.cause)} old={diff.old} next={diff.new} />
   {:else if diff.kind === "image"}
-    <p class="message">Image ({diff.mime}) — {diff.oldSize} bytes → {diff.newSize} bytes.</p>
+    <EmptyState title="Image ({diff.mime}) — {diff.oldSize} bytes → {diff.newSize} bytes." />
   {:else if diff.kind === "tooLarge"}
     <FileSummary reason={tooLargeReason(diff.limit)} old={diff.old} next={diff.new} />
   {:else if mode === "unified"}
@@ -1688,14 +1684,4 @@
     font-family: var(--font-mono);
   }
 
-  .message.warn {
-    color: var(--status-warning);
-  }
-
-  .message {
-    margin: 0;
-    padding: var(--sp-5);
-    font-size: var(--fs-dense);
-    color: var(--fg-secondary);
-  }
 </style>

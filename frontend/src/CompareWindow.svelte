@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from "$components/common/EmptyState.svelte";
   import { untrack } from "svelte";
   import DiffView from "$components/diff/DiffView.svelte";
   import DiffEditPane from "$components/diff/DiffEditPane.svelte";
@@ -127,20 +128,18 @@
 
 <div class="window">
   {#if !request}
-    <p class="note">
-      This window needs a file to compare. Open it from the Diff panel rather than by hand.
-    </p>
+    <EmptyState title="This window needs a file to compare. Open it from the Diff panel rather than by hand." />
   {:else}
     <header>
       <span class="path truncate" title={sides?.tip}>{request.path}</span>
     </header>
 
     {#if diff.gone}
-      <p class="note">File deleted</p>
+      <EmptyState title="File deleted" />
     {:else if diff.error}
-      <p class="note error">{diff.error.message}</p>
+      <EmptyState tone="error" title={diff.error.message} />
     {:else if diff.diff?.kind === "submodule"}
-      <p class="note">{request.path} is a submodule: it opens in the main window.</p>
+      <EmptyState title="{request.path} is a submodule: it opens in the main window." />
     {:else if diff.diff?.kind === "image"}
       <ImageDiff
         before={diff.images[0]}
@@ -169,7 +168,7 @@
         onwhitespace={(mode) => void diff.setWhitespace(request.repo, mode)}
       />
     {:else}
-      <p class="note">Loading…</p>
+      <EmptyState title="Loading…" />
     {/if}
   {/if}
 </div>
@@ -199,16 +198,5 @@
     flex: 1 1 auto;
     min-width: 0;
     font-family: var(--font-mono);
-  }
-
-  .note {
-    margin: 0;
-    padding: var(--sp-6);
-    color: var(--text-secondary);
-    font-size: var(--fs-dense);
-  }
-
-  .error {
-    color: var(--status-delete);
   }
 </style>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from "$components/common/EmptyState.svelte";
   import Dialog from "$components/common/Dialog.svelte";
   import type { SafetyEntry } from "$lib/ipc";
 
@@ -17,7 +18,7 @@
 <Dialog title="Safety journal" {onclose} width="min(640px, 92vw)" flush>
   <div class="rows">
     {#if entries.length === 0}
-      <p class="empty">Nothing destructive has happened in this repository yet.</p>
+      <EmptyState title="Nothing destructive has happened in this repository yet." />
     {:else}
       {#each entries as entry (entry.id)}
         <div class="row" class:spent={!entry.undoable}>
@@ -73,13 +74,6 @@
     flex: 0 0 auto;
     color: var(--text-secondary);
     font-size: 11px;
-  }
-
-  .empty {
-    margin: 0;
-    padding: var(--sp-6) var(--sp-5);
-    color: var(--text-secondary);
-    font-size: var(--fs-dense);
   }
 
   .hint {

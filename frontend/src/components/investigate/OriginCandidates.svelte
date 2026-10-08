@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from "$components/common/EmptyState.svelte";
   import { describeCandidate } from "$lib/investigate/origin";
   import type { InvestigateSession } from "$lib/investigate/session.svelte";
 
@@ -27,11 +28,11 @@
     {#if session.report}<span class="count tabular">{session.report.candidates.length}</span>{/if}
   </header>
   {#if session.search === "searching"}
-    <p class="note">Searching…</p>
+    <EmptyState title="Searching…" />
   {:else if session.search === "failed"}
-    <p class="note error">{session.searchError}</p>
+    <EmptyState tone="error" title={session.searchError ?? ""} />
   {:else if !session.report}
-    <p class="note">Pick a line in Blame to search for where it came from.</p>
+    <EmptyState title="Pick a line in Blame to search for where it came from." />
   {:else}
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
     <ul class="key-list" role="listbox" aria-label="Origin candidates" tabindex="0" {onkeydown}>

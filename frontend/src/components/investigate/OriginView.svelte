@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from "$components/common/EmptyState.svelte";
   import { fileName } from "$lib/investigate/params";
   import type { InvestigateSession } from "$lib/investigate/session.svelte";
 
@@ -21,7 +22,7 @@
 
 <section class="panel">
   {#if !candidate}
-    <p class="note">Choose an origin candidate to compare it with the selected lines.</p>
+    <EmptyState title="Choose an origin candidate to compare it with the selected lines." />
   {:else}
     <div class="side">
       <header class="truncate">

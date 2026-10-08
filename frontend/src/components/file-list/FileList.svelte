@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from "$components/common/EmptyState.svelte";
   import { keyLetter } from "$lib/key-letter";
   import { modals } from "$lib/modal-stack";
   import { ON_MAC, primary } from "$lib/platform";
@@ -373,9 +374,9 @@
   {/if}
 
   {#if total === 0}
-    <p class="message">{empty ?? "Nothing to show."}</p>
+    <EmptyState title={empty ?? "Nothing to show."} />
   {:else if shownCount === 0}
-    <p class="message">{nothingMatches()}</p>
+    <EmptyState title={nothingMatches()} />
   {:else}
     <!-- One sideways position for the headings and every list: each list scrolls itself, only
          past the table's width; the others and the headings follow it. -->
@@ -597,13 +598,5 @@
   .searching.error {
     color: var(--status-delete);
     user-select: text;
-  }
-
-  .message {
-    margin: 0;
-    padding: var(--sp-7) var(--sp-5);
-    text-align: center;
-    font-size: var(--fs-dense);
-    color: var(--text-secondary);
   }
 </style>

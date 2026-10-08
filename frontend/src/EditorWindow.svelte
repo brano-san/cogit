@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from "$components/common/EmptyState.svelte";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { untrack } from "svelte";
   import DiffEditPane from "$components/diff/DiffEditPane.svelte";
@@ -59,7 +60,7 @@
   {#if valid}
     <DiffEditPane doneLabel="Close" ondone={() => void closeThisWindow()} />
   {:else}
-    <p class="note">This window needs a file to edit. Open it with Edit on a file in the Files panel.</p>
+    <EmptyState title="This window needs a file to edit. Open it with Edit on a file in the Files panel." />
   {/if}
 </div>
 
@@ -78,10 +79,5 @@
     flex-direction: column;
     height: 100vh;
     background: var(--bg-editor);
-  }
-
-  .note {
-    padding: var(--sp-5);
-    color: var(--fg-secondary);
   }
 </style>

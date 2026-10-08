@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from "$components/common/EmptyState.svelte";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { untrack } from "svelte";
   import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
@@ -552,11 +553,11 @@
 
 <div class="window">
   {#if !request}
-    <p class="message">This window needs a conflicted file. Open it from the Files panel.</p>
+    <EmptyState title="This window needs a conflicted file. Open it from the Files panel." />
   {:else if loadFailed && !data}
-    <p class="message error">{loadFailed}</p>
+    <EmptyState tone="error" title={loadFailed} />
   {:else if !data}
-    <p class="message">Reading the three sides…</p>
+    <EmptyState title="Reading the three sides…" />
   {:else}
     {#if data.binary || data.tooLarge}
       <SolverWholeFile

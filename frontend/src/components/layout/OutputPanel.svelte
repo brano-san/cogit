@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from "$components/common/EmptyState.svelte";
   import Checkbox from "$components/common/Checkbox.svelte";
   import { CopyFeedback } from "$lib/copy-feedback.svelte";
   import { commandLogText, type CommandRow } from "$lib/ipc";
@@ -35,7 +36,7 @@
   </header>
 
   {#if output.shownEntries.length === 0}
-    <p class="message">No Git command has run yet.</p>
+    <EmptyState title="No Git command has run yet." />
   {:else}
     <div class="list">
       {#each output.shownEntries as entry (entry.id)}
@@ -157,11 +158,5 @@
 
   .entry.warned .what {
     color: var(--status-modify);
-  }
-
-  .message {
-    margin: 0;
-    padding: var(--sp-5);
-    color: var(--text-secondary);
   }
 </style>

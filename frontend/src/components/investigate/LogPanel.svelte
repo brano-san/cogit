@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from "$components/common/EmptyState.svelte";
   import FileStateIcon from "$components/common/FileStateIcon.svelte";
   import { fileState } from "$lib/file-state";
   import { shortOid } from "$lib/format";
@@ -48,11 +49,11 @@
 
 <section class="panel">
   {#if session.location.rev === null}
-    <p class="note">The working tree has no commit yet. Pick a commit in Navigation.</p>
+    <EmptyState title="The working tree has no commit yet. Pick a commit in Navigation." />
   {:else if error}
-    <p class="note error">{error}</p>
+    <EmptyState tone="error" title={error} />
   {:else if !details}
-    <p class="note">Loading…</p>
+    <EmptyState title="Loading…" />
   {:else}
     <div class="commit">
       <div class="summary">{details.summary}</div>
@@ -100,16 +101,6 @@
     font-size: var(--fs-dense);
   }
 
-  .note {
-    margin: 0;
-    padding: var(--sp-6);
-    color: var(--text-secondary);
-  }
-
-  .error {
-    color: var(--status-delete);
-    white-space: pre-wrap;
-  }
 
   .commit {
     padding: var(--sp-5) var(--sp-6);

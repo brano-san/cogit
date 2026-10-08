@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from "$components/common/EmptyState.svelte";
   import { onMount, untrack } from "svelte";
   import DiffView from "$components/diff/DiffView.svelte";
   import Dialog from "$components/common/Dialog.svelte";
@@ -189,10 +190,9 @@
 
 <div class="window">
   {#if !session || !request || !panels}
-    <p class="note">
-      This window needs a file to investigate. Open it from the Diff panel or a file's context
-      menu rather than by hand.
-    </p>
+    <EmptyState
+      title="This window needs a file to investigate. Open it from the Diff panel or a file's context menu rather than by hand."
+    />
   {:else}
     <InvestigateToolbar {session} />
     <div class="body">
@@ -211,7 +211,7 @@
           <LogPanel repo={request.repo} {session} />
         {:else if panels.diff}
           {#if diff.error}
-            <p class="note error">{diff.error.message}</p>
+            <EmptyState tone="error" title={diff.error.message} />
           {:else if diff.diff && diff.shownPath}
             <div class="diff">
               <DiffView
@@ -223,7 +223,7 @@
               />
             </div>
           {:else}
-            <p class="note">Loading…</p>
+            <EmptyState title="Loading…" />
           {/if}
         {:else}
           {#if panels.blame}<BlamePanel {session} {now} />{/if}
@@ -295,17 +295,6 @@
     flex: 1 1 auto;
     flex-direction: column;
     min-width: 0;
-  }
-
-  .note {
-    margin: 0;
-    padding: var(--sp-6);
-    color: var(--text-secondary);
-    font-size: var(--fs-dense);
-  }
-
-  .error {
-    color: var(--status-delete);
   }
 
   .help p {

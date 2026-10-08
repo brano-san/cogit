@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from "$components/common/EmptyState.svelte";
   import { untrack } from "svelte";
   import Dialog from "$components/common/Dialog.svelte";
   import Checkbox from "$components/common/Checkbox.svelte";
@@ -313,7 +314,7 @@
           {/snippet}
         </Tree>
         {#if nodes.length === 0}
-          <p class="empty">No setting matches that.</p>
+          <EmptyState title="No setting matches that." />
         {/if}
       </div>
     </nav>
@@ -830,7 +831,6 @@
     min-height: 0;
   }
 
-
   h3 {
     margin: 0 0 var(--sp-5);
     font-size: var(--fs-ui);
@@ -999,13 +999,6 @@
     margin: 0 0 var(--sp-2);
     color: var(--status-modify);
     font-size: var(--fs-header);
-  }
-
-  .empty {
-    margin: 0;
-    padding: var(--sp-4);
-    color: var(--text-secondary);
-    font-size: var(--fs-dense);
   }
 
   .note {

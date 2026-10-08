@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from "$components/common/EmptyState.svelte";
   import { imageSizes } from "$lib/diff-summary";
 
   interface Props {
@@ -31,7 +32,7 @@
   </div>
 
   {#if !before && !after}
-    <p class="message">Neither side has an image to show.</p>
+    <EmptyState title="Neither side has an image to show." />
   {:else if mode === "side"}
     <div class="side">
       <figure>
