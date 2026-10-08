@@ -9,6 +9,8 @@ export type EditMode = "diff" | "single";
 export interface CaretAt {
   line: number;
   column: number;
+  /** Where the clicked row was in the window (client pixels): the editor keeps it there. */
+  offset?: number;
 }
 
 export interface Opened {

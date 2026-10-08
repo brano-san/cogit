@@ -1,8 +1,8 @@
 import { defaultKeymap, history, historyKeymap, indentLess, insertTab, redo, undo } from "@codemirror/commands";
 import { syntaxHighlighting } from "@codemirror/language";
-import { MergeView } from "@codemirror/merge";
-import { EditorSelection, EditorState, StateEffect, Text, type Extension } from "@codemirror/state";
-import { EditorView, keymap, lineNumbers } from "@codemirror/view";
+import { MergeView, getChunks } from "@codemirror/merge";
+import { EditorSelection, EditorState, RangeSetBuilder, StateEffect, Text, type Extension } from "@codemirror/state";
+import { Decoration, EditorView, ViewPlugin, keymap, lineNumbers, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { classHighlighter } from "@lezer/highlight";
 import { languageExtension, styleNonce, themeSpec } from "$lib/solver-editor";
 
@@ -22,9 +22,57 @@ const theme = EditorView.theme({
   ".cm-merge-a .cm-content": { caretColor: "transparent" },
   ".cm-merge-a .cm-gutters": { opacity: "0.7" },
   ".cm-mergeSpacer": themeSpec[".sv-pad"],
+  // A line replaced on both sides is "changed", as the diff paints it; a side alone stays red or green.
+  ".cm-line.dv-changed": { backgroundColor: "var(--diff-changed-line)" },
+  ".dv-changed .cm-changedText": { backgroundColor: "var(--diff-changed-word)" },
+  // Folded lines look like the diff's fold rows, not the merge view's light bar.
+  ".cm-collapsedLines": {
+    padding: "0 var(--sp-4)",
+    background: "var(--diff-hunk-header-bg)",
+    color: "var(--diff-hunk-header-fg)",
+    boxShadow: "inset 0 1px 0 var(--border), inset 0 -1px 0 var(--border)",
+    fontFamily: "var(--font-ui)",
+    fontSize: "var(--fs-header)",
+    cursor: "pointer",
+  },
+  ".cm-collapsedLines:before, .cm-collapsedLines:after": { display: "none" },
 });
 
-const common: Extension = [styleNonce(), theme, lineNumbers(), syntaxHighlighting(classHighlighter)];
+/** Lines of a chunk that changed on both sides: the diff's "changed" colour, not red and green. */
+const changedPairs = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) {
+      this.decorations = paired(view);
+    }
+    update(update: ViewUpdate) {
+      if (update.docChanged || update.viewportChanged || getChunks(update.state) !== getChunks(update.startState))
+        this.decorations = paired(update.view);
+    }
+  },
+  { decorations: (plugin) => plugin.decorations },
+);
+
+const CHANGED = Decoration.line({ class: "dv-changed" });
+
+function paired(view: EditorView): DecorationSet {
+  const found = getChunks(view.state);
+  const builder = new RangeSetBuilder<Decoration>();
+  if (!found) return builder.finish();
+  const doc = view.state.doc;
+  for (const chunk of found.chunks) {
+    if (chunk.fromA >= chunk.toA || chunk.fromB >= chunk.toB) continue;
+    const [from, to] = found.side === "a" ? [chunk.fromA, chunk.toA] : [chunk.fromB, chunk.toB];
+    for (let pos = from; pos < Math.min(to, doc.length + 1); ) {
+      const line = doc.lineAt(pos);
+      builder.add(line.from, line.from, CHANGED);
+      pos = line.to + 1;
+    }
+  }
+  return builder.finish();
+}
+
+const common: Extension = [styleNonce(), theme, lineNumbers(), syntaxHighlighting(classHighlighter), changedPairs];
 
 export interface DiffEditorEvents {
   /** Any edit, undo or redo: the page compares against the saved text itself. */
@@ -42,7 +90,15 @@ export class DiffEditor {
   #base: EditorView | null = null;
   #saved: Text;
 
-  constructor(parent: HTMLElement, base: string | null, text: string, events: DiffEditorEvents) {
+  /** `context`: lines kept around a change when the unchanged ones fold, as the diff
+      folds them; `null` folds nothing. */
+  constructor(
+    parent: HTMLElement,
+    base: string | null,
+    text: string,
+    events: DiffEditorEvents,
+    context: number | null = null,
+  ) {
     const editable: Extension = [
       common,
       history(),
@@ -69,6 +125,7 @@ export class DiffEditor {
         highlightChanges: true,
         gutter: true,
         diffConfig: { scanLimit: 5000, timeout: 50 },
+        collapseUnchanged: context === null ? undefined : { margin: Math.max(context, 1), minSize: 4 },
       });
       this.#view = this.#merge.b;
       this.#base = this.#merge.a;
@@ -97,13 +154,16 @@ export class DiffEditor {
     redo(this.#view);
   }
 
-  /** The caret at a line and column of the file (1-based line), scrolled into view. */
-  focusAt(line: number | null, column = 0): void {
+  /** The caret at a line and column of the file (1-based line), scrolled into view: at
+      `offset` pixels from the top when given, where the clicked row of the diff was, so
+      the text does not move under the pointer. */
+  focusAt(line: number | null, column = 0, offset: number | null = null): void {
     const doc = this.#view.state.doc;
     if (line !== null && line >= 1 && line <= doc.lines) {
       const at = doc.line(line);
       const pos = at.from + Math.min(column, at.length);
-      this.#view.dispatch({ selection: EditorSelection.cursor(pos), effects: EditorView.scrollIntoView(pos, { y: "center" }) });
+      const place = offset === null ? { y: "center" as const } : { y: "start" as const, yMargin: Math.max(offset, 0) };
+      this.#view.dispatch({ selection: EditorSelection.cursor(pos), effects: EditorView.scrollIntoView(pos, place) });
     }
     this.#view.focus();
   }

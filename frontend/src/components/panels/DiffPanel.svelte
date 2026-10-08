@@ -9,7 +9,8 @@
   import { untrack } from "svelte";
   import ImageDiff from "$components/diff/ImageDiff.svelte";
   import SubmoduleDiff from "$components/diff/SubmoduleDiff.svelte";
-  import type { ConflictSide, Whitespace } from "$lib/ipc";
+  import { openEditorWindow, type ConflictSide, type Whitespace } from "$lib/ipc";
+  import { errors } from "$stores/errors.svelte";
   import { conflicts } from "$stores/conflicts.svelte";
   import { diff } from "$stores/diff.svelte";
   import type { Snippet } from "svelte";
@@ -58,6 +59,13 @@
       if (moved) void diffEdit.leave(false);
     });
   });
+
+  /** The Edit button: the file in an editor window of its own (F-722). */
+  function editWindow() {
+    const repo = diff.repo;
+    const path = diff.shownPath;
+    if (repo !== null && path) void openEditorWindow(repo, path).catch((err) => errors.report(err, "Could not open the editor"));
+  }
 
   /** A click in the right pane of a working-tree diff: the caret goes where it was. */
   function startEdit(at?: CaretAt) {
@@ -127,6 +135,7 @@
   <DiffView
     edit={offer}
     onedit={startEdit}
+    oneditwindow={editWindow}
     diff={diff.diff}
     path={diff.shownPath}
     stageable={diff.stageable}

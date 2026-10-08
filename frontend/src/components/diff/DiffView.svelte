@@ -93,7 +93,9 @@
     /** Edit in place (F-722): `null` or absent shows no button; `blocked` says why it is off. */
     edit?: { blocked: string | null } | null;
     /** `at`: a click in the right pane put the caret there. */
-    onedit?: (at?: { line: number; column: number }) => void;
+    onedit?: (at?: { line: number; column: number; offset: number }) => void;
+    /** The Edit button: the file in an editor window of its own. Absent, it edits here. */
+    oneditwindow?: () => void;
     /** Off where the file is named already: the compare window's title and header. */
     showPath?: boolean;
     /** What the panes hold, above each; from the diff's spec when the host knows no better
@@ -115,6 +117,7 @@
     captions,
     edit = null,
     onedit,
+    oneditwindow,
   }: Props = $props();
 
   /** The right pane of a working-tree diff is the file: a plain click there (not a drag that
@@ -134,7 +137,7 @@
       range.setEnd(caret.offsetNode, caret.offset);
       column = range.toString().length;
     }
-    onedit({ line: Number(row.dataset.line), column });
+    onedit({ line: Number(row.dataset.line), column, offset: row.getBoundingClientRect().top });
   }
 
   /** Converted lines are not the file's bytes: a patch built from them would not apply. */
@@ -888,8 +891,11 @@
         type="button"
         class="btn sm"
         disabled={edit.blocked !== null}
-        title={edit.blocked ?? "Edit the working tree file here; the left side stays read-only"}
-        onclick={() => onedit?.()}>Edit</button
+        title={edit.blocked ??
+          (oneditwindow
+            ? "Open the working tree file in an editor window; a click in the right side edits it here"
+            : "Edit the working tree file here; the left side stays read-only")}
+        onclick={() => (oneditwindow ? oneditwindow() : onedit?.())}>Edit</button
       >
     {/if}
     {#if diff.kind === "text"}

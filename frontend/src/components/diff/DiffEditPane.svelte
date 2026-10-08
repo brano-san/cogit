@@ -1,6 +1,7 @@
 <script lang="ts">
   import { DiffEditor } from "$lib/diff-editor";
   import { diffEdit } from "$stores/diff-edit.svelte";
+  import { diff as diffStore } from "$stores/diff.svelte";
   import { untrack } from "svelte";
 
   /** The Diff panel editing the working file (F-722): beside the diff's base, read-only, as
@@ -31,16 +32,23 @@
     if (!target || !file) return;
     const made = untrack(
       () =>
-        new DiffEditor(target, file.mode === "single" ? null : file.base, file.text, {
-          changed: () => (diffEdit.dirty = made.dirty),
-          save: () => void save(),
-          done: ondone,
-        }),
+        new DiffEditor(
+          target,
+          file.mode === "single" ? null : file.base,
+          file.text,
+          {
+            changed: () => (diffEdit.dirty = made.dirty),
+            save: () => void save(),
+            done: ondone,
+          },
+          diffStore.foldContext,
+        ),
     );
     editor = made;
     diffEdit.attach({ text: () => made.text(), focused: () => made.focused, save: () => void save() });
     void made.useLanguageOf(file.path);
-    made.focusAt(file.at?.line ?? null, file.at?.column ?? 0);
+    const row = file.at?.offset;
+    made.focusAt(file.at?.line ?? null, file.at?.column ?? 0, row === undefined ? null : row - target.getBoundingClientRect().top);
     return () => {
       diffEdit.detach();
       made.destroy();
