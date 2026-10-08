@@ -126,6 +126,13 @@ windows-core = "0.62"
 windows = { version = "0.62", features = [
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_Shell",
+    # The Start menu shortcut toasts take their name and icon from (src-tauri/src/notify).
+    "Win32_Storage_EnhancedStorage",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Variant",
+    "Win32_UI_Shell_PropertiesSystem",
     "Win32_UI_WindowsAndMessaging",
     "Win32_System_Shutdown",
     # Toasts when an operation ends in the background (src-tauri/src/notify).
