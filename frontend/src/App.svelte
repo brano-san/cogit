@@ -3604,6 +3604,7 @@ ${event.error}`,
         direction="horizontal"
         value={1 - fractions.worktreesHeight}
         label="Resize worktrees panel"
+        extent={leftColumnHeight}
         onchange={(d) =>
           layout.set(
             "worktreesHeight",
@@ -3680,6 +3681,7 @@ ${event.error}`,
         direction="horizontal"
         value={fractions.repositories}
         label="Resize repositories panel"
+        extent={leftColumnHeight}
         onchange={(d) =>
           layout.set("repositories", floorFraction(fractions.repositories + d, leftColumnHeight, reposColumnMinPx()))}
         onreset={() => layout.resetOne("repositories")}
@@ -3729,6 +3731,7 @@ ${event.error}`,
       direction="vertical"
       value={fractions.leftColumn}
       label="Resize left column"
+      extent={workspaceWidth}
       onchange={(d) =>
         layout.set("leftColumn", capFraction(fractions.leftColumn + d, workspaceWidth, graphMinPx()))}
       onreset={() => layout.resetOne("leftColumn")}
@@ -3810,6 +3813,7 @@ ${event.error}`,
           direction="vertical"
           value={fractions.graph}
           label="Resize graph panel"
+          extent={topRowWidth}
           onchange={(d) =>
             layout.set("graph", floorFraction(fractions.graph + d, topRowWidth, graphMinPx()))}
           onreset={() => layout.resetOne("graph")}
@@ -3878,6 +3882,7 @@ ${event.error}`,
           direction="horizontal"
           value={fractions.commitBox}
           label="Resize commit message panel"
+          extent={filesColumnHeight}
           onchange={(d) =>
             layout.set("commitBox", capFraction(fractions.commitBox + d, filesColumnHeight, COMMIT_MIN_PX))}
           onreset={() => layout.resetOne("commitBox")}
@@ -3909,6 +3914,7 @@ ${event.error}`,
         direction="horizontal"
         value={fractions.topRow}
         label="Resize diff panel"
+        extent={rightAreaHeight}
         onchange={(d) =>
           layout.set(
             "topRow",

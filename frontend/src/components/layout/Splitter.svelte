@@ -4,18 +4,25 @@
     direction: "vertical" | "horizontal";
     value: number;
     label: string;
+    /** Pixels the caller's fraction is a share of, when that is not this splitter's parent:
+        a share of the wrong length moved the edge faster or slower than the pointer. */
+    extent?: number;
     onchange: (deltaFraction: number) => void;
     onreset: () => void;
   }
 
-  let { direction, value, label, onchange, onreset }: Props = $props();
+  let { direction, value, label, extent, onchange, onreset }: Props = $props();
 
   let element: HTMLDivElement;
   let dragging = $state(false);
+  /** The pointer where the drag began, and the movement already reported from there. */
+  let start = 0;
+  let reported = 0;
 
   const KEYBOARD_STEP = 0.02;
 
   function containerExtent(): number {
+    if (extent !== undefined) return extent;
     const parent = element.parentElement;
     if (!parent) return 0;
     return direction === "vertical" ? parent.clientWidth : parent.clientHeight;
@@ -23,16 +30,26 @@
 
   function onpointerdown(event: PointerEvent) {
     element.setPointerCapture(event.pointerId);
+    start = position(event);
+    reported = 0;
     dragging = true;
     event.preventDefault();
   }
 
   function onpointermove(event: PointerEvent) {
     if (!dragging) return;
-    const extent = containerExtent();
-    if (extent <= 0) return;
-    const delta = direction === "vertical" ? event.movementX : event.movementY;
-    onchange(delta / extent);
+    const size = containerExtent();
+    if (size <= 0) return;
+    // From the drag start, not `movementX`: that one is in device pixels on a scaled display.
+    const moved = position(event) - start;
+    const delta = moved - reported;
+    if (delta === 0) return;
+    reported = moved;
+    onchange(delta / size);
+  }
+
+  function position(event: PointerEvent): number {
+    return direction === "vertical" ? event.clientX : event.clientY;
   }
 
   function onpointerup(event: PointerEvent) {
