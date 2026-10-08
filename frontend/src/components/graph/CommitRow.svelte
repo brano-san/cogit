@@ -184,9 +184,10 @@
   }
 
   /* Widths of the columns are inline, from `COLUMN_WIDTH`: the row measures them too. */
-  /* After the subject, the author gives way; the date never does (it is measured to fit). */
+  /* Only the subject gives way: the author keeps its name up to its column's cap (cut past
+     it), and the date is measured to fit. */
   .author {
-    flex: 0 1 auto;
+    flex: 0 0 auto;
     min-width: 0;
     color: var(--text-secondary);
   }
