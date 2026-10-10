@@ -124,8 +124,9 @@
     pane?.querySelector<HTMLElement>(`[data-path="${CSS.escape(target.path)}"]`)?.focus();
   }
 
-  /** Enter is the focused row's own click. Left and Right fold the folder the keyboard is on:
-      a focused folder row, or the folder of the selected file (the tree's rule, R-350). */
+  /** Enter is the focused row's double click (its own handler). Left and Right fold the
+      folder the keyboard is on: a focused folder row, or the folder of the selected file (the
+      tree's rule, R-350). */
   function onkeydown(event: KeyboardEvent) {
     const press = pressOf(event, ON_MAC);
     const folderRow = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-folder]");
@@ -217,8 +218,8 @@
               onclick(file.path, event);
             }}
             onkeydown={(event) => {
-              // Enter on a conflicted file is its double click: the Conflict Solver.
-              if (event.key === "Enter" && file.status === "conflicted" && onopen) {
+              // Enter is the double click: the file in its own window, a conflict in the Solver.
+              if (event.key === "Enter" && onopen) {
                 event.preventDefault();
                 onopen(file.path);
                 return;
