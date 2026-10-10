@@ -66,6 +66,8 @@ pub struct PushOptions {
     /// The remote-tracking tip the dialog showed, for a lease without the check; `None`: the
     /// branch must not exist there.
     pub lease_expect: Option<String>,
+    pub no_verify: bool,
+    pub atomic: bool,
 }
 
 /// What a repository remembers for the two dialogs. Never `force_with_lease`.
@@ -130,6 +132,19 @@ const LOCAL_NOTES: &str = "refs/notes/";
 
 fn notes_mirror(remote: &str) -> String {
     format!("refs/notes-remote/{remote}/")
+}
+
+const NOTES_REFSPEC: &str = "refs/notes/*:refs/notes/*";
+
+/// The dialog's push with `--dry-run`, the notes in the same run: nothing moves, and the
+/// output window shows one record.
+fn push_dry_run_args(options: &PushOptions) -> Vec<String> {
+    let mut args = push_args(options);
+    args.insert(1, "--dry-run".into());
+    if options.notes {
+        args.push(NOTES_REFSPEC.into());
+    }
+    args
 }
 
 /// The dialog's push asked only which refs it would send: nothing goes, no hook runs.
@@ -222,6 +237,12 @@ pub fn push_args(options: &PushOptions) -> Vec<String> {
         TagsMode::None => {}
         TagsMode::Follow => args.push("--follow-tags".into()),
         TagsMode::All => args.push("--tags".into()),
+    }
+    if options.no_verify {
+        args.push("--no-verify".into());
+    }
+    if options.atomic {
+        args.push("--atomic".into());
     }
     if options.force_with_lease {
         args.extend(lease_args(options));
@@ -336,6 +357,19 @@ impl RepoHandle {
         })
     }
 
+    /// What the dialog's push would do, and its record for the output window.
+    pub fn push_dry_run(
+        &self,
+        options: &PushOptions,
+        token: impl Fn(&str) -> Option<String>,
+        mut on_line: impl FnMut(&str),
+    ) -> Result<crate::GitOutput> {
+        let auth = self.auth_for_push(&options.remote, &token);
+        let args = push_dry_run_args(options);
+        let args: Vec<&str> = args.iter().map(String::as_str).collect();
+        self.run_streaming_recorded(&args, &auth, &mut on_line)
+    }
+
     /// `refs/notes/*` to the same names. Never forced: a remote that moved its notes
     /// refuses, and the dialog offers Fetch notes and merge.
     pub fn push_notes(
@@ -351,8 +385,7 @@ impl RepoHandle {
             });
         }
         let auth = self.auth_for_push(remote, &token);
-        let refspec = "refs/notes/*:refs/notes/*";
-        let args = ["push", "--progress", remote, refspec];
+        let args = ["push", "--progress", remote, NOTES_REFSPEC];
         match self.stream(&auth, &args, &mut on_line) {
             Ok(()) => {
                 for (name, id) in local {
@@ -850,6 +883,47 @@ mod tests {
             ..PullOptions::default()
         };
         assert!(pull_args("o", &options).contains(&"--force"));
+    }
+
+    #[test]
+    fn hook_and_atomic_flags_come_before_the_remote() {
+        let args = push(|o| {
+            o.no_verify = true;
+            o.atomic = true;
+        });
+        assert_eq!(
+            args,
+            [
+                "push",
+                "--progress",
+                "--no-verify",
+                "--atomic",
+                "origin",
+                "refs/heads/main:refs/heads/main"
+            ]
+        );
+    }
+
+    #[test]
+    fn a_dry_run_is_the_same_push_told_to_send_nothing_with_the_notes_beside() {
+        let args = push_dry_run_args(&PushOptions {
+            remote: "origin".into(),
+            local: "main".into(),
+            branch: "main".into(),
+            notes: true,
+            ..PushOptions::default()
+        });
+        assert_eq!(
+            args,
+            [
+                "push",
+                "--dry-run",
+                "--progress",
+                "origin",
+                "refs/heads/main:refs/heads/main",
+                "refs/notes/*:refs/notes/*"
+            ]
+        );
     }
 
     #[test]

@@ -2,6 +2,7 @@
   import { onMount, untrack } from "svelte";
   import PushList from "./PushList.svelte";
   import CopyButton from "$components/common/CopyButton.svelte";
+  import Disclosure from "$components/common/Disclosure.svelte";
   import RevisionCombobox from "$components/common/RevisionCombobox.svelte";
   import Select from "$components/common/Select.svelte";
   import Callout from "$components/common/template/Callout.svelte";
@@ -101,7 +102,8 @@
   const tracking = $derived(upstreamState(upstream, choice.remote, choice.branch));
   const sent = $derived(effectiveChoice(choice, upstream));
   const command = $derived(pushCommand(sent, preview?.remoteTip ?? null));
-  const danger = $derived(choice.forceWithLease);
+  const danger = $derived(choice.forceWithLease && !choice.dryRun);
+  let advancedOpen = $state(false);
   const lease = $derived(leaseLine(choice.remote, choice.branch, preview?.remoteTip ?? null));
 
   async function push() {
@@ -331,6 +333,21 @@
     />
   </div>
 
+  <div class="group">
+    <button type="button" class="caption advanced" aria-expanded={advancedOpen} onclick={() => (advancedOpen = !advancedOpen)}>
+      <Disclosure open={advancedOpen} />Advanced
+    </button>
+    {#if advancedOpen}
+      <OptionRow bind:checked={choice.noVerify} label="Skip the pre-push hook" hint="--no-verify" />
+      <OptionRow
+        bind:checked={choice.dryRun}
+        label="Dry run"
+        hint="--dry-run: show what would be pushed in the output window; nothing is sent"
+      />
+      <OptionRow bind:checked={choice.atomic} label="Atomic" hint="--atomic: every ref is updated, or none is" />
+    {/if}
+  </div>
+
   <div class="command">
     <span class="caption">Command</span>
     <div class="line">
@@ -404,6 +421,19 @@
   .line code {
     flex: 1 1 auto;
     min-width: 0;
+  }
+
+  .advanced {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    padding: 0;
+    background: none;
+    border: 0;
+    font: inherit;
+    font-size: var(--fs-dense);
+    color: var(--text-secondary);
+    cursor: default;
   }
 
   .url {

@@ -26,6 +26,9 @@ const choice = (over: Partial<PushChoice> = {}): PushChoice => ({
   notes: false,
   forceWithLease: false,
   forceIfIncludes: true,
+  noVerify: false,
+  dryRun: false,
+  atomic: false,
   ...over,
 });
 
@@ -176,5 +179,25 @@ describe("the Push button", () => {
     expect(pushButtonLabel(choice(), 3)).toBe("Push 3 commits");
     expect(pushButtonLabel(choice({ forceWithLease: true }), 2)).toBe("Force push 2 commits");
     expect(pushButtonLabel(choice({ forceWithLease: true }), 0)).toBe("Force push");
+  });
+});
+
+describe("advanced options", () => {
+  it("puts them in the command in the engine's order", () => {
+    expect(pushCommand(choice({ setUpstream: false, noVerify: true, atomic: true }), null)).toEqual({
+      short: "git push --no-verify --atomic origin main",
+      full: "git push --progress --no-verify --atomic origin refs/heads/main:refs/heads/main",
+    });
+  });
+
+  it("runs a dry run as one command, the notes in it", () => {
+    expect(pushCommand(choice({ setUpstream: false, dryRun: true, notes: true }), null)).toEqual({
+      short: "git push --dry-run origin main refs/notes/*:refs/notes/*",
+      full: "git push --dry-run --progress origin refs/heads/main:refs/heads/main refs/notes/*:refs/notes/*",
+    });
+  });
+
+  it("calls the button Dry run", () => {
+    expect(pushButtonLabel(choice({ dryRun: true, forceWithLease: true }), 3)).toBe("Dry run");
   });
 });

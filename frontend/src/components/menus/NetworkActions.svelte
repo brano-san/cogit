@@ -3,7 +3,7 @@
   import PushDialog from "./PushDialog.svelte";
   import { eachAtMost, FETCH_ALL_LANES } from "$lib/fetch-all";
   import { deleteMergedBranches, fetchRemote, listRemotes, reportTiming, type Branch, type RepoId } from "$lib/ipc";
-  import { networkDefaults, saveNetworkDefaults, type PushOptions } from "$lib/ipc/network-dialogs";
+  import { networkDefaults, pushDryRun, saveNetworkDefaults, type PushOptions } from "$lib/ipc/network-dialogs";
   import {
     EMPTY_DEFAULTS,
     fetchOptionsOf,
@@ -30,6 +30,7 @@
   import { errors } from "$stores/errors.svelte";
   import { network } from "$stores/network.svelte";
   import { networkApi, networkDialog } from "$stores/network-dialog.svelte";
+  import { output } from "$stores/output.svelte";
   import { repoPulse } from "$stores/repo-pulse.svelte";
   import { repository } from "$stores/repository.svelte";
   import { settings } from "$stores/settings.svelte";
@@ -262,23 +263,29 @@
     await (action === "fetch" ? afterFetch(id) : afterRefChange(id));
   }
 
+  /** The Push dialog's run: `options` is what goes, `choice` what Remember keeps. A dry run
+      leaves the dialog open and shows git's answer in the output window. */
   async function runPushDialog(choice: PushChoice, options: PushOptions, remember: boolean) {
     const request = networkDialog.open;
     if (request?.kind !== "push") return;
-    networkDialog.close();
     const id = request.repo;
+    if (!choice.dryRun) networkDialog.close();
     let epoch: number | null;
     try {
-      epoch = await runGuarded(host, "Could not push", async () => {
-        if (remember) await saveNetworkDefaults(id, mergeDefaults(request.defaults, { push: choice }));
-        await announceHooks(id, "push");
+      epoch = await runGuarded(host, choice.dryRun ? "Could not run the dry run" : "Could not push", async () => {
+        if (!choice.dryRun && remember) await saveNetworkDefaults(id, mergeDefaults(request.defaults, { push: choice }));
+        if (!choice.noVerify) await announceHooks(id, "push");
+        if (choice.dryRun) {
+          output.show(await network.run(id, "Pushing (dry run)", (onLine) => pushDryRun(id, options, onLine)));
+          return;
+        }
         await pushFlow(networkApi, flowUi, id, options);
         successToast.show("Push succeeded");
       });
     } finally {
       hooksDone();
     }
-    if (epoch === null || repository.epoch !== epoch) return;
+    if (choice.dryRun || epoch === null || repository.epoch !== epoch) return;
     await afterRefChange(id);
   }
 

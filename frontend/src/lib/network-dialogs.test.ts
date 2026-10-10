@@ -27,6 +27,9 @@ const push = (over: Partial<PushChoice> = {}): PushChoice => ({
   notes: false,
   forceWithLease: false,
   forceIfIncludes: true,
+  noVerify: false,
+  dryRun: false,
+  atomic: false,
   ...over,
 });
 
@@ -76,10 +79,12 @@ describe("push", () => {
     expect(choice.forceWithLease).toBe(false);
     expect(choice.forceIfIncludes).toBe(true);
     expect(choice).toMatchObject({ tags: "follow", notes: true });
+    expect(choice).toMatchObject({ noVerify: false, dryRun: false, atomic: false });
   });
 
   it("hands the engine every field and the tip the lease expects", () => {
-    expect(pushOptionsOf(push({ tags: "follow" }), "abc")).toEqual({ ...push({ tags: "follow" }), leaseExpect: "abc" });
+    const { dryRun: _dryRun, ...sent } = push({ tags: "follow", noVerify: true, atomic: true, dryRun: true });
+    expect(pushOptionsOf(push({ tags: "follow", noVerify: true, atomic: true, dryRun: true }), "abc")).toEqual({ ...sent, leaseExpect: "abc" });
     expect(pushOptionsOf(push()).leaseExpect).toBeNull();
   });
 

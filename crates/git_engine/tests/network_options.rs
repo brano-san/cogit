@@ -701,3 +701,23 @@ fn the_tag_preview_of_a_remote_that_is_gone_is_an_error() {
 
     assert!(found.is_err(), "{found:?}");
 }
+
+#[test]
+fn a_dry_run_says_what_would_go_and_moves_nothing() {
+    let f = test_fixtures::with_remote().unwrap();
+    sync_with_origin(&f);
+    f.commit_file(60, "next.txt", "next\n").unwrap();
+    let before = f.git_in(&bare(&f), &["rev-parse", "main"]).unwrap();
+
+    let record = open(&f)
+        .push_dry_run(&push_options(|_| {}), no_token, |_| {})
+        .unwrap();
+
+    assert!(record.command.contains("--dry-run"), "{}", record.command);
+    assert!(
+        format!("{}{}", record.stdout, record.stderr).contains("main -> main"),
+        "{record:?}"
+    );
+    assert_eq!(f.git_in(&bare(&f), &["rev-parse", "main"]).unwrap(), before);
+    assert_eq!(f.oid("refs/remotes/origin/main").unwrap(), before.trim());
+}

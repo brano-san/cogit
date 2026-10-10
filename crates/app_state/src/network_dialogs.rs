@@ -73,6 +73,17 @@ impl AppState {
         handle.push_options(options, |url| self.token_for(url), on_line)
     }
 
+    pub fn push_dry_run(
+        &self,
+        repo: RepoId,
+        options: &PushOptions,
+        stop: &NetworkStop,
+        on_line: impl FnMut(&str),
+    ) -> Result<git_engine::GitOutput, GitError> {
+        let handle = self.handle(repo)?.with_stop(stop.clone());
+        handle.push_dry_run(options, |url| self.token_for(url), on_line)
+    }
+
     /// Retry of the notes alone, after Fetch notes and merge.
     pub fn push_notes(
         &self,

@@ -30,6 +30,10 @@ export interface PushChoice {
   forceWithLease: boolean;
   /** Under the lease; on whenever the dialog opens. */
   forceIfIncludes: boolean;
+  noVerify: boolean;
+  /** The output window shows what would go; nothing is sent. Not an option of the engine's. */
+  dryRun: boolean;
+  atomic: boolean;
 }
 
 export function pullChoiceOf(defaults: NetworkDefaults): PullChoice {
@@ -74,13 +78,16 @@ export function pushChoiceOf(
     notes: defaults.pushNotes,
     forceWithLease: false,
     forceIfIncludes: true,
+    noVerify: false,
+    dryRun: false,
+    atomic: false,
   };
 }
 
 /** `leaseExpect`: the remote-tracking tip the dialog showed, for a lease without the check. */
 export function pushOptionsOf(choice: PushChoice, leaseExpect: string | null = null): PushOptions {
-  const { remote, local, branch, setUpstream, tags, notes, forceWithLease, forceIfIncludes } = choice;
-  return { remote, local, branch, setUpstream, tags, notes, forceWithLease, forceIfIncludes, leaseExpect };
+  const { remote, local, branch, setUpstream, tags, notes, forceWithLease, forceIfIncludes, noVerify, atomic } = choice;
+  return { remote, local, branch, setUpstream, tags, notes, forceWithLease, forceIfIncludes, leaseExpect, noVerify, atomic };
 }
 
 const BAD_BRANCH = /[\s~^:?*[\\]|\.\.|^[-/]|[/.]$|\.lock$|@\{/;

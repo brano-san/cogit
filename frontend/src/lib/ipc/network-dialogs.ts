@@ -46,6 +46,10 @@ export async function pushPreview(repo: RepoId, local: string, remote: string, b
   return unwrap(await commands.pushPreview(repo, local, remote, branch, limit));
 }
 
+export async function pushDryRun(repo: RepoId, options: PushOptions, onLine: (line: string) => void) {
+  return unwrap(await commands.pushDryRun(repo, options, lines(onLine)));
+}
+
 export async function pushTagsPreview(repo: RepoId, options: PushOptions) {
   return unwrap(await commands.pushTagsPreview(repo, options));
 }

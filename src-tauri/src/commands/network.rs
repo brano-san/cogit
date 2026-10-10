@@ -302,6 +302,30 @@ pub async fn push_with(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn push_dry_run(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    options: git_engine::PushOptions,
+    on_progress: tauri::ipc::Channel<String>,
+) -> Result<git_engine::GitOutput, GitError> {
+    let app_state = state.state.clone();
+    networking(
+        &state.state,
+        repo,
+        OperationKind::Push,
+        "push_dry_run",
+        move |stop| {
+            let remote = options.remote.clone();
+            with_progress("push", &remote, &on_progress, |on_line| {
+                app_state.push_dry_run(repo, &options, &stop, on_line)
+            })
+        },
+    )
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn push_notes(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,

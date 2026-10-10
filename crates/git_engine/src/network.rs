@@ -299,6 +299,22 @@ impl RepoHandle {
         self.run_streaming_within(args, env, on_line, SILENCE)
     }
 
+    /// `run_streaming` that hands back the record of a run that succeeded.
+    pub(crate) fn run_streaming_recorded(
+        &self,
+        args: &[&str],
+        env: &[(String, String)],
+        on_line: impl FnMut(&str),
+    ) -> Result<GitOutput> {
+        let to = Streamed {
+            root: self.root(),
+            stop: self.stop.as_ref(),
+            journal: &|entry| self.journal_entry(entry),
+        };
+        let (args, process) = self.network_command(args, env);
+        to.run_recorded(process, &args, on_line, SILENCE)
+    }
+
     /// A command that talks to a remote and shows no progress: stoppable and watched.
     pub(crate) fn run_network(&self, args: &[&str]) -> Result<()> {
         self.run_streaming(args, &[], |_| {})
@@ -376,6 +392,18 @@ impl Streamed<'_> {
     ) -> Result<()> {
         let (out, _) = self.stream_git(process, args, on_line, silence)?;
         self.settle(out, true)
+    }
+
+    pub(crate) fn run_recorded(
+        &self,
+        process: std::process::Command,
+        args: &[&str],
+        on_line: impl FnMut(&str),
+        silence: Duration,
+    ) -> Result<GitOutput> {
+        let (out, _) = self.stream_git(process, args, on_line, silence)?;
+        self.settle(out.clone(), true)?;
+        Ok(out)
     }
 
     /// `run` for output that is parsed: the raw stdout, which the record trims, and a

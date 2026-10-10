@@ -12,6 +12,8 @@ const pushOptions = {
   forceWithLease: false,
   forceIfIncludes: true,
   leaseExpect: null,
+  noVerify: false,
+  atomic: false,
 } as const;
 
 function fakes(over: Partial<NetworkApi> = {}, answer = true) {

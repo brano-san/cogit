@@ -38,6 +38,8 @@ function flagsOf(choice: PushChoice, remoteTip: string | null, ref: (branch: str
   if (choice.setUpstream) flags.push("--set-upstream");
   if (choice.tags === "follow") flags.push("--follow-tags");
   if (choice.tags === "all") flags.push("--tags");
+  if (choice.noVerify) flags.push("--no-verify");
+  if (choice.atomic) flags.push("--atomic");
   if (choice.forceWithLease) {
     const name = ref(choice.branch);
     if (choice.forceIfIncludes) flags.push(`--force-with-lease=${name}`, "--force-if-includes");
@@ -47,15 +49,20 @@ function flagsOf(choice: PushChoice, remoteTip: string | null, ref: (branch: str
 }
 
 export function pushCommand(choice: PushChoice, remoteTip: string | null): PushCommand {
+  const dry = choice.dryRun ? ["--dry-run"] : [];
+  const along = choice.dryRun && choice.notes ? [NOTES] : [];
   const refspec = choice.local === choice.branch ? choice.local : `${choice.local}:${choice.branch}`;
-  const short = ["git push", ...flagsOf(choice, remoteTip, (b) => b), choice.remote, refspec].join(" ");
+  const short = ["git push", ...dry, ...flagsOf(choice, remoteTip, (b) => b), choice.remote, refspec, ...along].join(" ");
   const full = [
-    "git push --progress",
+    "git push",
+    ...dry,
+    "--progress",
     ...flagsOf(choice, remoteTip, (b) => `refs/heads/${b}`),
     choice.remote,
     `refs/heads/${choice.local}:refs/heads/${choice.branch}`,
+    ...along,
   ].join(" ");
-  if (!choice.notes) return { short, full };
+  if (!choice.notes || choice.dryRun) return { short, full };
   return {
     short: `${short}; git push ${choice.remote} ${NOTES}`,
     full: `${full}; git push --progress ${choice.remote} ${NOTES}`,
@@ -130,6 +137,7 @@ export function isUpToDate(preview: PushPreview, choice: PushChoice, upstream: s
 }
 
 export function pushButtonLabel(choice: PushChoice, total: number): string {
+  if (choice.dryRun) return "Dry run";
   const verb = choice.forceWithLease ? "Force push" : "Push";
   return total === 0 ? verb : `${verb} ${total} ${total === 1 ? "commit" : "commits"}`;
 }
