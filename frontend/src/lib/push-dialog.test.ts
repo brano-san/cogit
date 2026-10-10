@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
+import { shortOid } from "$lib/format";
 import type { PushPreview } from "$lib/ipc/network-dialogs";
 import type { PushChoice } from "./network-dialogs";
-import { effectiveChoice, fetchedText, pushCommand, pushStatus, upstreamState } from "./push-dialog";
+import {
+  effectiveChoice,
+  fetchedText,
+  leaseLine,
+  protectedNames,
+  pushCommand,
+  pushStatus,
+  upstreamState,
+} from "./push-dialog";
 
 const choice = (over: Partial<PushChoice> = {}): PushChoice => ({
   remote: "origin",
@@ -11,6 +20,7 @@ const choice = (over: Partial<PushChoice> = {}): PushChoice => ({
   tags: "none",
   notes: false,
   forceWithLease: false,
+  forceIfIncludes: true,
   ...over,
 });
 
@@ -36,24 +46,53 @@ describe("Set as upstream", () => {
 
 describe("the command", () => {
   it("is short as typed and full as run", () => {
-    expect(pushCommand(choice({ setUpstream: false }))).toEqual({
+    expect(pushCommand(choice({ setUpstream: false }), null)).toEqual({
       short: "git push origin main",
       full: "git push --progress origin refs/heads/main:refs/heads/main",
     });
   });
 
   it("names both branches when they differ", () => {
-    expect(pushCommand(choice({ setUpstream: false, local: "feature/x", branch: "release" })).short).toBe(
+    expect(pushCommand(choice({ setUpstream: false, local: "feature/x", branch: "release" }), null).short).toBe(
       "git push origin feature/x:release",
     );
   });
 
   it("carries every option, the notes as a second command", () => {
-    expect(pushCommand(choice({ tags: "all", notes: true, forceWithLease: true }))).toEqual({
+    expect(pushCommand(choice({ tags: "all", notes: true, forceWithLease: true }), null)).toEqual({
       short:
-        "git push --set-upstream --tags --force-with-lease --force-if-includes origin main; git push origin refs/notes/*:refs/notes/*",
-      full: "git push --progress --set-upstream --tags --force-with-lease --force-if-includes origin refs/heads/main:refs/heads/main; git push --progress origin refs/notes/*:refs/notes/*",
+        "git push --set-upstream --tags --force-with-lease=main --force-if-includes origin main; git push origin refs/notes/*:refs/notes/*",
+      full: "git push --progress --set-upstream --tags --force-with-lease=refs/heads/main --force-if-includes origin refs/heads/main:refs/heads/main; git push --progress origin refs/notes/*:refs/notes/*",
     });
+  });
+});
+
+describe("force", () => {
+  it("writes the expected tip into the lease without the includes check", () => {
+    const tip = "1234567890abcdef1234567890abcdef12345678";
+    const explicit = choice({ setUpstream: false, branch: "feature/x", local: "feature/x", forceWithLease: true, forceIfIncludes: false });
+    expect(pushCommand(explicit, tip)).toEqual({
+      short: `git push --force-with-lease=feature/x:${tip} origin feature/x`,
+      full: `git push --progress --force-with-lease=refs/heads/feature/x:${tip} origin refs/heads/feature/x:refs/heads/feature/x`,
+    });
+    expect(pushCommand(explicit, null).short).toBe("git push --force-with-lease=feature/x: origin feature/x");
+  });
+
+  it("shows what the lease expects", () => {
+    const tip = "1234567890abcdef1234567890abcdef12345678";
+    expect(leaseLine("origin", "main", tip)).toEqual({
+      flag: `--force-with-lease=main:${shortOid(tip)}`,
+      note: "origin/main as last fetched",
+    });
+    expect(leaseLine("origin", "new", null)).toEqual({
+      flag: "--force-with-lease=new:",
+      note: "new must not exist on origin",
+    });
+  });
+
+  it("reads the protected names a person wrote", () => {
+    expect(protectedNames(" main, release/1 ,main  dev")).toEqual(["main", "release/1", "dev"]);
+    expect(protectedNames("")).toEqual([]);
   });
 });
 

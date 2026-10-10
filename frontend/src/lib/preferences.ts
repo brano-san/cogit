@@ -73,6 +73,17 @@ export const CATEGORIES: Category[] = [
         ],
       },
       {
+        title: "Push",
+        fields: [
+          {
+            key: "protectedBranches",
+            label: "Protected branches",
+            hint: "A force push to a remote branch with one of these names asks first. Separate the names with commas.",
+            keywords: ["force", "push", "protect", "lease", "main", "master", "develop"],
+          },
+        ],
+      },
+      {
         title: "Git",
         fields: [
           {

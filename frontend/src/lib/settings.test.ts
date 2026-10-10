@@ -64,6 +64,12 @@ describe("merge", () => {
     }
   });
 
+  it("keeps the protected branch names, each once", () => {
+    expect(merge({}).protectedBranches).toEqual(["main", "master", "develop"]);
+    expect(merge({ protectedBranches: ["trunk", " trunk ", 3, ""] } as never).protectedBranches).toEqual(["trunk"]);
+    expect(merge({ protectedBranches: [] }).protectedBranches).toEqual([]);
+  });
+
   it("rejects an unknown enum value", () => {
     expect(merge({ pullMode: "rebase-and-pray" } as never).pullMode).toBe(
       DEFAULT_SETTINGS.pullMode,

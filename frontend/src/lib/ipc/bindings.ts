@@ -1965,6 +1965,16 @@ export type PushOptions = {
 	tags: TagsMode,
 	notes: boolean,
 	forceWithLease: boolean,
+	/**
+	 *  With the lease: git reads the expected tip from the remote-tracking ref itself and
+	 *  checks it was integrated; an explicit tip would turn that check off (`apply_cas`).
+	 */
+	forceIfIncludes: boolean,
+	/**
+	 *  The remote-tracking tip the dialog showed, for a lease without the check; `None`: the
+	 *  branch must not exist there.
+	 */
+	leaseExpect: string | null,
 };
 
 export type PushOutcome = {

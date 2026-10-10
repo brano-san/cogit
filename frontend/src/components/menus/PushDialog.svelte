@@ -18,9 +18,19 @@
     tagsHint,
     type PushChoice,
   } from "$lib/network-dialogs";
-  import { effectiveChoice, fetchedText, pushCommand, pushStatus, upstreamState } from "$lib/push-dialog";
+  import {
+    effectiveChoice,
+    fetchedText,
+    leaseLine,
+    protectedQuestion,
+    pushCommand,
+    pushStatus,
+    upstreamState,
+  } from "$lib/push-dialog";
   import { splitUpstream } from "$lib/push-to";
+  import { confirmation } from "$stores/confirm.svelte";
   import type { PushRequest } from "$stores/network-dialog.svelte";
+  import { settings } from "$stores/settings.svelte";
 
   /** Push (item 12), the Push dialog: where, what goes, which tags and notes. */
   interface Props {
@@ -77,7 +87,16 @@
   const problem = $derived(pushProblem(choice));
   const tracking = $derived(upstreamState(upstream, choice.remote, choice.branch));
   const sent = $derived(effectiveChoice(choice, upstream));
-  const command = $derived(pushCommand(sent));
+  const command = $derived(pushCommand(sent, preview?.remoteTip ?? null));
+  const danger = $derived(choice.forceWithLease);
+  const lease = $derived(leaseLine(choice.remote, choice.branch, preview?.remoteTip ?? null));
+
+  async function push() {
+    if (danger && settings.current.protectedBranches.includes(choice.branch)) {
+      if (!(await confirmation.ask(protectedQuestion(choice.remote, choice.branch)))) return;
+    }
+    onpush(choice, pushOptionsOf(sent, preview?.remoteTip ?? null), remember);
+  }
 
   function chooseRemote(next: string) {
     choice.remote = next;
@@ -120,8 +139,9 @@
   title="Push commits to a remote repository"
   {onclose}
   status={problem}
+  destructive={danger}
   actions={[
-    { label: "Push", primary: true, disabled: problem !== null || fetching, onclick: () => onpush(choice, pushOptionsOf(sent), remember) },
+    { label: danger ? "Force push" : "Push", primary: true, disabled: problem !== null || fetching, onclick: () => void push() },
   ]}
 >
   <p class="sub">Sends the commits of {choice.local} to the remote.</p>
@@ -230,10 +250,18 @@
       hint="Overwrite the remote branch unless it moved since your last fetch"
     />
     {#if choice.forceWithLease}
-      <Callout kind="warning">
-        The remote branch will be overwritten with yours: commits it has that you do not are lost there.
-        Off again the next time this dialog opens.
-      </Callout>
+      <div class="nested">
+        <OptionRow
+          bind:checked={choice.forceIfIncludes}
+          label="Only if the remote tip is in your branch's history"
+          hint="--force-if-includes"
+        />
+        <p class="lease"><code title={preview?.remoteTip ?? undefined}>{lease.flag}</code> {lease.note}</p>
+        <Callout kind="warning">
+          The remote branch will be overwritten with yours: commits it has that you do not are lost there.
+          Off again the next time this dialog opens.
+        </Callout>
+      </div>
     {/if}
     <OptionRow
       bind:checked={remember}
@@ -315,6 +343,20 @@
   .line code {
     flex: 1 1 auto;
     min-width: 0;
+  }
+
+  .nested {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    padding-left: calc(var(--sp-6) + var(--sp-2));
+  }
+
+  .lease {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--fs-dense);
+    overflow-wrap: anywhere;
   }
 
   .note {

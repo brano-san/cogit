@@ -110,6 +110,8 @@ export interface Settings {
   graphFilterFields: FilterField[];
   /** Filter texts kept by Remember Pattern, newest first (F-563). */
   graphFilterPatterns: string[];
+  /** Remote branch names a force push asks about first (Preferences ▸ Push). */
+  protectedBranches: string[];
 
   /** Minutes between asking the remote of every listed repository what it has (R-354);
       `0` is off, which is the default: nothing reaches the network unasked. */
@@ -169,6 +171,7 @@ export const DEFAULT_SETTINGS: Settings = {
   graphWorkingTreeAlways: true,
   graphFilterFields: [...DEFAULT_FILTER_FIELDS],
   graphFilterPatterns: [],
+  protectedBranches: ["main", "master", "develop"],
 
   backgroundFetchMinutes: 0,
 };
@@ -237,6 +240,7 @@ export function merge(stored: Partial<Settings> | null | undefined): Settings {
     graphColumns: [...DEFAULT_SETTINGS.graphColumns],
     graphFilterFields: [...DEFAULT_SETTINGS.graphFilterFields],
     graphFilterPatterns: [...DEFAULT_SETTINGS.graphFilterPatterns],
+    protectedBranches: [...DEFAULT_SETTINGS.protectedBranches],
   };
   if (typeof stored !== "object" || stored === null) return merged;
   const record = stored as Record<string, unknown>;
@@ -254,6 +258,10 @@ export function merge(stored: Partial<Settings> | null | undefined): Settings {
     }
     if (key === "graphFilterPatterns") {
       merged.graphFilterPatterns = knownPatterns(value) ?? merged.graphFilterPatterns;
+      continue;
+    }
+    if (key === "protectedBranches") {
+      merged.protectedBranches = knownPatterns(value) ?? merged.protectedBranches;
       continue;
     }
     if (value === undefined || typeof value !== typeof fallback) continue;

@@ -26,6 +26,7 @@ const push = (over: Partial<PushChoice> = {}): PushChoice => ({
   tags: "none",
   notes: false,
   forceWithLease: false,
+  forceIfIncludes: true,
   ...over,
 });
 
@@ -73,11 +74,13 @@ describe("push", () => {
       { local: "a", remote: "o", branch: "a", hasUpstream: true },
     );
     expect(choice.forceWithLease).toBe(false);
+    expect(choice.forceIfIncludes).toBe(true);
     expect(choice).toMatchObject({ tags: "follow", notes: true });
   });
 
-  it("hands the engine every field", () => {
-    expect(pushOptionsOf(push({ tags: "follow" }))).toEqual(push({ tags: "follow" }));
+  it("hands the engine every field and the tip the lease expects", () => {
+    expect(pushOptionsOf(push({ tags: "follow" }), "abc")).toEqual({ ...push({ tags: "follow" }), leaseExpect: "abc" });
+    expect(pushOptionsOf(push()).leaseExpect).toBeNull();
   });
 
   it("refuses an empty or malformed target", () => {

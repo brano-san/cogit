@@ -50,7 +50,7 @@ pub struct Pulled {
     pub stash_needed: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PushOptions {
     pub remote: String,
@@ -60,6 +60,12 @@ pub struct PushOptions {
     pub tags: TagsMode,
     pub notes: bool,
     pub force_with_lease: bool,
+    /// With the lease: git reads the expected tip from the remote-tracking ref itself and
+    /// checks it was integrated; an explicit tip would turn that check off (`apply_cas`).
+    pub force_if_includes: bool,
+    /// The remote-tracking tip the dialog showed, for a lease without the check; `None`: the
+    /// branch must not exist there.
+    pub lease_expect: Option<String>,
 }
 
 /// What a repository remembers for the two dialogs. Never `force_with_lease`.
@@ -182,10 +188,7 @@ pub fn push_args(options: &PushOptions) -> Vec<String> {
         TagsMode::All => args.push("--tags".into()),
     }
     if options.force_with_lease {
-        // As the toolbar's forced push does: a lease alone passes when a background fetch
-        // moved the tracking ref.
-        args.push("--force-with-lease".into());
-        args.push("--force-if-includes".into());
+        args.extend(lease_args(options));
     }
     args.push(options.remote.clone());
     args.push(format!(
@@ -193,6 +196,21 @@ pub fn push_args(options: &PushOptions) -> Vec<String> {
         options.local, options.branch
     ));
     args
+}
+
+/// The lease of one branch, never of every ref the push names.
+fn lease_args(options: &PushOptions) -> Vec<String> {
+    let name = format!("refs/heads/{}", options.branch);
+    if options.force_if_includes {
+        // As the toolbar's forced push does: a lease alone passes when a background fetch
+        // moved the tracking ref.
+        return vec![
+            format!("--force-with-lease={name}"),
+            "--force-if-includes".into(),
+        ];
+    }
+    let expect = options.lease_expect.as_deref().unwrap_or_default();
+    vec![format!("--force-with-lease={name}:{expect}")]
 }
 
 impl RepoHandle {
@@ -678,10 +696,7 @@ mod tests {
             remote: "origin".into(),
             local: "main".into(),
             branch: "main".into(),
-            set_upstream: false,
-            tags: TagsMode::None,
-            notes: false,
-            force_with_lease: false,
+            ..PushOptions::default()
         };
         f(&mut options);
         push_args(&options)
@@ -706,6 +721,7 @@ mod tests {
             o.set_upstream = true;
             o.tags = TagsMode::Follow;
             o.force_with_lease = true;
+            o.force_if_includes = true;
         });
         assert_eq!(
             args,
@@ -714,13 +730,31 @@ mod tests {
                 "--progress",
                 "--set-upstream",
                 "--follow-tags",
-                "--force-with-lease",
+                "--force-with-lease=refs/heads/main",
                 "--force-if-includes",
                 "origin",
                 "refs/heads/main:refs/heads/main"
             ]
         );
         assert!(push(|o| o.tags = TagsMode::All).contains(&"--tags".to_owned()));
+    }
+
+    #[test]
+    fn a_lease_without_the_includes_check_names_the_tip_it_expects() {
+        let named = push(|o| {
+            o.force_with_lease = true;
+            o.lease_expect = Some("abc".into());
+        });
+        assert!(
+            named.contains(&"--force-with-lease=refs/heads/main:abc".to_owned()),
+            "{named:?}"
+        );
+        assert!(!named.contains(&"--force-if-includes".to_owned()));
+        let absent = push(|o| o.force_with_lease = true);
+        assert!(
+            absent.contains(&"--force-with-lease=refs/heads/main:".to_owned()),
+            "{absent:?}"
+        );
     }
 
     #[test]

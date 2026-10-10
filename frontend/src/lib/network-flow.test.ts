@@ -10,6 +10,8 @@ const pushOptions = {
   tags: "none",
   notes: true,
   forceWithLease: false,
+  forceIfIncludes: true,
+  leaseExpect: null,
 } as const;
 
 function fakes(over: Partial<NetworkApi> = {}, answer = true) {

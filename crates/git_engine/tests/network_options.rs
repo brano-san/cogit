@@ -34,10 +34,9 @@ fn push_options(f: impl FnOnce(&mut PushOptions)) -> PushOptions {
         remote: "origin".into(),
         local: "main".into(),
         branch: "main".into(),
-        set_upstream: false,
-        tags: TagsMode::None,
-        notes: false,
-        force_with_lease: false,
+        // As the dialog opens.
+        force_if_includes: true,
+        ..PushOptions::default()
     };
     f(&mut options);
     options
@@ -623,4 +622,33 @@ fn reading_the_remembered_choices_does_not_run_git_or_journal_the_config() {
         PullMethod::Rebase
     );
     assert!(seen.lock().unwrap().is_empty());
+}
+
+#[test]
+fn an_explicit_lease_overwrites_only_the_tip_it_names() {
+    let f = test_fixtures::with_remote().unwrap();
+    let explicit = |expect: String| {
+        push_options(|o| {
+            o.force_with_lease = true;
+            o.force_if_includes = false;
+            o.lease_expect = Some(expect);
+        })
+    };
+
+    let stale = f.oid("origin/main~1").unwrap();
+    assert!(
+        open(&f)
+            .push_options(&explicit(stale), no_token, |_| {})
+            .is_err()
+    );
+
+    // Never integrated, which the includes check refuses; the tip named is the one there.
+    let seen = f.oid("origin/main").unwrap();
+    open(&f)
+        .push_options(&explicit(seen), no_token, |_| {})
+        .unwrap();
+    assert_eq!(
+        f.git_in(&bare(&f), &["rev-parse", "main"]).unwrap().trim(),
+        f.oid("main").unwrap()
+    );
 }

@@ -28,6 +28,8 @@ export interface PushChoice {
   tags: TagsMode;
   notes: boolean;
   forceWithLease: boolean;
+  /** Under the lease; on whenever the dialog opens. */
+  forceIfIncludes: boolean;
 }
 
 export function pullChoiceOf(defaults: NetworkDefaults): PullChoice {
@@ -71,11 +73,14 @@ export function pushChoiceOf(
     tags: defaults.pushTags,
     notes: defaults.pushNotes,
     forceWithLease: false,
+    forceIfIncludes: true,
   };
 }
 
-export function pushOptionsOf(choice: PushChoice): PushOptions {
-  return { ...choice };
+/** `leaseExpect`: the remote-tracking tip the dialog showed, for a lease without the check. */
+export function pushOptionsOf(choice: PushChoice, leaseExpect: string | null = null): PushOptions {
+  const { remote, local, branch, setUpstream, tags, notes, forceWithLease, forceIfIncludes } = choice;
+  return { remote, local, branch, setUpstream, tags, notes, forceWithLease, forceIfIncludes, leaseExpect };
 }
 
 const BAD_BRANCH = /[\s~^:?*[\\]|\.\.|^[-/]|[/.]$|\.lock$|@\{/;

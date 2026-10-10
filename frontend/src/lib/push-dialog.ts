@@ -1,8 +1,9 @@
 /** The Push dialog's words and what its state means (F-610): the tracking hint, the status
     line, when nothing would go, the command it shows. */
-import { relativeDate } from "$lib/format";
+import { relativeDate, shortOid } from "$lib/format";
 import type { PushPreview } from "$lib/ipc/network-dialogs";
 import type { PushChoice } from "$lib/network-dialogs";
+import type { ConfirmRequest } from "$stores/confirm.svelte";
 
 export interface UpstreamState {
   /** `already`: the branch tracks the target, and `--set-upstream` would change nothing. */
@@ -32,24 +33,52 @@ export interface PushCommand {
 
 const NOTES = "refs/notes/*:refs/notes/*";
 
-function flagsOf(choice: PushChoice): string[] {
+function flagsOf(choice: PushChoice, remoteTip: string | null, ref: (branch: string) => string): string[] {
   const flags: string[] = [];
   if (choice.setUpstream) flags.push("--set-upstream");
   if (choice.tags === "follow") flags.push("--follow-tags");
   if (choice.tags === "all") flags.push("--tags");
-  if (choice.forceWithLease) flags.push("--force-with-lease", "--force-if-includes");
+  if (choice.forceWithLease) {
+    const name = ref(choice.branch);
+    if (choice.forceIfIncludes) flags.push(`--force-with-lease=${name}`, "--force-if-includes");
+    else flags.push(`--force-with-lease=${name}:${remoteTip ?? ""}`);
+  }
   return flags;
 }
 
-export function pushCommand(choice: PushChoice): PushCommand {
-  const flags = flagsOf(choice);
+export function pushCommand(choice: PushChoice, remoteTip: string | null): PushCommand {
   const refspec = choice.local === choice.branch ? choice.local : `${choice.local}:${choice.branch}`;
-  const short = ["git push", ...flags, choice.remote, refspec].join(" ");
-  const full = ["git push --progress", ...flags, choice.remote, `refs/heads/${choice.local}:refs/heads/${choice.branch}`].join(" ");
+  const short = ["git push", ...flagsOf(choice, remoteTip, (b) => b), choice.remote, refspec].join(" ");
+  const full = [
+    "git push --progress",
+    ...flagsOf(choice, remoteTip, (b) => `refs/heads/${b}`),
+    choice.remote,
+    `refs/heads/${choice.local}:refs/heads/${choice.branch}`,
+  ].join(" ");
   if (!choice.notes) return { short, full };
   return {
     short: `${short}; git push ${choice.remote} ${NOTES}`,
     full: `${full}; git push --progress ${choice.remote} ${NOTES}`,
+  };
+}
+
+/** What a lease is checked against, the tip written out; `note` says what that means. */
+export function leaseLine(remote: string, branch: string, remoteTip: string | null): { flag: string; note: string } {
+  if (remoteTip === null) return { flag: `--force-with-lease=${branch}:`, note: `${branch} must not exist on ${remote}` };
+  return { flag: `--force-with-lease=${branch}:${shortOid(remoteTip)}`, note: `${remote}/${branch} as last fetched` };
+}
+
+/** Preferences ▸ Push: names separated by commas or spaces, each once. */
+export function protectedNames(text: string): string[] {
+  return [...new Set(text.split(/[\s,]+/).filter((name) => name !== ""))];
+}
+
+export function protectedQuestion(remote: string, branch: string): ConfirmRequest {
+  return {
+    title: "Force push to a protected branch?",
+    message: `${branch} on ${remote} is a protected branch (Preferences ▸ Push). A force push rewrites its history for everyone who fetched it.`,
+    confirm: "Force push",
+    warning: true,
   };
 }
 

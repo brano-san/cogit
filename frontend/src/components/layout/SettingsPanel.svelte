@@ -19,6 +19,7 @@
     restartFields,
   } from "$lib/preferences";
   import { NO_FILTER_FOLDS, shownFolds, toggle, toggleFilterFold, type TreeNode } from "$lib/tree";
+  import { protectedNames } from "$lib/push-dialog";
   import { needsRestart, THEMES, type Settings } from "$lib/settings";
   import { isSetting, type Field } from "$lib/preferences";
   import { createGitChecker, describeCheck, type GitCheck } from "$lib/git-check";
@@ -391,6 +392,17 @@
                   >
                 </span>
               </label>
+            {:else if field.key === "protectedBranches"}
+              <div class="row">
+                {@render caption(field)}
+                <input
+                  type="text"
+                  class="text"
+                  aria-label={field.label}
+                  value={draft.protectedBranches.join(", ")}
+                  onchange={(e) => set("protectedBranches", protectedNames(e.currentTarget.value))}
+                />
+              </div>
             {:else if field.key === "gitPath"}
               <div class="row">
                 {@render caption(field)}

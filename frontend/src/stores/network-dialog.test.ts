@@ -66,6 +66,8 @@ describe("the dialogs' commands", () => {
       tags: "none",
       notes: false,
       forceWithLease: false,
+      forceIfIncludes: true,
+      leaseExpect: null,
     });
     await networkApi.pushNotes(1, "o");
     expect(seen.labels).toEqual(["Pulling", "Fetching", "Pushing", "Pushing notes"]);
