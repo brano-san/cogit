@@ -40,6 +40,7 @@
     type ResolveClose,
   } from "$lib/solver-flow";
   import { bandConnectors, panesOf, type SolverLayout } from "$lib/solver-geometry";
+  import { foldContext } from "$lib/diff-fold";
   import { solverKey } from "$lib/solver-keys";
   import { solverMenu } from "$lib/solver-menu";
   import {
@@ -163,7 +164,7 @@
       baseChanges: prefs.baseChanges,
       shown: { ours: panes.ours, theirs: panes.theirs },
       resultBelow: panes.below,
-      context: settings.current.contextLines,
+      context: foldContext(settings.current.diffWholeFile, settings.current.contextLines),
     };
   }
 
@@ -173,7 +174,7 @@
       baseChanges: prefs.baseChanges,
       shown: { ours: panes.ours, theirs: panes.theirs },
       resultBelow: panes.below,
-      context: settings.current.contextLines,
+      context: foldContext(settings.current.diffWholeFile, settings.current.contextLines),
     };
     const made = editors;
     // The editors report back by writing `tick`, which this effect must not then depend on.
@@ -574,6 +575,8 @@
         onlayout={setLayout}
         baseChanges={prefs.baseChanges}
         onbase={setBaseChanges}
+        whole={settings.current.diffWholeFile}
+        onwhole={(on) => void settings.set("diffWholeFile", on)}
         {merged}
         hasChanges={hunkIds.length > 0}
         hasConflicts={unresolved.length > 0}

@@ -41,6 +41,9 @@ export interface Settings {
   /** Side by side: `aligned` keeps both sides on the same rows (filler where one has no lines),
       `compact` is each side's own rows per side with curved connectors (08 §12.2). */
   diffLayout: DiffLayout;
+  /** The diff and the 3-way merge show the whole file, not unchanged lines folded to the
+      context lines into "N lines hidden" rows. */
+  diffWholeFile: boolean;
   laneWidth: number;
   pullMode: "ffOnly" | "merge";
   gitPath: string;
@@ -133,6 +136,7 @@ export const DEFAULT_SETTINGS: Settings = {
   detectMoves: true,
   diffSplit: 0.5,
   diffLayout: "aligned",
+  diffWholeFile: false,
   laneWidth: LANE_WIDTH.default,
   pullMode: "ffOnly",
   gitPath: "git",

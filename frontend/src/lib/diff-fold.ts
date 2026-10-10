@@ -218,6 +218,16 @@ export function highlightedRows(
   return shown().flatMap((entry) => (entry.kind === "row" ? [entry.row] : []));
 }
 
+/** Unchanged lines kept around each change: every one while the whole file is shown. */
+export function foldContext(whole: boolean, lines: number): number {
+  return whole ? Number.POSITIVE_INFINITY : lines;
+}
+
+/** A gap between the hunks the backend sent: its lines are not here until the whole file is. */
+export function missingLines(entries: readonly FoldEntry[]): boolean {
+  return entries.some((entry) => entry.kind === "gap" && !entry.gap.loaded);
+}
+
 /** How long the change a jump lands on stays lit. Must match `.line.flash` in DiffView. */
 export const FLASH_MS = 600;
 

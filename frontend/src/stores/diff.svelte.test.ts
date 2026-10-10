@@ -50,3 +50,20 @@ describe("the file on screen, as the views read it", () => {
     stop();
   });
 });
+
+// Whole file on: a file opened folded asked again for its lines (two diffs per click).
+describe("the whole file", () => {
+  it("is asked for at once while it is shown", async () => {
+    const { settings } = await import("./settings.svelte");
+    const { WHOLE_FILE } = await import("$lib/diff-rows");
+    settings.current.diffWholeFile = true;
+    try {
+      commands.diffFile.mockClear();
+      commands.diffFile.mockResolvedValue(text(1));
+      await diff.load(1, { kind: "workTreeVsIndex" }, "whole.ts");
+      expect(commands.diffFile.mock.calls[0]?.[3]?.contextLines).toBe(WHOLE_FILE);
+    } finally {
+      settings.current.diffWholeFile = false;
+    }
+  });
+});

@@ -38,6 +38,12 @@ describe("merge", () => {
     expect(merge({ diffSplit: 3 }).diffSplit).toBe(0.8);
   });
 
+  it("folds the diff to its context lines until asked for the whole file", () => {
+    expect(merge({}).diffWholeFile).toBe(false);
+    expect(merge({ diffWholeFile: true }).diffWholeFile).toBe(true);
+    expect(merge({ diffWholeFile: "yes" } as never).diffWholeFile).toBe(false);
+  });
+
   it("lays side by side out aligned unless asked for compact", () => {
     expect(merge({}).diffLayout).toBe("aligned");
     expect(merge({ diffLayout: "compact" }).diffLayout).toBe("compact");

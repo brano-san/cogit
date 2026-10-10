@@ -12,7 +12,8 @@ import {
 } from "$lib/ipc";
 import { readKey, writeKey } from "$lib/settings-file";
 import { discardSelection, stageSelection, type PatchRequest } from "$lib/ipc";
-import { expandedContext } from "$lib/diff-rows";
+import { WHOLE_FILE, expandedContext } from "$lib/diff-rows";
+import { foldContext } from "$lib/diff-fold";
 import { splitSelection } from "$lib/selection";
 import { runMutation, type MutationContext } from "$lib/mutation";
 import { isAbsentFromBothSides } from "$lib/diff-toolbar";
@@ -73,7 +74,7 @@ class DiffStore {
 
   /** Lines kept around a change when the view folds a diff that carries the whole file. */
   get foldContext(): number {
-    return settings.diffOptions.contextLines;
+    return foldContext(settings.current.diffWholeFile, settings.diffOptions.contextLines);
   }
 
   /** Which of the line actions make sense on the side of the index on screen: the
@@ -126,9 +127,11 @@ class DiffStore {
     this.loading = true;
 
     try {
+      // The whole file shown: asked for at once, not after the folded diff arrives.
+      const context = this.context ?? (settings.current.diffWholeFile ? WHOLE_FILE : null);
       const options: DiffOptions = {
         ...settings.diffOptions,
-        ...(this.context === null ? {} : { contextLines: this.context }),
+        ...(context === null ? {} : { contextLines: context }),
         ignoreWhitespace: this.whitespace,
         detectMoves: settings.diffOptions.detectMoves && this.showMoves,
       };

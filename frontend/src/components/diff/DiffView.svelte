@@ -12,7 +12,7 @@
   import { diffEdit } from "$stores/diff-edit.svelte";
   import type { SearchRow } from "$lib/diff-rows";
   import { diffTokens, paneTokens, unifiedTokens } from "$lib/diff-highlight";
-  import { FLASH_MS, changeSteps, foldDiff, navState, revealRange, stepsAround, type ChangeSteps, type Gap, type LineRange } from "$lib/diff-fold";
+  import { FLASH_MS, changeSteps, foldDiff, missingLines, navState, revealRange, stepsAround, type ChangeSteps, type Gap, type LineRange } from "$lib/diff-fold";
   import {
     buildBlocks,
     changeRow,
@@ -462,10 +462,26 @@
   function openGap(gap: Gap, how: "up" | "down" | "all", event: MouseEvent) {
     const whole = primary(event, ON_MAC);
     revealed = [...revealed, whole ? { from: 1, to: Number.MAX_SAFE_INTEGER } : revealRange(gap, how)];
-    if (gap.loaded) return;
+    if (!gap.loaded) loadWholeFile();
+  }
+
+  function loadWholeFile() {
     if (onexpand) onexpand(true);
     else if (diffStore.repo !== null) void diffStore.expand(diffStore.repo, true);
   }
+
+  /** Whole file switched on over a diff of hunks: its other lines are asked for once per file,
+      so one too long to come whole is not asked for again and again. */
+  let wholeAskedFor: string | null = null;
+  $effect(() => {
+    if (!settings.current.diffWholeFile) {
+      wholeAskedFor = null;
+      return;
+    }
+    if (!missingLines(entries) || wholeAskedFor === path) return;
+    wholeAskedFor = path;
+    untrack(loadWholeFile);
+  });
 
   /** Selecting works on any diff: a commit cannot be staged, but it can be investigated. */
   function pick(key: string | null) {
@@ -917,6 +933,13 @@
         >▲</button
       >
       <button type="button" class="btn sm" disabled={!nav.next} onclick={() => jump(1)} title="Next change (F6)">▼</button>
+      <button
+        type="button"
+        class="btn sm"
+        aria-pressed={settings.current.diffWholeFile}
+        title="Show the whole file; off: unchanged lines fold into “N lines hidden” rows"
+        onclick={() => void settings.set("diffWholeFile", !settings.current.diffWholeFile)}>Whole file</button
+      >
       <button
         type="button"
         class="btn sm"

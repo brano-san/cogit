@@ -402,6 +402,12 @@ export const CATEGORIES: Category[] = [
           { key: "algorithm", label: "Diff algorithm", keywords: ["histogram", "myers"] },
           { key: "ignoreWhitespace", label: "Whitespace", keywords: ["blank", "trailing"] },
           { key: "contextLines", label: "Context lines", keywords: ["surrounding"] },
+          {
+            key: "diffWholeFile",
+            label: "Show the whole file",
+            hint: "Off: unchanged lines fold to the context lines into \"N lines hidden\" rows. The Whole file button of the diff and of the 3-way merge switches it too.",
+            keywords: ["whole", "full", "entire", "fold", "hidden", "collapse", "expand", "unchanged"],
+          },
         ],
       },
       {

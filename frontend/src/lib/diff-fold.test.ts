@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import type { DiffRow, Hunk } from "./ipc/bindings";
 import {
   changeSteps,
+  foldContext,
   foldDiff,
   highlightedRows,
+  missingLines,
   navState,
   revealRange,
   stepsAround,
@@ -282,5 +284,23 @@ describe("change navigation (#13)", () => {
   it("offers nothing without changes, nor a step the changes no longer have", () => {
     expect(navState(0, { prev: -1, next: 0 })).toEqual({ prev: false, next: false });
     expect(navState(2, { prev: 4, next: 5 })).toEqual({ prev: false, next: false });
+  });
+});
+
+// The whole file instead of "N lines hidden" (Diff and 3-way merge alike).
+describe("the whole file", () => {
+  it("keeps every unchanged line while it is shown, else the context lines", () => {
+    expect(foldContext(true, 3)).toBe(Number.POSITIVE_INFINITY);
+    expect(foldContext(false, 3)).toBe(3);
+  });
+
+  it("is missing lines while a gap between the hunks the backend sent is still closed", () => {
+    const gap = (loaded: boolean): FoldEntry => ({
+      kind: "gap",
+      gap: { oldFrom: 1, oldTo: 9, newFrom: 1, hidden: 9, loaded, up: true, down: false, context: null },
+    });
+    expect(missingLines([gap(false)])).toBe(true);
+    expect(missingLines([gap(true)])).toBe(false);
+    expect(missingLines([])).toBe(false);
   });
 });

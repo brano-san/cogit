@@ -7,6 +7,9 @@
     onlayout: (layout: SolverLayout) => void;
     baseChanges: boolean;
     onbase: (on: boolean) => void;
+    /** The panes show the whole file, not unchanged lines folded into "N lines hidden" rows. */
+    whole: boolean;
+    onwhole: (on: boolean) => void;
     /** The file is merged line by line: there are hunks to walk and take. */
     merged: boolean;
     hasChanges: boolean;
@@ -36,6 +39,8 @@
     onlayout,
     baseChanges,
     onbase,
+    whole,
+    onwhole,
     merged,
     hasChanges,
     hasConflicts,
@@ -76,6 +81,13 @@
       disabled={locked}
       title="Color Ours and Theirs by what each changed in the base; off: by where they differ from each other"
       onclick={() => onbase(!baseChanges)}>Base Changes</button
+    >
+    <button
+      type="button"
+      class="btn sm"
+      aria-pressed={whole}
+      title="Show the whole file; off: unchanged lines fold into “N lines hidden” rows"
+      onclick={() => onwhole(!whole)}>Whole file</button
     >
     <div class="group" role="group" aria-label="Changes">
       <button type="button" class="btn sm" disabled={locked || !hasChanges} title="Previous change (Shift+F6)" onclick={() => onstep("change", -1)}>↑ Change</button>

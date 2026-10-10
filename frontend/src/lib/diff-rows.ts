@@ -43,7 +43,8 @@ export function stepHit(hits: readonly unknown[], current: number, delta: number
 }
 
 const EXPAND_BY = 20;
-const WHOLE_FILE = 100_000;
+/** Context lines that bring the whole file. */
+export const WHOLE_FILE = 100_000;
 
 export function expandedContext(current: number, whole: boolean): number {
   return whole ? WHOLE_FILE : current + EXPAND_BY;
