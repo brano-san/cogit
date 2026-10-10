@@ -78,17 +78,6 @@ export function pushOptionsOf(choice: PushChoice): PushOptions {
   return { ...choice };
 }
 
-export function pushCommandLine(choice: PushChoice): string {
-  const flags = ["push", "--progress"];
-  if (choice.setUpstream) flags.push("--set-upstream");
-  if (choice.tags === "follow") flags.push("--follow-tags");
-  if (choice.tags === "all") flags.push("--tags");
-  if (choice.forceWithLease) flags.push("--force-with-lease", "--force-if-includes");
-  flags.push(choice.remote, `refs/heads/${choice.local}:refs/heads/${choice.branch}`);
-  const branch = `git ${flags.join(" ")}`;
-  return choice.notes ? `${branch}; git push --progress ${choice.remote} refs/notes/*:refs/notes/*` : branch;
-}
-
 const BAD_BRANCH = /[\s~^:?*[\\]|\.\.|^[-/]|[/.]$|\.lock$|@\{/;
 
 /** What makes Push unavailable, in words; `null` when it can run. */

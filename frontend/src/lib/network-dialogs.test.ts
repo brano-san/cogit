@@ -11,7 +11,6 @@ import {
   pushBranchesOf,
   pushTargetOf,
   pushChoiceOf,
-  pushCommandLine,
   pushOptionsOf,
   pushProblem,
   remoteBranchChoices,
@@ -75,13 +74,6 @@ describe("push", () => {
     );
     expect(choice.forceWithLease).toBe(false);
     expect(choice).toMatchObject({ tags: "follow", notes: true });
-  });
-
-  it("previews the command", () => {
-    expect(pushCommandLine(push())).toBe("git push --progress origin refs/heads/main:refs/heads/main");
-    expect(pushCommandLine(push({ setUpstream: true, tags: "all", notes: true, forceWithLease: true }))).toBe(
-      "git push --progress --set-upstream --tags --force-with-lease --force-if-includes origin refs/heads/main:refs/heads/main; git push --progress origin refs/notes/*:refs/notes/*",
-    );
   });
 
   it("hands the engine every field", () => {

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import CopyButton from "$components/common/CopyButton.svelte";
   import Disclosure from "$components/common/Disclosure.svelte";
   import RevisionCombobox from "$components/common/RevisionCombobox.svelte";
   import Select from "$components/common/Select.svelte";
@@ -11,14 +12,13 @@
   import {
     chooseLocal,
     pushChoiceOf,
-    pushCommandLine,
     pushOptionsOf,
     pushProblem,
     remoteBranchChoices,
     tagsHint,
     type PushChoice,
   } from "$lib/network-dialogs";
-  import { effectiveChoice, upstreamState } from "$lib/push-dialog";
+  import { effectiveChoice, pushCommand, upstreamState } from "$lib/push-dialog";
   import { splitUpstream } from "$lib/push-to";
   import type { PushRequest } from "$stores/network-dialog.svelte";
 
@@ -62,7 +62,7 @@
   const problem = $derived(pushProblem(choice));
   const tracking = $derived(upstreamState(upstream, choice.remote, choice.branch));
   const sent = $derived(effectiveChoice(choice, upstream));
-  const command = $derived(pushCommandLine(sent));
+  const command = $derived(pushCommand(sent));
 
   function chooseRemote(next: string) {
     choice.remote = next;
@@ -215,7 +215,13 @@
     />
   </div>
 
-  <div class="command"><span class="caption">Command</span><code>{command}</code></div>
+  <div class="command">
+    <span class="caption">Command</span>
+    <div class="line">
+      <code title={command.full}>{command.short}</code>
+      <CopyButton class="btn" text={command.short} />
+    </div>
+  </div>
 </TemplateDialog>
 
 <style>
@@ -260,6 +266,17 @@
   code {
     font-size: var(--fs-dense);
     line-height: 1.4;
+  }
+
+  .line {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--sp-3);
+  }
+
+  .line code {
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .note {
