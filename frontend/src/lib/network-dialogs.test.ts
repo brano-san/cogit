@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
+import type { Branch } from "$lib/ipc";
 import {
   EMPTY_DEFAULTS,
+  chooseLocal,
   fetchOptionsOf,
   mergeDefaults,
   pullChoiceOf,
   pullCommandLine,
   pullOptionsOf,
+  pushBranchesOf,
   pushTargetOf,
   pushChoiceOf,
   pushCommandLine,
@@ -179,5 +182,37 @@ describe("where a push goes", () => {
       branch: "topic",
     });
     expect(pushTargetOf(branch, remotes, "origin", "gone")).toEqual({ remote: "origin", branch: "topic" });
+  });
+});
+
+describe("the branches a push can take", () => {
+  const branch = (name: string, kind: "local" | "remote", upstream: string | null = null) =>
+    ({ name, kind, upstream, pushRemote: null, pushTarget: null }) as unknown as Branch;
+
+  it("offers every local branch with where it goes, and every remote-tracking name", () => {
+    expect(pushBranchesOf([branch("main", "local", "origin/main"), branch("origin/main", "remote"), branch("topic", "local")])).toEqual({
+      locals: [
+        { name: "main", upstream: "origin/main", pushRemote: null, pushTarget: null },
+        { name: "topic", upstream: null, pushRemote: null, pushTarget: null },
+      ],
+      remoteBranches: ["origin/main"],
+    });
+  });
+
+  it("moves the target with the local branch", () => {
+    const topic = { name: "topic", upstream: "fork/topic", pushRemote: "fork", pushTarget: null };
+    expect(chooseLocal(push(), topic, ["origin", "fork"], EMPTY_DEFAULTS)).toMatchObject({
+      local: "topic",
+      remote: "fork",
+      branch: "topic",
+      setUpstream: false,
+    });
+    const fresh = { name: "new", upstream: null, pushRemote: null, pushTarget: null };
+    expect(chooseLocal(push({ remote: "fork" }), fresh, ["origin", "fork"], EMPTY_DEFAULTS)).toMatchObject({
+      local: "new",
+      remote: "fork",
+      branch: "new",
+      setUpstream: true,
+    });
   });
 });

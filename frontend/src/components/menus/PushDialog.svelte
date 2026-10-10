@@ -9,6 +9,7 @@
   import { shortOid } from "$lib/format";
   import { pushPreview, type PushOptions, type PushPreview, type TagsMode } from "$lib/ipc/network-dialogs";
   import {
+    chooseLocal,
     pushChoiceOf,
     pushCommandLine,
     pushOptionsOf,
@@ -41,12 +42,14 @@
   };
 
   // svelte-ignore state_referenced_locally
+  const opened = request.locals.find((b) => b.name === request.local);
+  // svelte-ignore state_referenced_locally
   let choice = $state<PushChoice>(
     pushChoiceOf(request.defaults, {
       remote: request.remote,
       local: request.local,
       branch: request.branch,
-      hasUpstream: request.upstream !== null,
+      hasUpstream: (opened?.upstream ?? null) !== null,
     }),
   );
   let remember = $state(false);
@@ -54,24 +57,30 @@
   let listOpen = $state(false);
   let asked = 0;
 
-  const branches = $derived(remoteBranchChoices(choice.remote, request.remoteBranches, request.local));
+  const upstream = $derived(request.locals.find((b) => b.name === choice.local)?.upstream ?? null);
+  const branches = $derived(remoteBranchChoices(choice.remote, request.remoteBranches, choice.local));
   const problem = $derived(pushProblem(choice));
-  const tracking = $derived(upstreamState(request.upstream, choice.remote, choice.branch));
-  const sent = $derived(effectiveChoice(choice, request.upstream));
+  const tracking = $derived(upstreamState(upstream, choice.remote, choice.branch));
+  const sent = $derived(effectiveChoice(choice, upstream));
   const command = $derived(pushCommandLine(sent));
 
   function chooseRemote(next: string) {
     choice.remote = next;
     // The branch of the same name on the new remote, as a first push would send it.
-    const same = splitUpstream(request.upstream ?? "", request.remotes);
-    choice.branch = same && same.remote === next ? same.branch : request.local;
+    const same = splitUpstream(upstream ?? "", request.remotes);
+    choice.branch = same && same.remote === next ? same.branch : choice.local;
+  }
+
+  function pickLocal(name: string) {
+    const branch = request.locals.find((b) => b.name === name);
+    if (branch) choice = chooseLocal(choice, branch, request.remotes, request.defaults);
   }
 
   $effect(() => {
-    const { remote, branch } = choice;
+    const { local, remote, branch } = choice;
     if (problem !== null) return;
     const ticket = ++asked;
-    pushPreview(request.repo, request.local, remote, branch, LIST_CAP)
+    pushPreview(request.repo, local, remote, branch, LIST_CAP)
       .then((found) => {
         if (ticket === asked) preview = found;
       })
@@ -99,9 +108,18 @@
     { label: "Push", primary: true, disabled: problem !== null, onclick: () => onpush(choice, pushOptionsOf(sent), remember) },
   ]}
 >
-  <p class="sub">Sends the commits of the current branch to the remote.</p>
+  <p class="sub">Sends the commits of {choice.local} to the remote.</p>
 
   <div class="fields">
+    <div class="field">
+      <span class="caption">Local branch</span>
+      <Select
+        value={choice.local}
+        label="Local branch"
+        options={request.locals.map((b) => [b.name, b.name] as const)}
+        onchange={pickLocal}
+      />
+    </div>
     <div class="field">
       <span class="caption">Remote</span>
       <Select
@@ -112,11 +130,10 @@
       />
     </div>
     <div class="field">
-      <span class="caption">Branch</span>
+      <span class="caption">Remote branch</span>
       <RevisionCombobox
         value={choice.branch}
         label="Remote branch"
-        free={false}
         options={branches.map((name) => ({ value: name, label: name, group: "" }))}
         onchange={(next) => (choice.branch = next)}
       />
@@ -204,7 +221,7 @@
 <style>
   .fields {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--sp-5);
   }
 

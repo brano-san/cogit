@@ -1,6 +1,7 @@
 /** The Pull and Push dialogs' pure rules: what opens checked, what each button hands the
     engine, the command it will run, and what the repository remembers. */
 import { splitUpstream } from "$lib/push-to";
+import type { Branch } from "$lib/ipc";
 import type { FetchOptions, NetworkDefaults, PullMethod, PullOptions, PushOptions, TagsMode } from "$lib/ipc/network-dialogs";
 
 export const EMPTY_DEFAULTS: NetworkDefaults = {
@@ -155,4 +156,34 @@ export function pushTargetOf(
   const remote = chosen ?? (branch.pushRemote && remotes.includes(branch.pushRemote) ? branch.pushRemote : primary);
   const upstream = branch.upstream ? splitUpstream(branch.upstream, remotes) : null;
   return { remote, branch: upstream && upstream.remote === remote ? upstream.branch : branch.name };
+}
+
+/** A local branch as the Push dialog needs it: where it goes unless told otherwise. */
+export type PushBranch = Pick<Branch, "name" | "upstream" | "pushRemote" | "pushTarget">;
+
+export function pushBranchesOf(branches: readonly Branch[]): { locals: PushBranch[]; remoteBranches: string[] } {
+  return {
+    locals: branches
+      .filter((b) => b.kind === "local")
+      .map(({ name, upstream, pushRemote, pushTarget }) => ({ name, upstream, pushRemote, pushTarget })),
+    remoteBranches: branches.filter((b) => b.kind === "remote").map((b) => b.name),
+  };
+}
+
+/** The dialog after Local branch changed: where that branch goes, and Set as upstream as it
+    would open for it. With nothing else to go by it stays on the remote chosen. */
+export function chooseLocal(
+  choice: PushChoice,
+  branch: PushBranch,
+  remotes: readonly string[],
+  defaults: NetworkDefaults,
+): PushChoice {
+  const target = pushTargetOf(branch, remotes, choice.remote, defaults.pushRemote);
+  return {
+    ...choice,
+    local: branch.name,
+    remote: target.remote ?? choice.remote,
+    branch: target.branch,
+    setUpstream: defaults.pushSetUpstream ?? branch.upstream === null,
+  };
 }

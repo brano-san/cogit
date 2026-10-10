@@ -12,6 +12,7 @@
     pullOptionsOf,
     pushChoiceOf,
     pushOptionsOf,
+    pushBranchesOf,
     pushTargetOf,
     type PullChoice,
     type PushChoice,
@@ -233,8 +234,7 @@
       remote: target.remote,
       branch: target.branch,
       local: head.name,
-      upstream: head.upstream,
-      remoteBranches: (repository.current?.branches ?? []).filter((b) => b.kind === "remote").map((b) => b.name),
+      ...pushBranchesOf(repository.current?.branches ?? []),
       defaults,
     };
   }

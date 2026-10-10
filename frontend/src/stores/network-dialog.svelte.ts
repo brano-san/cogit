@@ -1,5 +1,6 @@
 import * as ipc from "$lib/ipc/network-dialogs";
 import type { NetworkDefaults } from "$lib/ipc/network-dialogs";
+import type { PushBranch } from "$lib/network-dialogs";
 import type { NetworkApi } from "$lib/network-flow";
 import { readKey, writeKey } from "$lib/settings-file";
 import { network } from "$stores/network.svelte";
@@ -27,8 +28,8 @@ export interface PushRequest {
   /** The branch it becomes there when the dialog opens. */
   branch: string;
   local: string;
-  /** Short name of the upstream, `origin/main`. */
-  upstream: string | null;
+  /** Every local branch, for Local branch; `local` is one of them. */
+  locals: readonly PushBranch[];
   /** Short names of every remote-tracking branch, for the branch dropdown. */
   remoteBranches: readonly string[];
   defaults: NetworkDefaults;
