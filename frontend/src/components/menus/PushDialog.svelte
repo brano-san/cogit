@@ -206,6 +206,16 @@
   const status = $derived(preview && statusLine(preview, choice.remote, Date.now(), settings.current.fetchStaleHours));
   /** The status may no longer hold: Fetch comes first, Push waits. */
   const stale = $derived(status?.stale ?? false);
+
+  let fetchButton = $state<HTMLButtonElement>();
+  let focusSettled = false;
+  /** Once: the footer focused Push while it was the main action, before the status said
+      Fetch comes first, and Enter on a focused button presses that button. */
+  $effect(() => {
+    if (focusSettled || !status) return;
+    focusSettled = true;
+    if (status.stale && document.activeElement?.closest("footer")) fetchButton?.focus();
+  });
   const button = $derived(pushButton(preview, choice, upstream, tags));
 </script>
 
@@ -264,6 +274,7 @@
       <span class="status truncate" class:stale title={status?.text}>{status?.text ?? ""}</span>
       <button
         type="button"
+        bind:this={fetchButton}
         class="btn sm"
         class:primary={stale}
         title="Fetch {choice.remote} and read again"
