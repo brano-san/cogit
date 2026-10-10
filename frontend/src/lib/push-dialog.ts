@@ -160,17 +160,49 @@ export function commitsText(preview: PushPreview | null): string {
   return `${preview.total} ${preview.total === 1 ? "commit" : "commits"} to push`;
 }
 
-/** Nothing at all would go: the remote has the branch's commit, and no tag, note or upstream
-    change rides along. Not known yet counts as something. */
-export function isUpToDate(preview: PushPreview, choice: PushChoice, upstream: string | null, tags: TagCount | null): boolean {
-  if (preview.remoteTip === null || preview.remoteTip !== preview.localTip) return false;
-  if (effectiveChoice(choice, upstream).setUpstream) return false;
-  if (choice.tags !== "none" && !(tags?.state === "done" && tags.tags.length === 0)) return false;
-  return !(choice.notes && preview.hasLocalNotes && preview.notesUnpushed !== 0);
+type Goes = "yes" | "maybe" | "no";
+
+/** The branch moves: commits to add, a branch to create, or a forced move (even back). */
+function commitsGo(preview: PushPreview, choice: PushChoice): Goes {
+  const moves =
+    preview.total > 0 || preview.remoteTip === null || (choice.forceWithLease && preview.remoteTip !== preview.localTip);
+  return moves ? "yes" : "no";
 }
 
-export function pushButtonLabel(choice: PushChoice, total: number): string {
-  if (choice.dryRun) return "Dry run";
+function tagsGo(choice: PushChoice, tags: TagCount | null): Goes {
+  if (choice.tags === "none") return "no";
+  if (tags?.state !== "done") return "maybe";
+  return tags.tags.length > 0 ? "yes" : "no";
+}
+
+function notesGo(preview: PushPreview, choice: PushChoice): Goes {
+  if (!choice.notes || !preview.hasLocalNotes || preview.notesUnpushed === 0) return "no";
+  return preview.notesUnpushed === null ? "maybe" : "yes";
+}
+
+/** The Push button: what it says it sends, and whether anything would go at all. Set upstream
+    rides along unnamed unless it is all there is; what is not counted yet counts as going. */
+export function pushButton(
+  preview: PushPreview | null,
+  choice: PushChoice,
+  upstream: string | null,
+  tags: TagCount | null,
+): { label: string; nothing: boolean } {
   const verb = choice.forceWithLease ? "Force push" : "Push";
-  return total === 0 ? verb : `${verb} ${total} ${total === 1 ? "commit" : "commits"}`;
+  if (preview === null) return { label: choice.dryRun ? "Dry run" : verb, nothing: false };
+  const kinds = { commits: commitsGo(preview, choice), tags: tagsGo(choice, tags), notes: notesGo(preview, choice) };
+  const sure = (Object.keys(kinds) as (keyof typeof kinds)[]).filter((kind) => kinds[kind] === "yes");
+  const maybe = Object.values(kinds).includes("maybe");
+  const upstreamOnly = sure.length === 0 && !maybe && effectiveChoice(choice, upstream).setUpstream;
+  const nothing = sure.length === 0 && !maybe && !upstreamOnly;
+  if (choice.dryRun) return { label: "Dry run", nothing };
+  if (upstreamOnly) return { label: "Set upstream", nothing };
+  if (sure.length !== 1) return { label: verb, nothing };
+  const { total } = preview;
+  const named = {
+    commits: total > 0 ? `${verb} ${total} ${total === 1 ? "commit" : "commits"}` : verb,
+    tags: "Push tags",
+    notes: "Push notes",
+  };
+  return { label: named[sure[0]!], nothing };
 }

@@ -29,10 +29,9 @@
   import {
     commitsText,
     effectiveChoice,
-    isUpToDate,
     leaseLine,
     protectedQuestion,
-    pushButtonLabel,
+    pushButton,
     pushCommand,
     statusLine,
     tagCountText,
@@ -197,7 +196,7 @@
   const status = $derived(preview && statusLine(preview, choice.remote, Date.now(), settings.current.fetchStaleHours));
   /** The status may no longer hold: Fetch comes first, Push waits. */
   const stale = $derived(status?.stale ?? false);
-  const upToDate = $derived(preview !== null && isUpToDate(preview, choice, upstream, tags));
+  const button = $derived(pushButton(preview, choice, upstream, tags));
 </script>
 
 <TemplateDialog
@@ -208,10 +207,10 @@
   onenter={stale && !fetching ? () => void fetchRemote() : undefined}
   actions={[
     {
-      label: pushButtonLabel(choice, preview?.total ?? 0),
+      label: button.label,
       primary: !stale,
-      disabled: problem !== null || fetching || upToDate,
-      tip: upToDate ? `Nothing to push: ${choice.remote}/${choice.branch} is at the same commit` : undefined,
+      disabled: problem !== null || fetching || button.nothing,
+      tip: button.nothing ? "Nothing to push" : undefined,
       onclick: () => void push(),
     },
   ]}

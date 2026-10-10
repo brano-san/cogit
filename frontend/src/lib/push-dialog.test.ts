@@ -6,10 +6,9 @@ import {
   commitsText,
   effectiveChoice,
   fetchedText,
-  isUpToDate,
   leaseLine,
   protectedNames,
-  pushButtonLabel,
+  pushButton,
   pushCommand,
   pushStatus,
   staleChoices,
@@ -178,34 +177,49 @@ describe("counts", () => {
   });
 });
 
-describe("Up to date", () => {
-  const done = (names: string[]): TagCount => ({ state: "done", tags: names });
-
-  it("holds when the remote has the branch's commit and nothing rides along", () => {
-    expect(isUpToDate(preview(), choice({ setUpstream: false }), "origin/main", null)).toBe(true);
-    expect(isUpToDate(preview(), choice({ setUpstream: true }), "origin/main", null)).toBe(true);
-    expect(isUpToDate(preview(), choice({ setUpstream: false, tags: "follow" }), "origin/main", done([]))).toBe(true);
-  });
-
-  it("does not hold for a new branch, a move, an upstream to set, tags or notes to send", () => {
-    const off = choice({ setUpstream: false });
-    expect(isUpToDate(preview({ remoteTip: null }), off, null, null)).toBe(false);
-    expect(isUpToDate(preview({ remoteTip: "b" }), off, "origin/main", null)).toBe(false);
-    expect(isUpToDate(preview(), choice({ setUpstream: true }), null, null)).toBe(false);
-    expect(isUpToDate(preview(), choice({ setUpstream: false, tags: "follow" }), "origin/main", done(["v1"]))).toBe(false);
-    expect(isUpToDate(preview(), choice({ setUpstream: false, tags: "all" }), "origin/main", { state: "counting" })).toBe(false);
-    expect(isUpToDate(preview(), choice({ setUpstream: false, tags: "follow" }), "origin/main", { state: "failed", reason: "x" })).toBe(false);
-    expect(isUpToDate(preview({ hasLocalNotes: true, notesUnpushed: 2 }), choice({ setUpstream: false, notes: true }), "origin/main", null)).toBe(false);
-  });
-});
-
 describe("the Push button", () => {
-  it("says what it sends", () => {
-    expect(pushButtonLabel(choice(), 0)).toBe("Push");
-    expect(pushButtonLabel(choice(), 1)).toBe("Push 1 commit");
-    expect(pushButtonLabel(choice(), 3)).toBe("Push 3 commits");
-    expect(pushButtonLabel(choice({ forceWithLease: true }), 2)).toBe("Force push 2 commits");
-    expect(pushButtonLabel(choice({ forceWithLease: true }), 0)).toBe("Force push");
+  const done = (names: string[]): TagCount => ({ state: "done", tags: names });
+  const off = (over: Partial<PushChoice> = {}) => choice({ setUpstream: false, ...over });
+  const button = (p: PushPreview | null, c: PushChoice, upstream: string | null = "origin/main", tags: TagCount | null = null) =>
+    pushButton(p, c, upstream, tags);
+
+  it("counts the commits when only they go, the upstream riding along", () => {
+    expect(button(preview({ total: 1, localTip: "b" }), off())).toEqual({ label: "Push 1 commit", nothing: false });
+    expect(button(preview({ total: 3, localTip: "b" }), off()).label).toBe("Push 3 commits");
+    expect(button(preview({ total: 3, localTip: "b" }), choice({ setUpstream: true }), null).label).toBe("Push 3 commits");
+  });
+
+  it("names tags, notes or the upstream when that is all that goes", () => {
+    expect(button(preview(), off({ tags: "follow" }), "origin/main", done(["v1"]))).toEqual({ label: "Push tags", nothing: false });
+    expect(button(preview({ hasLocalNotes: true, notesUnpushed: 2 }), off({ notes: true }))).toEqual({ label: "Push notes", nothing: false });
+    expect(button(preview(), choice({ setUpstream: true }), null)).toEqual({ label: "Set upstream", nothing: false });
+  });
+
+  it("is plain Push for a mix, a new branch, or what is not counted yet", () => {
+    expect(button(preview({ total: 2, localTip: "b" }), off({ tags: "all" }), "origin/main", done(["v1"])).label).toBe("Push");
+    expect(button(preview({ remoteTip: null }), off(), null)).toEqual({ label: "Push", nothing: false });
+    expect(button(preview(), off({ tags: "all" }), "origin/main", { state: "counting" })).toEqual({ label: "Push", nothing: false });
+    expect(button(preview(), off({ tags: "follow" }), "origin/main", { state: "failed", reason: "x" }).nothing).toBe(false);
+    expect(button(preview({ hasLocalNotes: true, notesUnpushed: null }), off({ notes: true })).nothing).toBe(false);
+    expect(button(null, off()).nothing).toBe(false);
+  });
+
+  it("has nothing to send when the remote has it all and nothing rides along", () => {
+    expect(button(preview(), choice({ setUpstream: true }))).toEqual({ label: "Push", nothing: true });
+    expect(button(preview(), off({ tags: "follow" }), "origin/main", done([])).nothing).toBe(true);
+    expect(button(preview({ hasLocalNotes: true, notesUnpushed: 0 }), off({ notes: true })).nothing).toBe(true);
+    expect(button(preview({ hasLocalNotes: false }), off({ notes: true })).nothing).toBe(true);
+    // Only behind: without force the remote refuses to move back.
+    expect(button(preview({ behind: 2, remoteTip: "c" }), off()).nothing).toBe(true);
+  });
+
+  it("says Force push for a forced move, even back", () => {
+    expect(button(preview({ total: 2, localTip: "b", remoteTip: "c" }), off({ forceWithLease: true })).label).toBe("Force push 2 commits");
+    expect(button(preview({ behind: 2, remoteTip: "c" }), off({ forceWithLease: true }))).toEqual({ label: "Force push", nothing: false });
+  });
+
+  it("calls a dry run Dry run", () => {
+    expect(button(preview({ total: 3, localTip: "b" }), off({ dryRun: true, forceWithLease: true })).label).toBe("Dry run");
   });
 });
 
@@ -222,10 +236,6 @@ describe("advanced options", () => {
       short: "git push --dry-run origin main 'refs/notes/*:refs/notes/*'",
       full: "git push --dry-run --progress origin refs/heads/main:refs/heads/main 'refs/notes/*:refs/notes/*'",
     });
-  });
-
-  it("calls the button Dry run", () => {
-    expect(pushButtonLabel(choice({ dryRun: true, forceWithLease: true }), 3)).toBe("Dry run");
   });
 });
 
