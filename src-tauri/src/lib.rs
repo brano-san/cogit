@@ -447,11 +447,6 @@ pub fn run() -> anyhow::Result<()> {
 
     let specta_builder = specta_builder();
 
-    #[cfg(debug_assertions)]
-    if let Err(err) = specta_builder.export(Typescript::default(), BINDINGS_PATH) {
-        eprintln_fallback(&format!("failed to export IPC bindings: {err}"));
-    }
-
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -673,19 +668,21 @@ fn copy_diagnostics(app: &tauri::AppHandle) {
     });
 }
 
-#[cfg(debug_assertions)]
-fn eprintln_fallback(message: &str) {
-    use std::io::Write as _;
-    let mut stderr = std::io::stderr();
-    let _ = writeln!(stderr, "[cogit] {message}");
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{Arc, mpsc};
     use std::time::Duration;
+
+    // A debug build wrote the bindings at every start, to the checkout it was built in: an old
+    // one, run from anywhere, put its stale commands back into the repository (R-749).
+    #[test]
+    fn only_export_bindings_writes_the_bindings() {
+        let path = ["BINDINGS", "_PATH"].concat();
+        // The constant itself and `export_bindings`.
+        assert_eq!(include_str!("lib.rs").matches(path.as_str()).count(), 2);
+    }
 
     // A git on a sleeping share hung `setup` before the window was shown. If the check ran on
     // the calling thread, the probe would wait out its timeout for a release that comes only
