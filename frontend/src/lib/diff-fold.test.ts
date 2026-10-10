@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { DiffRow, Hunk } from "./ipc/bindings";
 import {
-  changeAt,
+  changeSteps,
   foldDiff,
   highlightedRows,
   navState,
   revealRange,
+  stepsAround,
   type FoldEntry,
   type Gap,
 } from "./diff-fold";
@@ -240,34 +241,46 @@ describe("revealRange", () => {
 });
 
 describe("change navigation (#13)", () => {
-  it("is on the last change at or above the anchor row", () => {
-    expect(changeAt([4, 30, 80], 27, 60, 3)).toBe(1);
-    expect(changeAt([4, 30, 80], 26, 60, 3)).toBe(0);
+  it("is on a change whose start sits in the anchor rows", () => {
+    expect(changeSteps([4, 30, 80], 27, 60, 3)).toEqual({ prev: 0, next: 2 });
+  });
+
+  // Previous was off below the only change, and skipped the change just above the view.
+  it("goes back to a change scrolled past", () => {
+    expect(changeSteps([10], 50, 80, 3)).toEqual({ prev: 0, next: 1 });
+    expect(changeSteps([4, 30, 80], 26, 60, 3)).toEqual({ prev: 0, next: 1 });
+    expect(changeSteps([10, 50, 100], 70, 95, 3)).toEqual({ prev: 1, next: 2 });
   });
 
   it("counts the first change as current while the view is at the top and it is on screen", () => {
-    expect(changeAt([6, 30], 0, 25, 3)).toBe(0);
+    expect(changeSteps([6, 30], 0, 25, 3)).toEqual({ prev: -1, next: 1 });
   });
 
   it("is before the first change when that one is still below the anchor", () => {
-    expect(changeAt([40, 90], 0, 25, 3)).toBe(-1);
+    expect(changeSteps([40, 90], 0, 25, 3)).toEqual({ prev: -1, next: 0 });
+  });
+
+  it("steps either side of the change a jump landed on", () => {
+    expect(stepsAround(1)).toEqual({ prev: 0, next: 2 });
   });
 
   it("turns both buttons off for a single change", () => {
-    expect(navState(1, 0)).toEqual({ prev: false, next: false });
+    expect(navState(1, stepsAround(0))).toEqual({ prev: false, next: false });
   });
 
   it("turns off previous on the first change and next on the last", () => {
-    expect(navState(3, 0)).toEqual({ prev: false, next: true });
-    expect(navState(3, 1)).toEqual({ prev: true, next: true });
-    expect(navState(3, 2)).toEqual({ prev: true, next: false });
+    expect(navState(3, stepsAround(0))).toEqual({ prev: false, next: true });
+    expect(navState(3, stepsAround(1))).toEqual({ prev: true, next: true });
+    expect(navState(3, stepsAround(2))).toEqual({ prev: true, next: false });
   });
 
-  it("offers next from above the first change", () => {
-    expect(navState(1, -1)).toEqual({ prev: false, next: true });
+  it("offers next from above the first change and previous from below the last", () => {
+    expect(navState(1, { prev: -1, next: 0 })).toEqual({ prev: false, next: true });
+    expect(navState(1, { prev: 0, next: 1 })).toEqual({ prev: true, next: false });
   });
 
-  it("offers nothing without changes", () => {
-    expect(navState(0, -1)).toEqual({ prev: false, next: false });
+  it("offers nothing without changes, nor a step the changes no longer have", () => {
+    expect(navState(0, { prev: -1, next: 0 })).toEqual({ prev: false, next: false });
+    expect(navState(2, { prev: 4, next: 5 })).toEqual({ prev: false, next: false });
   });
 });

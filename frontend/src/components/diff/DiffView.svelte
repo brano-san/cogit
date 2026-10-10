@@ -12,7 +12,7 @@
   import { diffEdit } from "$stores/diff-edit.svelte";
   import type { SearchRow } from "$lib/diff-rows";
   import { diffTokens, paneTokens, unifiedTokens } from "$lib/diff-highlight";
-  import { FLASH_MS, changeAt, foldDiff, navState, revealRange, type Gap, type LineRange } from "$lib/diff-fold";
+  import { FLASH_MS, changeSteps, foldDiff, navState, revealRange, stepsAround, type ChangeSteps, type Gap, type LineRange } from "$lib/diff-fold";
   import {
     buildBlocks,
     changeRow,
@@ -163,9 +163,9 @@
   let lTop = $state(0);
   let rTop = $state(0);
   let viewportHeight = $state(0);
-  /** The change the arrows and F6 step from; `-1` above the first one (#13). */
-  let current = $state(-1);
-  /** Set while a jump's own scroll is in flight, so it does not re-derive `current`. */
+  /** Where the arrows and F6 step to (#13): above the first change, Next goes to it. */
+  let steps = $state<ChangeSteps>({ prev: -1, next: 0 });
+  /** Set while a jump's own scroll is in flight, so it does not re-derive `steps`. */
   let jumping = false;
   /** Lines the user opened out of the folds, by old line number (#16). */
   let revealed = $state<LineRange[]>([]);
@@ -217,7 +217,7 @@
   const changeList = $derived(changes(model));
   /** Where each change starts in the list a jump scrolls: the left pane, or the unified one. */
   const starts = $derived(changeList.map((change) => changeRow(model, change, mode === "unified")));
-  const nav = $derived(navState(starts.length, current));
+  const nav = $derived(navState(starts.length, steps));
   const navTop = $derived(mode === "unified" ? uTop : lTop);
 
   /** The blocks of the change a jump landed on, lit briefly so the eye finds them (F-541). */
@@ -527,17 +527,17 @@
   function settle() {
     const top = Math.floor(navTop / ROW_HEIGHT);
     const bottom = Math.floor((navTop + viewportHeight) / ROW_HEIGHT) - 1;
-    current = changeAt(starts, top, bottom, LEAD);
+    steps = changeSteps(starts, top, bottom, LEAD);
   }
 
   function jump(delta: number) {
-    const target = current + delta;
+    const target = delta < 0 ? steps.prev : steps.next;
     const el = mode === "unified" ? unifiedEl : leftEl;
     if (!el || target < 0 || target >= starts.length) return;
     const before = el.scrollTop;
     el.scrollTop = Math.max((starts[target] ?? 0) - LEAD, 0) * ROW_HEIGHT;
     jumping = el.scrollTop !== before;
-    current = target;
+    steps = stepsAround(target);
     flashChange(target);
   }
 
@@ -599,7 +599,7 @@
     void sideLayout;
     untrack(() => {
       uTop = lTop = rTop = 0;
-      current = -1;
+      steps = { prev: -1, next: 0 };
     });
   });
 

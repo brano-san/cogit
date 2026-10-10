@@ -221,20 +221,33 @@ export function highlightedRows(
 /** How long the change a jump lands on stays lit. Must match `.line.flash` in DiffView. */
 export const FLASH_MS = 600;
 
+/** The changes Previous and Next go to; one that does not exist turns its button off. */
+export interface ChangeSteps {
+  prev: number;
+  next: number;
+}
+
+/** After a jump to change `index`: the ones either side of it. */
+export function stepsAround(index: number): ChangeSteps {
+  return { prev: index - 1, next: index + 1 };
+}
+
 /**
- * The change the view is on: the last one starting at or above `top + lead`, the row a
- * jump puts it on. At the very top the first change counts while it is on screen.
- * `-1` while the view is above the first change.
+ * Where Previous and Next go from a view scrolled by hand. The view is on a change whose
+ * start sits in the anchor rows (`top` to `top + lead`, where a jump puts it), and on the
+ * first change while the view is at the very top and it is on screen. Anywhere else it is
+ * between two changes: Previous goes back to the one it scrolled past.
  */
-export function changeAt(starts: readonly number[], top: number, bottom: number, lead: number): number {
+export function changeSteps(starts: readonly number[], top: number, bottom: number, lead: number): ChangeSteps {
   let at = -1;
   starts.forEach((start, index) => {
     if (start <= top + lead) at = index;
   });
-  if (at === -1 && top === 0 && (starts[0] ?? Infinity) <= bottom) at = 0;
-  return at;
+  if (at === -1) return top === 0 && (starts[0] ?? Infinity) <= bottom ? stepsAround(0) : { prev: -1, next: 0 };
+  return (starts[at] ?? 0) >= top ? stepsAround(at) : { prev: at, next: at + 1 };
 }
 
-export function navState(count: number, current: number): { prev: boolean; next: boolean } {
-  return { prev: current > 0, next: current < count - 1 };
+export function navState(count: number, steps: ChangeSteps): { prev: boolean; next: boolean } {
+  const exists = (index: number) => index >= 0 && index < count;
+  return { prev: exists(steps.prev), next: exists(steps.next) };
 }
