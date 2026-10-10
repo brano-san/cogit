@@ -309,10 +309,13 @@ pub async fn push_dry_run(
     on_progress: tauri::ipc::Channel<String>,
 ) -> Result<git_engine::GitOutput, GitError> {
     let app_state = state.state.clone();
-    networking(
+    // Not a Push: a system notice is named after the kind, and nothing is pushed.
+    networking_if(
+        true,
         &state.state,
         repo,
-        OperationKind::Push,
+        OperationKind::Other,
+        "Push dry run",
         "push_dry_run",
         move |stop| {
             let remote = options.remote.clone();

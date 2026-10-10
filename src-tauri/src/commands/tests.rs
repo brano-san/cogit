@@ -316,6 +316,21 @@ fn the_footer_names_what_runs() {
     assert!(wrong.is_empty(), "the footer mislabels: {wrong:?}");
 }
 
+// A dry run that ended behind another window said "Push succeeded": queued as a Push, its
+// notice is named after the kind, and nothing was pushed.
+#[test]
+fn a_dry_run_is_not_announced_as_a_push() {
+    let all = all_commands();
+    let dry_run = all
+        .iter()
+        .find(|command| command.name == "push_dry_run")
+        .expect("push_dry_run is a command");
+    assert!(
+        dry_run.body.contains("OperationKind::Other") && dry_run.body.contains("\"Push dry run\""),
+        "push_dry_run is queued as a Push"
+    );
+}
+
 // `#[tauri::command(async)]` on these ran the journal's clone and serialisation, and the
 // settings file's read and rename, on the workers that carry every other command's answer.
 #[test]
