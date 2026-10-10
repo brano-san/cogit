@@ -220,7 +220,8 @@
       errors.message("HEAD is not on a branch. Check out the branch you want to push.", "Could not push");
       return;
     }
-    const target = pushTargetOf(head, network.remotes, network.primary);
+    const defaults = await defaultsOf(id);
+    const target = pushTargetOf(head, network.remotes, network.primary, defaults.pushRemote);
     if (!target.remote) {
       errors.message(...noRemote("push"));
       return;
@@ -234,7 +235,7 @@
       local: head.name,
       upstream: head.upstream,
       remoteBranches: (repository.current?.branches ?? []).filter((b) => b.kind === "remote").map((b) => b.name),
-      defaults: await defaultsOf(id),
+      defaults,
     };
   }
 

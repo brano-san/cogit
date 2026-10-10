@@ -10,6 +10,7 @@ export const EMPTY_DEFAULTS: NetworkDefaults = {
   pushTags: "none",
   pushNotes: false,
   pushSetUpstream: null,
+  pushRemote: null,
 };
 
 export interface PullChoice {
@@ -114,7 +115,7 @@ export function tagsHint(mode: TagsMode): string {
     case "follow":
       return "Annotated tags that point at pushed commits (--follow-tags)";
     case "all":
-      return "Every tag, including ones nobody asked for (--tags)";
+      return "Push all local tags (--tags)";
   }
 }
 
@@ -134,20 +135,24 @@ export function mergeDefaults(
     next.pushTags = remember.push.tags;
     next.pushNotes = remember.push.notes;
     next.pushSetUpstream = remember.push.setUpstream;
+    next.pushRemote = remember.push.remote;
   }
   return next;
 }
 
-/** Where a push of `branch` goes unless told otherwise: its triangular push target, else
-    the push remote with the upstream's branch name when that is on the same remote. */
+/** Where a push of `branch` goes unless told otherwise: the remote the repository remembers
+    while it exists, its triangular push target, else the push remote with the upstream's
+    branch name when that is on the same remote. */
 export function pushTargetOf(
   branch: { name: string; upstream: string | null; pushRemote: string | null; pushTarget: string | null },
   remotes: readonly string[],
   primary: string | null,
+  remembered: string | null = null,
 ): { remote: string | null; branch: string } {
+  const chosen = remembered !== null && remotes.includes(remembered) ? remembered : null;
   const target = branch.pushTarget ? splitUpstream(branch.pushTarget, remotes) : null;
-  if (target) return { remote: target.remote, branch: target.branch };
-  const remote = branch.pushRemote && remotes.includes(branch.pushRemote) ? branch.pushRemote : primary;
+  if (target && (chosen === null || target.remote === chosen)) return { remote: target.remote, branch: target.branch };
+  const remote = chosen ?? (branch.pushRemote && remotes.includes(branch.pushRemote) ? branch.pushRemote : primary);
   const upstream = branch.upstream ? splitUpstream(branch.upstream, remotes) : null;
   return { remote, branch: upstream && upstream.remote === remote ? upstream.branch : branch.name };
 }

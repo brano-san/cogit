@@ -191,7 +191,11 @@
         Off again the next time this dialog opens.
       </Callout>
     {/if}
-    <OptionRow bind:checked={remember} label="Remember as default for repository" hint="Everything but Force" />
+    <OptionRow
+      bind:checked={remember}
+      label="Remember as default for repository"
+      hint="Saves remote, tags, notes and upstream settings (Force is never saved)"
+    />
   </div>
 
   <div class="command"><span class="caption">Command</span><code>{command}</code></div>

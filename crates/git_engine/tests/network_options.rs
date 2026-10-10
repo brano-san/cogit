@@ -533,6 +533,7 @@ fn a_repository_remembers_its_choices_in_its_own_config() {
         push_tags: TagsMode::Follow,
         push_notes: true,
         push_set_upstream: Some(false),
+        push_remote: Some("fork".into()),
     };
     assert_eq!(
         open(&f).network_defaults().unwrap(),
@@ -544,10 +545,12 @@ fn a_repository_remembers_its_choices_in_its_own_config() {
 
     let automatic = NetworkDefaults {
         push_set_upstream: None,
+        push_remote: None,
         ..wanted
     };
     open(&f).save_network_defaults(&automatic).unwrap();
-    assert_eq!(open(&f).network_defaults().unwrap().push_set_upstream, None);
+    let read = open(&f).network_defaults().unwrap();
+    assert_eq!((read.push_set_upstream, read.push_remote), (None, None));
 }
 
 #[test]

@@ -106,6 +106,7 @@ describe("push", () => {
 
   it("wraps the tags choice in words", () => {
     expect(tagsHint("follow")).toMatch(/annotated/i);
+    expect(tagsHint("all")).toBe("Push all local tags (--tags)");
   });
 });
 
@@ -122,7 +123,7 @@ describe("remembering", () => {
     const merged = mergeDefaults(EMPTY_DEFAULTS, {
       push: push({ tags: "follow", notes: true, setUpstream: true, forceWithLease: true }),
     });
-    expect(merged).toMatchObject({ pushTags: "follow", pushNotes: true, pushSetUpstream: true });
+    expect(merged).toMatchObject({ pushTags: "follow", pushNotes: true, pushSetUpstream: true, pushRemote: "origin" });
     expect(JSON.stringify(merged)).not.toMatch(/force/i);
   });
 });
@@ -158,5 +159,25 @@ describe("where a push goes", () => {
 
   it("has no remote when the repository has none", () => {
     expect(pushTargetOf(branch, [], null).remote).toBeNull();
+  });
+
+  it("opens on the remembered remote while it exists", () => {
+    expect(pushTargetOf({ ...branch, upstream: "origin/main" }, remotes, "origin", "fork")).toEqual({
+      remote: "fork",
+      branch: "topic",
+    });
+    expect(pushTargetOf({ ...branch, upstream: "fork/dev" }, remotes, "origin", "fork")).toEqual({
+      remote: "fork",
+      branch: "dev",
+    });
+    expect(pushTargetOf({ ...branch, pushTarget: "fork/feat/x" }, remotes, "origin", "fork")).toEqual({
+      remote: "fork",
+      branch: "feat/x",
+    });
+    expect(pushTargetOf({ ...branch, pushTarget: "fork/feat/x" }, remotes, "origin", "origin")).toEqual({
+      remote: "origin",
+      branch: "topic",
+    });
+    expect(pushTargetOf(branch, remotes, "origin", "gone")).toEqual({ remote: "origin", branch: "topic" });
   });
 });

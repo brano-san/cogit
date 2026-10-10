@@ -73,6 +73,8 @@ pub struct NetworkDefaults {
     pub push_notes: bool,
     /// `None`: on while the branch has no upstream.
     pub push_set_upstream: Option<bool>,
+    /// The remote the Push dialog opens on; `None`: where git would push.
+    pub push_remote: Option<String>,
 }
 
 /// Namespaces fetched from a remote whose notes and the local ones both moved.
@@ -523,6 +525,7 @@ impl RepoHandle {
         defaults.push_set_upstream = self
             .local_choice("cogit.pushSetUpstream")
             .map(|value| value == "true");
+        defaults.push_remote = self.local_choice("cogit.pushRemote");
         Ok(defaults)
     }
 
@@ -537,6 +540,14 @@ impl RepoHandle {
                 )
             })
             .map(|value| value.to_string())
+    }
+
+    /// Absent means automatic; cleared only when it is there.
+    fn forget_choice(&self, key: &str) -> Result<()> {
+        if self.local_choice(key).is_some() {
+            self.run_git(&["config", "--local", "--unset-all", key])?;
+        }
+        Ok(())
     }
 
     pub fn save_network_defaults(&self, defaults: &NetworkDefaults) -> Result<()> {
@@ -559,12 +570,11 @@ impl RepoHandle {
         ];
         match defaults.push_set_upstream {
             Some(on) => pairs.push(("cogit.pushSetUpstream", flag(on))),
-            None => {
-                // Absent means automatic; clear it only when it is there.
-                if self.local_choice("cogit.pushSetUpstream").is_some() {
-                    self.run_git(&["config", "--local", "--unset-all", "cogit.pushSetUpstream"])?;
-                }
-            }
+            None => self.forget_choice("cogit.pushSetUpstream")?,
+        }
+        match &defaults.push_remote {
+            Some(remote) => pairs.push(("cogit.pushRemote", remote.as_str())),
+            None => self.forget_choice("cogit.pushRemote")?,
         }
         for (key, value) in pairs {
             self.run_git(&["config", "--local", "--replace-all", "--", key, value])?;

@@ -1720,6 +1720,8 @@ export type NetworkDefaults = {
 	pushNotes: boolean,
 	/**  `None`: on while the branch has no upstream. */
 	pushSetUpstream: boolean | null,
+	/**  The remote the Push dialog opens on; `None`: where git would push. */
+	pushRemote: string | null,
 };
 
 export type NodeKind = "normal" | "merge" | "root" | "workingTree";
