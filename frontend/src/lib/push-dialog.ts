@@ -31,8 +31,9 @@ export interface PushCommand {
   full: string;
 }
 
-/** Quoted: a shell would expand the `*` against files. */
-const NOTES = "'refs/notes/*:refs/notes/*'";
+/** Quoted, or a shell expands the `*` against files; double quotes, since cmd.exe hands single
+    ones to git, which then matches no notes and pushes none. */
+const NOTES = `"refs/notes/*:refs/notes/*"`;
 
 function flagsOf(choice: PushChoice, remoteTip: string | null, ref: (branch: string) => string): string[] {
   const flags: string[] = [];

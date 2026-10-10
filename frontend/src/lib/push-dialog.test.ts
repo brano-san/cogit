@@ -69,10 +69,10 @@ describe("the command", () => {
     );
   });
 
-  it("carries every option in one command, the notes refspec quoted for the shell", () => {
+  it("carries every option in one command, the notes refspec quoted for any shell, cmd.exe too", () => {
     expect(pushCommand(choice({ tags: "all", notes: true, forceWithLease: true }), null)).toEqual({
-      short: "git push --set-upstream --tags --force-with-lease=main --force-if-includes origin main 'refs/notes/*:refs/notes/*'",
-      full: "git push --progress --set-upstream --tags --force-with-lease=refs/heads/main --force-if-includes origin refs/heads/main:refs/heads/main 'refs/notes/*:refs/notes/*'",
+      short: `git push --set-upstream --tags --force-with-lease=main --force-if-includes origin main "refs/notes/*:refs/notes/*"`,
+      full: `git push --progress --set-upstream --tags --force-with-lease=refs/heads/main --force-if-includes origin refs/heads/main:refs/heads/main "refs/notes/*:refs/notes/*"`,
     });
   });
 });
@@ -283,8 +283,8 @@ describe("advanced options", () => {
 
   it("runs a dry run as one command, the notes in it", () => {
     expect(pushCommand(choice({ setUpstream: false, dryRun: true, notes: true }), null)).toEqual({
-      short: "git push --dry-run origin main 'refs/notes/*:refs/notes/*'",
-      full: "git push --dry-run --progress origin refs/heads/main:refs/heads/main 'refs/notes/*:refs/notes/*'",
+      short: `git push --dry-run origin main "refs/notes/*:refs/notes/*"`,
+      full: `git push --dry-run --progress origin refs/heads/main:refs/heads/main "refs/notes/*:refs/notes/*"`,
     });
   });
 });
