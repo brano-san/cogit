@@ -353,9 +353,9 @@
 
   <div class="command">
     <span class="caption">Command</span>
-    <div class="line">
-      <code title={command.full}>{command.short}</code>
-      <CopyButton class="btn" text={command.short} />
+    <div class="command-field">
+      <input readonly aria-label="Command" spellcheck="false" value={command.short} title={command.full} />
+      <CopyButton icon class="copy" label="Copy command" text={command.short} />
     </div>
   </div>
 </TemplateDialog>
@@ -415,15 +415,48 @@
     line-height: 1.4;
   }
 
-  .line {
+  /* One line that scrolls sideways, the copy icon inside it on the right. */
+  .command-field {
     display: flex;
-    align-items: flex-start;
-    gap: var(--sp-3);
+    align-items: center;
+    height: var(--h-input);
+    padding-right: var(--sp-2);
+    background: var(--surface-input);
+    border: 1px solid var(--field-border);
+    border-radius: var(--r-sm);
   }
 
-  .line code {
+  .command-field:focus-within {
+    outline: 1px solid var(--state-focus-ring);
+    outline-offset: -1px;
+  }
+
+  .command-field input {
     flex: 1 1 auto;
     min-width: 0;
+    height: 100%;
+    padding: 0 var(--sp-4);
+    background: none;
+    border: 0;
+    outline: none;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: var(--fs-dense);
+  }
+
+  .command-field :global(.copy) {
+    display: flex;
+    padding: var(--sp-2);
+    background: none;
+    border: 0;
+    border-radius: var(--r-sm);
+    color: var(--text-secondary);
+    cursor: default;
+  }
+
+  .command-field :global(.copy:hover) {
+    background: var(--state-hover);
+    color: var(--text-primary);
   }
 
   .advanced {
