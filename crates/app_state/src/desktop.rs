@@ -37,9 +37,6 @@ impl Platform {
 pub struct Launch {
     pub program: String,
     pub args: Vec<String>,
-    /// Passed exactly as written. Explorer parses its own command line, and the usual
-    /// quoting of `/select,C:\a b` into `"/select,C:\a b"` makes it open Documents.
-    pub verbatim: bool,
     /// No console window of its own: `cmd /C start` only relays.
     pub hidden: bool,
 }
@@ -49,7 +46,6 @@ impl Launch {
         Self {
             program: program.to_owned(),
             args: args.iter().map(|arg| (*arg).to_owned()).collect(),
-            verbatim: false,
             hidden: false,
         }
     }
@@ -99,18 +95,16 @@ pub fn native_path(platform: Platform, path: &str) -> String {
     native
 }
 
+/// `None` on Windows, where the shell opens it as a double click would: a folder in the file
+/// manager made the default (File Pilot, Directory Opus), which an `explorer.exe` started by
+/// name never reaches.
 #[must_use]
-pub fn open_command(platform: Platform, path: &str) -> Launch {
+pub fn open_command(platform: Platform, path: &str) -> Option<Launch> {
     let native = native_path(platform, path);
     match platform {
-        Platform::Windows => Launch {
-            program: "explorer.exe".to_owned(),
-            args: vec![format!("\"{native}\"")],
-            verbatim: true,
-            hidden: false,
-        },
-        Platform::MacOs => Launch::plain("open", &[&native]),
-        Platform::Linux => Launch::plain("xdg-open", &[&native]),
+        Platform::Windows => None,
+        Platform::MacOs => Some(Launch::plain("open", &[&native])),
+        Platform::Linux => Some(Launch::plain("xdg-open", &[&native])),
     }
 }
 
@@ -133,18 +127,16 @@ pub fn url_command(platform: Platform, url: &str) -> Result<Option<Launch>, Stri
     })
 }
 
+/// `None` on Windows, as `open_command`: `SHOpenFolderAndSelectItems` selects the item in
+/// Explorer, and a default file manager intercepts it (Directory Opus) or is handed the folder
+/// (File Pilot); `explorer.exe /select` cannot be intercepted.
 #[must_use]
-pub fn reveal_command(platform: Platform, path: &str) -> Launch {
+pub fn reveal_command(platform: Platform, path: &str) -> Option<Launch> {
     let native = native_path(platform, path);
     match platform {
-        Platform::Windows => Launch {
-            program: "explorer.exe".to_owned(),
-            args: vec![format!("/select,\"{native}\"")],
-            verbatim: true,
-            hidden: false,
-        },
-        Platform::MacOs => Launch::plain("open", &["-R", &native]),
-        Platform::Linux => Launch::plain(
+        Platform::Windows => None,
+        Platform::MacOs => Some(Launch::plain("open", &["-R", &native])),
+        Platform::Linux => Some(Launch::plain(
             "dbus-send",
             &[
                 "--session",
@@ -156,7 +148,7 @@ pub fn reveal_command(platform: Platform, path: &str) -> Launch {
                 &format!("array:string:{}", file_uri(&native)),
                 "string:",
             ],
-        ),
+        )),
     }
 }
 
@@ -186,7 +178,6 @@ pub fn git_shell_command(bash: &Path, platform: Platform, dir: &str) -> Launch {
     Launch {
         program: bash.to_string_lossy().into_owned(),
         args: vec![format!("--cd={}", native_path(platform, dir))],
-        verbatim: false,
         hidden: false,
     }
 }
@@ -303,8 +294,7 @@ pub fn trash_command(platform: Platform, paths: &[PathBuf]) -> Option<Launch> {
 }
 
 /// Detached: the program outlives Cogit, so the caller does not wait. A thread collects it
-/// when it ends, or it would stay a zombie until Cogit exits. Explorer in particular exits
-/// with 1 on success, so its status would say nothing anyway.
+/// when it ends, or it would stay a zombie until Cogit exits.
 pub fn spawn(launch: &Launch, cwd: Option<&Path>) -> std::io::Result<()> {
     let mut child = command_for(launch, cwd).spawn()?;
     std::thread::spawn(move || {
@@ -315,9 +305,10 @@ pub fn spawn(launch: &Launch, cwd: Option<&Path>) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Selects the item in the file manager. Without the `FileManager1` service on Linux
-/// `dbus-send` fails, and the folder is opened instead.
-pub fn reveal(platform: Platform, path: &str) -> std::io::Result<()> {
+/// Selects the item in the file manager; `None` on Windows, where the shell does
+/// (`reveal_command`). Without the `FileManager1` service on Linux `dbus-send` fails, and the
+/// folder is opened instead.
+pub fn reveal(platform: Platform, path: &str) -> Option<std::io::Result<()>> {
     reveal_with(platform, path, run, |launch| spawn(launch, None))
 }
 
@@ -328,20 +319,23 @@ pub fn reveal_with(
     path: &str,
     run: impl FnOnce(&Launch) -> std::io::Result<()>,
     open: impl FnOnce(&Launch) -> std::io::Result<()>,
-) -> std::io::Result<()> {
-    let launch = reveal_command(platform, path);
+) -> Option<std::io::Result<()>> {
+    let launch = reveal_command(platform, path)?;
     if platform != Platform::Linux {
-        return open(&launch);
+        return Some(open(&launch));
     }
-    run(&launch).or_else(|err| {
+    Some(run(&launch).or_else(|err| {
         tracing::warn!(error = ?err, "no file manager service, opening the folder");
-        open(&reveal_fallback(platform, path)).map_err(|_| err)
-    })
+        match reveal_fallback(platform, path) {
+            Some(folder) => open(&folder).map_err(|_| err),
+            None => Err(err),
+        }
+    }))
 }
 
 /// The parent folder, for a file manager that cannot select an item.
 #[must_use]
-pub fn reveal_fallback(platform: Platform, path: &str) -> Launch {
+pub fn reveal_fallback(platform: Platform, path: &str) -> Option<Launch> {
     let parent = Path::new(path).parent().and_then(Path::to_str);
     open_command(platform, parent.filter(|p| !p.is_empty()).unwrap_or(path))
 }
@@ -363,23 +357,13 @@ pub fn run(launch: &Launch) -> std::io::Result<()> {
 fn command_for(launch: &Launch, cwd: Option<&Path>) -> std::process::Command {
     use std::process::Stdio;
     let mut command = std::process::Command::new(&launch.program);
+    command.args(&launch.args);
     #[cfg(windows)]
-    {
+    if launch.hidden {
         use std::os::windows::process::CommandExt as _;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        if launch.verbatim {
-            for arg in &launch.args {
-                command.raw_arg(arg);
-            }
-        } else {
-            command.args(&launch.args);
-        }
-        if launch.hidden {
-            command.creation_flags(CREATE_NO_WINDOW);
-        }
+        command.creation_flags(CREATE_NO_WINDOW);
     }
-    #[cfg(not(windows))]
-    command.args(&launch.args);
     if let Some(dir) = cwd {
         command.current_dir(dir);
     }

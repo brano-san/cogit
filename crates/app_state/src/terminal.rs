@@ -114,7 +114,6 @@ pub fn launch_for(
         return Launch {
             program: "cmd.exe".to_owned(),
             args: relayed,
-            verbatim: false,
             hidden: true,
         };
     }
@@ -122,7 +121,6 @@ pub fn launch_for(
         hidden: windows && kind == Terminal::System,
         program,
         args,
-        verbatim: false,
     }
 }
 

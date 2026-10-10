@@ -167,7 +167,11 @@ pub async fn open_read_only(
     let app_state = state.state.clone();
     let dir = super::avatars::cache_dir(&app)?.join("view");
     blocking("open_read_only", move || {
-        app_state.open_read_only(repo, &rev, &path, &dir)
+        let copy = app_state.export_read_only(repo, &rev, &path, &dir)?;
+        let shown = copy.to_string_lossy().into_owned();
+        crate::shell_open::open(&shown)
+            .map_err(|err| GitError::Io(format!("cannot open {shown}: {err}")))?;
+        Ok(shown)
     })
     .await
 }

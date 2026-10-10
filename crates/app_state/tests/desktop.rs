@@ -62,41 +62,30 @@ fn a_trailing_separator_is_dropped_but_a_drive_root_keeps_its_own() {
     assert_eq!(native_path(Platform::Linux, "/"), "/");
 }
 
+// A file manager made the default (File Pilot, Directory Opus) is reached only through the
+// shell: an `explorer.exe` started by name is always Explorer.
 #[test]
-fn opening_a_folder_on_windows_hands_explorer_the_folder_itself() {
-    let launch = open_command(Platform::Windows, REPO);
-    assert_eq!(launch.program, "explorer.exe");
-    assert_eq!(launch.args, [r#""D:\work\my repo""#]);
-    assert!(launch.verbatim, "explorer parses its own command line");
-}
-
-#[test]
-fn revealing_on_windows_selects_the_item_in_its_parent() {
-    let launch = reveal_command(Platform::Windows, REPO);
-    assert_eq!(launch.program, "explorer.exe");
-    // One argument, quoted inside: the usual quoting would wrap `/select,` too, and
-    // explorer then opens Documents.
-    assert_eq!(launch.args, [r#"/select,"D:\work\my repo""#]);
-    assert!(launch.verbatim);
+fn windows_leaves_opening_and_revealing_to_the_shell() {
+    assert!(open_command(Platform::Windows, REPO).is_none());
+    assert!(reveal_command(Platform::Windows, REPO).is_none());
 }
 
 #[test]
 fn macos_opens_and_reveals_through_open() {
-    let open = open_command(Platform::MacOs, "/Users/me/repo");
+    let open = open_command(Platform::MacOs, "/Users/me/repo").unwrap();
     assert_eq!(open.program, "open");
     assert_eq!(open.args, ["/Users/me/repo"]);
-    let reveal = reveal_command(Platform::MacOs, "/Users/me/repo");
+    let reveal = reveal_command(Platform::MacOs, "/Users/me/repo").unwrap();
     assert_eq!(reveal.args, ["-R", "/Users/me/repo"]);
-    assert!(!open.verbatim && !reveal.verbatim);
 }
 
 #[test]
 fn linux_opens_with_xdg_open_and_reveals_through_the_file_manager_service() {
-    let open = open_command(Platform::Linux, "/home/me/my repo");
+    let open = open_command(Platform::Linux, "/home/me/my repo").unwrap();
     assert_eq!(open.program, "xdg-open");
     assert_eq!(open.args, ["/home/me/my repo"]);
 
-    let reveal = reveal_command(Platform::Linux, "/home/me/my repo");
+    let reveal = reveal_command(Platform::Linux, "/home/me/my repo").unwrap();
     assert_eq!(reveal.program, "dbus-send");
     assert!(reveal.args.contains(&"--print-reply".to_owned()));
     assert!(
@@ -140,7 +129,6 @@ fn git_shell_starts_in_the_folder_it_was_asked_for() {
     let launch = git_shell_command(bash, Platform::Windows, REPO);
     assert_eq!(launch.program, bash.to_string_lossy());
     assert_eq!(launch.args, [r"--cd=D:\work\my repo"]);
-    assert!(!launch.verbatim, "one argument, quoted the usual way");
 }
 
 #[test]
@@ -297,7 +285,7 @@ mod windows {
 
 #[test]
 fn without_a_file_manager_service_linux_opens_the_parent_folder() {
-    let fallback = reveal_fallback(Platform::Linux, "/home/me/my repo");
+    let fallback = reveal_fallback(Platform::Linux, "/home/me/my repo").unwrap();
     assert_eq!(fallback.program, "xdg-open");
     assert_eq!(fallback.args, ["/home/me"]);
 }
@@ -315,36 +303,41 @@ fn reveal_falls_back_to_the_folder_only_when_the_service_fails() {
         Ok(())
     };
 
-    reveal_with(Platform::Linux, "/home/me/a.txt", |_| Ok(()), open).unwrap();
+    reveal_with(Platform::Linux, "/home/me/a.txt", |_| Ok(()), open)
+        .unwrap()
+        .unwrap();
     assert!(started.borrow().is_empty(), "the service selected the file");
 
     let down = |_: &Launch| Err(std::io::Error::other("dbus-send failed: no such service"));
-    reveal_with(Platform::Linux, "/home/me/a.txt", down, open).unwrap();
+    reveal_with(Platform::Linux, "/home/me/a.txt", down, open)
+        .unwrap()
+        .unwrap();
     assert_eq!(
         *started.borrow(),
         [("xdg-open".to_owned(), vec!["/home/me".to_owned()])]
     );
 
     let none = |_: &Launch| Err(std::io::Error::other("no xdg-open"));
-    let err = reveal_with(Platform::Linux, "/home/me/a.txt", down, none).unwrap_err();
+    let err = reveal_with(Platform::Linux, "/home/me/a.txt", down, none)
+        .unwrap()
+        .unwrap_err();
     assert!(err.to_string().contains("no such service"), "{err}");
 }
 
 #[test]
 fn reveal_off_linux_does_not_ask_the_service() {
     let run = |_: &Launch| -> std::io::Result<()> { panic!("no dbus here") };
-    for (platform, program) in [
-        (Platform::Windows, "explorer.exe"),
-        (Platform::MacOs, "open"),
-    ] {
-        let mut seen = None;
-        reveal_with(platform, "/x/y", run, |l| {
-            seen = Some(l.program.clone());
-            Ok(())
-        })
-        .unwrap();
-        assert_eq!(seen.as_deref(), Some(program));
-    }
+    let mut seen = None;
+    reveal_with(Platform::MacOs, "/x/y", run, |l| {
+        seen = Some(l.program.clone());
+        Ok(())
+    })
+    .unwrap()
+    .unwrap();
+    assert_eq!(seen.as_deref(), Some("open"));
+
+    let started = |_: &Launch| -> std::io::Result<()> { panic!("the shell reveals on Windows") };
+    assert!(reveal_with(Platform::Windows, "/x/y", run, started).is_none());
 }
 
 // Any POSIX `ps` lists a parent's children as `-o pid,ppid,stat`; GNU's `--ppid` is not one.
@@ -354,7 +347,6 @@ fn a_program_that_has_ended_is_not_left_a_zombie() {
     let quick = Launch {
         program: "true".to_owned(),
         args: vec![],
-        verbatim: false,
         hidden: false,
     };
     app_state::desktop::spawn(&quick, None).unwrap();

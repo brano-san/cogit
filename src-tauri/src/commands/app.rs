@@ -144,12 +144,10 @@ pub async fn open_third_party_licences(frontend: Option<String>) -> Result<(), G
     })
     .await?;
     // The plugin would start the editor with a portable build's redirected `XDG_*`.
-    let launch = app_state::desktop::open_command(
-        app_state::desktop::Platform::current(),
-        &path.display().to_string(),
-    );
     blocking("open_third_party_licences", move || {
-        super::desktop::start("licences", launch, None)
+        let shown = path.display().to_string();
+        crate::shell_open::open(&shown)
+            .map_err(|err| GitError::Io(format!("cannot open {shown}: {err}")))
     })
     .await
 }

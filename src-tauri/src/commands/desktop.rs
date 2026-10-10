@@ -6,11 +6,7 @@ use git_engine::GitError;
 
 use super::{blocking, mutating};
 
-pub(super) fn start(
-    label: &'static str,
-    launch: Launch,
-    cwd: Option<String>,
-) -> Result<(), GitError> {
+fn start(label: &'static str, launch: Launch, cwd: Option<String>) -> Result<(), GitError> {
     tracing::info!(program = %launch.program, args = ?launch.args, label, "starting a desktop program");
     desktop::spawn(&launch, cwd.as_deref().map(std::path::Path::new))
         .map_err(|err| GitError::Io(format!("cannot start {}: {err}", launch.program)))
@@ -34,11 +30,8 @@ pub async fn set_native_theme(app: tauri::AppHandle, dark: bool) {
 #[specta::specta]
 pub async fn open_path(path: String) -> Result<(), GitError> {
     blocking("open_path", move || {
-        start(
-            "open",
-            desktop::open_command(Platform::current(), &path),
-            None,
-        )
+        crate::shell_open::open(&path)
+            .map_err(|err| GitError::Io(format!("cannot open {path}: {err}")))
     })
     .await
 }
@@ -60,8 +53,7 @@ pub async fn open_url(app: tauri::AppHandle, url: String) -> Result<(), GitError
 #[specta::specta]
 pub async fn reveal_path(path: String) -> Result<(), GitError> {
     blocking("reveal_path", move || {
-        tracing::info!(path = %path, "revealing in the file manager");
-        desktop::reveal(Platform::current(), &path)
+        crate::shell_open::reveal(&path)
             .map_err(|err| GitError::Io(format!("cannot show {path} in the file manager: {err}")))
     })
     .await

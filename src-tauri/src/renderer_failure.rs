@@ -278,9 +278,7 @@ fn reveal_log(app: &tauri::AppHandle) {
     // The one reveal the Show in Folder commands use; off this thread, since on Linux it
     // waits for the file manager service to answer.
     std::thread::spawn(move || {
-        let path = path.to_string_lossy();
-        if let Err(err) = app_state::desktop::reveal(app_state::desktop::Platform::current(), &path)
-        {
+        if let Err(err) = crate::shell_open::reveal(&path.to_string_lossy()) {
             tracing::warn!(error = %err, "cannot reveal the log file");
         }
     });

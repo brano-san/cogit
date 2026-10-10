@@ -23,6 +23,7 @@ mod recycle_bin;
 mod renderer_failure;
 #[cfg(windows)]
 mod session_end;
+mod shell_open;
 mod shutdown;
 mod solver_window;
 mod taskbar;
