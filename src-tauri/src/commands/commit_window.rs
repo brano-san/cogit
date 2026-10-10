@@ -1,23 +1,25 @@
-//! Ctrl+K: the Commit window (F-NNN).
+//! Ctrl+K and Files ▸ Commit…: the Commit window (F-576).
 
 use app_state::RepoId;
 use git_engine::GitError;
 
 use super::blocking;
 
-/// Building a window blocks, so it happens on the blocking pool (R-201).
+/// Building a window blocks, so it happens on the blocking pool (R-201). `paths`: the files
+/// to tick, none for everything the window lists.
 #[tauri::command]
 #[specta::specta]
 pub async fn open_commit_window(
     app: tauri::AppHandle,
     repo: RepoId,
     root: String,
+    paths: Vec<String>,
 ) -> Result<(), GitError> {
     blocking("open_commit_window", move || {
         crate::child_window::open(
             &app,
             "commit",
-            crate::commit_window::url(repo.0, &root),
+            crate::commit_window::url(repo.0, &root, &paths),
             crate::commit_window::TITLE.to_owned(),
             crate::commit_window::SHAPE,
         )

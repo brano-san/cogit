@@ -19,6 +19,7 @@
     fullMessage,
     listedFiles,
     menuLabel,
+    opening,
     parseCommitWindow,
     planCommit,
     ready,
@@ -176,8 +177,9 @@
         unborn = refs?.head.kind === "unborn";
         history = log;
         message = initialMessage(readDraft(), template);
-        mode = worktree.staged.length > 0 ? "staged" : "local";
-        tickAll(listedFiles(mode, worktree.staged, worktree.unstaged).map((file) => file.path));
+        const start = opening(request.paths, worktree.staged, worktree.unstaged);
+        mode = start.mode;
+        tickAll(start.ticked);
         loaded = true;
         field?.focus();
       })();

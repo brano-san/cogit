@@ -579,8 +579,11 @@ export const commands = {
 	 *  rebuilds itself after a webview reload (T2.5).
 	 */
 	openCompareWindow: (url: string, title: string) => typedError<null, GitError>(__TAURI_INVOKE("open_compare_window", { url, title })),
-	/**  Building a window blocks, so it happens on the blocking pool (R-201). */
-	openCommitWindow: (repo: RepoId, root: string) => typedError<null, GitError>(__TAURI_INVOKE("open_commit_window", { repo, root })),
+	/**
+	 *  Building a window blocks, so it happens on the blocking pool (R-201). `paths`: the files
+	 *  to tick, none for everything the window lists.
+	 */
+	openCommitWindow: (repo: RepoId, root: string, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("open_commit_window", { repo, root, paths })),
 	/**
 	 *  The last `limit` commits with their full messages, for "Select from Log" and the
 	 *  recent messages of the Commit window.

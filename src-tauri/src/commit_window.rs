@@ -13,9 +13,15 @@ pub const SHAPE: Shape = Shape {
 };
 
 /// In the URL rather than in shared state: the window rebuilds itself after a webview
-/// reload (T2.5). `root` keys the message draft the inline Commit Message panel shares.
-pub fn url(repo: u32, root: &str) -> String {
-    format!("commit.html?repo={repo}&root={}", encode(root))
+/// reload (T2.5). `root` keys the message draft the inline Commit Message panel shares;
+/// `paths`, the files it was opened for (Files ▸ Commit…), none for all of them.
+pub fn url(repo: u32, root: &str, paths: &[String]) -> String {
+    let mut url = format!("commit.html?repo={repo}&root={}", encode(root));
+    for path in paths {
+        url.push_str("&path=");
+        url.push_str(&encode(path));
+    }
+    url
 }
 
 /// Everything but the unreserved characters and `/` is percent-encoded, `+` included:
@@ -39,8 +45,17 @@ mod tests {
     #[test]
     fn the_url_carries_the_repository_and_survives_a_windows_root() {
         assert_eq!(
-            url(3, r"D:\my repo+x"),
+            url(3, r"D:\my repo+x", &[]),
             "commit.html?repo=3&root=D%3A%5Cmy%20repo%2Bx"
+        );
+    }
+
+    #[test]
+    fn the_url_carries_each_file_the_window_is_for() {
+        let paths = ["a b.txt".to_owned(), "dir/c+d&e".to_owned()];
+        assert_eq!(
+            url(3, "r", &paths),
+            "commit.html?repo=3&root=r&path=a%20b.txt&path=dir/c%2Bd%26e"
         );
     }
 }

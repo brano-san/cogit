@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick, untrack } from "svelte";
+  import { untrack } from "svelte";
   import { open as openFolderDialog } from "@tauri-apps/plugin-dialog";
   import { checkForUpdates, message, noSelfUpdateNote, type UpdateOutcome } from "$lib/updates";
   import { leaveRepositoryDialogs } from "$lib/leaving";
@@ -2351,14 +2351,10 @@ ${event.error}`,
     );
   }
 
-  /** Commit… from a file row: the files go into the index and the message box takes the
-      cursor; the Commit panel commits what is staged, as it always does. */
-  async function commitFiles(paths: string[]) {
-    const pending = paths.filter((path) => worktree.unstaged.some((file) => file.path === path));
-    if (pending.length > 0) await stage(pending);
-    if (!layout.visible("commit")) layout.togglePanel("commit");
-    await tick();
-    document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Commit message"]')?.focus();
+  /** Commit… from a file row: the Commit window (Ctrl+K) with those files ticked. */
+  function commitFiles(paths: string[]) {
+    const current = repository.current;
+    if (current) void openCommitWindow(current.repo, current.root, paths);
   }
 
   let indexEditing = $state.raw<{

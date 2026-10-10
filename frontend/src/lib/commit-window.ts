@@ -9,6 +9,8 @@ export interface CommitWindowRequest {
   repo: number;
   /** Keys the message draft the inline panel shares (`cogit:draft:<root>`). */
   root: string;
+  /** The files it was opened for (Files ▸ Commit…); none: everything listed. */
+  paths: string[];
 }
 
 /** Built by `commit_window::url` in Rust; read once, when the window starts. */
@@ -17,7 +19,26 @@ export function parseCommitWindow(search: string): CommitWindowRequest | null {
   const repo = Number(params.get("repo"));
   const root = params.get("root");
   if (!Number.isInteger(repo) || repo <= 0 || root === null) return null;
-  return { repo, root };
+  return { repo, root, paths: params.getAll("path") };
+}
+
+/** What the window opens on. For chosen files: Local Changes if one has unstaged changes (the
+    commit takes them, as staging the file would), else Staged; exactly those ticked. Without:
+    Staged with all ticked, or Local Changes when nothing is staged. */
+export function opening(
+  paths: readonly string[],
+  staged: readonly FileEntry[],
+  unstaged: readonly FileEntry[],
+): { mode: CommitMode; ticked: string[] } {
+  const listed = (mode: CommitMode) => listedFiles(mode, staged, unstaged).map((file) => file.path);
+  if (paths.length === 0) {
+    const mode = staged.length > 0 ? "staged" : "local";
+    return { mode, ticked: listed(mode) };
+  }
+  const pending = new Set(unstaged.map((file) => file.path));
+  const mode = paths.some((path) => pending.has(path)) ? "local" : "staged";
+  const chosen = new Set(paths);
+  return { mode, ticked: listed(mode).filter((path) => chosen.has(path)) };
 }
 
 export function draftKeyOf(root: string): string {

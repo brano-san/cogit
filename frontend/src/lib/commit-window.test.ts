@@ -5,6 +5,7 @@ import {
   counter,
   listedFiles,
   menuLabel,
+  opening,
   parseCommitWindow,
   planCommit,
   ready,
@@ -25,11 +26,31 @@ const file = (path: string, status: FileEntry["status"] = "modified"): FileEntry
 
 describe("parseCommitWindow", () => {
   it("reads the repository and the root", () => {
-    expect(parseCommitWindow("?repo=3&root=D%3A%5Cmy%20repo")).toEqual({ repo: 3, root: "D:\\my repo" });
+    expect(parseCommitWindow("?repo=3&root=D%3A%5Cmy%20repo")).toEqual({ repo: 3, root: "D:\\my repo", paths: [] });
+  });
+  it("reads the files it was opened for", () => {
+    expect(parseCommitWindow("?repo=3&root=r&path=a%20b.txt&path=dir/c%2Bd%26e")?.paths).toEqual([
+      "a b.txt",
+      "dir/c+d&e",
+    ]);
   });
   it("refuses a window without either", () => {
     expect(parseCommitWindow("?repo=0&root=x")).toBeNull();
     expect(parseCommitWindow("?repo=3")).toBeNull();
+  });
+});
+
+describe("opening", () => {
+  const staged = [file("a.txt"), file("b.txt")];
+  const unstaged = [file("b.txt"), file("c.txt", "untracked")];
+  it("ticks everything staged, or every local change when nothing is", () => {
+    expect(opening([], staged, unstaged)).toEqual({ mode: "staged", ticked: ["a.txt", "b.txt"] });
+    expect(opening([], [], unstaged)).toEqual({ mode: "local", ticked: ["b.txt", "c.txt"] });
+  });
+  it("ticks only the chosen files, in Local Changes when one has unstaged changes", () => {
+    expect(opening(["a.txt"], staged, unstaged)).toEqual({ mode: "staged", ticked: ["a.txt"] });
+    expect(opening(["c.txt", "a.txt"], staged, unstaged)).toEqual({ mode: "local", ticked: ["a.txt", "c.txt"] });
+    expect(opening(["gone.txt", "b.txt"], staged, unstaged)).toEqual({ mode: "local", ticked: ["b.txt"] });
   });
 });
 

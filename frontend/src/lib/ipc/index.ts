@@ -1277,8 +1277,8 @@ export async function deleteWorktreeLeftover(repo: RepoId, path: string) {
 
 /** Ctrl+K: the Commit window for this repository. `root` keys the draft the inline Commit
     Message panel shares with it. */
-export async function openCommitWindow(repo: RepoId, root: string) {
-  return unwrap(await commands.openCommitWindow(repo, root));
+export async function openCommitWindow(repo: RepoId, root: string, paths: string[] = []) {
+  return unwrap(await commands.openCommitWindow(repo, root, paths));
 }
 
 export async function recentCommits(repo: RepoId, limit: number) {
