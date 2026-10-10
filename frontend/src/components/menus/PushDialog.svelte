@@ -380,7 +380,7 @@
   .scroll {
     display: flex;
     flex-direction: column;
-    gap: var(--sp-5);
+    gap: var(--sp-4);
     min-width: 0;
   }
 
@@ -407,11 +407,18 @@
   }
 
   .field,
-  .group,
-  .command {
+  .group {
     display: flex;
     flex-direction: column;
     gap: var(--sp-2);
+    min-width: 0;
+  }
+
+  /* The label beside the field: a line less under everything else. */
+  .command {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-4);
     min-width: 0;
   }
 
@@ -423,7 +430,7 @@
   .options {
     display: flex;
     flex-direction: column;
-    gap: var(--sp-4);
+    gap: var(--sp-3);
     min-width: 0;
   }
 
@@ -443,6 +450,7 @@
   .caption {
     color: var(--text-secondary);
     font-size: var(--fs-dense);
+    line-height: 1.3;
   }
 
   .status-line {
@@ -477,7 +485,9 @@
   /* One line that scrolls sideways, the copy icon inside it on the right. */
   .command-field {
     display: flex;
+    flex: 1 1 auto;
     align-items: center;
+    min-width: 0;
     height: var(--h-input);
     padding-right: var(--sp-2);
     background: var(--surface-input);
