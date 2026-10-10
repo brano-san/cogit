@@ -7,6 +7,7 @@ const MAIN_THREAD_ONLY: &[&str] = &[
     "default_keymap",
     "set_keymap",
     "capture_keys",
+    "modal_open",
     "set_menu_state",
     "report_timing",
     "log_from_frontend",
