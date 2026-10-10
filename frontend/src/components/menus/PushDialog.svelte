@@ -9,6 +9,7 @@
   import TemplateDialog from "$components/common/template/TemplateDialog.svelte";
   import { shortOid } from "$lib/format";
   import { toCogitError } from "$lib/ipc";
+  import { remoteInfo } from "$lib/ipc/remotes";
   import {
     pushPreview,
     pushTagsPreview,
@@ -169,9 +170,19 @@
     return () => clearTimeout(timer);
   });
 
-  onMount(() => () => {
-    asked += 1;
-    counted += 1;
+  let urls = $state<Record<string, string>>({});
+  const url = $derived(urls[choice.remote] ?? "");
+
+  onMount(() => {
+    for (const name of request.remotes) {
+      remoteInfo(request.repo, name)
+        .then((info) => (urls[name] = info.pushUrl ?? info.url ?? ""))
+        .catch(() => {});
+    }
+    return () => {
+      asked += 1;
+      counted += 1;
+    };
   });
 
   const noteHint = $derived.by(() => {
@@ -230,6 +241,7 @@
       />
     </div>
   </div>
+  {#if url}<p class="url" title={url}>{url}</p>{/if}
   <div class="route">
     <div class="where">
       <p><span class="mono">{choice.local}</span> → <span class="mono">{choice.remote}/{choice.branch}</span></p>
@@ -392,6 +404,13 @@
   .line code {
     flex: 1 1 auto;
     min-width: 0;
+  }
+
+  .url {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: var(--fs-dense);
+    overflow-wrap: anywhere;
   }
 
   .nested {
