@@ -1,4 +1,4 @@
-import { defaultKeymap, history, historyKeymap, indentLess, insertTab, redo, undo } from "@codemirror/commands";
+import { defaultKeymap, history, historyKeymap, indentLess, insertNewline, insertTab, redo, undo } from "@codemirror/commands";
 import { syntaxHighlighting } from "@codemirror/language";
 import { EditorState, StateEffect, type Extension, type Text } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers, type KeyBinding } from "@codemirror/view";
@@ -12,7 +12,8 @@ export interface EditEvents {
 }
 
 /** What makes a view the working file's editor, in the Edit window and in the diff alike:
-    undo, Save on Ctrl+S, a tab typed as a tab (over a selection it indents the lines). */
+    undo, Save on Ctrl+S, a tab typed as a tab (over a selection it indents the lines), Enter a
+    bare line break: the new line gets no indent nobody typed. */
 export function editing(events: EditEvents, keys: readonly KeyBinding[] = []): Extension {
   return [
     history(),
@@ -20,6 +21,7 @@ export function editing(events: EditEvents, keys: readonly KeyBinding[] = []): E
       { key: "Mod-s", preventDefault: true, run: () => (events.save(), true) },
       ...keys,
       { key: "Tab", run: insertTab, shift: indentLess },
+      { key: "Enter", run: insertNewline, shift: insertNewline },
       ...historyKeymap,
       ...defaultKeymap,
     ]),
