@@ -32,25 +32,40 @@ function fragment(rows: readonly DiffRow[], language: string | null, old: boolea
   return { lines, tokens: highlightLines(lines, language), at };
 }
 
-function whole(text: string, language: string | null): Side {
+/** The last text parsed whole, per side. Typing in the diff's editor re-diffs the file at
+    every pause, and the old side stays as it was: its parse, the bulk of a re-diff, is
+    taken from here. ponytail: one text per side; two views of different files take turns. */
+const parsed: Record<"old" | "new", { text: string; language: string | null; side: Side } | null> = { old: null, new: null };
+
+function whole(text: string, language: string | null, which: "old" | "new"): Side {
+  const last = parsed[which];
+  if (last && last.text === text && last.language === language) return last.side;
   const lines = text.split("\n");
   if (text.endsWith("\n")) lines.pop();
-  return { lines, tokens: highlightLines(lines, language), at: null };
+  const side = { lines, tokens: highlightLines(lines, language), at: null };
+  parsed[which] = { text, language, side };
+  return side;
 }
 
 /**
- * Tokens for both sides of a diff, parsed once per diff. A side the backend sent whole is
- * parsed whole: the hunks alone are pieces of a file, a piece that starts inside a function
- * is broken code to the parser, and its tokens come out cut in the wrong places (R-530).
- * A side too long to send is parsed from the loaded rows, and past the limit from the rows
- * on show (R-472).
+ * Tokens for both sides of a diff, each parsed when first read: the editor draws the new
+ * side itself. A side the backend sent whole is parsed whole: the hunks alone are pieces of
+ * a file, a piece that starts inside a function is broken code to the parser, and its tokens
+ * come out cut in the wrong places (R-530). A side too long to send is parsed from the
+ * loaded rows, and past the limit from the rows on show (R-472).
  */
 export function diffTokens(diff: DiffText, shown: () => readonly FoldEntry[]): DiffTokens {
   let rows: readonly DiffRow[] | null = null;
   const loaded = () => (rows ??= highlightedRows(diff.hunks, shown, MAX_HIGHLIGHT_LINES));
+  let old: Side | undefined;
+  let next: Side | undefined;
   return {
-    old: diff.oldText !== null ? whole(diff.oldText, diff.language) : fragment(loaded(), diff.language, true),
-    new: diff.newText !== null ? whole(diff.newText, diff.language) : fragment(loaded(), diff.language, false),
+    get old() {
+      return (old ??= diff.oldText !== null ? whole(diff.oldText, diff.language, "old") : fragment(loaded(), diff.language, true));
+    },
+    get new() {
+      return (next ??= diff.newText !== null ? whole(diff.newText, diff.language, "new") : fragment(loaded(), diff.language, false));
+    },
   };
 }
 
@@ -62,7 +77,8 @@ function sideLine(side: Side, line: number, text: string): Token[] | null {
 }
 
 /** A line of a pane. `twin` is the same line's number on the other side, for an unchanged
-    line whose own side reads otherwise (whitespace ignored: both quote the old line). */
+    line whose own side reads otherwise (whitespace ignored: both quote the old line). The
+    other side is read only then: reading it parses it. */
 export function paneTokens(
   tokens: DiffTokens,
   side: "left" | "right",
@@ -70,9 +86,9 @@ export function paneTokens(
   text: string,
   twin: number | null = null,
 ): Token[] {
-  const own = side === "left" ? tokens.old : tokens.new;
-  const other = side === "left" ? tokens.new : tokens.old;
-  return sideLine(own, line, text) ?? (twin === null ? null : sideLine(other, twin, text)) ?? [];
+  const own = sideLine(side === "left" ? tokens.old : tokens.new, line, text);
+  if (own !== null || twin === null) return own ?? [];
+  return sideLine(side === "left" ? tokens.new : tokens.old, twin, text) ?? [];
 }
 
 export interface UnifiedLineRef {
@@ -83,7 +99,7 @@ export interface UnifiedLineRef {
 }
 
 export function unifiedTokens(tokens: DiffTokens, row: UnifiedLineRef): Token[] {
-  const old = row.old === null ? null : sideLine(tokens.old, row.old, row.text);
-  const next = row.new === null ? null : sideLine(tokens.new, row.new, row.text);
-  return (row.type === "insert" ? next : (old ?? next)) ?? [];
+  const old = row.type === "insert" || row.old === null ? null : sideLine(tokens.old, row.old, row.text);
+  if (old !== null) return old;
+  return (row.new === null ? null : sideLine(tokens.new, row.new, row.text)) ?? [];
 }

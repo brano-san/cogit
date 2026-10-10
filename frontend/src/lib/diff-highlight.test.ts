@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { diffTokens, paneTokens, unifiedTokens } from "./diff-highlight";
+import { diffTokens, paneTokens, unifiedTokens, type DiffTokens } from "./diff-highlight";
 import { MAX_HIGHLIGHT_LINES, highlightLines, loadLanguage } from "./highlight";
 import type { DiffRow, Hunk } from "./ipc";
 
@@ -48,6 +48,29 @@ describe("diffTokens", () => {
     expect(unifiedTokens(tokens, { type: "context", old: 3, new: 3, text: OLD[2]! })).toEqual(highlightLines(OLD, "rust")[2]);
     expect(unifiedTokens(tokens, { type: "insert", old: null, new: 4, text: NEW[3]! })).toEqual(highlightLines(NEW, "rust")[3]);
     expect(unifiedTokens(tokens, { type: "context", old: 3, new: 3, text: OLD[2]! }).find((token) => token.start === 8)?.cls).toBe("tok-propertyName");
+  });
+
+  it("parses a side again only when its text changed: typing re-diffs against the same old side", () => {
+    const first = diffTokens({ hunks: [HUNK], language: "rust", oldText: text(OLD), newText: text(NEW) }, () => []);
+    const typed = diffTokens({ hunks: [HUNK], language: "rust", oldText: text(OLD), newText: text([...NEW, "// typed"]) }, () => []);
+
+    expect(typed.old).toBe(first.old);
+    expect(typed.new.lines).toHaveLength(NEW.length + 1);
+    expect(diffTokens({ hunks: [HUNK], language: null, oldText: text(OLD), newText: null }, () => []).old).not.toBe(first.old);
+  });
+
+  it("leaves a side no line asks for unparsed: the diff's editor draws the new one itself", () => {
+    const parsed = diffTokens({ hunks: [HUNK], language: "rust", oldText: text(OLD), newText: text(NEW) }, () => []);
+    const tokens: DiffTokens = {
+      old: parsed.old,
+      get new(): never {
+        throw new Error("the new side was parsed");
+      },
+    };
+
+    expect(paneTokens(tokens, "left", 3, OLD[2]!, 3)).toEqual(highlightLines(OLD, "rust")[2]);
+    expect(unifiedTokens(tokens, { type: "delete", old: 4, new: null, text: OLD[3]! })).toEqual(highlightLines(OLD, "rust")[3]);
+    expect(unifiedTokens(tokens, { type: "context", old: 3, new: 3, text: OLD[2]! })).toEqual(highlightLines(OLD, "rust")[2]);
   });
 
   it("parses the loaded rows of a side whose text did not come", () => {
