@@ -506,6 +506,58 @@ fn a_branch_the_remote_lacks_is_measured_against_what_the_remote_has() {
     let preview = open(&f).push_preview("topic", "origin", "topic", 10);
 
     assert_eq!(preview.total, 1);
+    assert_eq!((preview.remote_tip, preview.behind), (None, 0));
+}
+
+#[test]
+fn the_preview_measures_both_sides_against_the_remote_tracking_branch() {
+    let f = test_fixtures::with_remote().unwrap();
+
+    let preview = open(&f).push_preview("main", "origin", "main", 10);
+
+    assert_eq!((preview.total, preview.behind), (2, 1));
+    assert_eq!(preview.local_tip, Some(f.oid("main").unwrap()));
+    assert_eq!(preview.remote_tip, Some(f.oid("origin/main").unwrap()));
+}
+
+#[test]
+fn the_last_fetch_is_fetch_heads_time_while_it_names_the_remote() {
+    let f = test_fixtures::with_remote().unwrap();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis();
+    let fetched = open(&f)
+        .push_preview("main", "origin", "main", 1)
+        .fetched_at
+        .unwrap();
+    assert!(
+        u128::from(fetched) + 60_000 > now,
+        "the fixture's own fetch, moments ago"
+    );
+
+    let mirror = bare(&f).with_file_name("mirror.git");
+    let (from, to) = (
+        bare(&f).to_string_lossy().into_owned(),
+        mirror.to_string_lossy().into_owned(),
+    );
+    f.git(&["clone", "--bare", &from, &to]).unwrap();
+    f.git(&["remote", "add", "mirror", &to]).unwrap();
+    f.git(&["reflog", "expire", "--expire=all", "--all"])
+        .unwrap();
+    f.git(&["fetch", "mirror"]).unwrap();
+
+    let origin = open(&f).push_preview("main", "origin", "main", 1);
+    assert_eq!(
+        origin.fetched_at, None,
+        "FETCH_HEAD names mirror; the reflog is gone"
+    );
+    assert!(
+        open(&f)
+            .push_preview("main", "mirror", "main", 1)
+            .fetched_at
+            .is_some()
+    );
 }
 
 #[test]

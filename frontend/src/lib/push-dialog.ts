@@ -1,5 +1,7 @@
 /** The Push dialog's words and what its state means (F-610): the tracking hint, the status
     line, when nothing would go, the command it shows. */
+import { relativeDate } from "$lib/format";
+import type { PushPreview } from "$lib/ipc/network-dialogs";
 import type { PushChoice } from "$lib/network-dialogs";
 
 export interface UpstreamState {
@@ -49,4 +51,20 @@ export function pushCommand(choice: PushChoice): PushCommand {
     short: `${short}; git push ${choice.remote} ${NOTES}`,
     full: `${full}; git push --progress ${choice.remote} ${NOTES}`,
   };
+}
+
+/** The branch against its remote-tracking one, as of the last fetch. */
+export function pushStatus(preview: PushPreview, remote: string): string {
+  if (preview.remoteTip === null) return `New branch on ${remote}`;
+  const { total: ahead, behind } = preview;
+  if (ahead > 0 && behind > 0) return `${ahead} ahead, ${behind} behind — diverged`;
+  if (behind > 0) return `${behind} behind`;
+  if (ahead > 0) return `${ahead} ahead`;
+  return "Up to date";
+}
+
+/** Both in Unix ms. */
+export function fetchedText(fetchedAt: number | null, now: number): string {
+  if (fetchedAt === null) return "never fetched";
+  return `fetched ${relativeDate(Math.floor(fetchedAt / 1000), 0, Math.floor(now / 1000)).toLowerCase()}`;
 }

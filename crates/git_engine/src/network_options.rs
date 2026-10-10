@@ -106,6 +106,14 @@ pub struct PushCommit {
 pub struct PushPreview {
     pub total: u32,
     pub commits: Vec<PushCommit>,
+    /// Commits of the remote-tracking branch the local one lacks; 0 without it.
+    pub behind: u32,
+    pub local_tip: Option<String>,
+    /// `refs/remotes/<remote>/<branch>` as last fetched; `None`: no such branch there.
+    pub remote_tip: Option<String>,
+    /// Unix ms of the newest sign of a fetch from the remote (`fetched_at`).
+    #[specta(type = Option<specta_typescript::Number>)]
+    pub fetched_at: Option<u64>,
     /// Local notes the remote lacks, from the notes last fetched from it; `None` while
     /// nothing was fetched to compare with.
     pub notes_unpushed: Option<u32>,
@@ -116,6 +124,20 @@ const LOCAL_NOTES: &str = "refs/notes/";
 
 fn notes_mirror(remote: &str) -> String {
     format!("refs/notes-remote/{remote}/")
+}
+
+/// `url` as `git fetch` writes it into FETCH_HEAD: no user or password, no trailing `/` or
+/// `.git` (`transport_anonymize_url`, `store_updated_refs`).
+fn fetch_head_url(url: &str) -> String {
+    let anonymous = match (url.find("://"), url.find('@')) {
+        (Some(scheme), Some(at)) if at > scheme + 3 && !url[scheme + 3..at].contains('/') => {
+            format!("{}{}", &url[..scheme + 3], &url[at + 1..])
+        }
+        (None, Some(at)) if url[at + 1..].contains(':') => url[at + 1..].to_owned(),
+        _ => url.to_owned(),
+    };
+    let trimmed = anonymous.trim_end_matches('/');
+    trimmed.strip_suffix(".git").unwrap_or(trimmed).to_owned()
 }
 
 #[must_use]
@@ -353,7 +375,8 @@ impl RepoHandle {
     }
 
     /// Commits `HEAD`'s `local` branch would add to `remote`: those not reachable from
-    /// the remote branch, or, while it is unknown, from any branch of that remote.
+    /// the remote branch, or, while it is unknown, from any branch of that remote; and how
+    /// the two stand.
     #[must_use]
     pub fn push_preview(
         &self,
@@ -363,16 +386,70 @@ impl RepoHandle {
         limit: usize,
     ) -> PushPreview {
         let (total, commits) = self.unpushed_commits(local, remote, branch, limit);
+        let local_tip = self.resolve_commit(&format!("refs/heads/{local}")).ok();
+        let remote_tip = self
+            .resolve_commit(&format!("refs/remotes/{remote}/{branch}"))
+            .ok();
+        let behind = local_tip
+            .zip(remote_tip)
+            .and_then(|(ours, theirs)| self.count_divergence(ours, theirs))
+            .map_or(0, |(_, behind)| behind);
         let mirror = notes_mirror(remote);
         let ours = self.refs_under(LOCAL_NOTES);
         let theirs = self.refs_under(&mirror);
         PushPreview {
             total,
             commits,
+            behind,
+            local_tip: local_tip.map(|id| id.to_string()),
+            remote_tip: remote_tip.map(|id| id.to_string()),
+            fetched_at: self.fetched_at(remote, branch),
             has_local_notes: !ours.is_empty(),
             notes_unpushed: (!theirs.is_empty() && !ours.is_empty())
                 .then(|| self.count_notes_unpushed(&ours, &theirs, &mirror)),
         }
+    }
+
+    /// Git keeps no record of a fetch: FETCH_HEAD's time while its lines name the remote's
+    /// URL, else the last move of the remote-tracking branch (R-746). Unix ms.
+    fn fetched_at(&self, remote: &str, branch: &str) -> Option<u64> {
+        let moved = self.reflog_newest_ms(&format!("refs/remotes/{remote}/{branch}"));
+        self.fetch_head_ms(remote).max(moved)
+    }
+
+    fn fetch_head_ms(&self, remote: &str) -> Option<u64> {
+        let path = self.git_dir().join("FETCH_HEAD");
+        let text = std::fs::read_to_string(&path).ok()?;
+        let written = self
+            .repo
+            .config_snapshot()
+            .plumbing()
+            .string_by("remote", Some(remote.into()), "url")
+            .map(|value| value.to_string());
+        let urls: Vec<String> = [written, self.url_of(remote, gix::remote::Direction::Fetch)]
+            .into_iter()
+            .flatten()
+            .map(|url| fetch_head_url(&url))
+            .collect();
+        let named = text.lines().any(|line| {
+            line.rsplit_once(" of ")
+                .is_some_and(|(_, url)| urls.iter().any(|known| known == url.trim_end()))
+        });
+        if !named {
+            return None;
+        }
+        let modified = std::fs::metadata(&path).ok()?.modified().ok()?;
+        let since = modified.duration_since(std::time::UNIX_EPOCH).ok()?;
+        u64::try_from(since.as_millis()).ok()
+    }
+
+    fn reflog_newest_ms(&self, name: &str) -> Option<u64> {
+        let reference = self.repo.find_reference(name).ok()?;
+        let mut platform = reference.log_iter();
+        let newest = platform.rev().ok()??.next()?.ok()?;
+        u64::try_from(newest.signature.time.seconds)
+            .ok()?
+            .checked_mul(1000)
     }
 
     fn unpushed_commits(
@@ -673,5 +750,23 @@ mod tests {
             ..PullOptions::default()
         };
         assert!(pull_args("o", &options).contains(&"--force"));
+    }
+
+    #[test]
+    fn fetch_head_names_a_remote_without_its_user_or_dot_git() {
+        assert_eq!(
+            fetch_head_url("https://github.com/a/b.git"),
+            "https://github.com/a/b"
+        );
+        assert_eq!(
+            fetch_head_url("https://me:secret@host.com/a/b/"),
+            "https://host.com/a/b"
+        );
+        assert_eq!(fetch_head_url("git@github.com:a/b.git"), "github.com:a/b");
+        assert_eq!(fetch_head_url(r"C:\work\origin.git"), r"C:\work\origin");
+        assert_eq!(
+            fetch_head_url("https://host.com/a@b/c"),
+            "https://host.com/a@b/c"
+        );
     }
 }

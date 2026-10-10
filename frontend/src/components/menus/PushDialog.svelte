@@ -18,7 +18,7 @@
     tagsHint,
     type PushChoice,
   } from "$lib/network-dialogs";
-  import { effectiveChoice, pushCommand, upstreamState } from "$lib/push-dialog";
+  import { effectiveChoice, fetchedText, pushCommand, pushStatus, upstreamState } from "$lib/push-dialog";
   import { splitUpstream } from "$lib/push-to";
   import type { PushRequest } from "$stores/network-dialog.svelte";
 
@@ -27,10 +27,12 @@
     request: PushRequest;
     /** `options` is what goes; `choice` is what Remember keeps. */
     onpush: (choice: PushChoice, options: PushOptions, remember: boolean) => void;
+    /** Fetches `remote` and refreshes the panels; the dialog then reads everything again. */
+    onfetch: (remote: string) => Promise<void>;
     onclose: () => void;
   }
 
-  let { request, onpush, onclose }: Props = $props();
+  let { request, onpush, onfetch, onclose }: Props = $props();
 
   /** The list never holds more; the count above it is exact. */
   const LIST_CAP = 200;
@@ -56,6 +58,19 @@
   let preview = $state<PushPreview | null>(null);
   let listOpen = $state(false);
   let asked = 0;
+  let fetching = $state(false);
+  /** Grows after a Fetch: what was read from the remote-tracking refs is read again. */
+  let revision = $state(0);
+
+  async function fetchRemote() {
+    fetching = true;
+    try {
+      await onfetch(choice.remote);
+      revision += 1;
+    } finally {
+      fetching = false;
+    }
+  }
 
   const upstream = $derived(request.locals.find((b) => b.name === choice.local)?.upstream ?? null);
   const branches = $derived(remoteBranchChoices(choice.remote, request.remoteBranches, choice.local));
@@ -78,6 +93,7 @@
 
   $effect(() => {
     const { local, remote, branch } = choice;
+    void revision;
     if (problem !== null) return;
     const ticket = ++asked;
     pushPreview(request.repo, local, remote, branch, LIST_CAP)
@@ -105,7 +121,7 @@
   {onclose}
   status={problem}
   actions={[
-    { label: "Push", primary: true, disabled: problem !== null, onclick: () => onpush(choice, pushOptionsOf(sent), remember) },
+    { label: "Push", primary: true, disabled: problem !== null || fetching, onclick: () => onpush(choice, pushOptionsOf(sent), remember) },
   ]}
 >
   <p class="sub">Sends the commits of {choice.local} to the remote.</p>
@@ -139,9 +155,20 @@
       />
     </div>
   </div>
-  <p class="route">
-    <span class="mono">{choice.local}</span> → <span class="mono">{choice.remote}/{choice.branch}</span>
-  </p>
+  <div class="route">
+    <div class="where">
+      <p><span class="mono">{choice.local}</span> → <span class="mono">{choice.remote}/{choice.branch}</span></p>
+      {#if preview}
+        <p class="status">{pushStatus(preview, choice.remote)} · {fetchedText(preview.fetchedAt, Date.now())}</p>
+      {/if}
+    </div>
+    <button type="button" class="btn" title="Fetch {choice.remote} and read again" disabled={fetching} onclick={() => void fetchRemote()}>
+      {fetching ? "Fetching…" : "Fetch"}
+    </button>
+  </div>
+  {#if preview && preview.behind > 0 && !choice.forceWithLease}
+    <Callout kind="warning">Remote has commits you don't have — push will be rejected. Fetch and integrate first.</Callout>
+  {/if}
 
   <div class="commits">
     <button
@@ -250,6 +277,17 @@
   }
 
   .route {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--sp-4);
+  }
+
+  .where {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .where p {
     margin: 0;
     font-size: var(--fs-dense);
     color: var(--text-secondary);

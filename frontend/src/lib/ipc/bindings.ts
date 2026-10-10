@@ -1978,6 +1978,13 @@ export type PushOutcome = {
 export type PushPreview = {
 	total: number,
 	commits: PushCommit[],
+	/**  Commits of the remote-tracking branch the local one lacks; 0 without it. */
+	behind: number,
+	localTip: string | null,
+	/**  `refs/remotes/<remote>/<branch>` as last fetched; `None`: no such branch there. */
+	remoteTip: string | null,
+	/**  Unix ms of the newest sign of a fetch from the remote (`fetched_at`). */
+	fetchedAt: number | null,
 	/**
 	 *  Local notes the remote lacks, from the notes last fetched from it; `None` while
 	 *  nothing was fetched to compare with.

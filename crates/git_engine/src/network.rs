@@ -111,7 +111,7 @@ impl RepoHandle {
         self.url_of(name, gix::remote::Direction::Push)
     }
 
-    fn url_of(&self, name: &str, direction: gix::remote::Direction) -> Option<String> {
+    pub(crate) fn url_of(&self, name: &str, direction: gix::remote::Direction) -> Option<String> {
         self.repo
             .find_remote(name)
             .ok()?

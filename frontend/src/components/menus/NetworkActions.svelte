@@ -282,6 +282,20 @@
     await afterRefChange(id);
   }
 
+  /** Fetch from the Push dialog: the dialog stays and reads the branches afresh. */
+  async function fetchForPush(remote: string) {
+    const request = networkDialog.open;
+    const root = repository.current?.root;
+    if (request?.kind !== "push" || !root) return;
+    const epoch = await runGuarded(host, "Could not fetch", () => network.fetch(request.repo, remote));
+    if (epoch === null) return;
+    repoPulse.fetched(root);
+    if (repository.epoch === epoch) await afterFetch(request.repo);
+    if (networkDialog.open === request) {
+      networkDialog.open = { ...request, ...pushBranchesOf(repository.current?.branches ?? []) };
+    }
+  }
+
   export function pullNow() {
     return runRemoteSteps(["pull"], "Could not pull");
   }
@@ -389,5 +403,10 @@
 {#if networkDialog.open?.kind === "pull"}
   <PullDialog request={networkDialog.open} onrun={runPullDialog} onclose={() => networkDialog.close()} />
 {:else if networkDialog.open?.kind === "push"}
-  <PushDialog request={networkDialog.open} onpush={runPushDialog} onclose={() => networkDialog.close()} />
+  <PushDialog
+    request={networkDialog.open}
+    onpush={runPushDialog}
+    onfetch={fetchForPush}
+    onclose={() => networkDialog.close()}
+  />
 {/if}
