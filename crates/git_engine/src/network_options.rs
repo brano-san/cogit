@@ -183,8 +183,9 @@ fn push_tags_args(options: &PushOptions) -> Vec<String> {
     args
 }
 
-/// The dialog's push asked only whether the remote takes `--atomic`: git checks that first,
-/// right after the remote names its refs.
+/// The dialog's push asked only whether the remote takes `--atomic`. git checks that right
+/// after the remote names its refs, but over HTTP only when a ref has to go: the probe names
+/// one the push would create. A dry run: nothing is created.
 fn push_atomic_args(options: &PushOptions) -> Vec<String> {
     let mut args: Vec<String> = [
         "push",
@@ -197,16 +198,16 @@ fn push_atomic_args(options: &PushOptions) -> Vec<String> {
     .to_vec();
     args.push(options.remote.clone());
     args.push(format!(
-        "refs/heads/{}:refs/heads/{}",
-        options.local, options.branch
+        "refs/heads/{}:refs/cogit/atomic-probe",
+        options.local
     ));
     args
 }
 
-/// `Some(false)`: git said the remote does not take it; `Some(true)`: git went past that check
+/// `Some(false)`: git or its remote helper said the remote does not take it; `Some(true)`: git went past that check
 /// to the refs (`To <url>`); `None`: it stopped before hearing from the remote.
 fn atomic_answer(stdout: &str, stderr: &str) -> Option<bool> {
-    if stderr.contains("does not support --atomic push") {
+    if stderr.contains("does not support --atomic") {
         return Some(false);
     }
     stdout
@@ -984,6 +985,35 @@ mod tests {
                 "refs/heads/main:refs/heads/main"
             ]
         );
+    }
+
+    // Over HTTP git checks `atomic` only when a ref has to go: an up-to-date branch passed.
+    #[test]
+    fn the_atomic_probe_asks_with_a_ref_the_push_would_create() {
+        let options = PushOptions {
+            remote: "origin".into(),
+            local: "main".into(),
+            branch: "main".into(),
+            ..PushOptions::default()
+        };
+        assert_eq!(
+            push_atomic_args(&options),
+            [
+                "push",
+                "--dry-run",
+                "--porcelain",
+                "--no-verify",
+                "--atomic",
+                "origin",
+                "refs/heads/main:refs/cogit/atomic-probe"
+            ]
+        );
+    }
+
+    #[test]
+    fn a_remote_helper_without_atomic_is_a_refusal_too() {
+        let helper = "fatal: helper https does not support --atomic\n";
+        assert_eq!(atomic_answer("", helper), Some(false));
     }
 
     #[test]
