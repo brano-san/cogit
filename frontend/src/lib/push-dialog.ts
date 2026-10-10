@@ -34,11 +34,12 @@ export function rememberedChoice(choice: PushChoice, upstream: string | null): R
 export interface PushCommand {
   /** As a person would type it: `master` or `local:remote`, no `--progress`. */
   short: string;
-  /** What the engine runs (`push_args`), then the notes. */
+  /** What the engine runs (`push_args`). */
   full: string;
 }
 
-const NOTES = "refs/notes/*:refs/notes/*";
+/** Quoted: a shell would expand the `*` against files. */
+const NOTES = "'refs/notes/*:refs/notes/*'";
 
 function flagsOf(choice: PushChoice, remoteTip: string | null, ref: (branch: string) => string): string[] {
   const flags: string[] = [];
@@ -57,9 +58,9 @@ function flagsOf(choice: PushChoice, remoteTip: string | null, ref: (branch: str
 
 export function pushCommand(choice: PushChoice, remoteTip: string | null): PushCommand {
   const dry = choice.dryRun ? ["--dry-run"] : [];
-  const along = choice.dryRun && choice.notes ? [NOTES] : [];
+  const notes = choice.notes ? [NOTES] : [];
   const refspec = choice.local === choice.branch ? choice.local : `${choice.local}:${choice.branch}`;
-  const short = ["git push", ...dry, ...flagsOf(choice, remoteTip, (b) => b), choice.remote, refspec, ...along].join(" ");
+  const short = ["git push", ...dry, ...flagsOf(choice, remoteTip, (b) => b), choice.remote, refspec, ...notes].join(" ");
   const full = [
     "git push",
     ...dry,
@@ -67,13 +68,9 @@ export function pushCommand(choice: PushChoice, remoteTip: string | null): PushC
     ...flagsOf(choice, remoteTip, (b) => `refs/heads/${b}`),
     choice.remote,
     `refs/heads/${choice.local}:refs/heads/${choice.branch}`,
-    ...along,
+    ...notes,
   ].join(" ");
-  if (!choice.notes || choice.dryRun) return { short, full };
-  return {
-    short: `${short}; git push ${choice.remote} ${NOTES}`,
-    full: `${full}; git push --progress ${choice.remote} ${NOTES}`,
-  };
+  return { short, full };
 }
 
 /** What a lease is checked against, the tip written out; `note` says what that means. */

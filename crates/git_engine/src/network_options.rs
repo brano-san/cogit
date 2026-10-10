@@ -160,14 +160,10 @@ pub(crate) fn push_commit(
 
 const NOTES_REFSPEC: &str = "refs/notes/*:refs/notes/*";
 
-/// The dialog's push with `--dry-run`, the notes in the same run: nothing moves, and the
-/// output window shows one record.
+/// The dialog's push with `--dry-run`: nothing moves, and the output window shows one record.
 fn push_dry_run_args(options: &PushOptions) -> Vec<String> {
     let mut args = push_args(options);
     args.insert(1, "--dry-run".into());
-    if options.notes {
-        args.push(NOTES_REFSPEC.into());
-    }
     args
 }
 
@@ -276,6 +272,9 @@ pub fn push_args(options: &PushOptions) -> Vec<String> {
         "refs/heads/{}:refs/heads/{}",
         options.local, options.branch
     ));
+    if options.notes {
+        args.push(NOTES_REFSPEC.into());
+    }
     args
 }
 
@@ -362,7 +361,8 @@ impl RepoHandle {
             .map(|(_, behind)| behind)
     }
 
-    /// The branch, then the notes; a notes refusal is an outcome, not a failure.
+    /// One `git push` for the branch, its tags and notes, so `--atomic`, `--dry-run` and the
+    /// hook cover them all; notes refused as behind are an outcome, not a failure.
     pub fn push_options(
         &self,
         options: &PushOptions,
@@ -372,13 +372,20 @@ impl RepoHandle {
         let auth = self.auth_for_push(&options.remote, &token);
         let args = push_args(options);
         let args: Vec<&str> = args.iter().map(String::as_str).collect();
-        self.stream(&auth, &args, &mut on_line)?;
-        if options.notes {
-            return self.push_notes(&options.remote, token, on_line);
+        match self.stream(&auth, &args, &mut on_line) {
+            Ok(()) if options.notes => self.mirror_notes(&options.remote),
+            Ok(()) => Ok(PushOutcome {
+                notes_rejected: None,
+            }),
+            Err(GitError::Command(failure))
+                if options.notes && only_notes_refused(&output_text(&failure)) =>
+            {
+                Ok(PushOutcome {
+                    notes_rejected: Some(output_text(&failure)),
+                })
+            }
+            Err(err) => Err(err),
         }
-        Ok(PushOutcome {
-            notes_rejected: None,
-        })
     }
 
     /// What the dialog's push would do, and its record for the output window.
@@ -402,8 +409,7 @@ impl RepoHandle {
         token: impl Fn(&str) -> Option<String>,
         mut on_line: impl FnMut(&str),
     ) -> Result<PushOutcome> {
-        let local = self.refs_under(LOCAL_NOTES);
-        if local.is_empty() {
+        if self.refs_under(LOCAL_NOTES).is_empty() {
             return Ok(PushOutcome {
                 notes_rejected: None,
             });
@@ -411,20 +417,25 @@ impl RepoHandle {
         let auth = self.auth_for_push(remote, &token);
         let args = ["push", "--progress", remote, NOTES_REFSPEC];
         match self.stream(&auth, &args, &mut on_line) {
-            Ok(()) => {
-                for (name, id) in local {
-                    let mirror = format!("{}{}", notes_mirror(remote), &name[LOCAL_NOTES.len()..]);
-                    self.run_git(&["update-ref", &mirror, &id])?;
-                }
+            Ok(()) => self.mirror_notes(remote),
+            Err(GitError::Command(failure)) if only_notes_refused(&output_text(&failure)) => {
                 Ok(PushOutcome {
-                    notes_rejected: None,
+                    notes_rejected: Some(output_text(&failure)),
                 })
             }
-            Err(GitError::Command(failure)) if is_non_fast_forward(&failure) => Ok(PushOutcome {
-                notes_rejected: Some(output_text(&failure)),
-            }),
             Err(err) => Err(err),
         }
+    }
+
+    /// The local notes as what the remote has, now that they went there.
+    fn mirror_notes(&self, remote: &str) -> Result<PushOutcome> {
+        for (name, id) in self.refs_under(LOCAL_NOTES) {
+            let mirror = format!("{}{}", notes_mirror(remote), &name[LOCAL_NOTES.len()..]);
+            self.run_git(&["update-ref", &mirror, &id])?;
+        }
+        Ok(PushOutcome {
+            notes_rejected: None,
+        })
     }
 
     /// Fetches the remote's notes beside ours (`refs/notes-remote/<remote>/*`), moves
@@ -798,9 +809,17 @@ fn output_text(failure: &crate::GitCommandError) -> String {
     format!("{}{}", failure.stdout, failure.stderr)
 }
 
-fn is_non_fast_forward(failure: &crate::GitCommandError) -> bool {
-    let text = output_text(failure);
-    text.contains("[rejected]") || text.contains("non-fast-forward") || text.contains("fetch first")
+/// Every ref git refused is notes it refused as behind (` ! [rejected] … -> refs/notes/…`),
+/// not refused by a hook or the remote: those refuse it again whatever the dialog does.
+fn only_notes_refused(output: &str) -> bool {
+    let refused: Vec<&str> = output
+        .lines()
+        .filter(|line| line.starts_with(" ! ["))
+        .collect();
+    !refused.is_empty()
+        && refused
+            .iter()
+            .all(|line| line.starts_with(" ! [rejected]") && line.contains(" -> refs/notes/"))
 }
 
 #[cfg(test)]
@@ -919,6 +938,40 @@ mod tests {
                 "refs/heads/main:refs/heads/main"
             ]
         );
+    }
+
+    #[test]
+    fn the_notes_go_in_the_same_push_as_the_branch_never_forced() {
+        assert_eq!(
+            push(|o| {
+                o.notes = true;
+                o.atomic = true;
+            }),
+            [
+                "push",
+                "--progress",
+                "--atomic",
+                "origin",
+                "refs/heads/main:refs/heads/main",
+                "refs/notes/*:refs/notes/*"
+            ]
+        );
+    }
+
+    #[test]
+    fn only_notes_refused_as_behind_leave_the_rest_of_the_push_standing() {
+        let notes = " ! [rejected]        refs/notes/commits -> refs/notes/commits (fetch first)\n";
+        let branch = " ! [rejected]        main -> main (non-fast-forward)\n";
+        let hook = " ! [remote rejected] refs/notes/commits -> refs/notes/commits (pre-receive hook declined)\n";
+        let pushed = "   1a2b3c4..5d6e7f8  main -> main\n";
+        assert!(only_notes_refused(&format!(
+            "To ../r.git\n{pushed}{notes}error: failed to push some refs\n"
+        )));
+        assert!(!only_notes_refused(&format!("{notes}{branch}")));
+        assert!(!only_notes_refused(hook));
+        assert!(!only_notes_refused(
+            "fatal: unable to access 'https://x/'\n"
+        ));
     }
 
     #[test]

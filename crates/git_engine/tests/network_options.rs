@@ -344,6 +344,98 @@ fn notes_refused_as_non_fast_forward_are_an_outcome_and_the_branch_still_goes() 
     );
 }
 
+fn write_hook(f: &test_fixtures::Fixture, name: &str, body: &str) {
+    let path = f.git_dir().join("hooks").join(name);
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(&path, format!("#!/bin/sh\n{body}")).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+}
+
+/// A path the hook's `sh` can write to on every platform.
+fn sh_path(path: &std::path::Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
+// The notes went in a second `git push`: the hook ran twice, and `--atomic` could not hold the
+// branch and its notes together.
+#[test]
+fn the_branch_and_its_notes_go_in_one_push_and_one_run_of_the_hook() {
+    let f = test_fixtures::with_remote().unwrap();
+    sync_with_origin(&f);
+    f.git(&["notes", "add", "-m", "mine", "HEAD"]).unwrap();
+    f.commit_file(50, "more.txt", "more\n").unwrap();
+    let refs = f.git_dir().join("hook-refs");
+    let runs = f.git_dir().join("hook-runs");
+    write_hook(
+        &f,
+        "pre-push",
+        &format!(
+            "cat >> '{}'\necho run >> '{}'\n",
+            sh_path(&refs),
+            sh_path(&runs)
+        ),
+    );
+
+    let sent = open(&f)
+        .push_options(&push_options(|o| o.notes = true), no_token, |_| {})
+        .unwrap();
+
+    assert_eq!(sent.notes_rejected, None);
+    assert_eq!(std::fs::read_to_string(&runs).unwrap().lines().count(), 1);
+    let named = std::fs::read_to_string(&refs).unwrap();
+    assert!(
+        named.contains("refs/heads/main") && named.contains("refs/notes/commits"),
+        "{named}"
+    );
+}
+
+#[test]
+fn an_atomic_push_whose_notes_are_refused_sends_nothing() {
+    let f = test_fixtures::with_remote().unwrap();
+    sync_with_origin(&f);
+    f.git_in(&bare(&f), &["notes", "add", "-m", "remote", "main"])
+        .unwrap();
+    f.git(&["notes", "add", "-m", "local", "HEAD"]).unwrap();
+    f.commit_file(50, "more.txt", "more\n").unwrap();
+    let before = f.git_in(&bare(&f), &["rev-parse", "main"]).unwrap();
+
+    let err = open(&f)
+        .push_options(
+            &push_options(|o| {
+                o.notes = true;
+                o.atomic = true;
+            }),
+            no_token,
+            |_| {},
+        )
+        .unwrap_err();
+
+    assert!(matches!(err, git_engine::GitError::Command(_)), "{err:?}");
+    assert_eq!(f.git_in(&bare(&f), &["rev-parse", "main"]).unwrap(), before);
+}
+
+#[test]
+fn push_notes_without_any_notes_sends_the_branch_alone() {
+    let f = test_fixtures::with_remote().unwrap();
+    sync_with_origin(&f);
+    f.commit_file(50, "more.txt", "more\n").unwrap();
+    let local = f.oid("HEAD").unwrap();
+
+    let sent = open(&f)
+        .push_options(&push_options(|o| o.notes = true), no_token, |_| {})
+        .unwrap();
+
+    assert_eq!(sent.notes_rejected, None);
+    assert_eq!(
+        f.git_in(&bare(&f), &["rev-parse", "main"]).unwrap().trim(),
+        local
+    );
+}
+
 #[test]
 fn a_lease_refuses_to_overwrite_what_arrived_after_the_last_fetch() {
     let f = test_fixtures::with_remote().unwrap();
