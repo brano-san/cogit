@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick } from "svelte";
+  import { tick, untrack } from "svelte";
   import Caret from "$components/common/Caret.svelte";
   import { placePopup, type Box, type Placed } from "$lib/popup-place";
   import { filterRevisions, stepOption, type RevisionOption } from "$lib/revision-options";
@@ -56,7 +56,7 @@
   let fieldWidth = $state(0);
   /** The input's width inside its padding. */
   let room = $state(0);
-  let measure: ((text: string) => number) | null = null;
+  let measure = $state<((text: string) => number) | null>(null);
 
   const matched = $derived(options.find((option) => option.value === value));
   const shown = $derived(editing ? text : (matched?.display ?? value));
@@ -66,8 +66,9 @@
     void fieldWidth;
     if (!input) return;
     const style = getComputedStyle(input);
-    measure ??= textMeasure(input);
-    room = input.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    const field = input;
+    if (untrack(() => measure) === null) measure = textMeasure(field);
+    room = field.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
   });
 
   const least = (anchorWidth: number) => Math.max(anchorWidth, popupWidth);
