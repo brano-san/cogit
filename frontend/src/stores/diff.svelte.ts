@@ -135,7 +135,10 @@ class DiffStore {
       if (generation !== this.#generation) return;
       this.diff = result;
       this.images = images ?? [null, null];
-      this.#shown = { repo, path, spec };
+      // The same file again keeps its `#shown`: a view reading it would start over (scroll,
+      // selection, open folds) on every re-diff of it: a stage, a discard, a change on disk.
+      const shown = this.#shown;
+      if (shown?.repo !== repo || shown.path !== path || !sameSpec(shown.spec, spec)) this.#shown = { repo, path, spec };
     } catch (err) {
       if (generation !== this.#generation) return;
       this.diff = null;
