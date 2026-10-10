@@ -2,7 +2,7 @@
   import { onDestroy } from "svelte";
   import Checkbox from "$components/common/Checkbox.svelte";
   import { commitBox } from "$stores/commit-box.svelte";
-  import { afterCommit, amends, canCommit, draftToSave, initialMessage, messageAfterCommit } from "$lib/commit-draft";
+  import { afterCommit, amends, commitBlocker, draftToSave, initialMessage, messageAfterCommit } from "$lib/commit-draft";
   import { SUBJECT_HARD, SUBJECT_SOFT, subjectOf, subjectState } from "$lib/commit-message";
   import { ON_MAC, primary } from "$lib/platform";
 
@@ -36,9 +36,10 @@
   $effect(() => {
     if (unborn) amend = false;
   });
-  const ready = $derived(
-    canCommit({ message, template, stagedCount, amend, busy, committing, scopeEmpty: scope.empty, unborn }),
+  const blocked = $derived(
+    commitBlocker({ message, template, stagedCount, amend, busy, committing, scopeEmpty: scope.empty, unborn }),
   );
+  const ready = $derived(blocked === null);
 
   // Cleared once the commit is made, not before: a cancelled question or a hook that
   // refused left the box empty, and a retry without Amend made a new commit instead.
@@ -157,7 +158,7 @@
     <button
       type="button"
       disabled={!ready}
-      title={scope.empty ? "The filter hides every staged file; clear it to commit them" : undefined}
+      title={blocked ?? undefined}
       onclick={submit}
     >
       {amending ? "Amend" : scope.label}

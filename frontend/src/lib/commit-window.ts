@@ -1,6 +1,6 @@
 import type { FileEntry } from "$lib/ipc";
 import type { StateSide } from "$lib/file-state";
-import { canCommit } from "$lib/commit-draft";
+import { commitBlocker } from "$lib/commit-draft";
 
 /** Which files the window lists: what is staged, or every local change (staged or not). */
 export type CommitMode = "staged" | "local";
@@ -133,13 +133,12 @@ export interface ReadyState {
   committing: boolean;
 }
 
-/** Amend may reword with no file ticked, but only when nothing is staged: with staged
-    files, an empty selection would commit all of them. */
-export function ready(state: ReadyState): boolean {
-  const amending = state.amend && !state.unborn;
-  if (amending && state.ticked === 0 && state.stagedTotal > 0) return false;
-  const rewordOnly = amending && state.ticked === 0;
-  return canCommit({
+/** Why Commit holds, shown on it; `null` when it may go. Amend may reword with no file
+    ticked, but only when nothing is staged: with staged files, an empty selection would
+    commit all of them. */
+export function readyBlocker(state: ReadyState): string | null {
+  const rewordOnly = state.amend && !state.unborn && state.ticked === 0;
+  const box = {
     message: state.message,
     template: state.template,
     stagedCount: rewordOnly ? 1 : state.ticked,
@@ -148,7 +147,14 @@ export function ready(state: ReadyState): boolean {
     committing: state.committing,
     scopeEmpty: false,
     unborn: state.unborn,
-  });
+  };
+  const blocker = commitBlocker(box, "Tick the files to commit");
+  if (blocker !== null || !rewordOnly || state.stagedTotal === 0) return blocker;
+  return "Tick the files to amend with: with files staged, Amend cannot change the message alone";
+}
+
+export function ready(state: ReadyState): boolean {
+  return readyBlocker(state) === null;
 }
 
 export const RECENT_MESSAGES = 10;

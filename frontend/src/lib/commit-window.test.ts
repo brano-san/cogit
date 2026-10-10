@@ -9,6 +9,7 @@ import {
   parseCommitWindow,
   planCommit,
   ready,
+  readyBlocker,
   recentMessages,
   sortedFiles,
   splitPath,
@@ -141,6 +142,12 @@ describe("ready", () => {
   });
   it("does not let Amend with no ticked file commit the staged ones", () => {
     expect(ready({ ...base, ticked: 0, stagedTotal: 2, amend: true })).toBe(false);
+  });
+  it("says why it holds", () => {
+    expect(readyBlocker(base)).toBeNull();
+    expect(readyBlocker({ ...base, message: " " })).toBe("Write a commit message first");
+    expect(readyBlocker({ ...base, ticked: 0 })).toBe("Tick the files to commit");
+    expect(readyBlocker({ ...base, ticked: 0, stagedTotal: 2, amend: true })).toMatch(/^Tick the files to amend with/);
   });
 });
 

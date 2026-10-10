@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   type CommitBoxState,
   canCommit,
+  commitBlocker,
   draftToSave,
   hasOwnText,
   initialMessage,
@@ -105,6 +106,13 @@ describe("canCommit", () => {
 
   it("lets a written message with something staged go", () => {
     expect(canCommit(box)).toBe(true);
+  });
+
+  it("says why it holds", () => {
+    expect(commitBlocker(box)).toBeNull();
+    expect(commitBlocker({ ...box, message: "" })).toBe("Write a commit message first");
+    expect(commitBlocker({ ...box, stagedCount: 0 })).toBe("Stage the changes to commit first");
+    expect(commitBlocker({ ...box, committing: true })).toBe("Committing…");
   });
 
   // Hooks take seconds, and the list is only marked busy once it is read back: a second

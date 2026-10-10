@@ -89,15 +89,18 @@ export function amends(box: Pick<CommitBoxState, "amend" | "unborn">): boolean {
   return box.amend && !box.unborn;
 }
 
-/** Whether the Commit button and Ctrl+Enter may start a commit. Amend too needs a staged
-    file in view when some are staged: git has no `--amend --only` without paths. */
+/** Why the Commit button and Ctrl+Enter may not start a commit, shown on the button; `null`
+    when they may. Amend too needs a staged file in view when some are staged: git has no
+    `--amend --only` without paths. `noFiles`: the words where the files come from elsewhere. */
+export function commitBlocker(box: CommitBoxState, noFiles = "Stage the changes to commit first"): string | null {
+  if (box.committing) return "Committing…";
+  if (box.busy) return "Reading the changed files…";
+  if (!hasOwnText(box.message, box.template)) return "Write a commit message first";
+  if (box.stagedCount === 0 && !amends(box)) return noFiles;
+  if (box.scopeEmpty) return "The filter hides every staged file; clear it to commit them";
+  return null;
+}
+
 export function canCommit(box: CommitBoxState): boolean {
-  const amend = amends(box);
-  return (
-    !box.committing &&
-    hasOwnText(box.message, box.template) &&
-    (box.stagedCount > 0 || amend) &&
-    !box.busy &&
-    !box.scopeEmpty
-  );
+  return commitBlocker(box) === null;
 }

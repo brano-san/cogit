@@ -22,7 +22,7 @@
     opening,
     parseCommitWindow,
     planCommit,
-    ready,
+    readyBlocker,
     recentMessages,
     sortedFiles,
     splitPath,
@@ -106,8 +106,8 @@
   const allTicked = $derived(files.length > 0 && selected.length === files.length);
   const last = $derived(history[0] ? fullMessage(history[0]) : null);
   const recent = $derived(recentMessages(history));
-  const canCommit = $derived(
-    ready({
+  const blocked = $derived(
+    readyBlocker({
       message,
       template,
       ticked: selected.length,
@@ -118,6 +118,7 @@
       committing,
     }),
   );
+  const canCommit = $derived(blocked === null);
 
   function tickAll(paths: readonly string[]) {
     ticked = new Set(paths);
@@ -415,8 +416,15 @@
 
     <footer class="buttons">
       <span class="grow"></span>
-      <button type="button" class="primary" disabled={!canCommit} onclick={() => void start(false)}>Commit</button>
-      <button type="button" disabled={!canCommit || unborn} onclick={() => void start(true)}>Commit &amp; Push</button>
+      <button type="button" class="primary" disabled={!canCommit} title={blocked ?? undefined} onclick={() => void start(false)}
+        >Commit</button
+      >
+      <button
+        type="button"
+        disabled={!canCommit || unborn}
+        title={blocked ?? (unborn ? "This branch has no commits yet: Commit, then Push" : undefined)}
+        onclick={() => void start(true)}>Commit &amp; Push</button
+      >
       <button type="button" onclick={() => void closeThisWindow()}>Cancel</button>
     </footer>
   </div>
