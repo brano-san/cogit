@@ -42,6 +42,20 @@ describe("ModalStack", () => {
 
 // Ctrl+S under Edit Author opened Stash All over it; Ctrl+W closed the repository under
 // a dialog; Ctrl+, under Preferences took a new snapshot, and Cancel reverted nothing.
+describe("ModalStack.onchange", () => {
+  it("says when the first layer opens and when the last one closes", () => {
+    const stack = new ModalStack();
+    const seen: boolean[] = [];
+    stack.onchange = (open) => seen.push(open);
+    const a = stack.open();
+    const b = stack.open();
+    stack.close(a);
+    stack.close(b);
+    stack.close(b);
+    expect(seen).toEqual([true, false]);
+  });
+});
+
 describe("menuCommandRuns", () => {
   it("runs every command while no modal is open", () => {
     expect(menuCommandRuns("stash", new ModalStack())).toBe(true);

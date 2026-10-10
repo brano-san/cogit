@@ -30,6 +30,14 @@ pub fn capture_keys(capture: tauri::State<'_, crate::key_capture::KeyCapture>, o
     capture.set(on);
 }
 
+/// The main window's first modal opened, or its last one closed: under one, the menu keeps
+/// only Exit's key and every other key reaches the dialog.
+#[tauri::command]
+#[specta::specta]
+pub fn modal_open(capture: tauri::State<'_, crate::key_capture::KeyCapture>, open: bool) {
+    capture.set_modal(open);
+}
+
 /// Not `async`: touching menu items off the main thread deadlocks on Windows.
 #[tauri::command]
 #[specta::specta]

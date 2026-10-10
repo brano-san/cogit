@@ -511,6 +511,11 @@ export const commands = {
 	/**  Preferences ▸ Keyboard, while it records a shortcut: the menu lets every key through. */
 	captureKeys: (on: boolean) => __TAURI_INVOKE<void>("capture_keys", { on }),
 	/**
+	 *  The main window's first modal opened, or its last one closed: under one, the menu keeps
+	 *  only Exit's key and every other key reaches the dialog.
+	 */
+	modalOpen: (open: boolean) => __TAURI_INVOKE<void>("modal_open", { open }),
+	/**
 	 *  A folder can hold hundreds of repositories, so hits stream in as they are found.
 	 *  The walk ends on `cancel_operation`: a channel the page stopped listening to still
 	 *  accepts every send.

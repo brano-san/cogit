@@ -360,6 +360,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::default_keymap,
             commands::set_keymap,
             commands::capture_keys,
+            commands::modal_open,
             commands::scan_for_repositories,
             commands::clone::remote_branches,
             commands::clone::clone_destination,

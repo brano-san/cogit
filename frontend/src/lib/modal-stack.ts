@@ -7,17 +7,23 @@ import { onDestroy } from "svelte";
 export class ModalStack {
   #layers: symbol[] = [];
   #unsaved = new Map<symbol, string>();
+  /** The first layer opened, or the last one closed: the window's menu keeps its keys only
+      while none is open (`key_capture.rs`). */
+  onchange: ((open: boolean) => void) | null = null;
 
   open(): symbol {
     const layer = Symbol("modal");
     this.#layers.push(layer);
+    if (this.#layers.length === 1) this.onchange?.(true);
     return layer;
   }
 
   close(layer: symbol): void {
     const at = this.#layers.indexOf(layer);
-    if (at >= 0) this.#layers.splice(at, 1);
     this.#unsaved.delete(layer);
+    if (at < 0) return;
+    this.#layers.splice(at, 1);
+    if (this.#layers.length === 0) this.onchange?.(false);
   }
 
   /** A layer holding typed work, under the name closing the window asks about; `null` once

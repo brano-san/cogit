@@ -924,6 +924,10 @@ export async function captureKeys(on: boolean) {
   await commands.captureKeys(on);
 }
 
+export async function modalOpen(open: boolean) {
+  await commands.modalOpen(open);
+}
+
 /** Lands in the profile log beside the backend's own numbers (F-116). */
 export async function reportTiming(label: string, ms: number, detail: string) {
   return await commands.reportTiming(label, ms, detail);

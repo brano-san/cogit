@@ -219,6 +219,7 @@
     type RepoId,
     type WorkingState,
     openErrorsWindow,
+    modalOpen,
     openEditorWindow,
   } from "$lib/ipc";
   import { openBlame } from "$lib/blame-window";
@@ -286,6 +287,13 @@
 
   // Ctrl+A goes to the panel in focus (the one with the underlined header); behind a modal, to nothing.
   $effect(() => installSelectAll(window, () => (modals.any ? "modal" : focused)));
+  // Under a modal the window's menu claims only Exit's key, so Ctrl+Enter reaches the dialog.
+  // Sent once on start too: a reloaded page must not inherit a modal that is gone.
+  $effect(() => {
+    modals.onchange = (open) => void modalOpen(open);
+    void modalOpen(modals.any);
+    return () => (modals.onchange = null);
+  });
   let running = $state.raw<Map<number, string>>(new Map());
   /** The Worktrees header has no room for Add… and Prune All… beside its title. */
   let worktreesFolded = $state(false);
