@@ -46,6 +46,10 @@
     cursor: default;
   }
 
+  .toggle:disabled {
+    color: var(--text-secondary);
+  }
+
   .list {
     display: flex;
     flex-direction: column;

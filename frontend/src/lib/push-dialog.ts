@@ -102,6 +102,42 @@ export function fetchedText(fetchedAt: number | null, now: number): string {
   return `fetched ${relativeDate(Math.floor(fetchedAt / 1000), 0, Math.floor(now / 1000)).toLowerCase()}`;
 }
 
+const HOUR_MS = 3_600_000;
+
+/** The status as of the last fetch and how long ago that was; `stale` past `staleHours`
+    (Preferences ▸ Push) or with nothing ever fetched, when the status may no longer hold. */
+export function statusLine(
+  preview: PushPreview,
+  remote: string,
+  now: number,
+  staleHours: number,
+): { text: string; stale: boolean } {
+  const status = pushStatus(preview, remote);
+  const { fetchedAt } = preview;
+  if (fetchedAt === null) return { text: `${status} · never fetched`, stale: true };
+  if (now - fetchedAt <= staleHours * HOUR_MS) return { text: `${status} · ${fetchedText(fetchedAt, now)}`, stale: false };
+  const ago = relativeDate(Math.floor(fetchedAt / 1000), 0, Math.floor(now / 1000)).toLowerCase();
+  return { text: `${status} as of last fetch (${ago})`, stale: true };
+}
+
+const STALE_PRESETS: readonly (readonly [number, string])[] = [
+  [1, "1 hour"],
+  [6, "6 hours"],
+  [12, "12 hours"],
+  [24, "1 day"],
+  [72, "3 days"],
+  [168, "1 week"],
+  [720, "30 days"],
+];
+
+/** Preferences ▸ Push: the thresholds offered, in hours, with `current` among them. */
+export function staleChoices(current: number): [string, string][] {
+  const choices = STALE_PRESETS.some(([hours]) => hours === current)
+    ? [...STALE_PRESETS]
+    : [...STALE_PRESETS, [current, `${current} hours`] as const].sort((a, b) => a[0] - b[0]);
+  return choices.map(([hours, label]) => [String(hours), label]);
+}
+
 /** The tags a push would send, asked of the remote in the background. */
 export type TagCount = { state: "counting" } | { state: "done"; tags: string[] } | { state: "failed"; reason: string };
 

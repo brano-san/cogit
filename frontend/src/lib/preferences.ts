@@ -81,6 +81,12 @@ export const CATEGORIES: Category[] = [
             hint: "A force push to a remote branch with one of these names asks first. Separate the names with commas.",
             keywords: ["force", "push", "protect", "lease", "main", "master", "develop"],
           },
+          {
+            key: "fetchStaleHours",
+            label: "Call the last fetch old after",
+            hint: "Past this, the Push dialog says its status is as of the last fetch and offers Fetch first.",
+            keywords: ["fetch", "stale", "old", "status", "push", "ahead", "behind", "hours", "days"],
+          },
         ],
       },
       {

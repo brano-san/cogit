@@ -12,6 +12,8 @@ import {
   pushButtonLabel,
   pushCommand,
   pushStatus,
+  staleChoices,
+  statusLine,
   tagCountText,
   upstreamState,
   type TagCount,
@@ -130,6 +132,32 @@ describe("the status line", () => {
     expect(fetchedText(null, 0)).toBe("never fetched");
     expect(fetchedText(0, 5 * 60_000)).toBe("fetched 5 minutes ago");
     expect(fetchedText(1_000, 1_000)).toBe("fetched just now");
+  });
+
+  const HOUR = 3_600_000;
+
+  it("puts the status and the fetch time on one line while the fetch is recent", () => {
+    expect(statusLine(preview({ total: 2, localTip: "b", fetchedAt: 0 }), "origin", 5 * 60_000, 24)).toEqual({
+      text: "2 ahead · fetched 5 minutes ago",
+      stale: false,
+    });
+    expect(statusLine(preview({ fetchedAt: 0 }), "origin", 24 * HOUR, 24).stale).toBe(false);
+  });
+
+  it("qualifies the status past the threshold, and when nothing was ever fetched", () => {
+    expect(statusLine(preview({ fetchedAt: 0 }), "origin", 22 * 24 * HOUR, 24)).toEqual({
+      text: "Up to date as of last fetch (22 days ago)",
+      stale: true,
+    });
+    expect(statusLine(preview({ fetchedAt: 0 }), "origin", 2 * HOUR, 1).stale).toBe(true);
+    expect(statusLine(preview(), "origin", 0, 24)).toEqual({ text: "Up to date · never fetched", stale: true });
+  });
+
+  it("offers thresholds from an hour to a month, and keeps one written by hand", () => {
+    expect(staleChoices(24)).toContainEqual(["24", "1 day"]);
+    expect(staleChoices(24).map(([hours]) => hours)).toEqual(["1", "6", "12", "24", "72", "168", "720"]);
+    expect(staleChoices(48)).toContainEqual(["48", "48 hours"]);
+    expect(staleChoices(48).map(([hours]) => Number(hours))).toEqual([1, 6, 12, 24, 48, 72, 168, 720]);
   });
 });
 

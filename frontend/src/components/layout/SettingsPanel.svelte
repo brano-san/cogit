@@ -19,7 +19,7 @@
     restartFields,
   } from "$lib/preferences";
   import { NO_FILTER_FOLDS, shownFolds, toggle, toggleFilterFold, type TreeNode } from "$lib/tree";
-  import { protectedNames } from "$lib/push-dialog";
+  import { protectedNames, staleChoices } from "$lib/push-dialog";
   import { needsRestart, THEMES, type Settings } from "$lib/settings";
   import { isSetting, type Field } from "$lib/preferences";
   import { createGitChecker, describeCheck, type GitCheck } from "$lib/git-check";
@@ -401,6 +401,16 @@
                   aria-label={field.label}
                   value={draft.protectedBranches.join(", ")}
                   onchange={(e) => set("protectedBranches", protectedNames(e.currentTarget.value))}
+                />
+              </div>
+            {:else if field.key === "fetchStaleHours"}
+              <div class="row">
+                {@render caption(field)}
+                <Select
+                  value={String(draft.fetchStaleHours)}
+                  label={field.label}
+                  options={staleChoices(draft.fetchStaleHours)}
+                  onchange={(next) => set("fetchStaleHours", Number(next))}
                 />
               </div>
             {:else if field.key === "gitPath"}

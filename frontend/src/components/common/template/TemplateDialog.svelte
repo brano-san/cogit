@@ -16,16 +16,27 @@
     status?: string | null;
     /** For a dialog whose way out is not a cancel: `Continue without git`. */
     cancelLabel?: string;
+    /** Enter, when the main thing to do is not one of `actions`: Push's Fetch. */
+    onenter?: () => void;
     children: Snippet;
   }
 
-  let { title, onclose, actions, destructive = false, status = null, cancelLabel = "Cancel", children }: Props = $props();
+  let {
+    title,
+    onclose,
+    actions,
+    destructive = false,
+    status = null,
+    cancelLabel = "Cancel",
+    onenter,
+    children,
+  }: Props = $props();
 </script>
 
 <Dialog
   {title}
   {onclose}
-  onconfirm={() => actions.find((action) => action.primary && !action.disabled)?.onclick()}
+  onconfirm={() => (onenter ? onenter() : actions.find((action) => action.primary && !action.disabled)?.onclick())}
   width="min(520px, 94vw)"
   surface="var(--bg-elevated)"
   inset="var(--sp-6)"

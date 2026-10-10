@@ -50,6 +50,12 @@ describe("merge", () => {
     expect(merge({ diffLayout: "sideways" } as never).diffLayout).toBe("aligned");
   });
 
+  it("calls a fetch stale after a day unless told otherwise, within an hour and a year", () => {
+    expect(merge({}).fetchStaleHours).toBe(24);
+    expect(merge({ fetchStaleHours: 0 }).fetchStaleHours).toBe(1);
+    expect(merge({ fetchStaleHours: 99_999 }).fetchStaleHours).toBe(8760);
+  });
+
   it("clamps the lane width to something drawable", () => {
     expect(merge({ laneWidth: 1 }).laneWidth).toBeGreaterThanOrEqual(8);
     expect(merge({ laneWidth: 500 }).laneWidth).toBeLessThanOrEqual(48);

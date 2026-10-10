@@ -29,13 +29,12 @@
   import {
     commitsText,
     effectiveChoice,
-    fetchedText,
     isUpToDate,
     leaseLine,
     protectedQuestion,
     pushButtonLabel,
     pushCommand,
-    pushStatus,
+    statusLine,
     tagCountText,
     upstreamState,
     type TagCount,
@@ -195,6 +194,9 @@
   });
 
   const more = $derived(preview ? preview.total - preview.commits.length : 0);
+  const status = $derived(preview && statusLine(preview, choice.remote, Date.now(), settings.current.fetchStaleHours));
+  /** The status may no longer hold: Fetch comes first, Push waits. */
+  const stale = $derived(status?.stale ?? false);
   const upToDate = $derived(preview !== null && isUpToDate(preview, choice, upstream, tags));
 </script>
 
@@ -203,10 +205,11 @@
   {onclose}
   status={problem}
   destructive={danger}
+  onenter={stale && !fetching ? () => void fetchRemote() : undefined}
   actions={[
     {
       label: pushButtonLabel(choice, preview?.total ?? 0),
-      primary: true,
+      primary: !stale,
       disabled: problem !== null || fetching || upToDate,
       tip: upToDate ? `Nothing to push: ${choice.remote}/${choice.branch} is at the same commit` : undefined,
       onclick: () => void push(),
@@ -246,14 +249,16 @@
       />
     </div>
   </div>
-  <div class="route">
-    <div class="where">
-      <p><span class="mono">{choice.local}</span> → <span class="mono">{choice.remote}/{choice.branch}</span></p>
-      {#if preview}
-        <p class="status">{pushStatus(preview, choice.remote)} · {fetchedText(preview.fetchedAt, Date.now())}</p>
-      {/if}
-    </div>
-    <button type="button" class="btn" title="Fetch {choice.remote} and read again" disabled={fetching} onclick={() => void fetchRemote()}>
+  <div class="status-line">
+    <span class="status truncate" class:stale title={status?.text}>{status?.text ?? ""}</span>
+    <button
+      type="button"
+      class="btn sm"
+      class:primary={stale}
+      title="Fetch {choice.remote} and read again"
+      disabled={fetching}
+      onclick={() => void fetchRemote()}
+    >
       {fetching ? "Fetching…" : "Fetch"}
     </button>
   </div>
@@ -391,22 +396,21 @@
     font-size: var(--fs-dense);
   }
 
-  .route {
+  .status-line {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: var(--sp-4);
   }
 
-  .where {
+  .status {
     flex: 1 1 auto;
     min-width: 0;
+    color: var(--text-secondary);
+    font-size: var(--fs-dense);
   }
 
-  .where p {
-    margin: 0;
-    font-size: var(--fs-dense);
-    color: var(--text-secondary);
-    overflow-wrap: anywhere;
+  .status.stale {
+    color: var(--status-warning);
   }
 
   .mono,

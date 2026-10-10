@@ -115,6 +115,8 @@ export interface Settings {
   graphFilterPatterns: string[];
   /** Remote branch names a force push asks about first (Preferences ▸ Push). */
   protectedBranches: string[];
+  /** Hours after which the Push dialog says its status is as of an old fetch (Preferences ▸ Push). */
+  fetchStaleHours: number;
 
   /** Minutes between asking the remote of every listed repository what it has (R-354);
       `0` is off, which is the default: nothing reaches the network unasked. */
@@ -176,6 +178,7 @@ export const DEFAULT_SETTINGS: Settings = {
   graphFilterFields: [...DEFAULT_FILTER_FIELDS],
   graphFilterPatterns: [],
   protectedBranches: ["main", "master", "develop"],
+  fetchStaleHours: 24,
 
   backgroundFetchMinutes: 0,
 };
@@ -203,6 +206,7 @@ const RANGES: Partial<Record<keyof Settings, [number, number]>> = {
   diffSplit: [0.2, 0.8],
   laneWidth: [LANE_WIDTH.min, LANE_WIDTH.max],
   backgroundFetchMinutes: [0, 1440],
+  fetchStaleHours: [1, 8760],
 };
 
 export const LONG_LINK_ROWS_MAX = 1000;
