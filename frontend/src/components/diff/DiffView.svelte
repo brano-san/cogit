@@ -99,8 +99,6 @@
     /** The working tree file (F-722): `null` or absent, the diff is read-only; `blocked` says
         why it cannot be edited. Otherwise its right side is the file, editable in place. */
     edit?: { blocked: string | null } | null;
-    /** The Edit button: the file in an editor window of its own. */
-    oneditwindow?: () => void;
     /** Off where the file is named already: the compare window's title and header. */
     showPath?: boolean;
     /** What the panes hold, above each; from the diff's spec when the host knows no better
@@ -121,7 +119,6 @@
     showPath = true,
     captions,
     edit = null,
-    oneditwindow,
   }: Props = $props();
 
   /** Converted lines are not the file's bytes: a patch built from them would not apply. */
@@ -966,22 +963,15 @@
         >{wsButton.label}</button
       >
     {/if}
-    {#if edit && oneditwindow}
-      <button
-        type="button"
-        class="btn sm"
-        disabled={edit.blocked !== null}
-        title={edit.blocked ?? "Open the working tree file in an editor window of its own; the right side here edits it too"}
-        onclick={oneditwindow}>Edit</button
-      >
-    {/if}
-    {#if edit?.blocked === null && diff.kind === "text"}
+    <!-- The right side is the file itself, so nothing opens it elsewhere. Where it cannot be
+         edited, Save is off and says why. -->
+    {#if edit && diff.kind === "text"}
       {@const refused = diffEdit.isFor(path) ? diffEdit.refused : null}
       <button
         type="button"
         class="btn sm"
-        disabled={!dirty || diffEdit.saving}
-        title={refused ?? "Write the file in its own encoding and line endings (Ctrl+S)"}
+        disabled={edit.blocked !== null || !dirty || diffEdit.saving}
+        title={edit.blocked ?? refused ?? "Write the file in its own encoding and line endings (Ctrl+S)"}
         onclick={() => void saveFile()}>Save</button
       >
     {/if}

@@ -18,7 +18,7 @@
   import { installChildWindow } from "$lib/child-window";
   import { compareLabel, diffWindowTitle, parseCompare, sideCaptions } from "$lib/compare-params";
   import { firstParent, handOverModule, loadCompare } from "$lib/compare-window";
-  import { closeThisWindow, openEditorWindow } from "$lib/ipc";
+  import { closeThisWindow } from "$lib/ipc";
   import { diff } from "$stores/diff.svelte";
   import { followSettings } from "$lib/settings-sync";
   import { settings } from "$stores/settings.svelte";
@@ -152,11 +152,6 @@
     {:else if diff.diff && diff.shownPath}
       <DiffView
         edit={diff.shownSpec ? editOffer(diff.shownSpec, diff.diff) : null}
-        oneditwindow={() => {
-          const path = diff.shownPath;
-          if (request && path)
-            void openEditorWindow(request.repo, path).catch((err) => errors.report(err, "Could not open the editor"));
-        }}
         diff={diff.diff}
         path={diff.shownPath}
         stageable={diff.stageable}
