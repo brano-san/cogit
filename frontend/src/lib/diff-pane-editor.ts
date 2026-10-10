@@ -403,6 +403,26 @@ export function replacement(old: string, next: string): { from: number; to: numb
   return { from: start, to: old.length - end, insert: next.slice(start, next.length - end) };
 }
 
+/** Lines `from`… (1-based) that read `now` become `then`; with `now` empty, `then` goes in
+    before line `from`. Null when the text no longer reads `now` there: typed since the diff. */
+export function lineChange(
+  doc: Text,
+  from: number,
+  now: readonly string[],
+  then: readonly string[],
+): { from: number; to?: number; insert?: string } | null {
+  const last = from + now.length - 1;
+  if (from < 1 || last > doc.lines || from > doc.lines + 1) return null;
+  if (now.some((text, i) => doc.line(from + i).text !== text)) return null;
+  const lines = then.join("\n");
+  if (now.length > 0 && then.length > 0) return { from: doc.line(from).from, to: doc.line(last).to, insert: lines };
+  // Lines out with a line break: the one after them, or at the end the one before.
+  if (now.length > 0 && last < doc.lines) return { from: doc.line(from).from, to: doc.line(last + 1).from };
+  if (now.length > 0) return { from: from > 1 ? doc.line(from - 1).to : 0, to: doc.length };
+  if (then.length === 0) return null;
+  return from <= doc.lines ? { from: doc.line(from).from, insert: `${lines}\n` } : { from: doc.length, insert: `\n${lines}` };
+}
+
 export class DiffPaneEditor {
   readonly view: EditorView;
   #saved: Text;
@@ -500,6 +520,14 @@ export class DiffPaneEditor {
     const tr = this.view.state.update({ changes: change });
     this.#saved = tr.newDoc;
     this.view.dispatch(tr);
+  }
+
+  /** A block of the diff back to its old lines (`lineChange`), as an edit Undo takes back;
+      the caret goes back in. Text typed since the diff: nothing, the next diff is on its way. */
+  revert(from: number, now: readonly string[], then: readonly string[]): void {
+    const change = lineChange(this.view.state.doc, from, now, then);
+    if (change) this.view.dispatch({ changes: change, userEvent: "revert" });
+    this.view.focus();
   }
 
   get focused(): boolean {

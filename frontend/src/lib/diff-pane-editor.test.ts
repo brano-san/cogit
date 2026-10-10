@@ -1,7 +1,7 @@
 import { EditorState, type Text } from "@codemirror/state";
 import type { DecorationSet } from "@codemirror/view";
 import { describe, expect, it } from "vitest";
-import { buildPane, replacement, type CodeRow, type DeletedRow, type EditRow } from "./diff-pane-editor";
+import { buildPane, lineChange, replacement, type CodeRow, type DeletedRow, type EditRow } from "./diff-pane-editor";
 
 function file(lines: number): Text {
   return EditorState.create({ doc: Array.from({ length: lines }, (_, i) => `line ${i + 1}`).join("\n") }).doc;
@@ -96,5 +96,32 @@ describe("replacement", () => {
 
   it("is nothing for the same text", () => {
     expect(replacement("same", "same")).toBeNull();
+  });
+});
+
+describe("lineChange", () => {
+  const after = (text: string, from: number, now: string[], then: string[]) => {
+    const state = EditorState.create({ doc: text });
+    const change = lineChange(state.doc, from, now, then);
+    return change && state.update({ changes: change }).newDoc.toString();
+  };
+
+  it("takes a block of the diff back to its old lines", () => {
+    expect(after("a\nX\nY\nc\n", 2, ["X", "Y"], ["b"])).toBe("a\nb\nc\n");
+    expect(after("a\nX\nc\n", 2, ["X"], [])).toBe("a\nc\n");
+    expect(after("a\nc\n", 2, [], ["b"])).toBe("a\nb\nc\n");
+  });
+
+  it("keeps the end of the file as the diff counts it", () => {
+    // A line after the last line break, and the break itself (the engine's empty last line).
+    expect(after("a\nb\nX", 3, ["X"], [])).toBe("a\nb");
+    expect(after("a\nb\n", 3, [""], [])).toBe("a\nb");
+    expect(after("a\nb", 3, [], [""])).toBe("a\nb\n");
+    expect(after("a\nb", 3, [], ["c"])).toBe("a\nb\nc");
+  });
+
+  it("is nothing once the lines read otherwise: typed since the diff", () => {
+    expect(after("a\nXY\nc", 2, ["X"], ["b"])).toBeNull();
+    expect(after("a", 3, ["X"], ["b"])).toBeNull();
   });
 });

@@ -18,6 +18,7 @@
     changeRow,
     changes,
     hunkKeys,
+    type Block,
     type BlockKind,
     type PaneLine,
     type PaneRow,
@@ -288,11 +289,20 @@
   }
 
   /** What the band's » and × do: throw away in the working tree. The staged diff has none
-      (Unstage is on its hunks and in the toolbar), nor has a file with unsaved edits. */
-  const bandActions = $derived(dirty ? null : bandAction(stageable, diffStore.lineActions));
+      (Unstage is on its hunks and in the toolbar). With unsaved edits they take the block
+      back in the editor instead: the file on disk is not what the diff shows (R-743). */
+  const bandActions = $derived(bandAction(stageable, diffStore.lineActions));
+  const IN_EDITOR = " in the editor (Ctrl+Z undoes; save to write the file)";
 
-  function bandAct(keys: readonly string[], label: string) {
-    askDiscard(new Set(keys), label);
+  function bandAct(block: Block, keys: readonly string[], label: string) {
+    if (!editor || !dirty) return askDiscard(new Set(keys), label);
+    const lines = (rows: PaneRow[], from: number, count: number) =>
+      rows.slice(from, from + count).flatMap((row) => (row.kind === "line" ? [row.text] : []));
+    editor.revert(
+      block.rightStart,
+      lines(model.right, block.rightRow, block.rightRows),
+      lines(model.left, block.leftRow, block.leftRows),
+    );
   }
 
   /** The connectors of the blocks near the viewport, from both panes' live scroll (08 §12).
@@ -1179,10 +1189,12 @@
                     class="bandact"
                     style:left="{ACTION_CENTER_X}px"
                     style:top="{link.anchor.center}px"
-                    title={bandActions === "discard"
-                      ? "Revert the whole block: restore its deleted lines and remove its added lines (asks first)"
-                      : "Unstage the whole block: its deleted and its added lines"}
-                    onclick={() => bandAct([...block.keys.deletes, ...block.keys.inserts], "the whole changed block (its deleted and its added lines)")}>»</button
+                    title={dirty
+                      ? `Revert the whole block${IN_EDITOR}`
+                      : bandActions === "discard"
+                        ? "Revert the whole block: restore its deleted lines and remove its added lines (asks first)"
+                        : "Unstage the whole block: its deleted and its added lines"}
+                    onclick={() => bandAct(block, [...block.keys.deletes, ...block.keys.inserts], "the whole changed block (its deleted and its added lines)")}>»</button
                   >
                 {/if}
               {:else}
@@ -1192,10 +1204,12 @@
                     class="bandact"
                     style:left="{ACTION_LEFT_X}px"
                     style:top="{link.anchor.left}px"
-                    title={bandActions === "discard"
-                      ? "Restore these deleted lines in the working tree (asks first)"
-                      : "Unstage the deletion of these lines"}
-                    onclick={() => bandAct(block.keys.deletes, "the deletion of these lines")}>»</button
+                    title={dirty
+                      ? `Restore these deleted lines${IN_EDITOR}`
+                      : bandActions === "discard"
+                        ? "Restore these deleted lines in the working tree (asks first)"
+                        : "Unstage the deletion of these lines"}
+                    onclick={() => bandAct(block, block.keys.deletes, "the deletion of these lines")}>»</button
                   >
                 {/if}
                 {#if block.keys.inserts.length > 0 && link.anchor.right !== null}
@@ -1204,10 +1218,12 @@
                     class="bandact"
                     style:left="{ACTION_RIGHT_X}px"
                     style:top="{link.anchor.right}px"
-                    title={bandActions === "discard"
-                      ? "Remove these added lines from the working tree (asks first)"
-                      : "Unstage these added lines"}
-                    onclick={() => bandAct(block.keys.inserts, "these added lines")}>×</button
+                    title={dirty
+                      ? `Remove these added lines${IN_EDITOR}`
+                      : bandActions === "discard"
+                        ? "Remove these added lines from the working tree (asks first)"
+                        : "Unstage these added lines"}
+                    onclick={() => bandAct(block, block.keys.inserts, "these added lines")}>×</button
                   >
                 {/if}
               {/if}
