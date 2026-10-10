@@ -225,6 +225,8 @@
     if (status.stale && document.activeElement?.closest("footer")) fetchButton?.focus();
   });
   const button = $derived(pushButton(preview, choice, upstream, tags));
+  /** The footer's button can run; Enter on a dry run asks the same. */
+  const pushable = $derived(problem === null && !fetching && !button.nothing);
 </script>
 
 <TemplateDialog
@@ -233,12 +235,12 @@
   {onclose}
   status={problem}
   destructive={danger}
-  onenter={stale && !fetching ? () => void fetchRemote() : choice.dryRun ? () => void push() : undefined}
+  onenter={stale && !fetching ? () => void fetchRemote() : choice.dryRun && pushable ? () => void push() : undefined}
   actions={[
     {
       label: button.label,
       primary: !stale && !choice.dryRun,
-      disabled: problem !== null || fetching || button.nothing,
+      disabled: !pushable,
       tip: button.nothing ? "Nothing to push" : undefined,
       onclick: () => void push(),
     },
