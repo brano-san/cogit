@@ -1,7 +1,9 @@
 <script lang="ts">
   import { onMount, tick, type Snippet } from "svelte";
   import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
+  import { confirmsDialog } from "$lib/dialog-template";
   import { keyIsFor, modalLayer, modals } from "$lib/modal-stack";
+  import { ON_MAC } from "$lib/platform";
   import { closeAnswer, type CloseRequest } from "$lib/unsaved";
   import { taskbar } from "$stores/taskbar.svelte";
 
@@ -99,11 +101,15 @@
       wrapTab(event);
       return;
     }
-    if (event.key !== "Enter" || !onconfirm || event.isComposing || event.defaultPrevented) return;
+    if (!onconfirm) return;
     const target = event.target;
-    // Enter in a textarea is a newline; on a button it presses that button.
-    if (target instanceof HTMLTextAreaElement) return;
-    if (target instanceof HTMLButtonElement || target instanceof HTMLAnchorElement) return;
+    const place =
+      target instanceof HTMLTextAreaElement
+        ? "text"
+        : target instanceof HTMLButtonElement || target instanceof HTMLAnchorElement
+          ? "button"
+          : "field";
+    if (!confirmsDialog(event, place, ON_MAC)) return;
     event.preventDefault();
     onconfirm();
   }

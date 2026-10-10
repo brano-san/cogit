@@ -1,4 +1,5 @@
 /** Pure rules of the confirm-dialog template (doc/06-design-system.md, "Шаблон диалога"). */
+import { primary, type Modifiers } from "$lib/platform";
 
 export interface DialogAction {
   label: string;
@@ -27,4 +28,18 @@ export function isClamped(scrollHeight: number, clientHeight: number): boolean {
 export function parseStashMessage(raw: string): { branch: string | null; message: string } {
   const match = /^(?:WIP on|On) ([^:\n]+): ([\s\S]*)$/.exec(raw);
   return match ? { branch: match[1]!, message: match[2]! } : { branch: null, message: raw };
+}
+
+/** Where a key was pressed in a dialog: a textarea's Enter is a newline, a button's presses it. */
+export type KeyPlace = "field" | "text" | "button";
+
+/** Whether a key press answers a dialog with its primary action: Enter from a field,
+    Ctrl+Enter (⌘+Enter on a Mac) from anywhere in it; never a key something already used. */
+export function confirmsDialog(
+  press: Modifiers & { key: string; isComposing: boolean; defaultPrevented: boolean },
+  place: KeyPlace,
+  onMac: boolean,
+): boolean {
+  if (press.key !== "Enter" || press.isComposing || press.defaultPrevented) return false;
+  return place === "field" || primary(press, onMac);
 }
