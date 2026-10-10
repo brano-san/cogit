@@ -146,13 +146,16 @@
     {/if}
   </div>
 
-  <OptionRow
-    bind:checked={choice.setUpstream}
-    label="Set as upstream"
-    hint={request.upstream === null
-      ? "The branch has no upstream yet (--set-upstream)"
-      : `Track ${choice.remote}/${choice.branch} instead of ${request.upstream} (--set-upstream)`}
-  />
+  <div class="group">
+    <span class="caption">Tracking</span>
+    <OptionRow
+      bind:checked={choice.setUpstream}
+      label="Set as upstream"
+      hint={request.upstream === null
+        ? "The branch has no upstream yet (--set-upstream)"
+        : `Track ${choice.remote}/${choice.branch} instead of ${request.upstream} (--set-upstream)`}
+    />
+  </div>
 
   <div class="group">
     <span class="caption">Tags</span>
@@ -169,23 +172,22 @@
   </div>
 
   <div class="group">
+    <span class="caption">Options</span>
     <OptionRow bind:checked={choice.notes} label="Push notes" hint="refs/notes/*, never forced" />
     {#if noteHint}<p class="note">{noteHint}</p>{/if}
+    <OptionRow
+      bind:checked={choice.forceWithLease}
+      label="Force (with lease)"
+      hint="Overwrite the remote branch unless it moved since your last fetch"
+    />
+    {#if choice.forceWithLease}
+      <Callout kind="warning">
+        The remote branch will be overwritten with yours: commits it has that you do not are lost there.
+        Off again the next time this dialog opens.
+      </Callout>
+    {/if}
+    <OptionRow bind:checked={remember} label="Remember as default for repository" hint="Everything but Force" />
   </div>
-
-  <OptionRow
-    bind:checked={choice.forceWithLease}
-    label="Force (with lease)"
-    hint="Overwrite the remote branch unless it moved since your last fetch"
-  />
-  {#if choice.forceWithLease}
-    <Callout kind="warning">
-      The remote branch will be overwritten with yours: commits it has that you do not are lost there.
-      Off again the next time this dialog opens.
-    </Callout>
-  {/if}
-
-  <OptionRow bind:checked={remember} label="Remember as default for repository" hint="Everything but Force" />
 
   <div class="command"><span class="caption">Command</span><code>{command}</code></div>
 </TemplateDialog>
