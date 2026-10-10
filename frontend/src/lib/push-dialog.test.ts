@@ -12,6 +12,7 @@ import {
   pushButtonLabel,
   pushCommand,
   pushStatus,
+  rememberedChoice,
   tagCountText,
   upstreamState,
   type TagCount,
@@ -199,5 +200,14 @@ describe("advanced options", () => {
 
   it("calls the button Dry run", () => {
     expect(pushButtonLabel(choice({ dryRun: true, forceWithLease: true }), 3)).toBe("Dry run");
+  });
+});
+
+describe("what Remember keeps", () => {
+  // Remember on a branch that already tracks the target stored `false`: the box showed checked.
+  it("keeps Set as upstream as the dialog shows it", () => {
+    expect(rememberedChoice(choice({ setUpstream: false }), "origin/main").setUpstream).toBe(true);
+    expect(rememberedChoice(choice({ setUpstream: false }), "origin/old").setUpstream).toBe(false);
+    expect(rememberedChoice(choice({ setUpstream: true }), null)).toEqual(choice({ setUpstream: true }));
   });
 });

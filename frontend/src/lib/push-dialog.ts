@@ -24,6 +24,13 @@ export function effectiveChoice(choice: PushChoice, upstream: string | null): Pu
   return { ...choice, setUpstream: false };
 }
 
+/** What Remember keeps: the choice as the dialog shows it, Set as upstream checked while the
+    branch already tracks the target. */
+export function rememberedChoice(choice: PushChoice, upstream: string | null): PushChoice {
+  if (upstreamState(upstream, choice.remote, choice.branch).kind !== "already") return choice;
+  return { ...choice, setUpstream: true };
+}
+
 export interface PushCommand {
   /** As a person would type it: `master` or `local:remote`, no `--progress`. */
   short: string;

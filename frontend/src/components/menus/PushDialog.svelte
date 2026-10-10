@@ -37,6 +37,7 @@
     pushButtonLabel,
     pushCommand,
     pushStatus,
+    rememberedChoice,
     tagCountText,
     upstreamState,
     type TagCount,
@@ -110,7 +111,7 @@
     if (danger && settings.current.protectedBranches.includes(choice.branch)) {
       if (!(await confirmation.ask(protectedQuestion(choice.remote, choice.branch)))) return;
     }
-    onpush(choice, pushOptionsOf(sent, preview?.remoteTip ?? null), remember);
+    onpush(rememberedChoice(choice, upstream), pushOptionsOf(sent, preview?.remoteTip ?? null), remember);
   }
 
   function chooseRemote(next: string) {
