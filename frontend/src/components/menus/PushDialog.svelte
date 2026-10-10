@@ -29,8 +29,10 @@
     commitsText,
     effectiveChoice,
     fetchedText,
+    isUpToDate,
     leaseLine,
     protectedQuestion,
+    pushButtonLabel,
     pushCommand,
     pushStatus,
     tagCountText,
@@ -179,6 +181,7 @@
   });
 
   const more = $derived(preview ? preview.total - preview.commits.length : 0);
+  const upToDate = $derived(preview !== null && isUpToDate(preview, choice, upstream, tags));
 </script>
 
 <TemplateDialog
@@ -187,7 +190,13 @@
   status={problem}
   destructive={danger}
   actions={[
-    { label: danger ? "Force push" : "Push", primary: true, disabled: problem !== null || fetching, onclick: () => void push() },
+    {
+      label: pushButtonLabel(choice, preview?.total ?? 0),
+      primary: true,
+      disabled: problem !== null || fetching || upToDate,
+      tip: upToDate ? `Nothing to push: ${choice.remote}/${choice.branch} is at the same commit` : undefined,
+      onclick: () => void push(),
+    },
   ]}
 >
   <p class="sub">Sends the commits of {choice.local} to the remote.</p>

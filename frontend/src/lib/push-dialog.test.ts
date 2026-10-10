@@ -6,12 +6,15 @@ import {
   commitsText,
   effectiveChoice,
   fetchedText,
+  isUpToDate,
   leaseLine,
   protectedNames,
+  pushButtonLabel,
   pushCommand,
   pushStatus,
   tagCountText,
   upstreamState,
+  type TagCount,
 } from "./push-dialog";
 
 const choice = (over: Partial<PushChoice> = {}): PushChoice => ({
@@ -142,5 +145,36 @@ describe("counts", () => {
     expect(commitsText(preview())).toBe("No commits to push");
     expect(commitsText(preview({ total: 1 }))).toBe("1 commit to push");
     expect(commitsText(preview({ total: 3 }))).toBe("3 commits to push");
+  });
+});
+
+describe("Up to date", () => {
+  const done = (names: string[]): TagCount => ({ state: "done", tags: names });
+
+  it("holds when the remote has the branch's commit and nothing rides along", () => {
+    expect(isUpToDate(preview(), choice({ setUpstream: false }), "origin/main", null)).toBe(true);
+    expect(isUpToDate(preview(), choice({ setUpstream: true }), "origin/main", null)).toBe(true);
+    expect(isUpToDate(preview(), choice({ setUpstream: false, tags: "follow" }), "origin/main", done([]))).toBe(true);
+  });
+
+  it("does not hold for a new branch, a move, an upstream to set, tags or notes to send", () => {
+    const off = choice({ setUpstream: false });
+    expect(isUpToDate(preview({ remoteTip: null }), off, null, null)).toBe(false);
+    expect(isUpToDate(preview({ remoteTip: "b" }), off, "origin/main", null)).toBe(false);
+    expect(isUpToDate(preview(), choice({ setUpstream: true }), null, null)).toBe(false);
+    expect(isUpToDate(preview(), choice({ setUpstream: false, tags: "follow" }), "origin/main", done(["v1"]))).toBe(false);
+    expect(isUpToDate(preview(), choice({ setUpstream: false, tags: "all" }), "origin/main", { state: "counting" })).toBe(false);
+    expect(isUpToDate(preview(), choice({ setUpstream: false, tags: "follow" }), "origin/main", { state: "failed", reason: "x" })).toBe(false);
+    expect(isUpToDate(preview({ hasLocalNotes: true, notesUnpushed: 2 }), choice({ setUpstream: false, notes: true }), "origin/main", null)).toBe(false);
+  });
+});
+
+describe("the Push button", () => {
+  it("says what it sends", () => {
+    expect(pushButtonLabel(choice(), 0)).toBe("Push");
+    expect(pushButtonLabel(choice(), 1)).toBe("Push 1 commit");
+    expect(pushButtonLabel(choice(), 3)).toBe("Push 3 commits");
+    expect(pushButtonLabel(choice({ forceWithLease: true }), 2)).toBe("Force push 2 commits");
+    expect(pushButtonLabel(choice({ forceWithLease: true }), 0)).toBe("Force push");
   });
 });

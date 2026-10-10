@@ -119,3 +119,17 @@ export function commitsText(preview: PushPreview | null): string {
   if (preview.total === 0) return "No commits to push";
   return `${preview.total} ${preview.total === 1 ? "commit" : "commits"} to push`;
 }
+
+/** Nothing at all would go: the remote has the branch's commit, and no tag, note or upstream
+    change rides along. Not known yet counts as something. */
+export function isUpToDate(preview: PushPreview, choice: PushChoice, upstream: string | null, tags: TagCount | null): boolean {
+  if (preview.remoteTip === null || preview.remoteTip !== preview.localTip) return false;
+  if (effectiveChoice(choice, upstream).setUpstream) return false;
+  if (choice.tags !== "none" && !(tags?.state === "done" && tags.tags.length === 0)) return false;
+  return !(choice.notes && preview.hasLocalNotes && preview.notesUnpushed !== 0);
+}
+
+export function pushButtonLabel(choice: PushChoice, total: number): string {
+  const verb = choice.forceWithLease ? "Force push" : "Push";
+  return total === 0 ? verb : `${verb} ${total} ${total === 1 ? "commit" : "commits"}`;
+}
