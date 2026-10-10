@@ -3,9 +3,8 @@
   import ConflictView from "$components/diff/ConflictView.svelte";
   import MergeView from "$components/diff/MergeView.svelte";
   import DiffView from "$components/diff/DiffView.svelte";
-  import DiffEditPane from "$components/diff/DiffEditPane.svelte";
   import { editOffer } from "$lib/diff-edit";
-  import { diffEdit, type CaretAt } from "$stores/diff-edit.svelte";
+  import { diffEdit } from "$stores/diff-edit.svelte";
   import { untrack } from "svelte";
   import ImageDiff from "$components/diff/ImageDiff.svelte";
   import SubmoduleDiff from "$components/diff/SubmoduleDiff.svelte";
@@ -66,14 +65,6 @@
     const path = diff.shownPath;
     if (repo !== null && path) void openEditorWindow(repo, path).catch((err) => errors.report(err, "Could not open the editor"));
   }
-
-  /** A click in the right pane of a working-tree diff: the caret goes where it was. */
-  function startEdit(at?: CaretAt) {
-    const repo = diff.repo;
-    const spec = diff.shownSpec;
-    const path = diff.shownPath;
-    if (repo !== null && spec && path) void diffEdit.start(repo, spec, path, "diff", at ?? null);
-  }
 </script>
 
 {#if conflicts.path && conflicts.autoResolved(conflicts.path)}
@@ -129,12 +120,9 @@
     newSize={diff.diff.newSize}
     mime={diff.diff.mime}
   />
-{:else if diffEdit.isFor(diff.shownPath)}
-  <DiffEditPane ondone={() => void diffEdit.leave()} />
 {:else if diff.diff && diff.shownPath}
   <DiffView
     edit={offer}
-    onedit={startEdit}
     oneditwindow={editWindow}
     diff={diff.diff}
     path={diff.shownPath}

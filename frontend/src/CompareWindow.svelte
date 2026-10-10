@@ -2,7 +2,6 @@
   import EmptyState from "$components/common/EmptyState.svelte";
   import { untrack } from "svelte";
   import DiffView from "$components/diff/DiffView.svelte";
-  import DiffEditPane from "$components/diff/DiffEditPane.svelte";
   import UnsavedDialog from "$components/common/UnsavedDialog.svelte";
   import { editOffer } from "$lib/diff-edit";
   import { diffEdit } from "$stores/diff-edit.svelte";
@@ -51,7 +50,9 @@
   const captions = $derived(request ? sideCaptions(request.spec, parent) : undefined);
 
   /** The window's own title is the application and the file's name; the header has the path. */
-  const title = $derived(request ? diffWindowTitle(diff.shownPath ?? request.path) : "Cogit — Compare");
+  const title = $derived(
+    request ? `${diffWindowTitle(diff.shownPath ?? request.path)}${diffEdit.dirty ? " *" : ""}` : "Cogit — Compare",
+  );
 
   $effect(() => {
     document.title = title;
@@ -148,16 +149,9 @@
         newSize={diff.diff.newSize}
         mime={diff.diff.mime}
       />
-    {:else if diffEdit.isFor(diff.shownPath)}
-      <DiffEditPane ondone={() => void diffEdit.leave()} />
     {:else if diff.diff && diff.shownPath}
       <DiffView
         edit={diff.shownSpec ? editOffer(diff.shownSpec, diff.diff) : null}
-        onedit={(at) => {
-          const spec = diff.shownSpec;
-          const path = diff.shownPath;
-          if (request && spec && path) void diffEdit.start(request.repo, spec, path, "diff", at ?? null);
-        }}
         oneditwindow={() => {
           const path = diff.shownPath;
           if (request && path)

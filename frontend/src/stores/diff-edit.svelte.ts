@@ -2,28 +2,16 @@ import type { DiffSpec, RepoId } from "$lib/ipc";
 import { readEditable, saveEditable, type Shape } from "$lib/ipc/editable";
 import { unsavedPrompt } from "$stores/unsaved-prompt.svelte";
 
-/** `diff`: the base read-only beside the file (2-way); `single`: the file alone (Edit). */
-export type EditMode = "diff" | "single";
-
-/** Where the caret goes when the editor opens: a click in the diff's right pane. */
-export interface CaretAt {
-  line: number;
-  column: number;
-  /** Where the clicked row was in the window (client pixels): the editor keeps it there. */
-  offset?: number;
-}
-
 export interface Opened {
   repo: RepoId;
   spec: DiffSpec;
   path: string;
-  mode: EditMode;
+  /** The diff's left side as text: what the file reads as once the edits undo the change. */
   base: string;
   /** What the editor starts from, and what Reload brings back. */
   text: string;
   shape: Shape;
   stamp: string;
-  at: CaretAt | null;
 }
 
 interface Pane {
@@ -32,8 +20,9 @@ interface Pane {
   save: () => void;
 }
 
-/** The working file being edited in the Diff panel. The editor holds the text; this holds
-    where it came from, whether it is dirty, and whether the file moved on under it. */
+/** The working file open in the diff's right pane (or the Edit window). The editor holds the
+    text; this holds where it came from, whether it is dirty, and whether the file moved on
+    under it. */
 class DiffEditStore {
   opened = $state.raw<Opened | null>(null);
   /** `Edit` was pressed but the file cannot round-trip: why, in the panel. */
@@ -50,6 +39,8 @@ class DiffEditStore {
   target = $state<string | null>(null);
   /** After a save: the repository status and the Files list are read again (App sets it). */
   onSaved: ((path: string) => void) | null = null;
+  /** Bumped by every edit: a diff of an older text is dropped when it arrives. */
+  revision = 0;
 
   #pane: Pane | null = null;
   #last = "";
@@ -62,7 +53,13 @@ class DiffEditStore {
     return path !== null && this.target === path;
   }
 
-  async start(repo: RepoId, spec: DiffSpec, path: string, mode: EditMode = "diff", at: CaretAt | null = null): Promise<void> {
+  /** The file, if it is open for this diff: the diff then reads the editor's text, not the disk. */
+  openFor(repo: RepoId | null, spec: DiffSpec | null, path: string | null): Opened | null {
+    const opened = this.opened;
+    return opened && opened.repo === repo && opened.path === path && opened.spec.kind === spec?.kind ? opened : null;
+  }
+
+  async start(repo: RepoId, spec: DiffSpec, path: string): Promise<void> {
     this.stop();
     this.target = path;
     this.loading = true;
@@ -70,7 +67,7 @@ class DiffEditStore {
       const file = await readEditable(repo, spec, path);
       if (this.target !== path) return;
       if (file.kind === "refused") this.refused = file.reason;
-      else this.opened = { repo, spec, path, mode, base: file.base, text: file.text, shape: file.shape, stamp: file.stamp, at };
+      else this.opened = { repo, spec, path, base: file.base, text: file.text, shape: file.shape, stamp: file.stamp };
     } catch (err) {
       this.refused = String(err instanceof Error ? err.message : err);
     } finally {
@@ -146,7 +143,7 @@ class DiffEditStore {
         this.changedOnDisk = true;
         return false;
       }
-      this.opened = { ...opened, text, stamp: outcome.stamp, at: null };
+      this.opened = { ...opened, text, stamp: outcome.stamp };
       this.dirty = false;
       this.changedOnDisk = false;
       this.onSaved?.(opened.path);
@@ -190,7 +187,8 @@ class DiffEditStore {
   #take(base: string, text: string, shape: Shape, stamp: string): void {
     const opened = this.opened;
     if (!opened) return;
-    this.opened = { ...opened, base, text, shape, stamp, at: null };
+    this.opened = { ...opened, base, text, shape, stamp };
+    this.#last = "";
     this.dirty = false;
     this.changedOnDisk = false;
     this.generation += 1;

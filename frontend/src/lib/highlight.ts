@@ -1,6 +1,6 @@
 import { classHighlighter, highlightTree } from "@lezer/highlight";
 import type { Parser } from "@lezer/common";
-import { LanguageDescription } from "@codemirror/language";
+import { LanguageDescription, type LanguageSupport } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
 
 export interface Token {
@@ -33,19 +33,22 @@ export function languageOf(path: string): string | null {
 
 const parsers = new Map<string, Parser>();
 
+/** The grammar, for the highlighter here and for an editor alike: the editable side of a
+    diff colours as the other one. */
+export function languageSupport(language: string | null): Promise<LanguageSupport | null> {
+  const description = language ? LanguageDescription.matchLanguageName(languages, ALIASES[language] ?? language, false) : null;
+  return description ? description.load().catch(() => null) : Promise.resolve(null);
+}
+
 /** Fetches the grammar's chunk; `highlightLines` colours nothing for a language until it resolves. */
 export async function loadLanguage(language: string | null): Promise<boolean> {
   if (!language) return false;
   if (parsers.has(language)) return true;
-  const description = LanguageDescription.matchLanguageName(languages, ALIASES[language] ?? language, false);
-  if (!description) return false;
-  try {
-    parsers.set(language, (await description.load()).language.parser);
-    return true;
-  } catch {
-    return false;
-  }
+  const support = await languageSupport(language);
+  if (support) parsers.set(language, support.language.parser);
+  return support !== null;
 }
+
 
 /** Parsed as one document so a comment spanning lines survives onto the next one. */
 export function highlightLines(lines: readonly string[], language: string | null): Token[][] {

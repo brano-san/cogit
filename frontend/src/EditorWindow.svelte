@@ -27,7 +27,7 @@
   $effect(() =>
     untrack(() => {
       void settings.load();
-      if (valid) void diffEdit.start(repo as never, { kind: "workTreeVsIndex" }, path, "single");
+      if (valid) void diffEdit.start(repo as never, { kind: "workTreeVsIndex" }, path);
     }),
   );
 

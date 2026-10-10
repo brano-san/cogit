@@ -60,7 +60,7 @@ import {
 
 export type PaneName = "ours" | "result" | "theirs";
 
-class Pad extends WidgetType {
+export class Pad extends WidgetType {
   constructor(
     readonly lines: number,
     readonly kind: "plain" | "del" | "add",

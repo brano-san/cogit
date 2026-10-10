@@ -1077,10 +1077,7 @@ ${event.error}`,
         refreshWorktrees: (id) => void worktrees.refresh(id),
         // `refreshDiff` follows and reads the diff itself.
         afterMutation: (state) => afterMutation([], state, false),
-        refreshDiff: () => {
-          void diffEdit.diskChanged();
-          return diff.refreshFromDisk();
-        },
+        refreshDiff: () => diff.refreshFromDisk(),
         reselectCommit: (id) => {
           if (commit.oid) void commit.select(id, commit.oid);
         },

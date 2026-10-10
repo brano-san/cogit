@@ -2,6 +2,7 @@ import {
   type CogitError,
   diffFile,
   imageSides,
+  type DiffOptions,
   type DiffSpec,
   type FileDiff,
   type Hunk,
@@ -16,7 +17,8 @@ import { splitSelection } from "$lib/selection";
 import { runMutation, type MutationContext } from "$lib/mutation";
 import { isAbsentFromBothSides } from "$lib/diff-toolbar";
 import { settings } from "./settings.svelte";
-import { diffEdit } from "./diff-edit.svelte";
+import { diffEdit, type Opened } from "./diff-edit.svelte";
+import { diffEdited } from "$lib/ipc/editable";
 
 const DEFAULT_CONTEXT = 3;
 
@@ -124,13 +126,18 @@ class DiffStore {
     this.loading = true;
 
     try {
-      const result = await diffFile(repo, spec, path, {
+      const options: DiffOptions = {
         ...settings.diffOptions,
         ...(this.context === null ? {} : { contextLines: this.context }),
         ignoreWhitespace: this.whitespace,
         detectMoves: settings.diffOptions.detectMoves && this.showMoves,
-      });
+      };
+      const open = diffEdit.openFor(repo, spec, path);
+      const revision = diffEdit.revision;
+      const result = open ? await this.#edited(repo, spec, open, options) : await diffFile(repo, spec, path, options);
       if (generation !== this.#generation) return;
+      // Typed since this text was sent: the diff of the newer one is on its way.
+      if (open && revision !== diffEdit.revision) return;
       const images = result.kind === "image" ? await imageSides(repo, spec, path) : null;
       if (generation !== this.#generation) return;
       this.diff = result;
@@ -149,6 +156,23 @@ class DiffStore {
     } finally {
       if (generation === this.#generation) this.loading = false;
     }
+  }
+
+  /** The file as the editor holds it (F-722). Typed back to the base, the edits read as no
+      change at all: the lines stay on screen, folded, with the editor still there to type in. */
+  async #edited(repo: RepoId, spec: DiffSpec, open: Opened, options: DiffOptions): Promise<FileDiff> {
+    const result = await diffEdited(repo, spec, open.path, diffEdit.currentText(), open.shape, options);
+    if (!diffEdit.dirty || !SAME_TEXT.includes(result.kind)) return result;
+    return unchangedText(open.base, this.diff);
+  }
+
+  #edits: ReturnType<typeof setTimeout> | undefined;
+
+  /** The editor's text changed: its diff follows once the typing pauses. */
+  edited(): void {
+    diffEdit.revision += 1;
+    clearTimeout(this.#edits);
+    this.#edits = setTimeout(() => void this.reload(), EDIT_SETTLE_MS);
   }
 
   async expand(repo: RepoId, whole: boolean): Promise<void> {
@@ -248,7 +272,9 @@ class DiffStore {
     await this.#rediff();
   }
 
+  /** The file open in the editor is read again first: a clean editor follows the disk. */
   async #rediff(): Promise<void> {
+    await diffEdit.diskChanged();
     await this.reload();
     if (this.gone) return;
     if (this.error !== null || this.diff === null || this.diff.kind === "unchanged") {
@@ -324,6 +350,32 @@ class DiffStore {
 }
 
 const WORKING_SPECS: readonly DiffSpec["kind"][] = ["workTreeVsIndex", "indexVsHead", "commitVsWorkTree"];
+
+/** How long the editor's text rests before it is diffed again. */
+export const EDIT_SETTLE_MS = 80;
+
+/** Results that say the content is the base's own. */
+const SAME_TEXT: readonly FileDiff["kind"][] = ["unchanged", "whitespaceOnly", "eolOnly", "modeOnly", "emptyFile"];
+
+/** The base as a diff of every line unchanged, which the view folds into one strip. The line
+    endings and the language are those of the diff it follows (`like`). */
+export function unchangedText(base: string, like: FileDiff | null): FileDiff {
+  const lines = base === "" ? [] : base.split("\n");
+  const rows = lines.map((text, index) => ({ kind: "context" as const, old: index + 1, new: index + 1, text, noNewline: false }));
+  const total = rows.length;
+  return {
+    kind: "text",
+    hunks: total === 0 ? [] : [{ oldStart: 1, oldLines: total, newStart: 1, newLines: total, header: `@@ -1,${total} +1,${total} @@`, rows }],
+    eol: like?.kind === "text" ? like.eol : { old: "lf", new: "lf", normalized: false },
+    lossyEncoding: false,
+    language: like?.kind === "text" ? like.language : null,
+    oldTotal: total,
+    newTotal: total,
+    oldText: null,
+    newText: null,
+    converted: null,
+  };
+}
 
 function sameSpec(a: DiffSpec | null, b: DiffSpec): boolean {
   if (a === null || a.kind !== b.kind) return false;

@@ -4,7 +4,12 @@
   import { diffKey } from "$lib/diff-keys";
   import { modals } from "$lib/modal-stack";
   import { ON_MAC, primary } from "$lib/platform";
-  import { untrack } from "svelte";
+  import { mount, unmount, untrack } from "svelte";
+  import DiffFold from "./DiffFold.svelte";
+  import EditBanners from "./EditBanners.svelte";
+  import { DiffPaneEditor } from "$lib/diff-pane-editor";
+  import { splitRows, toneOf, unifiedRows, type RowLook } from "$lib/diff-edit-rows";
+  import { diffEdit } from "$stores/diff-edit.svelte";
   import type { SearchRow } from "$lib/diff-rows";
   import { diffTokens, paneTokens, unifiedTokens } from "$lib/diff-highlight";
   import { FLASH_MS, changeAt, foldDiff, navState, revealRange, type Gap, type LineRange } from "$lib/diff-fold";
@@ -66,7 +71,7 @@
     whitespaceButton,
     WHITESPACE_SHOWN_LABEL,
   } from "$lib/diff-toolbar";
-  import { loadLanguage, mergePieces } from "$lib/highlight";
+  import { languageSupport, loadLanguage, mergePieces } from "$lib/highlight";
   import { toggleLine } from "$lib/selection";
   import { discardsWholeNewFile, keepSelection } from "$lib/diff-selection";
   import { investigateTarget, openInvestigate } from "$lib/investigate/open";
@@ -90,11 +95,10 @@
     /** Whether the window's keys are the diff's (11 §7): in the main window only while the
         Diff panel has the focus; a window of its own has nothing else to give them to. */
     active?: boolean;
-    /** Edit in place (F-722): `null` or absent shows no button; `blocked` says why it is off. */
+    /** The working tree file (F-722): `null` or absent, the diff is read-only; `blocked` says
+        why it cannot be edited. Otherwise its right side is the file, editable in place. */
     edit?: { blocked: string | null } | null;
-    /** `at`: a click in the right pane put the caret there. */
-    onedit?: (at?: { line: number; column: number; offset: number }) => void;
-    /** The Edit button: the file in an editor window of its own. Absent, it edits here. */
+    /** The Edit button: the file in an editor window of its own. */
     oneditwindow?: () => void;
     /** Off where the file is named already: the compare window's title and header. */
     showPath?: boolean;
@@ -116,29 +120,8 @@
     showPath = true,
     captions,
     edit = null,
-    onedit,
     oneditwindow,
   }: Props = $props();
-
-  /** The right pane of a working-tree diff is the file: a plain click there (not a drag that
-      selects) opens the editor with the caret at that line and column, as in SmartGit. In
-      Unified the file's lines are the added and the unchanged ones. */
-  function clickToEdit(event: MouseEvent) {
-    if (!edit || edit.blocked !== null || !onedit || event.button !== 0) return;
-    if (!(window.getSelection()?.isCollapsed ?? true)) return;
-    const row = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-line]");
-    if (!row) return;
-    const text = row.querySelector<HTMLElement>(".text");
-    let column = 0;
-    const caret = document.caretPositionFromPoint?.(event.clientX, event.clientY);
-    if (text && caret && text.contains(caret.offsetNode)) {
-      const range = document.createRange();
-      range.setStart(text, 0);
-      range.setEnd(caret.offsetNode, caret.offset);
-      column = range.toString().length;
-    }
-    onedit({ line: Number(row.dataset.line), column, offset: row.getBoundingClientRect().top });
-  }
 
   /** Converted lines are not the file's bytes: a patch built from them would not apply. */
   const stageable = $derived(stageableFile && !(diff.kind === "text" && diff.converted));
@@ -146,6 +129,20 @@
   const wsButton = $derived(whitespaceButton(whitespace));
 
   let selected = $state<Set<string>>(new Set());
+
+  /** The working file, open for this very diff: the right side (Unified: every line but the
+      deleted ones) is then the file, typed into where it is shown. */
+  const opened = $derived(diffEdit.openFor(diffStore.repo, diffStore.shownSpec, path));
+  /** One editor per file: it lives on through new diffs of it, a layout switch and a save. */
+  const editorFor = $derived(opened && diff.kind === "text" ? `${opened.repo}:${opened.spec.kind}:${opened.path}` : null);
+  let editor = $state.raw<DiffPaneEditor | null>(null);
+  /** Where the editor goes: the right pane side by side, the one pane in Unified. */
+  let editorHost: HTMLDivElement | undefined = $state();
+  /** How far the editor's text runs past its column: the sideways scroll reaches that far. */
+  let editorOverflow = $state(0);
+  /** Edits not saved yet: Stage, Unstage and Discard wait, their patch is cut from the disk. */
+  const dirty = $derived(editor !== null && diffEdit.dirty);
+  const SAVE_FIRST = "Save the file first (Ctrl+S): staging takes the lines on disk";
 
   const ROW_HEIGHT = 18;
   const BUFFER_ROWS = 12;
@@ -291,8 +288,8 @@
   }
 
   /** What the band's » and × do: throw away in the working tree. The staged diff has none
-      (Unstage is on its hunks and in the toolbar). */
-  const bandActions = $derived(bandAction(stageable, diffStore.lineActions));
+      (Unstage is on its hunks and in the toolbar), nor has a file with unsaved edits. */
+  const bandActions = $derived(dirty ? null : bandAction(stageable, diffStore.lineActions));
 
   function bandAct(keys: readonly string[], label: string) {
     askDiscard(new Set(keys), label);
@@ -350,11 +347,14 @@
     };
     return { old: columns(model.left), new: columns(model.right) };
   });
-  const sidewaysMax = $derived(
+  /** How far the lines of the diff move sideways. The editor's text is made at least this
+      wide, so it follows the other column; typed past it, the editor reaches further. */
+  const linesMax = $derived(
     mode === "split"
       ? Math.max(maxOffset(widest.old, charWidth, codeWidth), maxOffset(widest.new, charWidth, rightWidth))
       : maxOffset(Math.max(widest.old, widest.new), charWidth, codeWidth),
   );
+  const sidewaysMax = $derived(Math.max(linesMax, editor ? editorOverflow : 0));
   const shift = $derived(clampOffset(sideways, sidewaysMax));
 
   const paneEl = (side: PaneSide) => (side === "left" ? leftEl : rightEl);
@@ -597,13 +597,14 @@
   });
 
   // A new model (a fold opened, another whitespace mode) moves every anchor after it: the
-  // right pane is put back where the left one is.
+  // right pane is put back where the left one is. Being typed into, the right pane stays and
+  // the left one follows it.
   $effect(() => {
     void model;
     void leftEl;
     void rightEl;
     untrack(() => {
-      if (mode === "split") sync("left");
+      if (mode === "split") sync(editor ? "right" : "left");
     });
   });
 
@@ -651,18 +652,149 @@
     });
   });
 
-  // --- what a row looks like ---
+  // --- the right side as the working file itself (F-722) ---
 
-  type Tone = "del" | "add" | "changed" | "move" | "";
+  // An editable diff opens its file; the right side becomes the file once it is read.
+  $effect(() => {
+    const repo = diffStore.repo;
+    const spec = diffStore.shownSpec;
+    if (repo === null || !spec || diff.kind !== "text" || edit?.blocked !== null) return;
+    untrack(() => {
+      if (!diffEdit.isFor(path)) void diffEdit.start(repo, spec, path);
+    });
+  });
 
-  /** Colors go by meaning: red is what is gone, green what is new, violet what moved. Side by
-      side (`joint`) a changed block is orange on both sides, every line of it; unified keeps its
-      lines apart, red and green. */
-  function toneOf(kind: BlockKind, deleting: boolean, joint = false): Tone {
-    if (kind === "equal") return "";
-    if (kind === "moved") return "move";
-    return kind === "changed" && joint ? "changed" : deleting ? "del" : "add";
+  $effect(() => {
+    if (editorFor === null) return;
+    const made = untrack(() => {
+      const created: DiffPaneEditor = new DiffPaneEditor(
+        diffEdit.currentText(),
+        mode,
+        {
+          changed: () => {
+            diffEdit.dirty = created.dirty;
+            diffStore.edited();
+          },
+          save: () => void saveFile(),
+          pick,
+          sideways: (left, overflow) => {
+            editorOverflow = overflow;
+            if (left !== shift) sideways = left;
+          },
+        },
+        diffEdit.opened?.text,
+      );
+      void languageSupport(language).then((grammar) => created.setLanguage(grammar));
+      return created;
+    });
+    editor = made;
+    diffEdit.attach({ text: () => made.text(), focused: () => made.focused, save: () => void saveFile() });
+    return () => {
+      diffEdit.detach();
+      made.destroy();
+      editor = null;
+    };
+  });
+
+  /** The editor had the focus when the layout switched: its old pane goes, and the focus with it. */
+  let refocus = false;
+  $effect.pre(() => {
+    void mode;
+    refocus = untrack(() => editor?.focused ?? false);
+  });
+
+  // Into the pane of the layout on screen, at the sideways offset of the other columns.
+  $effect(() => {
+    const host = editorHost;
+    const made = editor;
+    if (!host || !made) return;
+    made.mount(host, mode);
+    made.scrollSideways(untrack(() => shift));
+    if (refocus) made.view.focus();
+    refocus = false;
+  });
+
+  $effect(() => {
+    const left = shift;
+    editor?.scrollSideways(left);
+  });
+
+  /** Reload, or the file changed on disk while clean: the editor takes the text on disk, and
+      Undo brings the edits back. */
+  let taken = diffEdit.generation;
+  $effect(() => {
+    const generation = diffEdit.generation;
+    untrack(() => {
+      if (generation === taken) return;
+      taken = generation;
+      const file = diffEdit.opened;
+      if (editor && file) editor.replace(file.text);
+    });
+  });
+
+  /** The rows the editor draws, from the same model and state as the HTML rows. */
+  const editorRows = $derived.by(() => {
+    if (editor === null) return null;
+    const side = mode === "unified" ? "left" : "right";
+    const look: RowLook = {
+      selected,
+      stageable,
+      flash,
+      hits: (index) => find.spansFor(index, side),
+      current: (index, start) => find.isCurrent(index, side, start),
+      fold: foldStrip,
+    };
+    return mode === "unified"
+      ? unifiedRows(model.unified, look, (row) => unifiedTokens(tokens, row))
+      : splitRows(model.right, look);
+  });
+
+  $effect(() => {
+    const rows = editorRows;
+    if (editor && rows) editor.setRows({ rows, boxes: stageable });
+  });
+
+  type FoldRole = "both" | "left" | "right";
+
+  function foldProps(gap: Gap, hunk: number | null, role: FoldRole) {
+    return {
+      gap,
+      hunk,
+      role,
+      stageable,
+      actions: diffStore.lineActions,
+      frozen: dirty ? SAVE_FIRST : null,
+      onopen: (how: "up" | "down" | "all", event: MouseEvent) => openGap(gap, how, event),
+      onselect: () => hunk !== null && pickHunk(hunk),
+      onstage: (reverse: boolean) => hunk !== null && applyHunk(hunk, reverse),
+      ondiscard: () => hunk !== null && askDiscard(hunkKeys(model, hunk), "this block"),
+    };
   }
+
+  /** A fold of the editor: the strip the HTML rows draw, mounted into the editor's row. */
+  function foldStrip(gap: Gap, index: number): { id: string; render: (host: HTMLElement) => () => void } {
+    const unified = mode === "unified";
+    const props = foldProps(gap, hunkBelow(unified ? model.unified : model.right, index), unified ? "both" : "right");
+    return {
+      id: JSON.stringify([gap, props.hunk, props.role, props.stageable, props.actions, props.frozen]),
+      render: (host) => {
+        const strip = mount(DiffFold, { target: host, props });
+        return () => void unmount(strip);
+      },
+    };
+  }
+
+  /** `force`: Keep Mine, over a file that changed on disk. */
+  async function saveFile(force = false) {
+    const made = editor;
+    if (!made) return;
+    const doc = made.doc;
+    if (await diffEdit.save(doc.toString(), force)) made.markSaved(doc);
+    // Typed while the save was on its way: still dirty.
+    diffEdit.dirty = made.dirty;
+  }
+
+  // --- what a row looks like ---
 
   function paneLine(side: PaneSide, row: PaneLine) {
     const block = model.blocks[row.block]!;
@@ -693,76 +825,12 @@
   >
 {/snippet}
 
-{#snippet hunkActions(hunk: number)}
-  {#if stageable}
-    <span class="acts">
-      <button type="button" title="Select every changed line of this block" onclick={() => pickHunk(hunk)}
-        >Select</button
-      >
-      <button
-        type="button"
-        title="Stage this block"
-        disabled={!diffStore.lineActions.stage}
-        onclick={() => applyHunk(hunk, false)}>Stage</button
-      >
-      <button
-        type="button"
-        title="Unstage this block"
-        disabled={!diffStore.lineActions.unstage}
-        onclick={() => applyHunk(hunk, true)}>Unstage</button
-      >
-      {#if diffStore.lineActions.discard}
-        <button
-          type="button"
-          class="danger"
-          title="Throw this block away (always asks first)"
-          onclick={() => askDiscard(hunkKeys(model, hunk), "this block")}>Discard</button
-        >
-      {/if}
-    </span>
-  {/if}
-{/snippet}
-
-<!-- A fold takes one row of the same height as a line of code (R-626): the anchors of the
-     blocks after it stay on the row grid. Unified and the left pane carry the controls; the
-     right pane's strip carries the hunk's actions, where its header used to put them. -->
-{#snippet fold(gap: Gap, hunk: number | null, role: "both" | "left" | "right")}
-  <div class="fold" role="group" aria-label="{gap.hidden} lines hidden">
-    {#if role !== "right"}
-      {#if gap.up}
-        <button
-          type="button"
-          class="arrow"
-          title="Show 20 more lines above the change below (Ctrl+click: every hidden line)"
-          onclick={(event) => openGap(gap, "up", event)}>▲</button
-        >
-      {/if}
-      <button
-        type="button"
-        class="count"
-        title="Show all {gap.hidden} hidden lines (Ctrl+click: every hidden line in the file)"
-        onclick={(event) => openGap(gap, "all", event)}>{gap.hidden} lines hidden · show</button
-      >
-      {#if gap.down}
-        <button
-          type="button"
-          class="arrow"
-          title="Show 20 more lines below the change above (Ctrl+click: every hidden line)"
-          onclick={(event) => openGap(gap, "down", event)}>▼</button
-        >
-      {/if}
-      {#if gap.context}<span class="where truncate">{gap.context}</span>{/if}
-    {/if}
-    {#if role !== "left" && hunk !== null}{@render hunkActions(hunk)}{/if}
-  </div>
-{/snippet}
-
 {#snippet pane(side: PaneSide, rows: PaneRow[], range: { start: number; end: number })}
   {#each rows.slice(range.start, range.end) as row, k (range.start + k)}
     {@const index = range.start + k}
     {#if row.kind === "gap"}
       <div class="line" style:top="{index * ROW_HEIGHT}px">
-        {@render fold(row.gap, hunkBelow(rows, index), side)}
+        <DiffFold {...foldProps(row.gap, hunkBelow(rows, index), side)} />
       </div>
     {:else if row.kind === "filler"}
       <div class="line" style:top="{index * ROW_HEIGHT}px" aria-hidden="true">
@@ -828,7 +896,7 @@
 
 <div class="diff">
   <div class="bar">
-    {#if showPath}<span class="path mono truncate">{path}</span>{:else}<span class="grow"></span>{/if}
+    {#if showPath}<span class="path mono truncate">{path}{dirty ? " *" : ""}</span>{:else}<span class="grow"></span>{/if}
     {#if diff.kind === "text"}
       {@const eol = eolLabel(diff.eol, diff.oldTotal, diff.newTotal)}
       {#if eol.warn}
@@ -854,21 +922,23 @@
         <button
           type="button"
           class="btn sm"
-          disabled={selected.size === 0 || !diffStore.lineActions.stage}
+          disabled={selected.size === 0 || !diffStore.lineActions.stage || dirty}
+          title={dirty ? SAVE_FIRST : undefined}
           onclick={() => apply(false)}>Stage lines</button
         >
         <button
           type="button"
           class="btn sm"
-          disabled={selected.size === 0 || !diffStore.lineActions.unstage}
+          disabled={selected.size === 0 || !diffStore.lineActions.unstage || dirty}
+          title={dirty ? SAVE_FIRST : undefined}
           onclick={() => apply(true)}>Unstage lines</button
         >
         {#if diffStore.lineActions.discard}
           <button
             type="button"
             class="btn sm danger"
-            disabled={selected.size === 0}
-            title="Throw the selected lines away (always asks first)"
+            disabled={selected.size === 0 || dirty}
+            title={dirty ? SAVE_FIRST : "Throw the selected lines away (always asks first)"}
             onclick={() => askDiscard(new Set(selected), `${selected.size} selected lines`)}
             >Discard lines</button
           >
@@ -886,16 +956,23 @@
         >{wsButton.label}</button
       >
     {/if}
-    {#if edit && onedit}
+    {#if edit && oneditwindow}
       <button
         type="button"
         class="btn sm"
         disabled={edit.blocked !== null}
-        title={edit.blocked ??
-          (oneditwindow
-            ? "Open the working tree file in an editor window; a click in the right side edits it here"
-            : "Edit the working tree file here; the left side stays read-only")}
-        onclick={() => (oneditwindow ? oneditwindow() : onedit?.())}>Edit</button
+        title={edit.blocked ?? "Open the working tree file in an editor window of its own; the right side here edits it too"}
+        onclick={oneditwindow}>Edit</button
+      >
+    {/if}
+    {#if edit?.blocked === null && diff.kind === "text"}
+      {@const refused = diffEdit.isFor(path) ? diffEdit.refused : null}
+      <button
+        type="button"
+        class="btn sm"
+        disabled={!dirty || diffEdit.saving}
+        title={refused ?? "Write the file in its own encoding and line endings (Ctrl+S)"}
+        onclick={() => void saveFile()}>Save</button
       >
     {/if}
     {#if diff.kind === "text"}
@@ -941,6 +1018,10 @@
     {/if}
   </div>
 
+  {#if editor}
+    <EditBanners onkeep={() => void saveFile(true)} />
+  {/if}
+
   {#if pendingDiscard}
     <ConfirmDialog
       title="Discard lines"
@@ -982,17 +1063,12 @@
   {:else if diff.kind === "tooLarge"}
     <FileSummary reason={tooLargeReason(diff.limit)} old={diff.old} next={diff.new} />
   {:else if mode === "unified"}
-    <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-    <div
-      class="scroll"
-      class:editable={edit?.blocked === null && onedit !== undefined}
-      data-select-text="diff"
-      bind:this={unifiedEl}
-      onscroll={onunified}
-      onclick={clickToEdit}
-      {onwheel}
-    >
-      <div class="rows" style:height="{model.unified.length * ROW_HEIGHT}px" style:--shift="{shift}px">
+    <div class="scroll" data-select-text="diff" bind:this={unifiedEl} onscroll={onunified} {onwheel}>
+      <div
+        class="rows"
+        style:height={editor ? undefined : `${model.unified.length * ROW_HEIGHT}px`}
+        style:--shift="{shift}px"
+      >
         <div class="line ruler" aria-hidden="true">
           <span class="gutter"></span>
           <span class="num"></span>
@@ -1002,16 +1078,26 @@
             ><span class="probe" bind:offsetWidth={probeWidth}>{PROBE}</span></span
           >
         </div>
-        {#each model.unified.slice(unifiedRange.start, unifiedRange.end) as row, k (unifiedRange.start + k)}
-          {@const index = unifiedRange.start + k}
-          {#if row.kind === "gap"}
-            <div class="line" style:top="{index * ROW_HEIGHT}px">
-              {@render fold(row.gap, hunkBelow(model.unified, index), "both")}
-            </div>
-          {:else}
-            {@render unifiedRow(row, index)}
-          {/if}
-        {/each}
+        {#if editor}
+          <div
+            class="cm-host"
+            style:--fold-left="{GUTTER_WIDTH + 2 * NUM_WIDTH + signWidth}px"
+            style:--fold-width="{codeWidth}px"
+            style:--room="{linesMax}px"
+            bind:this={editorHost}
+          ></div>
+        {:else}
+          {#each model.unified.slice(unifiedRange.start, unifiedRange.end) as row, k (unifiedRange.start + k)}
+            {@const index = unifiedRange.start + k}
+            {#if row.kind === "gap"}
+              <div class="line" style:top="{index * ROW_HEIGHT}px">
+                <DiffFold {...foldProps(row.gap, hunkBelow(model.unified, index), "both")} />
+              </div>
+            {:else}
+              {@render unifiedRow(row, index)}
+            {/if}
+          {/each}
+        {/if}
       </div>
     </div>
     <SidewaysScrollbar offset={shift} max={sidewaysMax} onscroll={(offset) => (sideways = offset)} />
@@ -1129,24 +1215,25 @@
           {/each}
         </div>
       </div>
-      <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-      <div
-        class="pane right"
-        class:editable={edit?.blocked === null && onedit !== undefined}
-        data-select-text="diff"
-        bind:this={rightEl}
-        onscroll={() => onpane("right")}
-        onclick={clickToEdit}
-        {onwheel}
-      >
-        <div class="rows" style:height="{model.right.length * ROW_HEIGHT}px">
+      <div class="pane right" data-select-text="diff" bind:this={rightEl} onscroll={() => onpane("right")} {onwheel}>
+        <div class="rows" style:height={editor ? undefined : `${model.right.length * ROW_HEIGHT}px`}>
           <div class="line ruler" aria-hidden="true">
             <span class="num"></span>
             <span class="sign"></span>
             <span class="code mono" bind:clientWidth={rightWidth}></span>
             <span class="gutter"></span>
           </div>
-          {@render pane("right", model.right, rightRange)}
+          {#if editor}
+            <div
+              class="cm-host"
+              style:--fold-left="{NUM_WIDTH + signWidth}px"
+              style:--fold-width="{rightWidth}px"
+              style:--room="{linesMax}px"
+              bind:this={editorHost}
+            ></div>
+          {:else}
+            {@render pane("right", model.right, rightRange)}
+          {/if}
         </div>
       </div>
     </div>
@@ -1199,11 +1286,6 @@
   .warn {
     color: var(--status-warning);
     font-size: 11px;
-  }
-
-  /* 06 §6: a control that cannot act says so, and does not light up under the pointer. */
-  .acts button:disabled {
-    opacity: 0.4;
   }
 
   /* Unified: one scroller. Sideways the code moves by `--shift`, under the scrollbar below
@@ -1261,12 +1343,6 @@
     background: var(--bg-editor);
   }
 
-  /* The working file: it reads as text one can type into (a deleted line is not in it). */
-  .scroll.editable [data-line] .code,
-  .pane.editable .code {
-    cursor: text;
-  }
-
   .pane {
     min-width: 0;
     overflow-x: hidden;
@@ -1299,7 +1375,8 @@
     white-space: pre;
   }
 
-  .gutter {
+  .gutter,
+  .cm-host :global(.gutter) {
     flex: 0 0 auto;
     width: 14px;
     color: var(--fg-secondary);
@@ -1308,34 +1385,42 @@
     cursor: default;
   }
 
-  .gutter.picked {
+  .gutter.picked,
+  .cm-host :global(.gutter.picked) {
     color: var(--status-success);
   }
 
   /* What the next Stage or Unstage will act on: the selected-row look, on the row and not
      just in the 14-pixel gutter, so the extent of it reads at a glance (T6.7). */
-  .line.staging {
+  .line.staging,
+  .cm-host :global(.cm-gutters-before .staging) {
     box-shadow: inset 2px 0 0 var(--selected-bar);
   }
 
   .line.staging .gutter,
-  .line.staging .num {
+  .line.staging .num,
+  .cm-host :global(.staging > .gutter),
+  .cm-host :global(.staging > .num) {
     background: var(--bg-selected);
   }
 
   /* A read-only diff can still be selected, for Investigate; it just stages nothing. */
-  .line.marked {
+  .line.marked,
+  .cm-host :global(.cm-gutters-before .marked) {
     box-shadow: inset 2px 0 0 var(--accent);
   }
 
   .line.marked .gutter,
-  .line.marked .num {
+  .line.marked .num,
+  .cm-host :global(.marked > .gutter),
+  .cm-host :global(.marked > .num) {
     background: var(--bg-selected-inactive);
   }
 
   /* Over the row's own fills, fading out in `FLASH_MS`; with reduced motion it just stays
      lit that long. Feedback, not a transition: nothing waits for it. */
-  .line.flash::after {
+  .line.flash::after,
+  .cm-host :global(.flash::after) {
     content: "";
     position: absolute;
     inset: 0;
@@ -1352,43 +1437,11 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .line.flash::after {
+    .line.flash::after,
+    .cm-host :global(.flash::after) {
       animation: none;
       opacity: 1;
     }
-  }
-
-  .acts {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-2);
-    flex: 0 0 auto;
-    margin-left: auto;
-    padding-right: var(--sp-3);
-  }
-
-  .acts button {
-    height: 14px;
-    padding: 0 var(--sp-2);
-    background: var(--bg-input);
-    color: var(--fg-secondary);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--r-sm);
-    font-size: 9px;
-    line-height: 12px;
-    cursor: default;
-  }
-
-  .acts button:hover:not(:disabled) {
-    color: var(--fg-primary);
-  }
-
-  .acts button.danger {
-    color: var(--status-danger);
-  }
-
-  .acts button.danger:hover {
-    border-color: var(--status-danger);
   }
 
   .grow {
@@ -1400,7 +1453,8 @@
     font-size: 10px;
   }
 
-  .num {
+  .num,
+  .cm-host :global(.num) {
     flex: 0 0 auto;
     width: 44px;
     padding-right: var(--sp-3);
@@ -1438,7 +1492,8 @@
   }
 
   /* The +/− column: its own, two spaces clear of the code, never copied with it (#9). */
-  .sign {
+  .sign,
+  .cm-host :global(.sign) {
     flex: 0 0 auto;
     width: 3.5ch;
     padding-left: 0.5ch;
@@ -1452,45 +1507,61 @@
   /* Red is what is gone, green what is new, violet what moved: by the block's meaning, the
      same on both layouts. Numbers and signs sit on the gutter shade of their line. */
   .num.del,
-  .sign.del {
+  .sign.del,
+  .cm-host :global(.num.del),
+  .cm-host :global(.sign.del) {
     background: var(--diff-del-gutter);
   }
 
   .num.add,
-  .sign.add {
+  .sign.add,
+  .cm-host :global(.num.add),
+  .cm-host :global(.sign.add) {
     background: var(--diff-add-gutter);
   }
 
   .num.changed,
-  .sign.changed {
+  .sign.changed,
+  .cm-host :global(.num.changed),
+  .cm-host :global(.sign.changed) {
     background: var(--diff-changed-gutter);
   }
 
   .num.move,
-  .sign.move {
+  .sign.move,
+  .cm-host :global(.num.move),
+  .cm-host :global(.sign.move) {
     background: var(--diff-move-line);
   }
 
-  .code.del {
+  .code.del,
+  .cm-host :global(.cm-line.del),
+  .cm-host :global(.dv-del-line.del) {
     background: var(--diff-del-line);
   }
 
-  .code.add {
+  .code.add,
+  .cm-host :global(.cm-line.add) {
     background: var(--diff-add-line);
   }
 
-  .code.changed {
+  .code.changed,
+  .cm-host :global(.cm-line.changed) {
     background: var(--diff-changed-line);
   }
 
-  .code.move {
+  .code.move,
+  .cm-host :global(.cm-line.move),
+  .cm-host :global(.dv-del-line.move) {
     background: var(--diff-move-line);
   }
 
   /* Aligned: the row opposite a side with no line there. Thin diagonal hatching on a calm
      ground; the tile is 6 px and a row 18, so the lines run on across rows without a seam.
      Not text: never selected, copied or searched. */
-  .filler {
+  .filler,
+  .cm-host :global(.sv-pad),
+  .cm-host :global(.dv-gutter-filler) {
     flex: 1 1 auto;
     background-color: var(--diff-filler-bg);
     background-image: linear-gradient(
@@ -1611,83 +1682,118 @@
 
   /* The marked word is plain primary text on its own background: the syntax colour (.tok-*)
      is off inside a highlighted fragment, so the word reads at 4.5:1 in every theme. */
-  .word {
+  .word,
+  .cm-host :global(.word) {
     border-radius: 2px;
     font-weight: 600;
     color: var(--fg-primary);
   }
 
-  .code.del .word {
+  .code.del .word,
+  .cm-host :global(.del .word) {
     background: var(--diff-del-word);
   }
 
-  .code.add .word {
+  .code.add .word,
+  .cm-host :global(.add .word) {
     background: var(--diff-add-word);
   }
 
-  .code.changed .word {
+  .code.changed .word,
+  .cm-host :global(.changed .word) {
     background: var(--diff-changed-word);
   }
 
-  .code.move .word {
+  .code.move .word,
+  .cm-host :global(.move .word) {
     background: var(--diff-move-word);
   }
 
   /* Every match is marked; the one the counter points at is the bright one. */
-  .hit {
+  .hit,
+  .cm-host :global(.hit) {
     border-radius: 2px;
     background: var(--search-hit);
   }
 
-  .hit.current {
+  .hit.current,
+  .cm-host :global(.hit.current) {
     background: var(--search-current);
     color: var(--search-ink);
   }
 
-  /* One band in each pane, saying what is hidden (#16). */
-  .fold {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-2);
-    flex: 1 1 auto;
-    min-width: 0;
-    padding-left: var(--sp-4);
+  /* The working file (F-722): CodeMirror draws the rows above on the same grid, with the
+     same classes, so only what is its own is set here. */
+  .cm-host :global(.cm-editor) {
+    background: transparent;
+    color: var(--fg-primary);
+    font-size: var(--fs-code);
+  }
+
+  .cm-host :global(.cm-scroller) {
+    font-family: var(--font-mono);
+    scrollbar-width: none;
+  }
+
+  .cm-host :global(.cm-scroller::-webkit-scrollbar) {
+    display: none;
+  }
+
+  /* The page is `user-select: none`; WebKitGTK carries that into the editable text. As wide
+     as the other column moves sideways: shorter lines than the old side's would stop the
+     editor early and part the two columns (the editor sets `flex-basis`, not `min-width`). */
+  .cm-host :global(.cm-content) {
+    min-width: calc(var(--fold-width) + var(--room));
+    caret-color: var(--fg-primary);
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  .cm-host :global(.cm-gutters) {
+    background: var(--bg-editor);
+    border: none;
+  }
+
+  .cm-host :global(.dv-cells) {
+    font-size: var(--fs-code);
+  }
+
+  .cm-host :global(.flash) {
+    position: relative;
+  }
+
+  /* Text not in the file, never typed into: copied with the mouse like any line. */
+  .cm-host :global(.dv-del-line) {
+    user-select: text;
+  }
+
+  /* A token inside a marked word or the current hit takes the mark's colour. */
+  .cm-host :global(.word *),
+  .cm-host :global(.hit.current *) {
+    color: inherit;
+  }
+
+  .cm-host :global(.hit .word) {
+    background: transparent;
+  }
+
+  /* A fold stays across the code column as the text scrolls sideways under it: its buttons
+     are at the column's right edge, not at the end of the longest line. */
+  .cm-host :global(.dv-fold-row) {
+    position: sticky;
+    left: var(--fold-left);
+    width: var(--fold-width);
+  }
+
+  .cm-host :global(.dv-gutter-fold) {
+    height: 100%;
     background: var(--diff-hunk-header-bg);
     box-shadow:
       inset 0 1px 0 var(--border),
       inset 0 -1px 0 var(--border);
-    color: var(--diff-hunk-header-fg);
-    font-family: var(--font-ui);
-    font-size: var(--fs-header);
   }
 
-  .fold > button {
-    flex: 0 0 auto;
-    height: 14px;
-    padding: 0 var(--sp-2);
-    background: none;
-    border: 0;
-    border-radius: var(--r-sm);
-    color: var(--diff-hunk-header-fg);
-    font: inherit;
-    line-height: 14px;
-    cursor: default;
+  .cm-host :global(.dv-gutter-filler) {
+    height: 100%;
   }
-
-  .fold > button:hover {
-    background: var(--bg-hover);
-    color: var(--fg-primary);
-  }
-
-  .fold .arrow {
-    font-size: 9px;
-  }
-
-  .where {
-    min-width: 0;
-    margin-left: var(--sp-3);
-    color: var(--diff-hunk-header-fg);
-    font-family: var(--font-mono);
-  }
-
 </style>

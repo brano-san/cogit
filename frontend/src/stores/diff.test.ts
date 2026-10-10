@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const commands = { diffFile: vi.fn(), imageSides: vi.fn(), discardSelection: vi.fn(), stageSelection: vi.fn() };
+const commands = {
+  diffFile: vi.fn(),
+  diffEdited: vi.fn(),
+  readEditable: vi.fn(),
+  imageSides: vi.fn(),
+  discardSelection: vi.fn(),
+  stageSelection: vi.fn(),
+};
 
 /** Stands in for the on-disk store: the branch keeps its view preferences there. */
 const stored = new Map<string, unknown>();
@@ -19,7 +26,8 @@ vi.mock("$lib/settings-file", () => ({
   },
 }));
 
-const { diff } = await import("./diff.svelte");
+const { diff, EDIT_SETTLE_MS } = await import("./diff.svelte");
+const { diffEdit } = await import("./diff-edit.svelte");
 
 const REPO = { 0: 1 } as unknown as import("$lib/ipc").RepoId;
 const SPEC = { kind: "workTreeVsIndex" } as const;
@@ -508,5 +516,90 @@ describe("a change on disk", () => {
     await diff.refreshFromDisk();
 
     expect(diff.path).toBeNull();
+  });
+});
+
+// F-722: the right side of the diff is the working file, typed into.
+describe("the working file open in the diff", () => {
+  const shape = { encoding: "utf8", bom: false, eol: "crlf", finalNewline: true } as const;
+  let typed = "typed";
+
+  function editable(text: string, stamp = "s1") {
+    return { status: "ok" as const, data: { kind: "text" as const, base: "one\ntwo", text, shape, stamp } };
+  }
+
+  beforeEach(async () => {
+    commands.diffFile.mockReset();
+    commands.diffFile.mockResolvedValue(textDiff());
+    commands.diffEdited.mockReset();
+    commands.diffEdited.mockResolvedValue(textDiff());
+    commands.readEditable.mockReset();
+    commands.readEditable.mockResolvedValue(editable("on disk"));
+    diff.clear();
+    diffEdit.stop();
+    await diff.load(REPO, SPEC, "a.txt");
+    await diffEdit.start(REPO, SPEC, "a.txt");
+    typed = "typed";
+    diffEdit.attach({ text: () => typed, focused: () => true, save: () => {} });
+    commands.diffFile.mockClear();
+  });
+
+  it("is diffed as the editor holds it, never from the disk", async () => {
+    await diff.reload();
+
+    expect(commands.diffEdited).toHaveBeenCalledWith(REPO, SPEC, "a.txt", "typed", shape, expect.anything());
+    expect(commands.diffFile).not.toHaveBeenCalled();
+  });
+
+  it("drops the diff of a text typed over since", async () => {
+    const shown = diff.diff;
+    let answer!: (value: unknown) => void;
+    commands.diffEdited.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+
+    const loading = diff.reload();
+    await vi.waitFor(() => expect(commands.diffEdited).toHaveBeenCalled());
+    diffEdit.revision += 1;
+    answer({ status: "ok", data: { ...textDiff().data, newTotal: 9 } });
+    await loading;
+
+    expect(diff.diff).toBe(shown);
+  });
+
+  it("diffs the edits once the typing pauses", async () => {
+    vi.useFakeTimers();
+    try {
+      diff.edited();
+      diff.edited();
+      diff.edited();
+      expect(commands.diffEdited).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(EDIT_SETTLE_MS);
+
+      expect(commands.diffEdited).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the lines on screen, unchanged, when the edits type the base back", async () => {
+    diffEdit.dirty = true;
+    commands.diffEdited.mockResolvedValue({ status: "ok", data: { kind: "unchanged" } });
+
+    await diff.reload();
+
+    expect(diff.diff).toMatchObject({ kind: "text", oldTotal: 2, newTotal: 2 });
+    expect(diff.hunks[0]?.rows).toEqual([
+      { kind: "context", old: 1, new: 1, text: "one", noNewline: false },
+      { kind: "context", old: 2, new: 2, text: "two", noNewline: false },
+    ]);
+  });
+
+  it("is read again from disk before a change to the working tree re-diffs it", async () => {
+    commands.readEditable.mockResolvedValue(editable("discarded", "s2"));
+
+    await diff.afterWrite(["a.txt"]);
+
+    expect(diffEdit.opened?.text).toBe("discarded");
+    expect(commands.diffEdited).toHaveBeenCalled();
   });
 });
