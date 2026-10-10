@@ -120,6 +120,7 @@ pub async fn pull(
     repo: RepoId,
     remote: String,
     ff_only: bool,
+    autostash: bool,
     on_progress: tauri::ipc::Channel<String>,
 ) -> Result<git_engine::PullOutcome, GitError> {
     let app_state = state.state.clone();
@@ -130,7 +131,7 @@ pub async fn pull(
         "pull",
         move |stop| {
             with_progress("pull", &remote, &on_progress, |on_line| {
-                app_state.pull(repo, &remote, ff_only, &stop, on_line)
+                app_state.pull(repo, &remote, ff_only, autostash, &stop, on_line)
             })
         },
     )
@@ -259,7 +260,7 @@ pub async fn pull_with(
     remote: String,
     options: git_engine::PullOptions,
     on_progress: tauri::ipc::Channel<String>,
-) -> Result<git_engine::NotesFetch, GitError> {
+) -> Result<git_engine::Pulled, GitError> {
     let app_state = state.state.clone();
     networking(
         &state.state,

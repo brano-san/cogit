@@ -661,7 +661,14 @@ fn a_pull_can_be_undone() {
     let (state, repo) = open(&f);
     let before = head_oid(&state, repo);
     state
-        .pull(repo, "origin", false, &NetworkStop::default(), |_| {})
+        .pull(
+            repo,
+            "origin",
+            false,
+            false,
+            &NetworkStop::default(),
+            |_| {},
+        )
         .unwrap();
     assert_ne!(head_oid(&state, repo), before);
 

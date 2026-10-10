@@ -1,10 +1,10 @@
 /** What follows the Pull and Push dialogs' git commands when notes are involved: a
     divergence is asked about, never settled silently. */
 import type { ConfirmRequest } from "$stores/confirm.svelte";
-import type { FetchOptions, NotesFetch, PullOptions, PushOptions, PushOutcome } from "$lib/ipc/network-dialogs";
+import type { FetchOptions, NotesFetch, PullOptions, Pulled, PushOptions, PushOutcome } from "$lib/ipc/network-dialogs";
 
 export interface NetworkApi {
-  pullWith(repo: number, remote: string, options: PullOptions): Promise<NotesFetch>;
+  pullWith(repo: number, remote: string, options: PullOptions): Promise<Pulled>;
   fetchWith(repo: number, remote: string, options: FetchOptions): Promise<NotesFetch>;
   pushWith(repo: number, options: PushOptions): Promise<PushOutcome>;
   pushNotes(repo: number, remote: string): Promise<PushOutcome>;
@@ -42,18 +42,35 @@ export async function resolveDivergedNotes(
   return yes;
 }
 
+/** A pull that has to move the branch found local changes and only fetched (`stashNeeded`):
+    git's `--autostash` stashes them, pulls and applies them back on a yes. */
+export const STASH_AND_PULL: ConfirmRequest = {
+  title: "Local changes in the way",
+  message:
+    "Pulling moves the current branch, and the working tree has local changes. Stash them, pull, " +
+    "and apply them back? If they conflict with what arrives, they stay safe in the stash.",
+  confirm: "Stash and Pull",
+};
+
+/** `false`: the local changes stayed and nothing was pulled, so there is no success to show. */
 export async function pullFlow(
   api: NetworkApi,
   ui: FlowUi,
   repo: number,
   remote: string,
   options: PullOptions | { fetchOnly: FetchOptions },
-): Promise<void> {
-  const fetched =
-    "fetchOnly" in options
-      ? await api.fetchWith(repo, remote, options.fetchOnly)
-      : await api.pullWith(repo, remote, options);
-  await resolveDivergedNotes(api, ui, repo, fetched);
+): Promise<boolean> {
+  if ("fetchOnly" in options) {
+    await resolveDivergedNotes(api, ui, repo, await api.fetchWith(repo, remote, options.fetchOnly));
+    return true;
+  }
+  let pulled = await api.pullWith(repo, remote, options);
+  if (pulled.stashNeeded) {
+    if (!(await ui.ask(STASH_AND_PULL))) return false;
+    pulled = await api.pullWith(repo, remote, { ...options, autostash: true });
+  }
+  await resolveDivergedNotes(api, ui, repo, pulled.notes);
+  return true;
 }
 
 /** The branch, then the notes. A remote that moved its notes gets one offer: fetch,

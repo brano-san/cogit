@@ -81,4 +81,6 @@ impl RepoHandle {
 pub enum PullOutcome {
     Pulled,
     FetchedDetached,
+    /// Fetched only: `Pulled::stash_needed`.
+    StashNeeded,
 }

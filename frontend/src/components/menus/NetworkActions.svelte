@@ -141,7 +141,8 @@
       });
       for (const step of plan) {
         if (step.kind === "fetch") await network.fetch(id, step.remote);
-        if (step.kind === "pull") await pullWithDefaults(id, step.remote, step.ffOnly);
+        // Local changes kept where they are: the branch did not move, so neither does the rest.
+        if (step.kind === "pull" && !(await pullWithDefaults(id, step.remote, step.ffOnly))) return;
         if (step.kind === "deleteMerged") await deleteMergedBranches(id);
         if (step.kind === "push") pushed = await network.push(id, step.remote, false);
       }
@@ -165,10 +166,11 @@
     });
   }
 
-  async function pullWithDefaults(id: RepoId, remote: string, ffOnly: boolean) {
+  async function pullWithDefaults(id: RepoId, remote: string, ffOnly: boolean): Promise<boolean> {
     const options = pullOptionsOf(pullChoiceOf(await defaultsOf(id)), ffOnly);
-    await pullFlow(networkApi, flowUi, id, remote, options);
-    successToast.show("Pull succeeded");
+    const pulled = await pullFlow(networkApi, flowUi, id, remote, options);
+    if (pulled) successToast.show("Pull succeeded");
+    return pulled;
   }
 
   async function pushWithDefaults(id: RepoId, remote: string) {
@@ -249,8 +251,8 @@
         await pullFlow(networkApi, flowUi, id, remote, { fetchOnly: fetchOptionsOf(choice) });
         successToast.show(request.detached ? pullDoneText("fetchedDetached") : "Fetch succeeded");
       } else {
-        await pullFlow(networkApi, flowUi, id, remote, pullOptionsOf(choice, request.ffOnly));
-        successToast.show("Pull succeeded");
+        if (await pullFlow(networkApi, flowUi, id, remote, pullOptionsOf(choice, request.ffOnly)))
+          successToast.show("Pull succeeded");
       }
     });
     if (epoch === null) return;

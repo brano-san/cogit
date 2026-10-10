@@ -3,9 +3,16 @@
 
 use std::sync::{Arc, Mutex};
 
-use git_engine::{GitOutput, RepoHandle};
+use git_engine::{GitOutput, PullOptions, RepoHandle};
 
 type Log = Arc<Mutex<Vec<GitOutput>>>;
+
+fn merge(ff_only: bool) -> PullOptions {
+    PullOptions {
+        ff_only,
+        ..PullOptions::default()
+    }
+}
 
 fn oid_at(repo: &RepoHandle, index: u32) -> String {
     repo.stashes().unwrap()[index as usize].oid.clone()
@@ -121,7 +128,10 @@ fn a_pull_that_stops_on_conflicts_is_marked() {
         .unwrap();
     let (repo, log) = journaled(&f);
 
-    assert!(repo.pull("origin", false, |_| None, |_| {}).is_err());
+    assert!(
+        repo.pull_options("origin", merge(false), |_| None, |_| {})
+            .is_err()
+    );
 
     let entry = last(&log);
     assert_eq!(entry.exit_code, Some(1), "{entry:?}");

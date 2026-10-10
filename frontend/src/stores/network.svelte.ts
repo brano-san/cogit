@@ -12,7 +12,9 @@ import {
   type Pushed,
   type RepoId,
 } from "$lib/ipc";
+import { STASH_AND_PULL } from "$lib/network-flow";
 import { pullDoneText, pushDoneText } from "$lib/toolbar";
+import { confirmation } from "$stores/confirm.svelte";
 import { notices } from "$stores/notices.svelte";
 import { successToast } from "$stores/success-toast.svelte";
 
@@ -99,10 +101,14 @@ class NetworkStore {
     successToast.show("Fetch succeeded");
   }
 
-  /** On a detached HEAD the backend only fetches, and the toast says so (F-710). */
+  /** On a detached HEAD the backend only fetches, and the toast says so (F-710). Local
+      changes in the way of moving the branch are asked about, as the Pull dialog does. */
   async pull(repo: RepoId, remote: string, ffOnly: boolean): Promise<PullOutcome> {
-    const outcome = await this.run(repo, "Pulling", (onLine) => pullRemote(repo, remote, ffOnly, onLine));
-    successToast.show(pullDoneText(outcome));
+    const run = (autostash: boolean) =>
+      this.run(repo, "Pulling", (onLine) => pullRemote(repo, remote, ffOnly, autostash, onLine));
+    let outcome = await run(false);
+    if (outcome === "stashNeeded" && (await confirmation.ask(STASH_AND_PULL))) outcome = await run(true);
+    if (outcome !== "stashNeeded") successToast.show(pullDoneText(outcome));
     return outcome;
   }
 

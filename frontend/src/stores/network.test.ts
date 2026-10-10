@@ -12,7 +12,9 @@ vi.mock("$lib/ipc", () => {
     fetchRemote: vi.fn((repo: unknown, remote: unknown, onLine: (text: string) => void) =>
       later("fetch")(repo, remote, null, onLine),
     ),
-    pullRemote: vi.fn(later("pull")),
+    pullRemote: vi.fn((repo: unknown, remote: unknown, ffOnly: unknown, _autostash: unknown, onLine: (text: string) => void) =>
+      later("pull")(repo, remote, ffOnly, onLine),
+    ),
     pushRemote: vi.fn(later("push")),
     tokenHost: vi.fn(async (url: string) => (url.startsWith("https://") ? "github.com" : null)),
     hasToken: vi.fn(async () => false),
@@ -23,6 +25,8 @@ vi.mock("$lib/ipc", () => {
 
 const report = vi.hoisted(() => vi.fn());
 vi.mock("$stores/notices.svelte", () => ({ notices: { report } }));
+const ask = vi.hoisted(() => vi.fn(async () => true));
+vi.mock("$stores/confirm.svelte", () => ({ confirmation: { ask } }));
 
 const ipc = await import("$lib/ipc");
 const { network } = await import("./network.svelte");
@@ -70,6 +74,24 @@ describe("two network operations at once", () => {
     expect(network.repo).toBe(A);
     op("fetch:1").finish();
     await fetching;
+  });
+});
+
+describe("a pull with local changes in the way", () => {
+  it("asks, and on a yes pulls again with them stashed", async () => {
+    vi.mocked(ipc.pullRemote).mockResolvedValueOnce("stashNeeded").mockResolvedValueOnce("pulled");
+    ask.mockResolvedValueOnce(true);
+
+    expect(await network.pull(A, "origin", false)).toBe("pulled");
+    expect(ipc.pullRemote).toHaveBeenLastCalledWith(A, "origin", false, true, expect.any(Function));
+  });
+
+  it("pulls nothing more on a no", async () => {
+    vi.mocked(ipc.pullRemote).mockClear().mockResolvedValueOnce("stashNeeded");
+    ask.mockResolvedValueOnce(false);
+
+    expect(await network.pull(A, "origin", false)).toBe("stashNeeded");
+    expect(ipc.pullRemote).toHaveBeenCalledTimes(1);
   });
 });
 

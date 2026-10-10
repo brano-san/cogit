@@ -8,6 +8,7 @@ export type {
   NotesFetch,
   PullMethod,
   PullOptions,
+  Pulled,
   PushCommit,
   PushOptions,
   PushOutcome,

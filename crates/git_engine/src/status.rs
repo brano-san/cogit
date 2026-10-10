@@ -93,6 +93,15 @@ impl RepoHandle {
 
     /// `!status().is_clean()`, stopping at the first change instead of counting them all.
     pub fn has_changes(&self) -> Result<bool> {
+        self.changed(true)
+    }
+
+    /// Staged or unstaged changes to tracked files: what git will not pull over.
+    pub fn has_tracked_changes(&self) -> Result<bool> {
+        self.changed(false)
+    }
+
+    fn changed(&self, untracked: bool) -> Result<bool> {
         if self.repo.is_bare() {
             return Ok(false);
         }
@@ -112,7 +121,7 @@ impl RepoHandle {
                     )
                 }
                 Item::IndexWorktree(WorktreeItem::DirectoryContents { entry, .. }) => {
-                    matches!(entry.status, gix::dir::entry::Status::Untracked)
+                    untracked && matches!(entry.status, gix::dir::entry::Status::Untracked)
                 }
                 Item::IndexWorktree(_) => false,
             };

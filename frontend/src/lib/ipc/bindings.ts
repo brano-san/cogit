@@ -181,13 +181,13 @@ export const commands = {
 	pushTo: (repo: RepoId, remote: string, refspec: string, track: boolean, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("push_to", { repo, remote, refspec, track, onProgress })),
 	remotes: (repo: RepoId) => typedError<string[], GitError>(__TAURI_INVOKE("remotes", { repo })),
 	fetch: (repo: RepoId, remote: string, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("fetch", { repo, remote, onProgress })),
-	pull: (repo: RepoId, remote: string, ffOnly: boolean, onProgress: Channel<string>) => typedError<PullOutcome, GitError>(__TAURI_INVOKE("pull", { repo, remote, ffOnly, onProgress })),
+	pull: (repo: RepoId, remote: string, ffOnly: boolean, autostash: boolean, onProgress: Channel<string>) => typedError<PullOutcome, GitError>(__TAURI_INVOKE("pull", { repo, remote, ffOnly, autostash, onProgress })),
 	push: (repo: RepoId, remote: string, force: boolean, onProgress: Channel<string>) => typedError<{
 	branches: string[],
 } | null, GitError>(__TAURI_INVOKE("push", { repo, remote, force, onProgress })),
 	/**  Fetch Only of the Pull dialog; the answer names notes that diverged. */
 	fetchWith: (repo: RepoId, remote: string, options: FetchOptions, onProgress: Channel<string>) => typedError<NotesFetch, GitError>(__TAURI_INVOKE("fetch_with", { repo, remote, options, onProgress })),
-	pullWith: (repo: RepoId, remote: string, options: PullOptions, onProgress: Channel<string>) => typedError<NotesFetch, GitError>(__TAURI_INVOKE("pull_with", { repo, remote, options, onProgress })),
+	pullWith: (repo: RepoId, remote: string, options: PullOptions, onProgress: Channel<string>) => typedError<Pulled, GitError>(__TAURI_INVOKE("pull_with", { repo, remote, options, onProgress })),
 	pushWith: (repo: RepoId, options: PushOptions, onProgress: Channel<string>) => typedError<PushOutcome, GitError>(__TAURI_INVOKE("push_with", { repo, options, onProgress })),
 	pushNotes: (repo: RepoId, remote: string, onProgress: Channel<string>) => typedError<PushOutcome, GitError>(__TAURI_INVOKE("push_notes", { repo, remote, onProgress })),
 	mergeNotes: (repo: RepoId, remote: string, namespace: string) => typedError<null, GitError>(__TAURI_INVOKE("merge_notes", { repo, remote, namespace })),
@@ -1924,10 +1924,23 @@ export type PullOptions = {
 	/**  With `Merge`: refuse a merge commit (Preferences ▸ Pull). */
 	ffOnly: boolean,
 	fetch: FetchOptions,
+	/**  `--autostash`: the answer to `Pulled::stash_needed`. */
+	autostash: boolean,
 };
 
 /**  Detached, a pull only fetches: there is no branch to merge into. */
-export type PullOutcome = "pulled" | "fetchedDetached";
+export type PullOutcome = "pulled" | "fetchedDetached" | 
+/**  Fetched only: `Pulled::stash_needed`. */
+"stashNeeded";
+
+/**
+ *  `stash_needed`: the pull only fetched, because the branch has to move and the working
+ *  tree has changes to tracked files; pull again with `autostash` once the user agrees.
+ */
+export type Pulled = {
+	notes: NotesFetch,
+	stashNeeded: boolean,
+};
 
 export type PushCommit = {
 	oid: string,

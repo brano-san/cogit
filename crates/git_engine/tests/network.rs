@@ -1,11 +1,18 @@
 // clippy.toml's allow-unwrap-in-tests does not reach helpers beside `#[test]` fns.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use git_engine::RepoHandle;
+use git_engine::{PullOptions, RepoHandle};
 use std::sync::{Arc, Mutex};
 
 fn open(f: &test_fixtures::Fixture) -> RepoHandle {
     RepoHandle::open(f.path()).unwrap()
+}
+
+fn merge(ff_only: bool) -> PullOptions {
+    PullOptions {
+        ff_only,
+        ..PullOptions::default()
+    }
 }
 
 type Lines = Arc<Mutex<Vec<String>>>;
@@ -267,7 +274,8 @@ fn pull_fast_forwards_when_nothing_is_local() {
     let repo = open(&f);
     let (_, on_line) = collector();
 
-    repo.pull("origin", true, no_token, on_line).unwrap();
+    repo.pull_options("origin", merge(true), no_token, on_line)
+        .unwrap();
 
     assert_eq!(
         f.oid("HEAD").unwrap(),
@@ -282,7 +290,9 @@ fn a_pull_that_cannot_fast_forward_is_refused_rather_than_merging_silently() {
     let (_, on_line) = collector();
     let before = f.oid("HEAD").unwrap();
 
-    let err = repo.pull("origin", true, no_token, on_line).unwrap_err();
+    let err = repo
+        .pull_options("origin", merge(true), no_token, on_line)
+        .unwrap_err();
 
     // Without `--ff-only` a bare `git pull` fails too ("Need to specify how to reconcile"),
     // so only git's own reason proves which refusal this is.
@@ -318,7 +328,8 @@ fn a_pull_forgets_a_branch_the_remote_deleted() {
     .unwrap();
     let repo = open(&f);
 
-    repo.pull("origin", true, no_token, |_| {}).unwrap();
+    repo.pull_options("origin", merge(true), no_token, |_| {})
+        .unwrap();
 
     assert!(
         f.git(&["rev-parse", "--verify", "-q", "refs/remotes/origin/topic"])
@@ -337,7 +348,8 @@ fn a_pull_in_merge_mode_merges_whatever_pull_rebase_says() {
     let local = f.oid("HEAD").unwrap();
     let repo = open(&f);
 
-    repo.pull("origin", false, no_token, |_| {}).unwrap();
+    repo.pull_options("origin", merge(false), no_token, |_| {})
+        .unwrap();
 
     let parents = f
         .git(&["rev-list", "--parents", "-n", "1", "HEAD"])
@@ -492,7 +504,7 @@ fn fetch_and_pull_ask_for_the_token_of_the_fetch_url() {
         let _ = repo.fetch("origin", |url| token(url), |_| {});
     });
     let pulled = asked_for(|repo, token| {
-        let _ = repo.pull("origin", true, |url| token(url), |_| {});
+        let _ = repo.pull_options("origin", merge(true), |url| token(url), |_| {});
     });
 
     assert_eq!(fetched, ["https://127.0.0.1:1/fetch/r.git"]);

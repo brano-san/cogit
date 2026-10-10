@@ -38,7 +38,12 @@ export function fetchOptionsOf(choice: PullChoice): FetchOptions {
 
 /** `ffOnly` is Preferences ▸ Pull; it only shapes a merge. */
 export function pullOptionsOf(choice: PullChoice, ffOnly: boolean): PullOptions {
-  return { method: choice.method, ffOnly: choice.method === "merge" && ffOnly, fetch: fetchOptionsOf(choice) };
+  return {
+    method: choice.method,
+    ffOnly: choice.method === "merge" && ffOnly,
+    fetch: fetchOptionsOf(choice),
+    autostash: false,
+  };
 }
 
 const notesFetch = (remote: string) => `git fetch +refs/notes/*:refs/notes-remote/${remote}/*`;

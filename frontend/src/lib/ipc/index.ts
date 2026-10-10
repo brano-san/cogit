@@ -828,9 +828,10 @@ export async function pullRemote(
   repo: RepoId,
   remote: string,
   ffOnly: boolean,
+  autostash: boolean,
   onLine: (line: string) => void,
 ) {
-  return unwrap(await commands.pull(repo, remote, ffOnly, progressChannel(onLine)));
+  return unwrap(await commands.pull(repo, remote, ffOnly, autostash, progressChannel(onLine)));
 }
 
 export async function pushRemote(

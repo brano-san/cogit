@@ -3,8 +3,8 @@
 
 use crate::{AppState, RepoId};
 use git_engine::{
-    FetchOptions, GitError, NetworkDefaults, NetworkStop, NotesFetch, PullOptions, PushOptions,
-    PushOutcome, PushPreview,
+    FetchOptions, GitError, NetworkDefaults, NetworkStop, NotesFetch, PullOptions, Pulled,
+    PushOptions, PushOutcome, PushPreview,
 };
 
 impl AppState {
@@ -31,11 +31,16 @@ impl AppState {
         options: PullOptions,
         stop: &NetworkStop,
         on_line: impl FnMut(&str),
-    ) -> Result<NotesFetch, GitError> {
+    ) -> Result<Pulled, GitError> {
         let _quiet = self.quiet_briefly(repo);
         let handle = self.handle(repo)?.with_stop(stop.clone());
         if handle.head_tracks_nothing() {
-            return handle.fetch_options(remote, options.fetch, |url| self.token_for(url), on_line);
+            let notes =
+                handle.fetch_options(remote, options.fetch, |url| self.token_for(url), on_line)?;
+            return Ok(Pulled {
+                notes,
+                stash_needed: false,
+            });
         }
         let known = handle
             .wants_new_submodules()
@@ -49,11 +54,11 @@ impl AppState {
             format!("Pull from {remote}"),
             &result,
         );
-        let notes = result?;
-        if let Some(known) = known {
+        let pulled = result?;
+        if let Some(known) = known.filter(|_| !pulled.stash_needed) {
             handle.init_submodules_added_since(&known)?;
         }
-        Ok(notes)
+        Ok(pulled)
     }
 
     pub fn push_with(

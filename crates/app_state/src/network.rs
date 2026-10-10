@@ -72,6 +72,7 @@ impl AppState {
         repo: RepoId,
         remote: &str,
         ff_only: bool,
+        autostash: bool,
         stop: &NetworkStop,
         on_line: impl FnMut(&str),
     ) -> Result<PullOutcome, git_engine::GitError> {
@@ -90,7 +91,12 @@ impl AppState {
             .wants_new_submodules()
             .then(|| handle.submodule_paths());
         let before = handle.head()?;
-        let result = handle.pull(remote, ff_only, |url| self.token_for(url), on_line);
+        let options = git_engine::PullOptions {
+            ff_only,
+            autostash,
+            ..git_engine::PullOptions::default()
+        };
+        let result = handle.pull_options(remote, options, |url| self.token_for(url), on_line);
         self.record_move(
             repo,
             &handle,
@@ -98,7 +104,9 @@ impl AppState {
             format!("Pull from {remote}"),
             &result,
         );
-        result?;
+        if result?.stash_needed {
+            return Ok(PullOutcome::StashNeeded);
+        }
         if let Some(known) = known {
             handle.init_submodules_added_since(&known)?;
         }

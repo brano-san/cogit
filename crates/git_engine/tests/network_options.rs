@@ -121,6 +121,86 @@ fn pull_can_rebase_the_local_branch() {
     );
 }
 
+fn rebase() -> PullOptions {
+    PullOptions {
+        method: PullMethod::Rebase,
+        ..PullOptions::default()
+    }
+}
+
+#[test]
+fn local_changes_do_not_stop_a_pull_that_brings_nothing_in() {
+    let f = test_fixtures::with_remote().unwrap();
+    sync_with_origin(&f);
+    f.write_file("from-remote.txt", "edited here\n").unwrap();
+
+    let pulled = open(&f)
+        .pull_options("origin", rebase(), no_token, |_| {})
+        .unwrap();
+
+    assert!(!pulled.stash_needed);
+    assert_eq!(
+        std::fs::read_to_string(f.path().join("from-remote.txt")).unwrap(),
+        "edited here\n"
+    );
+}
+
+#[test]
+fn local_changes_in_the_way_of_moving_the_branch_ask_for_a_stash_first() {
+    let f = test_fixtures::with_remote().unwrap();
+    let head = f.git(&["rev-parse", "HEAD"]).unwrap();
+    f.write_file("local-a.txt", "edited here\n").unwrap();
+
+    for method in [PullMethod::Rebase, PullMethod::Merge] {
+        let options = PullOptions {
+            method,
+            ..PullOptions::default()
+        };
+        let pulled = open(&f)
+            .pull_options("origin", options, no_token, |_| {})
+            .unwrap();
+        assert!(pulled.stash_needed, "{method:?}");
+    }
+    assert_eq!(f.git(&["rev-parse", "HEAD"]).unwrap(), head);
+}
+
+#[test]
+fn autostash_moves_the_branch_and_puts_the_local_changes_back() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.write_file("local-a.txt", "edited here\n").unwrap();
+    let options = PullOptions {
+        autostash: true,
+        ..rebase()
+    };
+
+    let pulled = open(&f)
+        .pull_options("origin", options, no_token, |_| {})
+        .unwrap();
+
+    assert!(!pulled.stash_needed);
+    f.git(&["merge-base", "--is-ancestor", "origin/main", "HEAD"])
+        .unwrap();
+    assert_eq!(
+        std::fs::read_to_string(f.path().join("local-a.txt")).unwrap(),
+        "edited here\n"
+    );
+    assert!(f.git(&["stash", "list"]).unwrap().trim().is_empty());
+}
+
+#[test]
+fn untracked_files_alone_are_not_in_the_way() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.write_file("scratch.txt", "mine\n").unwrap();
+
+    let pulled = open(&f)
+        .pull_options("origin", rebase(), no_token, |_| {})
+        .unwrap();
+
+    assert!(!pulled.stash_needed);
+    f.git(&["merge-base", "--is-ancestor", "origin/main", "HEAD"])
+        .unwrap();
+}
+
 #[test]
 fn fetch_only_does_not_touch_the_branch() {
     let f = test_fixtures::with_remote().unwrap();

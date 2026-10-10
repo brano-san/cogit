@@ -133,8 +133,8 @@ pub use merging::MergeOptions;
 pub use module_ops::SubmoduleOp;
 pub use network::{NetworkStop, auth_config, auth_header, wants_auth};
 pub use network_options::{
-    FetchOptions, NetworkDefaults, NotesFetch, PullMethod, PullOptions, PushCommit, PushOptions,
-    PushOutcome, PushPreview, TagsMode,
+    FetchOptions, NetworkDefaults, NotesFetch, PullMethod, PullOptions, Pulled, PushCommit,
+    PushOptions, PushOutcome, PushPreview, TagsMode,
 };
 pub use notes::CommitNote;
 pub use operations::RebaseOptions;

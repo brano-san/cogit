@@ -39,7 +39,7 @@ describe("pull", () => {
 
   it("keeps the fast-forward setting for a merge only", () => {
     const choice = { method: "merge", tags: true, notes: false } as const;
-    expect(pullOptionsOf(choice, true)).toEqual({ method: "merge", ffOnly: true, fetch: { tags: true, notes: false } });
+    expect(pullOptionsOf(choice, true)).toEqual({ method: "merge", ffOnly: true, fetch: { tags: true, notes: false }, autostash: false });
     expect(pullOptionsOf({ ...choice, method: "rebase" }, true).ffOnly).toBe(false);
   });
 

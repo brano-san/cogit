@@ -204,21 +204,6 @@ impl RepoHandle {
         tips
     }
 
-    /// `--ff-only` or an explicit merge, `--no-rebase`: without it `pull.rebase` rebases, and
-    /// with no `pull.*` set git refuses diverged branches.
-    pub fn pull(
-        &self,
-        remote: &str,
-        ff_only: bool,
-        token: impl FnOnce(&str) -> Option<String>,
-        on_line: impl FnMut(&str),
-    ) -> Result<()> {
-        let auth = self.auth_env(remote, gix::remote::Direction::Fetch, token);
-        let mode = if ff_only { "--ff-only" } else { "--no-rebase" };
-        let args = ["pull", "--progress", "--prune", remote, mode];
-        self.run_streaming(&args, &auth, on_line)
-    }
-
     pub fn push(
         &self,
         remote: &str,

@@ -37,6 +37,17 @@ pub struct PullOptions {
     /// With `Merge`: refuse a merge commit (Preferences ▸ Pull).
     pub ff_only: bool,
     pub fetch: FetchOptions,
+    /// `--autostash`: the answer to `Pulled::stash_needed`.
+    pub autostash: bool,
+}
+
+/// `stash_needed`: the pull only fetched, because the branch has to move and the working
+/// tree has changes to tracked files; pull again with `autostash` once the user agrees.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct Pulled {
+    pub notes: NotesFetch,
+    pub stash_needed: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
@@ -115,6 +126,8 @@ pub fn fetch_args(remote: &str, tags: bool) -> Vec<&str> {
     args
 }
 
+/// A merge says `--no-rebase`: without it `pull.rebase` rebases, and with no `pull.*` set
+/// git refuses diverged branches.
 #[must_use]
 pub fn pull_args<'a>(remote: &'a str, options: &PullOptions) -> Vec<&'a str> {
     let mut args = vec!["pull", "--progress", "--prune"];
@@ -126,6 +139,9 @@ pub fn pull_args<'a>(remote: &'a str, options: &PullOptions) -> Vec<&'a str> {
         (PullMethod::Merge, true) => "--ff-only",
         (PullMethod::Merge, false) => "--no-rebase",
     });
+    if options.autostash {
+        args.push("--autostash");
+    }
     args.push(remote);
     args
 }
@@ -173,22 +189,54 @@ impl RepoHandle {
         Ok(notes)
     }
 
-    /// Pull; notes come first, since they touch no working tree.
+    /// Pull; notes come first, since they touch no working tree. git refuses `pull
+    /// --rebase` over changes to tracked files before it even fetches, whether or not the
+    /// branch would move: with such changes this fetches only, and asks for a stash only
+    /// when the upstream has commits HEAD lacks (unknown counts as having them).
     pub fn pull_options(
         &self,
         remote: &str,
         options: PullOptions,
         token: impl Fn(&str) -> Option<String>,
         mut on_line: impl FnMut(&str),
-    ) -> Result<NotesFetch> {
+    ) -> Result<Pulled> {
         let notes = if options.fetch.notes {
             self.fetch_notes(remote, &token, &mut on_line)?
         } else {
             NotesFetch::default()
         };
         let auth = self.auth_for_fetch(remote, &token);
+        if !options.autostash && self.has_tracked_changes()? {
+            self.stream(&auth, &fetch_args(remote, options.fetch.tags), &mut on_line)?;
+            let stash_needed = self.head_behind() != Some(0);
+            return Ok(Pulled {
+                notes,
+                stash_needed,
+            });
+        }
         self.stream(&auth, &pull_args(remote, &options), &mut on_line)?;
-        Ok(notes)
+        Ok(Pulled {
+            notes,
+            stash_needed: false,
+        })
+    }
+
+    /// Commits HEAD's upstream has that HEAD lacks; `None` when that cannot be told.
+    fn head_behind(&self) -> Option<u32> {
+        let name = self.repo.head_name().ok()??;
+        let tracking = self
+            .repo
+            .branch_remote_tracking_ref_name(name.as_ref(), gix::remote::Direction::Fetch)?
+            .ok()?;
+        let upstream = self
+            .repo
+            .find_reference(tracking.as_ref())
+            .ok()?
+            .peel_to_id()
+            .ok()?;
+        let head = self.repo.head_id().ok()?;
+        self.count_divergence(head.detach(), upstream.detach())
+            .map(|(_, behind)| behind)
     }
 
     /// The branch, then the notes; a notes refusal is an outcome, not a failure.
