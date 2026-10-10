@@ -1,14 +1,21 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
+  import PushList from "./PushList.svelte";
   import CopyButton from "$components/common/CopyButton.svelte";
-  import Disclosure from "$components/common/Disclosure.svelte";
   import RevisionCombobox from "$components/common/RevisionCombobox.svelte";
   import Select from "$components/common/Select.svelte";
   import Callout from "$components/common/template/Callout.svelte";
   import OptionRow from "$components/common/template/OptionRow.svelte";
   import TemplateDialog from "$components/common/template/TemplateDialog.svelte";
   import { shortOid } from "$lib/format";
-  import { pushPreview, type PushOptions, type PushPreview, type TagsMode } from "$lib/ipc/network-dialogs";
+  import { toCogitError } from "$lib/ipc";
+  import {
+    pushPreview,
+    pushTagsPreview,
+    type PushOptions,
+    type PushPreview,
+    type TagsMode,
+  } from "$lib/ipc/network-dialogs";
   import {
     chooseLocal,
     pushChoiceOf,
@@ -19,13 +26,16 @@
     type PushChoice,
   } from "$lib/network-dialogs";
   import {
+    commitsText,
     effectiveChoice,
     fetchedText,
     leaseLine,
     protectedQuestion,
     pushCommand,
     pushStatus,
+    tagCountText,
     upstreamState,
+    type TagCount,
   } from "$lib/push-dialog";
   import { splitUpstream } from "$lib/push-to";
   import { confirmation } from "$stores/confirm.svelte";
@@ -124,7 +134,43 @@
       });
   });
 
-  onMount(() => () => void asked++);
+  /** After the last change, so a typed branch name is not asked of the remote letter by letter. */
+  const TAG_DELAY_MS = 400;
+  let tags = $state<TagCount | null>(null);
+  let tagsOpen = $state(false);
+  let counted = 0;
+
+  function failureLine(err: unknown): string {
+    const error = toCogitError(err);
+    return error.detail.kind === "command" ? error.detail.data.summary : error.message;
+  }
+
+  $effect(() => {
+    const mode = choice.tags;
+    void [choice.local, choice.remote, choice.branch, revision];
+    const ticket = ++counted;
+    if (mode === "none" || problem !== null) {
+      tags = null;
+      return;
+    }
+    tags = { state: "counting" };
+    const options = untrack(() => pushOptionsOf(choice));
+    const timer = setTimeout(() => {
+      pushTagsPreview(request.repo, options)
+        .then((names) => {
+          if (ticket === counted) tags = { state: "done", tags: names };
+        })
+        .catch((err: unknown) => {
+          if (ticket === counted) tags = { state: "failed", reason: failureLine(err) };
+        });
+    }, TAG_DELAY_MS);
+    return () => clearTimeout(timer);
+  });
+
+  onMount(() => () => {
+    asked += 1;
+    counted += 1;
+  });
 
   const noteHint = $derived.by(() => {
     if (!preview?.hasLocalNotes) return undefined;
@@ -190,30 +236,12 @@
     <Callout kind="warning">Remote has commits you don't have — push will be rejected. Fetch and integrate first.</Callout>
   {/if}
 
-  <div class="commits">
-    <button
-      type="button"
-      class="toggle"
-      aria-expanded={listOpen}
-      disabled={!preview || preview.total === 0}
-      onclick={() => (listOpen = !listOpen)}
-    >
-      <Disclosure open={listOpen} empty={!preview || preview.total === 0} />
-      <span>
-        {#if preview === null}Counting commits…
-        {:else if preview.total === 0}No commits to push
-        {:else}{preview.total} {preview.total === 1 ? "commit" : "commits"} to push{/if}
-      </span>
-    </button>
-    {#if listOpen && preview}
-      <ul class="list">
-        {#each preview.commits as commit (commit.oid)}
-          <li><span class="oid mono">{shortOid(commit.oid)}</span><span class="summary">{commit.summary}</span></li>
-        {/each}
-        {#if more > 0}<li class="rest">and {more} more</li>{/if}
-      </ul>
-    {/if}
-  </div>
+  <PushList label={commitsText(preview)} empty={!preview || preview.total === 0} open={listOpen} ontoggle={() => (listOpen = !listOpen)}>
+    {#each preview?.commits ?? [] as commit (commit.oid)}
+      <li><span class="oid mono">{shortOid(commit.oid)}</span><span class="summary">{commit.summary}</span></li>
+    {/each}
+    {#if more > 0}<li class="rest">and {more} more</li>{/if}
+  </PushList>
 
   <div class="group">
     <span class="caption">Tracking</span>
@@ -237,6 +265,18 @@
         checked={choice.tags === mode}
         onchange={() => (choice.tags = mode)}
       />
+      {#if mode !== "none" && choice.tags === mode && tags !== null}
+        <div class="nested">
+          <PushList
+            label={tagCountText(tags)}
+            empty={tags.state !== "done" || tags.tags.length === 0}
+            open={tagsOpen}
+            ontoggle={() => (tagsOpen = !tagsOpen)}
+          >
+            {#each tags.state === "done" ? tags.tags : [] as tag (tag)}<li class="mono">{tag}</li>{/each}
+          </PushList>
+        </div>
+      {/if}
     {/each}
   </div>
 
@@ -363,40 +403,6 @@
     margin: 0;
     padding-left: calc(var(--sp-6) + var(--sp-2));
     color: var(--text-secondary);
-    font-size: var(--fs-dense);
-  }
-
-  .commits {
-    display: flex;
-    flex-direction: column;
-    gap: var(--sp-3);
-  }
-
-  .toggle {
-    display: inline-flex;
-    align-items: center;
-    align-self: flex-start;
-    padding: 0;
-    background: none;
-    border: 0;
-    color: var(--text-primary);
-    font: inherit;
-    font-size: var(--fs-dense);
-    text-align: left;
-    cursor: default;
-  }
-
-  .list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--sp-2);
-    max-height: 160px;
-    margin: 0;
-    padding: var(--sp-3) var(--sp-4);
-    overflow-y: auto;
-    background: var(--bg-panel);
-    border-radius: var(--r-sm);
-    list-style: none;
     font-size: var(--fs-dense);
   }
 

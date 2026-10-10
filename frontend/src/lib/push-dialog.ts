@@ -97,3 +97,25 @@ export function fetchedText(fetchedAt: number | null, now: number): string {
   if (fetchedAt === null) return "never fetched";
   return `fetched ${relativeDate(Math.floor(fetchedAt / 1000), 0, Math.floor(now / 1000)).toLowerCase()}`;
 }
+
+/** The tags a push would send, asked of the remote in the background. */
+export type TagCount = { state: "counting" } | { state: "done"; tags: string[] } | { state: "failed"; reason: string };
+
+export function tagCountText(count: TagCount): string {
+  switch (count.state) {
+    case "counting":
+      return "Counting tags…";
+    case "failed":
+      return `Could not count tags: ${count.reason}`;
+    case "done": {
+      const n = count.tags.length;
+      return n === 0 ? "No tags will be pushed" : `${n} ${n === 1 ? "tag" : "tags"} will be pushed`;
+    }
+  }
+}
+
+export function commitsText(preview: PushPreview | null): string {
+  if (preview === null) return "Counting commits…";
+  if (preview.total === 0) return "No commits to push";
+  return `${preview.total} ${preview.total === 1 ? "commit" : "commits"} to push`;
+}

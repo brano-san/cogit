@@ -95,7 +95,7 @@ pub(crate) fn askpass_refusal(own_ssh_command: bool) -> Vec<(String, String)> {
 }
 
 /// `QUIET`, then what overrides it: a later value wins.
-fn quiet_env(refusal: &[(String, String)]) -> Vec<(&str, &str)> {
+pub(crate) fn quiet_env(refusal: &[(String, String)]) -> Vec<(&str, &str)> {
     let mut env = QUIET.to_vec();
     env.extend(
         refusal
@@ -188,7 +188,7 @@ impl RepoHandle {
         Ok(Some(!matches!(base, Ok(base) if base == tip)))
     }
 
-    fn background_options(&self) -> Vec<&'static str> {
+    pub(crate) fn background_options(&self) -> Vec<&'static str> {
         let mut args = STALL_LIMITS.to_vec();
         if !self.has_own_ssh_command() {
             args.extend(["-c", BATCH_SSH]);

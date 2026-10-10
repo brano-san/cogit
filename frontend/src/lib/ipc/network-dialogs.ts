@@ -46,6 +46,10 @@ export async function pushPreview(repo: RepoId, local: string, remote: string, b
   return unwrap(await commands.pushPreview(repo, local, remote, branch, limit));
 }
 
+export async function pushTagsPreview(repo: RepoId, options: PushOptions) {
+  return unwrap(await commands.pushTagsPreview(repo, options));
+}
+
 export async function networkDefaults(repo: RepoId): Promise<NetworkDefaults> {
   return unwrap(await commands.networkDefaults(repo));
 }

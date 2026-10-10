@@ -652,3 +652,52 @@ fn an_explicit_lease_overwrites_only_the_tip_it_names() {
         f.oid("main").unwrap()
     );
 }
+
+#[test]
+fn the_tag_preview_names_what_a_push_would_send_even_when_refused() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&["tag", "-a", "-m", "old", "v0", "HEAD~2"]).unwrap();
+    f.git(&["tag", "-a", "-m", "new", "v1", "HEAD"]).unwrap();
+    f.git(&["tag", "light", "HEAD"]).unwrap();
+
+    let followed = open(&f)
+        .push_tags_preview(&push_options(|o| o.tags = TagsMode::Follow), no_token)
+        .unwrap();
+    let all = open(&f)
+        .push_tags_preview(&push_options(|o| o.tags = TagsMode::All), no_token)
+        .unwrap();
+
+    assert_eq!(
+        followed,
+        ["v0", "v1"],
+        "main has diverged and is refused; its tags are named"
+    );
+    assert_eq!(all, ["light", "v0", "v1"]);
+    assert_eq!(f.git_in(&bare(&f), &["tag", "--list"]).unwrap().trim(), "");
+}
+
+#[test]
+fn the_tag_preview_leaves_out_tags_the_remote_has() {
+    let f = test_fixtures::with_remote().unwrap();
+    sync_with_origin(&f);
+    f.git(&["tag", "-a", "-m", "there", "v1", "HEAD"]).unwrap();
+    f.git(&["push", "origin", "v1"]).unwrap();
+
+    let tags = open(&f)
+        .push_tags_preview(&push_options(|o| o.tags = TagsMode::Follow), no_token)
+        .unwrap();
+
+    assert!(tags.is_empty(), "{tags:?}");
+}
+
+#[test]
+fn the_tag_preview_of_a_remote_that_is_gone_is_an_error() {
+    let f = test_fixtures::with_remote().unwrap();
+    let gone = bare(&f).with_file_name("gone.git");
+    f.git(&["remote", "set-url", "origin", &gone.to_string_lossy()])
+        .unwrap();
+
+    let found = open(&f).push_tags_preview(&push_options(|o| o.tags = TagsMode::Follow), no_token);
+
+    assert!(found.is_err(), "{found:?}");
+}

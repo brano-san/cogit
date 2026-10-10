@@ -3,12 +3,14 @@ import { shortOid } from "$lib/format";
 import type { PushPreview } from "$lib/ipc/network-dialogs";
 import type { PushChoice } from "./network-dialogs";
 import {
+  commitsText,
   effectiveChoice,
   fetchedText,
   leaseLine,
   protectedNames,
   pushCommand,
   pushStatus,
+  tagCountText,
   upstreamState,
 } from "./push-dialog";
 
@@ -123,5 +125,22 @@ describe("the status line", () => {
     expect(fetchedText(null, 0)).toBe("never fetched");
     expect(fetchedText(0, 5 * 60_000)).toBe("fetched 5 minutes ago");
     expect(fetchedText(1_000, 1_000)).toBe("fetched just now");
+  });
+});
+
+describe("counts", () => {
+  it("says how many tags would go, or why it cannot tell", () => {
+    expect(tagCountText({ state: "counting" })).toBe("Counting tags…");
+    expect(tagCountText({ state: "done", tags: [] })).toBe("No tags will be pushed");
+    expect(tagCountText({ state: "done", tags: ["v1"] })).toBe("1 tag will be pushed");
+    expect(tagCountText({ state: "done", tags: ["v1", "v2"] })).toBe("2 tags will be pushed");
+    expect(tagCountText({ state: "failed", reason: "no network" })).toBe("Could not count tags: no network");
+  });
+
+  it("says how many commits would go", () => {
+    expect(commitsText(null)).toBe("Counting commits…");
+    expect(commitsText(preview())).toBe("No commits to push");
+    expect(commitsText(preview({ total: 1 }))).toBe("1 commit to push");
+    expect(commitsText(preview({ total: 3 }))).toBe("3 commits to push");
   });
 });

@@ -193,6 +193,8 @@ export const commands = {
 	mergeNotes: (repo: RepoId, remote: string, namespace: string) => typedError<null, GitError>(__TAURI_INVOKE("merge_notes", { repo, remote, namespace })),
 	/**  The commits Push would send (the list capped at `limit`) and the notes the remote lacks. */
 	pushPreview: (repo: RepoId, local: string, remote: string, branch: string, limit: number) => typedError<PushPreview, GitError>(__TAURI_INVOKE("push_preview", { repo, local, remote, branch, limit })),
+	/**  Not queued: it writes nothing, and its stall limits end a silent remote (R-746). */
+	pushTagsPreview: (repo: RepoId, options: PushOptions) => typedError<string[], GitError>(__TAURI_INVOKE("push_tags_preview", { repo, options })),
 	networkDefaults: (repo: RepoId) => typedError<NetworkDefaults, GitError>(__TAURI_INVOKE("network_defaults", { repo })),
 	saveNetworkDefaults: (repo: RepoId, defaults: NetworkDefaults) => typedError<null, GitError>(__TAURI_INVOKE("save_network_defaults", { repo, defaults })),
 	/**

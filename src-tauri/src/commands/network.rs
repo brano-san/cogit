@@ -360,6 +360,21 @@ pub async fn push_preview(
     .await
 }
 
+/// Not queued: it writes nothing, and its stall limits end a silent remote (R-746).
+#[tauri::command]
+#[specta::specta]
+pub async fn push_tags_preview(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    options: git_engine::PushOptions,
+) -> Result<Vec<String>, GitError> {
+    let app_state = state.state.clone();
+    blocking("push_tags_preview", move || {
+        app_state.push_tags_preview(repo, &options)
+    })
+    .await
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn network_defaults(

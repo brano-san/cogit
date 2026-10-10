@@ -103,6 +103,17 @@ impl AppState {
             .push_preview(local, remote, branch, limit))
     }
 
+    /// Tags the dialog's push would send. Kept out of the journal: a remote that cannot be
+    /// asked is a line in the dialog, not a notification.
+    pub fn push_tags_preview(
+        &self,
+        repo: RepoId,
+        options: &PushOptions,
+    ) -> Result<Vec<String>, GitError> {
+        self.unjournaled_handle(repo)?
+            .push_tags_preview(options, |url| self.token_for(url))
+    }
+
     pub fn network_defaults(&self, repo: RepoId) -> Result<NetworkDefaults, GitError> {
         self.handle(repo)?.network_defaults()
     }

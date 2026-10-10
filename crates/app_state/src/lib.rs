@@ -379,12 +379,19 @@ impl AppState {
     }
 
     fn handle(&self, repo: RepoId) -> Result<git_engine::RepoHandle, git_engine::GitError> {
+        Ok(self
+            .unjournaled_handle(repo)?
+            .with_journal(self.command_sink(repo)))
+    }
+
+    /// `handle` whose commands file nothing: a background read whose failure is not news.
+    pub(crate) fn unjournaled_handle(
+        &self,
+        repo: RepoId,
+    ) -> Result<git_engine::RepoHandle, git_engine::GitError> {
         let since = self.handles.begin();
         let open = self.get(repo).ok_or_else(|| not_open(repo))?;
-        Ok(self
-            .handles
-            .handle(repo, &open.root, since)?
-            .with_journal(self.command_sink(repo)))
+        self.handles.handle(repo, &open.root, since)
     }
 
     /// How many times a command had to open its repository from disk.

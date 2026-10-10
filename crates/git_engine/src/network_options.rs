@@ -132,6 +132,42 @@ fn notes_mirror(remote: &str) -> String {
     format!("refs/notes-remote/{remote}/")
 }
 
+/// The dialog's push asked only which refs it would send: nothing goes, no hook runs.
+fn push_tags_args(options: &PushOptions) -> Vec<String> {
+    let tags = if options.tags == TagsMode::All {
+        "--tags"
+    } else {
+        "--follow-tags"
+    };
+    let mut args: Vec<String> = ["push", "--dry-run", "--porcelain", "--no-verify", tags]
+        .map(String::from)
+        .to_vec();
+    args.push(options.remote.clone());
+    args.push(format!(
+        "refs/heads/{}:refs/heads/{}",
+        options.local, options.branch
+    ));
+    args
+}
+
+/// Tags in `git push --porcelain` output (`<flag>\t<from>:<to>\t<summary>`) that would be
+/// sent: not those already there (`=`) or refused (`!`). By name, sorted.
+fn tags_in_porcelain(stdout: &str) -> Vec<String> {
+    let mut tags: Vec<String> = stdout
+        .lines()
+        .filter_map(|line| {
+            let mut fields = line.split('\t');
+            let flag = fields.next()?;
+            let (_, to) = fields.next()?.split_once(':')?;
+            let name = to.strip_prefix("refs/tags/")?;
+            (flag != "=" && flag != "!").then(|| name.to_owned())
+        })
+        .collect();
+    tags.sort();
+    tags.dedup();
+    tags
+}
+
 /// `url` as `git fetch` writes it into FETCH_HEAD: no user or password, no trailing `/` or
 /// `.git` (`transport_anonymize_url`, `store_updated_refs`).
 fn fetch_head_url(url: &str) -> String {
@@ -425,6 +461,36 @@ impl RepoHandle {
             has_local_notes: !ours.is_empty(),
             notes_unpushed: (!theirs.is_empty() && !ours.is_empty())
                 .then(|| self.count_notes_unpushed(&ours, &theirs, &mirror)),
+        }
+    }
+
+    /// Tags `options` would send with its tag mode, asked of the remote as a background check
+    /// asks: no prompt anywhere. A branch the remote would refuse still has its tags listed,
+    /// so a failure that printed refs is read too.
+    pub fn push_tags_preview(
+        &self,
+        options: &PushOptions,
+        token: impl FnOnce(&str) -> Option<String>,
+    ) -> Result<Vec<String>> {
+        if options.tags == TagsMode::None {
+            return Ok(Vec::new());
+        }
+        let auth = self.auth_env(&options.remote, gix::remote::Direction::Push, token);
+        let refusal = crate::pulse::askpass_refusal(self.has_own_ssh_command());
+        let mut env = crate::pulse::quiet_env(&refusal);
+        env.extend(
+            auth.iter()
+                .map(|(key, value)| (key.as_str(), value.as_str())),
+        );
+        let asked = push_tags_args(options);
+        let mut args: Vec<&str> = self.background_options();
+        args.extend(asked.iter().map(String::as_str));
+        match self.read_git_with(&args, &env) {
+            Ok(stdout) => Ok(tags_in_porcelain(&stdout)),
+            Err(GitError::Command(failure)) if failure.stdout.contains('\t') => {
+                Ok(tags_in_porcelain(&failure.stdout))
+            }
+            Err(err) => Err(err),
         }
     }
 
@@ -784,6 +850,40 @@ mod tests {
             ..PullOptions::default()
         };
         assert!(pull_args("o", &options).contains(&"--force"));
+    }
+
+    #[test]
+    fn the_tag_preview_asks_without_the_hook_or_sending() {
+        let options = PushOptions {
+            remote: "origin".into(),
+            local: "main".into(),
+            branch: "dev".into(),
+            tags: TagsMode::All,
+            ..PushOptions::default()
+        };
+        assert_eq!(
+            push_tags_args(&options),
+            [
+                "push",
+                "--dry-run",
+                "--porcelain",
+                "--no-verify",
+                "--tags",
+                "origin",
+                "refs/heads/main:refs/heads/dev"
+            ]
+        );
+    }
+
+    #[test]
+    fn porcelain_names_the_tags_that_would_go() {
+        let out = "To C:/r.git\n\
+                   !\trefs/heads/main:refs/heads/main\t[rejected] (non-fast-forward)\n\
+                   *\trefs/tags/v2:refs/tags/v2\t[new tag]\n\
+                   =\trefs/tags/v1:refs/tags/v1\t[up to date]\n\
+                   *\trefs/tags/v0:refs/tags/v0\t[new tag]\n\
+                   Done\n";
+        assert_eq!(tags_in_porcelain(out), ["v0", "v2"]);
     }
 
     #[test]

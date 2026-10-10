@@ -213,6 +213,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::network::push_notes,
             commands::network::merge_notes,
             commands::network::push_preview,
+            commands::network::push_tags_preview,
             commands::network::network_defaults,
             commands::network::save_network_defaults,
             commands::network::cancel_network,
