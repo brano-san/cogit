@@ -4,7 +4,6 @@
   import CopyButton from "$components/common/CopyButton.svelte";
   import Disclosure from "$components/common/Disclosure.svelte";
   import RevisionCombobox from "$components/common/RevisionCombobox.svelte";
-  import Select from "$components/common/Select.svelte";
   import Callout from "$components/common/template/Callout.svelte";
   import OptionRow from "$components/common/template/OptionRow.svelte";
   import TemplateDialog from "$components/common/template/TemplateDialog.svelte";
@@ -60,6 +59,8 @@
 
   /** The list never holds more; the count above it is exact. */
   const LIST_CAP = 200;
+  /** Room for a remote's URL beside its name. */
+  const REMOTE_LIST_WIDTH = 400;
   const TAG_MODES: readonly TagsMode[] = ["none", "follow", "all"];
   const TAG_LABELS: Record<TagsMode, string> = {
     none: "No tags",
@@ -212,24 +213,26 @@
     },
   ]}
 >
-  <p class="sub">Sends the commits of {choice.local} to the remote.</p>
-
   <div class="fields">
-    <div class="field">
+    <div class="field wide">
       <span class="caption">Local branch</span>
-      <Select
+      <RevisionCombobox
         value={choice.local}
         label="Local branch"
-        options={request.locals.map((b) => [b.name, b.name] as const)}
+        free={false}
+        options={request.locals.map((b) => ({ value: b.name, label: b.name, group: "" }))}
         onchange={pickLocal}
       />
     </div>
     <div class="field">
       <span class="caption">Remote</span>
-      <Select
+      <RevisionCombobox
         value={choice.remote}
         label="Remote"
-        options={request.remotes.map((name) => [name, name] as const)}
+        free={false}
+        tip={url ? `${choice.remote} — ${url}` : choice.remote}
+        popupWidth={REMOTE_LIST_WIDTH}
+        options={request.remotes.map((name) => ({ value: name, label: name, group: "", hint: urls[name] || undefined }))}
         onchange={chooseRemote}
       />
     </div>
@@ -243,7 +246,6 @@
       />
     </div>
   </div>
-  {#if url}<p class="url" title={url}>{url}</p>{/if}
   <div class="route">
     <div class="where">
       <p><span class="mono">{choice.local}</span> → <span class="mono">{choice.remote}/{choice.branch}</span></p>
@@ -363,8 +365,12 @@
 <style>
   .fields {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--sp-5);
+    grid-template-columns: minmax(0, 3fr) minmax(0, 7fr);
+    gap: var(--sp-4) var(--sp-5);
+  }
+
+  .wide {
+    grid-column: 1 / -1;
   }
 
   .field,
@@ -470,13 +476,6 @@
     font-size: var(--fs-dense);
     color: var(--text-secondary);
     cursor: default;
-  }
-
-  .url {
-    margin: 0;
-    color: var(--text-muted);
-    font-size: var(--fs-dense);
-    overflow-wrap: anywhere;
   }
 
   .upstream {

@@ -24,6 +24,34 @@ export function truncateMiddle(text: string, max: number): string {
   return length(text) <= max ? text : charCut(text, max);
 }
 
+/** `truncateMiddle` to `width` pixels as `measure` draws the text: the longest cut that fits.
+    No width yet (not laid out): the text as it is. */
+export function fitMiddle(text: string, width: number, measure: (text: string) => number): string {
+  if (width <= 0 || measure(text) <= width) return text;
+  let best = ELLIPSIS;
+  let low = 2;
+  let high = length(text) - 1;
+  while (low <= high) {
+    const mid = (low + high) >> 1;
+    const cut = charCut(text, mid);
+    if (measure(cut) <= width) {
+      best = cut;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return best;
+}
+
+/** How wide `node`'s font draws a text, in pixels. */
+export function textMeasure(node: HTMLElement): (text: string) => number {
+  const context = document.createElement("canvas").getContext("2d");
+  if (!context) return () => 0;
+  context.font = getComputedStyle(node).font;
+  return (text) => context.measureText(text).width;
+}
+
 /** `C:\Users\brano\…\logs\cogit.log`: whole folders dropped from the middle to fit `max`. */
 export function truncatePath(path: string, max: number): string {
   if (length(path) <= max) return path;
@@ -57,11 +85,8 @@ export function truncatePath(path: string, max: number): string {
 }
 
 function charWidth(node: HTMLElement): number {
-  const context = document.createElement("canvas").getContext("2d");
-  if (!context) return 0;
-  context.font = getComputedStyle(node).font;
   // Only meaningful in a monospace font, where every glyph is this wide.
-  return context.measureText("M").width;
+  return textMeasure(node)("M");
 }
 
 /** Svelte action: shows `path` cut in the middle to whatever width the node is given. */

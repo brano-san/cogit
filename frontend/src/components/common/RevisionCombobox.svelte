@@ -1,14 +1,16 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import Caret from "$components/common/Caret.svelte";
   import { placePopup, type Box, type Placed } from "$lib/popup-place";
   import { filterRevisions, stepOption, type RevisionOption } from "$lib/revision-options";
-  import { truncateMiddle } from "$lib/truncate";
+  import { fitMiddle, textMeasure, truncateMiddle } from "$lib/truncate";
 
   /** Searchable picker of a revision: groups of branches and tags, and any text typed (a
       branch, a tag, a short or full hash, `HEAD~2`). The popup is a fixed-position portal
       placed by `placePopup`, so a dialog's edge never clips it; at most `LIMIT` rows are
       drawn, the rest say how many more a longer search would show. With `free={false}` the
-      text only searches, and the value is always one of `options`. */
+      text only searches, and the value is always one of `options`. Out of focus, a name wider
+      than the field is cut in the middle (`fitMiddle`), whole in the tooltip. */
   interface Props {
     value: string;
     options: readonly RevisionOption[];
@@ -16,6 +18,10 @@
     placeholder?: string;
     free?: boolean;
     disabled?: boolean;
+    /** The field's tooltip; the whole name when not given. */
+    tip?: string;
+    /** The least width of the list, for hints wider than the field. */
+    popupWidth?: number;
     onchange?: (value: string) => void;
   }
 
@@ -26,6 +32,8 @@
     placeholder,
     free = true,
     disabled = false,
+    tip,
+    popupWidth = 0,
     onchange,
   }: Props = $props();
 
@@ -44,9 +52,25 @@
   let popup: HTMLElement | undefined = $state();
   let placed = $state<Placed | null>(null);
   let width = $state(0);
+  let focused = $state(false);
+  let fieldWidth = $state(0);
+  /** The input's width inside its padding. */
+  let room = $state(0);
+  let measure: ((text: string) => number) | null = null;
 
   const matched = $derived(options.find((option) => option.value === value));
   const shown = $derived(editing ? text : (matched?.display ?? value));
+  const drawn = $derived(focused || !measure ? shown : fitMiddle(shown, room, measure));
+
+  $effect(() => {
+    void fieldWidth;
+    if (!input) return;
+    const style = getComputedStyle(input);
+    measure ??= textMeasure(input);
+    room = input.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+  });
+
+  const least = (anchorWidth: number) => Math.max(anchorWidth, popupWidth);
   const found = $derived(filterRevisions(options, editing ? text : "", LIMIT));
 
   function choose(option: RevisionOption) {
@@ -60,7 +84,7 @@
   function typed(next: string) {
     editing = true;
     text = next;
-    if (!open) width = anchor?.getBoundingClientRect().width ?? 0;
+    if (!open) width = least(anchor?.getBoundingClientRect().width ?? 0);
     open = true;
     active = free ? -1 : 0;
     if (free) {
@@ -71,7 +95,7 @@
 
   function show() {
     if (disabled) return;
-    width = anchor?.getBoundingClientRect().width ?? 0;
+    width = least(anchor?.getBoundingClientRect().width ?? 0);
     open = true;
     const at = found.options.findIndex((option) => option.value === value);
     active = at >= 0 ? at : -1;
@@ -107,11 +131,12 @@
       return;
     }
     const box = anchor.getBoundingClientRect();
-    width = box.width;
-    const anchorBox: Box = { left: box.left, top: box.top, right: box.right, bottom: box.bottom };
+    width = least(box.width);
+    // Left edges aligned: `placePopup` aligns the right ones, here those of a field `width` wide.
+    const anchorBox: Box = { left: box.left, top: box.top, right: box.left + width, bottom: box.bottom };
     placed = placePopup(
       anchorBox,
-      { width: box.width, height: Math.min(popup.scrollHeight + 2, POPUP_MAX) },
+      { width, height: Math.min(popup.scrollHeight + 2, POPUP_MAX) },
       { width: window.innerWidth, height: window.innerHeight },
     );
   });
@@ -135,14 +160,14 @@
 
 <svelte:window onpointerdown={outside} onresize={close} />
 
-<div class="combo" class:disabled bind:this={anchor}>
+<div class="combo" class:disabled bind:this={anchor} bind:clientWidth={fieldWidth}>
   <input
     bind:this={input}
     type="text"
     role="combobox"
     class:muted={!editing && matched?.display !== undefined}
     aria-label={label}
-    title={shown}
+    title={tip ?? shown}
     aria-expanded={open}
     aria-controls="{id}-list"
     aria-activedescendant={open && active >= 0 ? `${id}-${active}` : undefined}
@@ -151,10 +176,16 @@
     spellcheck="false"
     {placeholder}
     {disabled}
-    value={shown}
+    value={drawn}
     oninput={(event) => typed(event.currentTarget.value)}
-    onfocus={(event) => event.currentTarget.select()}
+    onfocus={(event) => {
+      const field = event.currentTarget;
+      focused = true;
+      // After the whole name replaced the cut one, or the selection is lost with it.
+      void tick().then(() => field.select());
+    }}
     onblur={() => {
+      focused = false;
       if (!open) editing = false;
     }}
     onclick={() => (open ? null : show())}

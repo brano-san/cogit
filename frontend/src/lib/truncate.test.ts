@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { truncateMiddle, truncatePath } from "./truncate";
+import { fitMiddle, truncateMiddle, truncatePath } from "./truncate";
 
 const LOG = "C:\\Users\\brano\\AppData\\Local\\Cogit\\logs\\cogit.log";
 
@@ -68,6 +68,31 @@ describe("truncateMiddle", () => {
 });
 
 // Half an emoji on each side of the cut drew two replacement marks in the capsule.
+describe("fitMiddle", () => {
+  // 10 px a character, 5 px the ellipsis: a proportional font, as the measure says it.
+  const measure = (text: string) => Array.from(text).reduce((sum, ch) => sum + (ch === "…" ? 5 : 10), 0);
+  const NAME = "feature/14340-switch-to-new_toolchain";
+
+  it("keeps a name that fits whole, however close", () => {
+    expect(fitMiddle(NAME, NAME.length * 10, measure)).toBe(NAME);
+  });
+
+  it("cuts the middle to the most that fits, both ends kept", () => {
+    const fitted = fitMiddle(NAME, 200, measure);
+    expect(fitted).toBe("feature/1…_toolchain");
+    expect(measure(fitted)).toBeLessThanOrEqual(200);
+    expect(measure(truncateMiddle(NAME, Array.from(fitted).length + 1))).toBeGreaterThan(200);
+  });
+
+  it("leaves the text alone before the field has a width", () => {
+    expect(fitMiddle(NAME, 0, measure)).toBe(NAME);
+  });
+
+  it("is the ellipsis alone where nothing else fits", () => {
+    expect(fitMiddle(NAME, 7, measure)).toBe("…");
+  });
+});
+
 describe("a character outside the Basic Multilingual Plane", () => {
   const lone = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
 
