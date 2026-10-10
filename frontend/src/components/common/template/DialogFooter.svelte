@@ -16,7 +16,8 @@
 </script>
 
 <button type="button" class="btn" data-autofocus={focus === "cancel" || undefined} onclick={oncancel}>{cancelLabel}</button>
-{#each actions as action, i (action.label)}
+<!-- By place: keyed by label, "Push" becoming "Push 2 commits" made a new button and lost the focus. -->
+{#each actions as action, i (i)}
   <button
     type="button"
     class="btn"
