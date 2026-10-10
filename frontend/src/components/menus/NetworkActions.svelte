@@ -15,7 +15,7 @@
     pushBranchesOf,
     pushTargetOf,
     type PullChoice,
-    type PushChoice,
+    type RememberedPush,
   } from "$lib/network-dialogs";
   import { pullFlow, pushFlow, type FlowUi } from "$lib/network-flow";
   import { noRemote, runGuarded, trackedRemote, type RunHost } from "$lib/network-runs";
@@ -265,7 +265,7 @@
 
   /** The Push dialog's run: `options` is what goes, `choice` what Remember keeps. A dry run
       leaves the dialog open and shows git's answer in the output window. */
-  async function runPushDialog(choice: PushChoice, options: PushOptions, remember: boolean) {
+  async function runPushDialog(choice: RememberedPush, options: PushOptions, remember: boolean) {
     const request = networkDialog.open;
     if (request?.kind !== "push") return;
     const id = request.repo;

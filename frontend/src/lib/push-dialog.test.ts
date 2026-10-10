@@ -204,9 +204,10 @@ describe("advanced options", () => {
 });
 
 describe("what Remember keeps", () => {
-  // Remember on a branch that already tracks the target stored `false`: the box showed checked.
-  it("keeps Set as upstream as the dialog shows it", () => {
-    expect(rememberedChoice(choice({ setUpstream: false }), "origin/main").setUpstream).toBe(true);
+  // Stored `false` from the locked box turned upstream off for new branches; stored `true`
+  // pre-checked re-pointing a branch that tracks another remote.
+  it("leaves Set as upstream unset while the box is locked", () => {
+    expect(rememberedChoice(choice({ setUpstream: false }), "origin/main").setUpstream).toBeNull();
     expect(rememberedChoice(choice({ setUpstream: false }), "origin/old").setUpstream).toBe(false);
     expect(rememberedChoice(choice({ setUpstream: true }), null)).toEqual(choice({ setUpstream: true }));
   });

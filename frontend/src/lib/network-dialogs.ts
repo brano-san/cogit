@@ -121,11 +121,15 @@ export function tagsHint(mode: TagsMode): string {
   }
 }
 
+/** A push as Remember keeps it: `setUpstream` is `null` where the box was locked, and what
+    was stored stays. */
+export type RememberedPush = Omit<PushChoice, "setUpstream"> & { setUpstream: boolean | null };
+
 /** The half of the defaults that was asked to be remembered replaces its stored values;
     force is not a field of the defaults at all. */
 export function mergeDefaults(
   stored: NetworkDefaults,
-  remember: { pull?: PullChoice; push?: PushChoice },
+  remember: { pull?: PullChoice; push?: RememberedPush },
 ): NetworkDefaults {
   const next = { ...stored };
   if (remember.pull) {
@@ -136,7 +140,7 @@ export function mergeDefaults(
   if (remember.push) {
     next.pushTags = remember.push.tags;
     next.pushNotes = remember.push.notes;
-    next.pushSetUpstream = remember.push.setUpstream;
+    next.pushSetUpstream = remember.push.setUpstream ?? stored.pushSetUpstream;
     next.pushRemote = remember.push.remote;
   }
   return next;

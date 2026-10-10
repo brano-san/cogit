@@ -26,6 +26,7 @@
     remoteBranchChoices,
     tagsHint,
     type PushChoice,
+    type RememberedPush,
   } from "$lib/network-dialogs";
   import {
     commitsText,
@@ -51,7 +52,7 @@
   interface Props {
     request: PushRequest;
     /** `options` is what goes; `choice` is what Remember keeps. */
-    onpush: (choice: PushChoice, options: PushOptions, remember: boolean) => void;
+    onpush: (choice: RememberedPush, options: PushOptions, remember: boolean) => void;
     /** Fetches `remote` and refreshes the panels; the dialog then reads everything again. */
     onfetch: (remote: string) => Promise<void>;
     onclose: () => void;

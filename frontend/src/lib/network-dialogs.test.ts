@@ -129,6 +129,14 @@ describe("remembering", () => {
     expect(merged).toMatchObject({ pushTags: "follow", pushNotes: true, pushSetUpstream: true, pushRemote: "origin" });
     expect(JSON.stringify(merged)).not.toMatch(/force/i);
   });
+
+  // Remember on a branch already tracking the target stored the locked box, and later
+  // pre-checked re-pointing a branch that tracks another remote.
+  it("keeps Set as upstream as stored when the push left it unset", () => {
+    const unset = { ...push(), setUpstream: null };
+    expect(mergeDefaults(EMPTY_DEFAULTS, { push: unset }).pushSetUpstream).toBeNull();
+    expect(mergeDefaults({ ...EMPTY_DEFAULTS, pushSetUpstream: false }, { push: unset }).pushSetUpstream).toBe(false);
+  });
 });
 
 describe("where a push goes", () => {
