@@ -13,7 +13,6 @@ import {
 import { readKey, writeKey } from "$lib/settings-file";
 import { discardSelection, stageSelection, type PatchRequest } from "$lib/ipc";
 import { WHOLE_FILE, expandedContext } from "$lib/diff-rows";
-import { foldContext } from "$lib/diff-fold";
 import { splitSelection } from "$lib/selection";
 import { runMutation, type MutationContext } from "$lib/mutation";
 import { isAbsentFromBothSides } from "$lib/diff-toolbar";
@@ -74,7 +73,7 @@ class DiffStore {
 
   /** Lines kept around a change when the view folds a diff that carries the whole file. */
   get foldContext(): number {
-    return foldContext(settings.current.diffWholeFile, settings.diffOptions.contextLines);
+    return settings.diffOptions.contextLines;
   }
 
   /** Which of the line actions make sense on the side of the index on screen: the

@@ -7,6 +7,9 @@ import type { DiffRow, Hunk } from "./ipc/bindings";
  * Two kinds of gap. Between the hunks the backend sent, the lines are simply not here;
  * opening one asks for the whole file. Once the whole file is here, the same folds are
  * made on this side, around each change, minus whatever the user opened.
+ *
+ * A gap is also the strip that carries Stage, Unstage and Discard for the block below it.
+ * Where a block needs one and nothing is folded there, a gap that hides nothing stands in.
  */
 
 /** Old-side line numbers, both ends included. */
@@ -40,6 +43,9 @@ export interface FoldInput {
   /** Lines kept around each change when the diff carries more than that. */
   context: number;
   revealed: readonly LineRange[];
+  /** A strip above every block of changes, folded or not: the diff can stage. A block is
+      what git makes a hunk of at `context` lines; the strip sits `context` lines above it. */
+  strips?: boolean;
 }
 
 /** Must match `SHOWN_GAP` in `diff_engine`: a fold this small is shown, not folded. */
@@ -82,22 +88,37 @@ function after(start: number, lines: number): number {
   return lines === 0 ? start + 1 : start + lines;
 }
 
+/** The first line of a hunk on one side; a side with no lines starts past the line it follows. */
+function firstLine(start: number, lines: number): number {
+  return lines === 0 ? start + 1 : start;
+}
+
 /** The last line before a hunk on its old side. */
 function before(hunk: Hunk): number {
   return hunk.oldLines === 0 ? hunk.oldStart : hunk.oldStart - 1;
 }
 
 export function foldDiff(input: FoldInput): FoldEntry[] {
-  const { hunks, oldTotal, newTotal, context, revealed } = input;
+  const { hunks, oldTotal, newTotal, context, revealed, strips = false } = input;
   const out: FoldEntry[] = [];
   let block = 0;
   let declared: string | null = null;
   const bare = oldTotal === 0 || newTotal === 0;
+  /** A gap since the last changed line: the next block has its strip. */
+  let stripped = false;
 
   const gap = (fields: Omit<Gap, "hidden">) => {
     if (bare || fields.oldTo < fields.oldFrom) return;
     if (out.length > 0) block += 1;
     out.push({ kind: "gap", gap: { ...fields, hidden: fields.oldTo - fields.oldFrom + 1 } });
+    stripped = true;
+  };
+  /** A strip that hides nothing, above the lines at `oldFrom` / `newFrom`. */
+  const strip = (oldFrom: number, newFrom: number) => {
+    if (out.length > 0) block += 1;
+    const fields = { oldFrom, oldTo: oldFrom - 1, newFrom, hidden: 0, loaded: true, up: false, down: false };
+    out.push({ kind: "gap", gap: { ...fields, context: declared } });
+    stripped = true;
   };
 
   hunks.forEach((hunk, index) => {
@@ -119,7 +140,12 @@ export function foldDiff(input: FoldInput): FoldEntry[] {
     while (at < rows.length) {
       const row = rows[at]!;
       if (row.kind !== "context") {
+        // A hunk that starts with a change and has no gap above it: at the top of the file.
+        if (strips && at === firstChange && !stripped) {
+          strip(firstLine(hunk.oldStart, hunk.oldLines), firstLine(hunk.newStart, hunk.newLines));
+        }
         out.push({ kind: "row", row, block });
+        stripped = false;
         if (row.kind === "delete" && declares(row.text)) declared = trimmed(row.text);
         at += 1;
         continue;
@@ -136,9 +162,13 @@ export function foldDiff(input: FoldInput): FoldEntry[] {
           (after && offset >= run.length - context) ||
           inside(cell.old, revealed),
       );
+      // Git starts a new hunk past twice the context; a gap in the run is the strip already.
+      const wanted = strips && after && (before ? run.length > 2 * context : !stripped);
+      const stripAt = Math.max(0, run.length - context);
 
       let offset = 0;
       while (offset < run.length) {
+        if (wanted && !stripped && offset === stripAt) strip(run[offset]!.old, run[offset]!.new);
         if (keep[offset]) {
           const cell = run[offset]!;
           if (declares(cell.text)) declared = trimmed(cell.text);
@@ -166,6 +196,7 @@ export function foldDiff(input: FoldInput): FoldEntry[] {
         }
         offset = stop;
       }
+      if (wanted && !stripped) strip(run[run.length - 1]!.old + 1, run[run.length - 1]!.new + 1);
       at = end;
     }
   });

@@ -46,10 +46,11 @@ export interface DeletedRow {
   pieces: readonly { text: string; cls: string }[];
 }
 
-/** Unchanged lines folded into one strip. Rows with the same `id` draw the same strip. */
+/** Unchanged lines folded into one strip; hiding none, the strip of the block below's actions.
+    Rows with the same `id` draw the same strip. */
 export interface FoldRow {
   kind: "fold";
-  /** The first line of the file it hides. */
+  /** The first line of the file it hides, or the line it stands above. */
   from: number;
   hidden: number;
   id: string;
@@ -190,6 +191,12 @@ export function buildPane(doc: Text, { rows }: PaneRows): Pane {
     } else if (row.kind === "filler") {
       if (deleted.length > 0) place(null);
       fillers += 1;
+    } else if (row.kind === "fold" && row.hidden === 0) {
+      // The strip of a block's actions where nothing is folded: between two lines.
+      place(row.from);
+      const inside = row.from >= 1 && row.from <= doc.lines;
+      const widget = Decoration.widget({ widget: new Fold(row), block: true, side: inside ? -1 : 1 });
+      blocks.push(widget.range(inside ? doc.line(row.from).from : doc.length));
     } else if (row.kind === "fold") {
       const last = row.from + row.hidden - 1;
       if (row.from < 1 || last > doc.lines) continue;

@@ -36,7 +36,7 @@ export interface Block {
   moveId: number | null;
   /** The fold-block the rows came from (`FoldEntry.block`): what hunk actions are keyed by. */
   hunk: number;
-  /** The change keys (`d:<old>` / `i:<new>`) the block's Stage/Discard/Select act on. */
+  /** The change keys (`d:<old>` / `i:<new>`) the block's Stage, Unstage and Discard act on. */
   keys: { deletes: string[]; inserts: string[] };
   /** Set on the equal block that stands for a collapsed zone. */
   gap: Gap | null;
@@ -284,7 +284,7 @@ export function buildBlocks(entries: readonly FoldEntry[], opts: InlineOptions =
 }
 
 /** The change keys of every block cut from one fold-block (`Block.hunk`): what a hunk
-    header's Select, Stage, Unstage and Discard act on. */
+    strip's Stage, Unstage and Discard act on. */
 export function hunkKeys(model: BlockModel, hunk: number): Set<string> {
   const keys = new Set<string>();
   for (const b of model.blocks) {

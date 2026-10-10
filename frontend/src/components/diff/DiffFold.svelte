@@ -4,7 +4,8 @@
   /** A fold of the diff (#16): one row of the same height as a line of code (R-626), so the
       anchors of the blocks after it stay on the row grid. Unified and the left pane carry the
       controls; the right pane's strip carries the actions of the hunk below, where its header
-      used to put them. Drawn by the diff view's own rows and by the editable pane alike. */
+      used to put them. Drawn by the diff view's own rows and by the editable pane alike.
+      A fold that hides nothing is only that strip, where a block has no fold above it. */
   interface Props {
     gap: Gap;
     hunk: number | null;
@@ -21,7 +22,7 @@
   let { gap, hunk, role, stageable, actions, frozen = null, onopen, onstage, ondiscard }: Props = $props();
 </script>
 
-<div class="fold" role="group" aria-label="{gap.hidden} lines hidden">
+<div class="fold" role="group" aria-label={gap.hidden > 0 ? `${gap.hidden} lines hidden` : "Block actions"}>
   {#if role !== "right"}
     {#if gap.up}
       <button
@@ -31,12 +32,14 @@
         onclick={(event) => onopen("up", event)}>▲</button
       >
     {/if}
-    <button
-      type="button"
-      class="count"
-      title="Show all {gap.hidden} hidden lines (Ctrl+click: every hidden line in the file)"
-      onclick={(event) => onopen("all", event)}>{gap.hidden} lines hidden · show</button
-    >
+    {#if gap.hidden > 0}
+      <button
+        type="button"
+        class="count"
+        title="Show all {gap.hidden} hidden lines (Ctrl+click: every hidden line in the file)"
+        onclick={(event) => onopen("all", event)}>{gap.hidden} lines hidden · show</button
+      >
+    {/if}
     {#if gap.down}
       <button
         type="button"

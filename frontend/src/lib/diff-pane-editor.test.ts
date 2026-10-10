@@ -37,14 +37,14 @@ function placed(set: DecorationSet): Placed[] {
 describe("the editable pane on the diff's row grid", () => {
   it("folds whole lines into one row", () => {
     const doc = file(10);
-    const pane = buildPane(doc, { rows: [code(1), code(2), fold(3, 5), code(8), code(9), code(10)]});
+    const pane = buildPane(doc, { rows: [code(1), code(2), fold(3, 5), code(8), code(9), code(10)] });
 
     expect(placed(pane.blocks)).toEqual([{ from: doc.line(3).from, to: doc.line(7).to, height: 18, side: expect.any(Number) }]);
   });
 
   it("puts filler before the line after it, as tall as the rows it stands for", () => {
     const doc = file(3);
-    const pane = buildPane(doc, { rows: [code(1), { kind: "filler" }, { kind: "filler" }, code(2), code(3)]});
+    const pane = buildPane(doc, { rows: [code(1), { kind: "filler" }, { kind: "filler" }, code(2), code(3)] });
 
     const [filler] = placed(pane.blocks);
     expect(filler).toMatchObject({ from: doc.line(2).from, to: doc.line(2).from, height: 36 });
@@ -62,9 +62,20 @@ describe("the editable pane on the diff's row grid", () => {
     expect(after!.side).toBeGreaterThan(0);
   });
 
+  it("puts a strip that hides nothing before its line, or after the last one", () => {
+    const doc = file(3);
+    const pane = buildPane(doc, { rows: [code(1), fold(2, 0), code(2), code(3), fold(4, 0)] });
+
+    const [above, after] = placed(pane.blocks);
+    expect(above).toMatchObject({ from: doc.line(2).from, to: doc.line(2).from, height: 18 });
+    expect(above!.side).toBeLessThan(0);
+    expect(after).toMatchObject({ from: doc.length, to: doc.length, height: 18 });
+    expect(after!.side).toBeGreaterThan(0);
+  });
+
   it("skips rows past the text: the next diff puts them right", () => {
     const doc = file(3);
-    const pane = buildPane(doc, { rows: [code(1), code(5), fold(3, 4)]});
+    const pane = buildPane(doc, { rows: [code(1), code(5), fold(3, 4)] });
 
     expect(pane.lines.size).toBe(1);
     expect(placed(pane.blocks)).toEqual([]);
@@ -73,7 +84,7 @@ describe("the editable pane on the diff's row grid", () => {
   it("keeps each line's row for the gutters, and its marks inside the line", () => {
     const doc = file(2);
     const row = code(2, { tone: "add", marks: [{ from: 2, to: 99, cls: "word" }] });
-    const pane = buildPane(doc, { rows: [code(1), row]});
+    const pane = buildPane(doc, { rows: [code(1), row] });
 
     const lines: unknown[] = [];
     pane.lines.between(0, doc.length, (from, _to, deco) => void lines.push([from, (deco.spec as { row: EditRow }).row]));

@@ -48,7 +48,7 @@ function gaps(entries: FoldEntry[]): Gap[] {
 
 function shown(entries: FoldEntry[]): (number | string)[] {
   return entries.map((entry) => {
-    if (entry.kind === "gap") return `gap ${entry.gap.oldFrom}-${entry.gap.oldTo}`;
+    if (entry.kind === "gap") return entry.gap.hidden === 0 ? "strip" : `gap ${entry.gap.oldFrom}-${entry.gap.oldTo}`;
     const row = entry.row;
     return row.kind === "insert" ? `+${row.new}` : row.kind === "delete" ? `-${row.old}` : row.kind === "context" ? row.old : "?";
   });
@@ -189,6 +189,78 @@ describe("foldDiff: folding a diff that carries the whole file", () => {
   it("gives the gap above nothing declared no context", () => {
     const entries = foldDiff({ ...BASE, hunks: [whole], oldTotal: 60, newTotal: 60 });
     expect(gaps(entries)[0]?.context).toBeNull();
+  });
+});
+
+// Stage, Unstage and Discard act on the block below the fold that carries them. Without line
+// selection (R-748) a block with no fold above it — at the top of the file, in a new file, in
+// a file shown whole — could not be staged from the diff at all.
+describe("foldDiff: a strip above every block of changes, for its actions", () => {
+  const EVERY = { from: 1, to: Number.MAX_SAFE_INTEGER };
+  /** The block the deleted line `old` is in. */
+  const blockOf = (entries: FoldEntry[], old: number) =>
+    entries.flatMap((e) => (e.kind === "row" && e.row.kind === "delete" && e.row.old === old ? [e.block] : []))[0];
+
+  it("puts one at the top when no fold is above the first change", () => {
+    const h = hunk([...context(1, 2), d(3), i(3), ...context(4, 6)]);
+    const entries = foldDiff({ ...BASE, hunks: [h], oldTotal: 6, newTotal: 6, strips: true });
+
+    expect(shown(entries)).toEqual(["strip", 1, 2, "-3", "+3", 4, 5, 6]);
+  });
+
+  it("puts one above the lines of a new file", () => {
+    const entries = foldDiff({ ...BASE, hunks: [hunk([i(1), i(2)])], oldTotal: 0, newTotal: 2, strips: true });
+
+    expect(shown(entries)).toEqual(["strip", "+1", "+2"]);
+  });
+
+  it("adds none where a fold carries them", () => {
+    const h = hunk([...context(7, 9), d(10), i(10), ...context(11, 13)]);
+    const entries = foldDiff({ ...BASE, hunks: [h], oldTotal: 13, newTotal: 13, strips: true });
+
+    expect(shown(entries)).toEqual(["gap 1-6", 7, 8, 9, "-10", "+10", 11, 12, 13]);
+  });
+
+  it("splits a file shown whole where git splits hunks, as many lines above a block as the context", () => {
+    const rows = [
+      ...context(1, 4),
+      d(5),
+      ...context(6, 11, -1),
+      d(12),
+      ...context(13, 19, -2),
+      d(20),
+      ...context(21, 23, -3),
+    ];
+    const entries = foldDiff({ ...BASE, hunks: [hunk(rows)], oldTotal: 23, newTotal: 20, revealed: [EVERY], strips: true });
+
+    expect(shown(entries)).toEqual([
+      1, "strip", 2, 3, 4, "-5", 6, 7, 8, 9, 10, 11, "-12", 13, 14, 15, 16, "strip", 17, 18, 19, "-20", 21, 22, 23,
+    ]);
+    expect(blockOf(entries, 5)).toBe(blockOf(entries, 12));
+    expect(blockOf(entries, 20)).not.toBe(blockOf(entries, 12));
+    expect(gaps(entries)[1]).toEqual({
+      oldFrom: 17,
+      oldTo: 16,
+      newFrom: 15,
+      hidden: 0,
+      loaded: true,
+      up: false,
+      down: false,
+      context: null,
+    });
+  });
+
+  it("puts one right above a block when no line of context is kept", () => {
+    const rows = [d(1), ...context(2, 3, -1), d(4), ...context(5, 5, -2)];
+    const entries = foldDiff({ ...BASE, context: 0, hunks: [hunk(rows)], oldTotal: 5, newTotal: 3, revealed: [EVERY], strips: true });
+
+    expect(shown(entries)).toEqual(["strip", "-1", 2, 3, "strip", "-4", 5]);
+  });
+
+  it("draws none where nothing can be staged: the diff of a commit", () => {
+    const h = hunk([...context(1, 2), d(3), i(3), ...context(4, 6)]);
+
+    expect(shown(foldDiff({ ...BASE, hunks: [h], oldTotal: 6, newTotal: 6 }))).toEqual([1, 2, "-3", "+3", 4, 5, 6]);
   });
 });
 

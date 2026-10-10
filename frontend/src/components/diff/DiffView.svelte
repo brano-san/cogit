@@ -166,6 +166,8 @@
   let jumping = false;
   /** Lines the user opened out of the folds, by old line number (#16). */
   let revealed = $state<LineRange[]>([]);
+  /** Every line open: Ctrl+click on a fold, and the whole file, which keeps the strips (R-748). */
+  const EVERY_LINE: LineRange = { from: 1, to: Number.MAX_SAFE_INTEGER };
 
   const hunks = $derived<Hunk[]>(diff.kind === "text" ? diff.hunks : []);
   const language = $derived(diff.kind === "text" ? diff.language : null);
@@ -182,7 +184,8 @@
           oldTotal: diff.oldTotal,
           newTotal: diff.newTotal,
           context: diffStore.foldContext,
-          revealed,
+          revealed: settings.current.diffWholeFile ? [EVERY_LINE] : revealed,
+          strips: stageable,
         })
       : [],
   );
@@ -458,7 +461,7 @@
   /** Ctrl+click opens every fold at once; a fold whose lines are not here asks for them. */
   function openGap(gap: Gap, how: "up" | "down" | "all", event: MouseEvent) {
     const whole = primary(event, ON_MAC);
-    revealed = [...revealed, whole ? { from: 1, to: Number.MAX_SAFE_INTEGER } : revealRange(gap, how)];
+    revealed = [...revealed, whole ? EVERY_LINE : revealRange(gap, how)];
     if (!gap.loaded) loadWholeFile();
   }
 
