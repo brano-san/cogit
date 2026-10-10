@@ -214,6 +214,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::network::merge_notes,
             commands::network::push_preview,
             commands::network::push_tags_preview,
+            commands::network::push_atomic_support,
             commands::network::push_dry_run,
             commands::network::network_defaults,
             commands::network::save_network_defaults,

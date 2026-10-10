@@ -183,6 +183,38 @@ fn push_tags_args(options: &PushOptions) -> Vec<String> {
     args
 }
 
+/// The dialog's push asked only whether the remote takes `--atomic`: git checks that first,
+/// right after the remote names its refs.
+fn push_atomic_args(options: &PushOptions) -> Vec<String> {
+    let mut args: Vec<String> = [
+        "push",
+        "--dry-run",
+        "--porcelain",
+        "--no-verify",
+        "--atomic",
+    ]
+    .map(String::from)
+    .to_vec();
+    args.push(options.remote.clone());
+    args.push(format!(
+        "refs/heads/{}:refs/heads/{}",
+        options.local, options.branch
+    ));
+    args
+}
+
+/// `Some(false)`: git said the remote does not take it; `Some(true)`: git went past that check
+/// to the refs (`To <url>`); `None`: it stopped before hearing from the remote.
+fn atomic_answer(stdout: &str, stderr: &str) -> Option<bool> {
+    if stderr.contains("does not support --atomic push") {
+        return Some(false);
+    }
+    stdout
+        .lines()
+        .any(|line| line.starts_with("To "))
+        .then_some(true)
+}
+
 /// Tags in `git push --porcelain` output (`<flag>\t<from>:<to>\t<summary>`) that would be
 /// sent: not those already there (`=`) or refused (`!`). By name, sorted.
 fn tags_in_porcelain(stdout: &str) -> Vec<String> {
@@ -560,6 +592,29 @@ impl RepoHandle {
         }
     }
 
+    /// Whether the remote takes `--atomic` (`atomic_answer`), asked as quietly as the tags are.
+    pub fn push_atomic_support(
+        &self,
+        options: &PushOptions,
+        token: impl FnOnce(&str) -> Option<String>,
+    ) -> Result<Option<bool>> {
+        let auth = self.auth_env(&options.remote, gix::remote::Direction::Push, token);
+        let refusal = crate::pulse::askpass_refusal(self.has_own_ssh_command());
+        let mut env = crate::pulse::quiet_env(&refusal);
+        env.extend(
+            auth.iter()
+                .map(|(key, value)| (key.as_str(), value.as_str())),
+        );
+        let asked = push_atomic_args(options);
+        let mut args: Vec<&str> = self.background_options();
+        args.extend(asked.iter().map(String::as_str));
+        match self.read_git_with(&args, &env) {
+            Ok(_) => Ok(Some(true)),
+            Err(GitError::Command(failure)) => Ok(atomic_answer(&failure.stdout, &failure.stderr)),
+            Err(err) => Err(err),
+        }
+    }
+
     /// Git keeps no record of a fetch: FETCH_HEAD's time while its lines name the remote's
     /// URL, else the last move of the remote-tracking branch (R-746). Unix ms.
     fn fetched_at(&self, remote: &str, branch: &str) -> Option<u64> {
@@ -929,6 +984,20 @@ mod tests {
                 "refs/heads/main:refs/heads/main"
             ]
         );
+    }
+
+    #[test]
+    fn an_atomic_push_is_known_refused_only_by_the_words_of_git_and_known_taken_past_them() {
+        let refused = "fatal: the receiving end does not support --atomic push\n";
+        assert_eq!(atomic_answer("", refused), Some(false));
+        let reached =
+            "To ../r.git\n!\trefs/heads/main:refs/heads/main\t[rejected] (fetch first)\nDone\n";
+        assert_eq!(
+            atomic_answer(reached, "error: failed to push some refs\n"),
+            Some(true)
+        );
+        let unreachable = "fatal: unable to access 'https://x/': timed out\n";
+        assert_eq!(atomic_answer("", unreachable), None);
     }
 
     #[test]

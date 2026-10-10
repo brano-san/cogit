@@ -797,6 +797,28 @@ fn the_tag_preview_of_a_remote_that_is_gone_is_an_error() {
 }
 
 #[test]
+fn a_remote_says_whether_it_takes_an_atomic_push() {
+    let f = test_fixtures::with_remote().unwrap();
+    let ask = || open(&f).push_atomic_support(&push_options(|_| {}), no_token);
+    assert_eq!(
+        ask().unwrap(),
+        Some(true),
+        "refused as diverged, past the check"
+    );
+    sync_with_origin(&f);
+    assert_eq!(ask().unwrap(), Some(true), "up to date: git names nothing");
+
+    f.git_in(&bare(&f), &["config", "receive.advertiseAtomic", "false"])
+        .unwrap();
+    assert_eq!(ask().unwrap(), Some(false));
+
+    let gone = bare(&f).with_file_name("gone.git");
+    f.git(&["remote", "set-url", "origin", &gone.to_string_lossy()])
+        .unwrap();
+    assert_eq!(ask().unwrap(), None);
+}
+
+#[test]
 fn a_dry_run_says_what_would_go_and_moves_nothing() {
     let f = test_fixtures::with_remote().unwrap();
     sync_with_origin(&f);

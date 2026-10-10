@@ -189,6 +189,30 @@ function notesGo(preview: PushPreview, choice: PushChoice): Goes {
   return preview.notesUnpushed === null ? "maybe" : "yes";
 }
 
+/** Refs the push sends: the branch when it moves (not known yet: it does), each counted tag
+    (not counted yet: one), the notes. */
+function refsGoing(preview: PushPreview | null, choice: PushChoice, tags: TagCount | null): number {
+  const branch = preview === null || commitsGo(preview, choice) === "yes" ? 1 : 0;
+  const tagRefs = choice.tags === "none" ? 0 : tags?.state === "done" ? tags.tags.length : 1;
+  const notes = preview !== null && notesGo(preview, choice) !== "no" ? 1 : 0;
+  return branch + tagRefs + notes;
+}
+
+/** Atomic holds two refs or more together, where the remote takes it: `support` is what it
+    said (`null` or not asked yet: unknown). */
+export function atomicGate(
+  preview: PushPreview | null,
+  choice: PushChoice,
+  tags: TagCount | null,
+  support: boolean | null | undefined,
+): { enabled: boolean; tip: string } {
+  if (support === false) return { enabled: false, tip: "Remote does not support atomic push" };
+  if (refsGoing(preview, choice, tags) < 2) {
+    return { enabled: false, tip: "Needs two refs or more: the branch with its tags or notes" };
+  }
+  return { enabled: true, tip: "Every ref is updated, or none is" };
+}
+
 /** The Push button: what it says it sends, and whether anything would go at all. Set upstream
     rides along unnamed unless it is all there is; what is not counted yet counts as going. */
 export function pushButton(

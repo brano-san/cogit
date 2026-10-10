@@ -54,6 +54,10 @@ export async function pushTagsPreview(repo: RepoId, options: PushOptions) {
   return unwrap(await commands.pushTagsPreview(repo, options));
 }
 
+export async function pushAtomicSupport(repo: RepoId, options: PushOptions) {
+  return unwrap(await commands.pushAtomicSupport(repo, options));
+}
+
 export async function networkDefaults(repo: RepoId): Promise<NetworkDefaults> {
   return unwrap(await commands.networkDefaults(repo));
 }

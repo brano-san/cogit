@@ -3,6 +3,7 @@ import { shortOid } from "$lib/format";
 import type { PushPreview } from "$lib/ipc/network-dialogs";
 import type { PushChoice } from "./network-dialogs";
 import {
+  atomicGate,
   commitsText,
   effectiveChoice,
   fetchedText,
@@ -232,6 +233,35 @@ describe("the Push button", () => {
 
   it("calls a dry run Dry run", () => {
     expect(button(preview({ total: 3, localTip: "b" }), off({ dryRun: true, forceWithLease: true })).label).toBe("Dry run");
+  });
+});
+
+describe("Atomic", () => {
+  const done = (names: string[]): TagCount => ({ state: "done", tags: names });
+  const ahead = preview({ total: 2, localTip: "b" });
+
+  it("holds two refs or more together, and not where the remote said no", () => {
+    expect(atomicGate(ahead, choice({ tags: "all" }), done(["v1"]), null)).toEqual({
+      enabled: true,
+      tip: "Every ref is updated, or none is",
+    });
+    expect(atomicGate(preview(), choice({ tags: "all" }), done(["v1", "v2"]), true).enabled).toBe(true);
+    expect(atomicGate(ahead, choice({ notes: true }), null, undefined).enabled).toBe(false);
+    const noted = preview({ total: 2, localTip: "b", hasLocalNotes: true, notesUnpushed: null });
+    expect(atomicGate(noted, choice({ notes: true }), null, undefined).enabled).toBe(true);
+    expect(atomicGate(ahead, choice({ tags: "follow" }), { state: "counting" }, null).enabled).toBe(true);
+    expect(atomicGate(ahead, choice({ tags: "all" }), done(["v1"]), false)).toEqual({
+      enabled: false,
+      tip: "Remote does not support atomic push",
+    });
+  });
+
+  it("says why one ref is not enough", () => {
+    expect(atomicGate(ahead, choice(), null, true)).toEqual({
+      enabled: false,
+      tip: "Needs two refs or more: the branch with its tags or notes",
+    });
+    expect(atomicGate(ahead, choice({ tags: "follow" }), done([]), true).enabled).toBe(false);
   });
 });
 

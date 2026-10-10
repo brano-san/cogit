@@ -12,6 +12,7 @@
   import { toCogitError } from "$lib/ipc";
   import { remoteInfo } from "$lib/ipc/remotes";
   import {
+    pushAtomicSupport,
     pushPreview,
     pushTagsPreview,
     type PushOptions,
@@ -27,6 +28,7 @@
     type PushChoice,
   } from "$lib/network-dialogs";
   import {
+    atomicGate,
     commitsText,
     effectiveChoice,
     leaseLine,
@@ -41,7 +43,7 @@
   } from "$lib/push-dialog";
   import { splitUpstream } from "$lib/push-to";
   import { confirmation } from "$stores/confirm.svelte";
-  import type { PushRequest } from "$stores/network-dialog.svelte";
+  import { networkDialog, type PushRequest } from "$stores/network-dialog.svelte";
   import { settings } from "$stores/settings.svelte";
 
   /** Push (item 12), the Push dialog: where, what goes, which tags and notes. */
@@ -99,10 +101,7 @@
   const branches = $derived(remoteBranchChoices(choice.remote, request.remoteBranches, choice.local));
   const problem = $derived(pushProblem(choice));
   const tracking = $derived(upstreamState(upstream, choice.remote, choice.branch));
-  const sent = $derived(effectiveChoice(choice, upstream));
-  const command = $derived(pushCommand(sent, preview?.remoteTip ?? null));
   const danger = $derived(choice.forceWithLease && !choice.dryRun);
-  let advancedOpen = $state(false);
   const lease = $derived(leaseLine(choice.remote, choice.branch, preview?.remoteTip ?? null));
 
   async function push() {
@@ -187,6 +186,22 @@
 
   const counter = $derived(tagCounter(tags));
 
+  /** What each remote said of `--atomic`, asked once Advanced shows it; `null`: not reached. */
+  let atomicSupport = $state<Record<string, boolean | null>>({});
+  const atomic = $derived(atomicGate(preview, choice, tags, atomicSupport[choice.remote]));
+  /** What goes: no `--set-upstream` that changes nothing, no `--atomic` where it cannot hold. */
+  const sent = $derived({ ...effectiveChoice(choice, upstream), atomic: choice.atomic && atomic.enabled });
+  const command = $derived(pushCommand(sent, preview?.remoteTip ?? null));
+
+  $effect(() => {
+    const remote = choice.remote;
+    if (!networkDialog.advancedOpen || problem !== null || remote in untrack(() => atomicSupport)) return;
+    const options = untrack(() => pushOptionsOf(choice));
+    pushAtomicSupport(request.repo, options)
+      .then((answer) => (atomicSupport[remote] = answer))
+      .catch(() => (atomicSupport[remote] = null));
+  });
+
   const more = $derived(preview ? preview.total - preview.commits.length : 0);
   const status = $derived(preview && statusLine(preview, choice.remote, Date.now(), settings.current.fetchStaleHours));
   /** The status may no longer hold: Fetch comes first, Push waits. */
@@ -199,11 +214,11 @@
   {onclose}
   status={problem}
   destructive={danger}
-  onenter={stale && !fetching ? () => void fetchRemote() : undefined}
+  onenter={stale && !fetching ? () => void fetchRemote() : choice.dryRun ? () => void push() : undefined}
   actions={[
     {
       label: button.label,
-      primary: !stale,
+      primary: !stale && !choice.dryRun,
       disabled: problem !== null || fetching || button.nothing,
       tip: button.nothing ? "Nothing to push" : undefined,
       onclick: () => void push(),
@@ -307,17 +322,30 @@
   </div>
 
   <div class="group">
-    <button type="button" class="caption advanced" aria-expanded={advancedOpen} onclick={() => (advancedOpen = !advancedOpen)}>
-      <Disclosure open={advancedOpen} />Advanced
+    <button
+      type="button"
+      class="caption advanced"
+      aria-expanded={networkDialog.advancedOpen}
+      onclick={() => void networkDialog.setAdvancedOpen(!networkDialog.advancedOpen)}
+    >
+      <Disclosure open={networkDialog.advancedOpen} />Advanced
     </button>
-    {#if advancedOpen}
-      <OptionRow bind:checked={choice.noVerify} label="Skip the pre-push hook" hint="--no-verify" />
+    {#if networkDialog.advancedOpen}
+      <OptionRow bind:checked={choice.noVerify} label="Skip pre-push hook" flag="--no-verify" tip="Push without running the pre-push hook" />
       <OptionRow
         bind:checked={choice.dryRun}
         label="Dry run"
-        hint="--dry-run: show what would be pushed in the output window; nothing is sent"
+        flag="--dry-run"
+        tip="Show what would be pushed in the output window; nothing is sent"
       />
-      <OptionRow bind:checked={choice.atomic} label="Atomic" hint="--atomic: every ref is updated, or none is" />
+      <OptionRow
+        checked={choice.atomic && atomic.enabled}
+        disabled={!atomic.enabled}
+        label="Atomic"
+        flag="--atomic"
+        tip={atomic.tip}
+        onchange={(on) => (choice.atomic = on)}
+      />
     {/if}
   </div>
 

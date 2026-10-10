@@ -387,6 +387,21 @@ pub async fn push_preview(
     .await
 }
 
+/// Not queued, as `push_tags_preview`.
+#[tauri::command]
+#[specta::specta]
+pub async fn push_atomic_support(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    options: git_engine::PushOptions,
+) -> Result<Option<bool>, GitError> {
+    let app_state = state.state.clone();
+    blocking("push_atomic_support", move || {
+        app_state.push_atomic_support(repo, &options)
+    })
+    .await
+}
+
 /// Not queued: it writes nothing, and its stall limits end a silent remote (R-746).
 #[tauri::command]
 #[specta::specta]

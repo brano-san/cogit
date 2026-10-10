@@ -195,6 +195,8 @@ export const commands = {
 	pushPreview: (repo: RepoId, local: string, remote: string, branch: string, limit: number) => typedError<PushPreview, GitError>(__TAURI_INVOKE("push_preview", { repo, local, remote, branch, limit })),
 	/**  Not queued: it writes nothing, and its stall limits end a silent remote (R-746). */
 	pushTagsPreview: (repo: RepoId, options: PushOptions) => typedError<string[], GitError>(__TAURI_INVOKE("push_tags_preview", { repo, options })),
+	/**  Not queued, as `push_tags_preview`. */
+	pushAtomicSupport: (repo: RepoId, options: PushOptions) => typedError<boolean | null, GitError>(__TAURI_INVOKE("push_atomic_support", { repo, options })),
 	pushDryRun: (repo: RepoId, options: PushOptions, onProgress: Channel<string>) => typedError<GitOutput, GitError>(__TAURI_INVOKE("push_dry_run", { repo, options, onProgress })),
 	networkDefaults: (repo: RepoId) => typedError<NetworkDefaults, GitError>(__TAURI_INVOKE("network_defaults", { repo })),
 	saveNetworkDefaults: (repo: RepoId, defaults: NetworkDefaults) => typedError<null, GitError>(__TAURI_INVOKE("save_network_defaults", { repo, defaults })),

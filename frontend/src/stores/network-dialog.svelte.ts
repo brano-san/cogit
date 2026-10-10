@@ -39,21 +39,34 @@ export interface PushRequest {
     answers (it knows how to refresh the panels after). */
 class NetworkDialogStore {
   open = $state.raw<PullRequest | PushRequest | null>(null);
-  /** Pull's More Options block stays open or closed as the user left it. */
+  /** Pull's More Options and Push's Advanced stay open or closed as the user left them. */
   moreOpen = $state(false);
+  advancedOpen = $state(false);
 
   async load(): Promise<void> {
     try {
-      this.moreOpen = (await readKey<{ moreOpen?: boolean }>(KEY))?.moreOpen === true;
+      const saved = await readKey<{ moreOpen?: boolean; advancedOpen?: boolean }>(KEY);
+      this.moreOpen = saved?.moreOpen === true;
+      this.advancedOpen = saved?.advancedOpen === true;
     } catch {
       this.moreOpen = false;
+      this.advancedOpen = false;
     }
   }
 
   async setMoreOpen(open: boolean): Promise<void> {
     this.moreOpen = open;
+    await this.save();
+  }
+
+  async setAdvancedOpen(open: boolean): Promise<void> {
+    this.advancedOpen = open;
+    await this.save();
+  }
+
+  private async save(): Promise<void> {
     try {
-      await writeKey(KEY, { moreOpen: open });
+      await writeKey(KEY, { moreOpen: this.moreOpen, advancedOpen: this.advancedOpen });
     } catch {
       // Applied for this session even when it cannot be saved.
     }

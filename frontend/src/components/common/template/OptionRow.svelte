@@ -4,12 +4,14 @@
 
   /** One option: a short label with a `fg.muted` hint under it. Checkbox (default) binds
       `checked`; radios of one choice share `name` and answer through `onchange`. A dense list
-      puts the explanation in `tip` (the label's tooltip) and a count in `note` beside it. */
+      puts the explanation in `tip` (the label's tooltip), a count in `note` beside it and the
+      git flag the option adds in `flag`, on the right. */
   interface Props {
     label: string;
     hint?: string;
     tip?: string;
     note?: string;
+    flag?: string;
     kind?: "checkbox" | "radio";
     checked?: boolean;
     name?: string;
@@ -22,6 +24,7 @@
     hint,
     tip,
     note,
+    flag,
     kind = "checkbox",
     checked = $bindable(false),
     name,
@@ -35,6 +38,7 @@
     <span class="line">
       <span class="label" title={tip}>{label}</span>
       {#if note}<span class="note">{note}</span>{/if}
+      {#if flag}<span class="flag">{flag}</span>{/if}
     </span>
     {#if hint}<span class="hint">{hint}</span>{/if}
   </span>
@@ -56,6 +60,7 @@
 
   .text {
     display: flex;
+    flex: 1 1 auto;
     flex-direction: column;
     gap: var(--sp-1);
     min-width: 0;
@@ -74,6 +79,12 @@
 
   .note {
     color: var(--text-muted);
+  }
+
+  .flag {
+    margin-left: auto;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
   }
 
   .hint {

@@ -32,6 +32,7 @@ beforeEach(() => {
   saved.writes.length = 0;
   seen.labels.length = 0;
   networkDialog.moreOpen = false;
+  networkDialog.advancedOpen = false;
   networkDialog.close();
 });
 
@@ -50,7 +51,23 @@ describe("More Options", () => {
   it("is saved when toggled", async () => {
     await networkDialog.setMoreOpen(true);
     expect(networkDialog.moreOpen).toBe(true);
-    expect(saved.writes).toEqual([{ moreOpen: true }]);
+    expect(saved.writes).toEqual([{ moreOpen: true, advancedOpen: false }]);
+  });
+});
+
+describe("Push's Advanced", () => {
+  it("opens as the user left it, beside More Options", async () => {
+    saved.value = { moreOpen: true, advancedOpen: true };
+    await networkDialog.load();
+    expect(networkDialog.advancedOpen).toBe(true);
+    expect(networkDialog.moreOpen).toBe(true);
+  });
+
+  it("is saved when toggled, More Options kept", async () => {
+    networkDialog.moreOpen = true;
+    await networkDialog.setAdvancedOpen(true);
+    expect(networkDialog.advancedOpen).toBe(true);
+    expect(saved.writes).toEqual([{ moreOpen: true, advancedOpen: true }]);
   });
 });
 

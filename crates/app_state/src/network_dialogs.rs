@@ -125,6 +125,17 @@ impl AppState {
             .push_tags_preview(options, |url| self.token_for(url))
     }
 
+    /// Whether the remote takes `--atomic`; `None` when it could not be asked. Unjournaled
+    /// for the reason the tag count is.
+    pub fn push_atomic_support(
+        &self,
+        repo: RepoId,
+        options: &PushOptions,
+    ) -> Result<Option<bool>, GitError> {
+        self.unjournaled_handle(repo)?
+            .push_atomic_support(options, |url| self.token_for(url))
+    }
+
     pub fn network_defaults(&self, repo: RepoId) -> Result<NetworkDefaults, GitError> {
         self.handle(repo)?.network_defaults()
     }
