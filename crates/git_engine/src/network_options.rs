@@ -107,6 +107,8 @@ pub struct PushOutcome {
 pub struct PushCommit {
     pub oid: String,
     pub summary: String,
+    /// The author through `.mailmap`, as `git log` dates a commit.
+    pub author: crate::Signature,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -132,6 +134,28 @@ const LOCAL_NOTES: &str = "refs/notes/";
 
 fn notes_mirror(remote: &str) -> String {
     format!("refs/notes-remote/{remote}/")
+}
+
+/// A row of a list of commits to push; what cannot be read stays empty.
+pub(crate) fn push_commit(
+    info: &gix::revision::walk::Info<'_>,
+    mailmap: &crate::Mailmap,
+) -> PushCommit {
+    let commit = info.object().ok();
+    let summary = commit
+        .as_ref()
+        .and_then(|commit| commit.message().ok().map(|m| m.summary().to_string()))
+        .unwrap_or_default();
+    let author = commit
+        .as_ref()
+        .and_then(|commit| commit.author().ok())
+        .map(|sig| crate::commit::signature(sig, mailmap))
+        .unwrap_or_default();
+    PushCommit {
+        oid: info.id.to_string(),
+        summary,
+        author,
+    }
 }
 
 const NOTES_REFSPEC: &str = "refs/notes/*:refs/notes/*";
@@ -596,18 +620,11 @@ impl RepoHandle {
         };
         let mut total = 0_u32;
         let mut commits = Vec::new();
+        let mailmap = self.mailmap();
         for info in walk.filter_map(std::result::Result::ok) {
             total = total.saturating_add(1);
             if commits.len() < limit {
-                let summary = info
-                    .object()
-                    .ok()
-                    .and_then(|commit| commit.message().ok().map(|m| m.summary().to_string()))
-                    .unwrap_or_default();
-                commits.push(PushCommit {
-                    oid: info.id.to_string(),
-                    summary,
-                });
+                commits.push(push_commit(&info, &mailmap));
             }
         }
         (total, commits)

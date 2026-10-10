@@ -172,18 +172,11 @@ impl RepoHandle {
         };
         let mut total = 0_u32;
         let mut commits = Vec::new();
+        let mailmap = self.mailmap();
         for info in walk.filter_map(std::result::Result::ok) {
             total = total.saturating_add(1);
             if commits.len() < NAMED {
-                let summary = info
-                    .object()
-                    .ok()
-                    .and_then(|commit| commit.message().ok().map(|m| m.summary().to_string()))
-                    .unwrap_or_default();
-                commits.push(PushCommit {
-                    oid: info.id.to_string(),
-                    summary,
-                });
+                commits.push(crate::network_options::push_commit(&info, &mailmap));
             }
         }
         (total, commits)

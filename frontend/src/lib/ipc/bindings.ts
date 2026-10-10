@@ -1950,6 +1950,8 @@ export type Pulled = {
 export type PushCommit = {
 	oid: string,
 	summary: string,
+	/**  The author through `.mailmap`, as `git log` dates a commit. */
+	author: Signature,
 };
 
 /**

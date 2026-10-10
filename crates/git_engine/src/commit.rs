@@ -4,7 +4,7 @@ use std::ops::ControlFlow;
 
 const SECONDS_PER_MINUTE: i32 = 60;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Signature {
     pub name: String,
@@ -345,7 +345,7 @@ impl RepoHandle {
     }
 }
 
-fn signature(sig: gix::actor::SignatureRef<'_>, mailmap: &crate::Mailmap) -> Signature {
+pub(crate) fn signature(sig: gix::actor::SignatureRef<'_>, mailmap: &crate::Mailmap) -> Signature {
     let time = sig.time().unwrap_or_default();
     let (mut name, mut email) = (sig.name.to_string(), sig.email.to_string());
     mailmap.apply(&mut name, &mut email);

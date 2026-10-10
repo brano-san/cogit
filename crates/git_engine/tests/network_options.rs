@@ -721,3 +721,19 @@ fn a_dry_run_says_what_would_go_and_moves_nothing() {
     assert_eq!(f.git_in(&bare(&f), &["rev-parse", "main"]).unwrap(), before);
     assert_eq!(f.oid("refs/remotes/origin/main").unwrap(), before.trim());
 }
+
+#[test]
+fn the_preview_names_each_commits_author_and_date() {
+    let f = test_fixtures::with_remote().unwrap();
+    let authored: i64 = f
+        .git(&["log", "-1", "--format=%at", "main"])
+        .unwrap()
+        .trim()
+        .parse()
+        .unwrap();
+
+    let preview = open(&f).push_preview("main", "origin", "main", 10);
+
+    assert_eq!(preview.commits[0].author.name, test_fixtures::AUTHOR_NAME);
+    assert_eq!(preview.commits[0].author.timestamp, authored);
+}

@@ -42,7 +42,7 @@ const entry = (over: Partial<WorktreeEntry> = {}): WorktreeEntry => ({
 const unpushed = (path: string, total: number): UnpushedInSubmodule => ({
   path,
   total,
-  commits: [{ oid: "b".repeat(40), summary: "local" }],
+  commits: [{ oid: "b".repeat(40), summary: "local", author: { name: "A", email: "a@example.com", timestamp: 0, tzOffsetMinutes: 0 } }],
 });
 
 describe("worktree removal scan", () => {

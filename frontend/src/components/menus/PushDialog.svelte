@@ -261,7 +261,12 @@
 
   <PushList label={commitsText(preview)} empty={!preview || preview.total === 0} open={listOpen} ontoggle={() => (listOpen = !listOpen)}>
     {#each preview?.commits ?? [] as commit (commit.oid)}
-      <li><span class="oid mono">{shortOid(commit.oid)}</span><span class="summary">{commit.summary}</span></li>
+      <li>
+        <span class="oid mono">{shortOid(commit.oid)}</span>
+        <span class="summary truncate" title={commit.summary}>{commit.summary}</span>
+        <span class="who">{commit.author.name}</span>
+        <span class="who">{settings.formatDate(commit.author.timestamp, commit.author.tzOffsetMinutes)}</span>
+      </li>
     {/each}
     {#if more > 0}<li class="rest">and {more} more</li>{/if}
   </PushList>
@@ -475,8 +480,13 @@
   }
 
   .summary {
+    flex: 1 1 auto;
     min-width: 0;
-    overflow-wrap: anywhere;
+  }
+
+  .who {
+    flex: none;
+    color: var(--text-secondary);
   }
 
   .rest {
