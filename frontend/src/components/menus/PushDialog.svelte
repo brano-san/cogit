@@ -26,7 +26,6 @@
     remoteBranchChoices,
     tagsHint,
     type PushChoice,
-    type RememberedPush,
   } from "$lib/network-dialogs";
   import {
     commitsText,
@@ -38,7 +37,6 @@
     pushButtonLabel,
     pushCommand,
     pushStatus,
-    rememberedChoice,
     tagCountText,
     upstreamState,
     type TagCount,
@@ -52,7 +50,7 @@
   interface Props {
     request: PushRequest;
     /** `options` is what goes; `choice` is what Remember keeps. */
-    onpush: (choice: RememberedPush, options: PushOptions, remember: boolean) => void;
+    onpush: (choice: PushChoice, options: PushOptions, remember: boolean) => void;
     /** Fetches `remote` and refreshes the panels; the dialog then reads everything again. */
     onfetch: (remote: string) => Promise<void>;
     onclose: () => void;
@@ -112,7 +110,7 @@
     if (danger && settings.current.protectedBranches.includes(choice.branch)) {
       if (!(await confirmation.ask(protectedQuestion(choice.remote, choice.branch)))) return;
     }
-    onpush(rememberedChoice(choice, upstream), pushOptionsOf(sent, preview?.remoteTip ?? null), remember);
+    onpush(choice, pushOptionsOf(sent, preview?.remoteTip ?? null), remember);
   }
 
   function chooseRemote(next: string) {
@@ -275,13 +273,11 @@
 
   <div class="group">
     <span class="caption">Tracking</span>
-    <OptionRow
-      checked={tracking.kind === "already" || choice.setUpstream}
-      disabled={tracking.kind === "already"}
-      label="Set as upstream"
-      hint={tracking.hint}
-      onchange={(on) => (choice.setUpstream = on)}
-    />
+    {#if tracking.kind === "already"}
+      <p class="upstream">{tracking.hint}</p>
+    {:else}
+      <OptionRow bind:checked={choice.setUpstream} label="Set as upstream" hint={tracking.hint} />
+    {/if}
   </div>
 
   <div class="group">
@@ -336,7 +332,7 @@
     <OptionRow
       bind:checked={remember}
       label="Remember as default for repository"
-      hint="Saves remote, tags, notes and upstream settings (Force is never saved)"
+      hint="Saves remote, tags and notes (Force is never saved)"
     />
   </div>
 
@@ -448,6 +444,12 @@
     color: var(--text-muted);
     font-size: var(--fs-dense);
     overflow-wrap: anywhere;
+  }
+
+  .upstream {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--fs-dense);
   }
 
   .nested {

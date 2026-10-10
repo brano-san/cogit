@@ -10,7 +10,6 @@ export const EMPTY_DEFAULTS: NetworkDefaults = {
   pullNotes: false,
   pushTags: "none",
   pushNotes: false,
-  pushSetUpstream: null,
   pushRemote: null,
 };
 
@@ -73,7 +72,7 @@ export function pushChoiceOf(
     remote: target.remote,
     local: target.local,
     branch: target.branch,
-    setUpstream: defaults.pushSetUpstream ?? !target.hasUpstream,
+    setUpstream: !target.hasUpstream,
     tags: defaults.pushTags,
     notes: defaults.pushNotes,
     forceWithLease: false,
@@ -121,16 +120,9 @@ export function tagsHint(mode: TagsMode): string {
   }
 }
 
-/** A push as Remember keeps it: `setUpstream` is `null` where the box was locked, and what
-    was stored stays. */
-export type RememberedPush = Omit<PushChoice, "setUpstream"> & { setUpstream: boolean | null };
-
 /** The half of the defaults that was asked to be remembered replaces its stored values;
-    force is not a field of the defaults at all. */
-export function mergeDefaults(
-  stored: NetworkDefaults,
-  remember: { pull?: PullChoice; push?: RememberedPush },
-): NetworkDefaults {
+    force and Set as upstream are not fields of the defaults at all. */
+export function mergeDefaults(stored: NetworkDefaults, remember: { pull?: PullChoice; push?: PushChoice }): NetworkDefaults {
   const next = { ...stored };
   if (remember.pull) {
     next.pullMethod = remember.pull.method;
@@ -140,7 +132,6 @@ export function mergeDefaults(
   if (remember.push) {
     next.pushTags = remember.push.tags;
     next.pushNotes = remember.push.notes;
-    next.pushSetUpstream = remember.push.setUpstream ?? stored.pushSetUpstream;
     next.pushRemote = remember.push.remote;
   }
   return next;
@@ -189,6 +180,6 @@ export function chooseLocal(
     local: branch.name,
     remote: target.remote ?? choice.remote,
     branch: target.branch,
-    setUpstream: defaults.pushSetUpstream ?? branch.upstream === null,
+    setUpstream: branch.upstream === null,
   };
 }

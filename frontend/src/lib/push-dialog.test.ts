@@ -12,7 +12,6 @@ import {
   pushButtonLabel,
   pushCommand,
   pushStatus,
-  rememberedChoice,
   tagCountText,
   upstreamState,
   type TagCount,
@@ -37,7 +36,7 @@ describe("Set as upstream", () => {
   it("says the branch already tracks the target and sends no --set-upstream", () => {
     expect(upstreamState("origin/main", "origin", "main")).toEqual({
       kind: "already",
-      hint: "Already tracking origin/main",
+      hint: "Upstream: origin/main",
     });
     expect(effectiveChoice(choice(), "origin/main").setUpstream).toBe(false);
   });
@@ -202,12 +201,3 @@ describe("advanced options", () => {
   });
 });
 
-describe("what Remember keeps", () => {
-  // Stored `false` from the locked box turned upstream off for new branches; stored `true`
-  // pre-checked re-pointing a branch that tracks another remote.
-  it("leaves Set as upstream unset while the box is locked", () => {
-    expect(rememberedChoice(choice({ setUpstream: false }), "origin/main").setUpstream).toBeNull();
-    expect(rememberedChoice(choice({ setUpstream: false }), "origin/old").setUpstream).toBe(false);
-    expect(rememberedChoice(choice({ setUpstream: true }), null)).toEqual(choice({ setUpstream: true }));
-  });
-});

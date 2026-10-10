@@ -64,11 +64,11 @@ describe("pull", () => {
 });
 
 describe("push", () => {
-  it("sets the upstream while there is none, unless the repository chose", () => {
+  it("sets the upstream only while there is none, whatever was remembered", () => {
     const base = { local: "main", remote: "origin", branch: "main" };
     expect(pushChoiceOf(EMPTY_DEFAULTS, { ...base, hasUpstream: false }).setUpstream).toBe(true);
     expect(pushChoiceOf(EMPTY_DEFAULTS, { ...base, hasUpstream: true }).setUpstream).toBe(false);
-    expect(pushChoiceOf({ ...EMPTY_DEFAULTS, pushSetUpstream: false }, { ...base, hasUpstream: false }).setUpstream).toBe(false);
+    expect(Object.keys(EMPTY_DEFAULTS)).not.toContain("pushSetUpstream");
   });
 
   it("never opens with force on, whatever was remembered", () => {
@@ -126,16 +126,7 @@ describe("remembering", () => {
     const merged = mergeDefaults(EMPTY_DEFAULTS, {
       push: push({ tags: "follow", notes: true, setUpstream: true, forceWithLease: true }),
     });
-    expect(merged).toMatchObject({ pushTags: "follow", pushNotes: true, pushSetUpstream: true, pushRemote: "origin" });
-    expect(JSON.stringify(merged)).not.toMatch(/force/i);
-  });
-
-  // Remember on a branch already tracking the target stored the locked box, and later
-  // pre-checked re-pointing a branch that tracks another remote.
-  it("keeps Set as upstream as stored when the push left it unset", () => {
-    const unset = { ...push(), setUpstream: null };
-    expect(mergeDefaults(EMPTY_DEFAULTS, { push: unset }).pushSetUpstream).toBeNull();
-    expect(mergeDefaults({ ...EMPTY_DEFAULTS, pushSetUpstream: false }, { push: unset }).pushSetUpstream).toBe(false);
+    expect(merged).toEqual({ ...EMPTY_DEFAULTS, pushTags: "follow", pushNotes: true, pushRemote: "origin" });
   });
 });
 

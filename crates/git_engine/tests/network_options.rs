@@ -675,7 +675,6 @@ fn a_repository_remembers_its_choices_in_its_own_config() {
         pull_notes: true,
         push_tags: TagsMode::Follow,
         push_notes: true,
-        push_set_upstream: Some(false),
         push_remote: Some("fork".into()),
     };
     assert_eq!(
@@ -687,13 +686,16 @@ fn a_repository_remembers_its_choices_in_its_own_config() {
     assert_eq!(open(&f).network_defaults().unwrap(), wanted);
 
     let automatic = NetworkDefaults {
-        push_set_upstream: None,
         push_remote: None,
         ..wanted
     };
     open(&f).save_network_defaults(&automatic).unwrap();
-    let read = open(&f).network_defaults().unwrap();
-    assert_eq!((read.push_set_upstream, read.push_remote), (None, None));
+    assert_eq!(open(&f).network_defaults().unwrap().push_remote, None);
+    // Set as upstream opens from the branch alone: on only without an upstream.
+    assert!(
+        f.git(&["config", "--local", "--get", "cogit.pushSetUpstream"])
+            .is_err()
+    );
 }
 
 #[test]

@@ -79,8 +79,6 @@ pub struct NetworkDefaults {
     pub pull_notes: bool,
     pub push_tags: TagsMode,
     pub push_notes: bool,
-    /// `None`: on while the branch has no upstream.
-    pub push_set_upstream: Option<bool>,
     /// The remote the Push dialog opens on; `None`: where git would push.
     pub push_remote: Option<String>,
 }
@@ -744,9 +742,6 @@ impl RepoHandle {
         if let Some(value) = self.local_choice("cogit.pushNotes") {
             defaults.push_notes = value == "true";
         }
-        defaults.push_set_upstream = self
-            .local_choice("cogit.pushSetUpstream")
-            .map(|value| value == "true");
         defaults.push_remote = self.local_choice("cogit.pushRemote");
         Ok(defaults)
     }
@@ -790,10 +785,6 @@ impl RepoHandle {
             ("cogit.pushTags", tags),
             ("cogit.pushNotes", flag(defaults.push_notes)),
         ];
-        match defaults.push_set_upstream {
-            Some(on) => pairs.push(("cogit.pushSetUpstream", flag(on))),
-            None => self.forget_choice("cogit.pushSetUpstream")?,
-        }
         match &defaults.push_remote {
             Some(remote) => pairs.push(("cogit.pushRemote", remote.as_str())),
             None => self.forget_choice("cogit.pushRemote")?,

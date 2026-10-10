@@ -2,7 +2,7 @@
     line, when nothing would go, the command it shows. */
 import { relativeDate, shortOid } from "$lib/format";
 import type { PushPreview } from "$lib/ipc/network-dialogs";
-import type { PushChoice, RememberedPush } from "$lib/network-dialogs";
+import type { PushChoice } from "$lib/network-dialogs";
 import type { ConfirmRequest } from "$stores/confirm.svelte";
 
 export interface UpstreamState {
@@ -13,7 +13,7 @@ export interface UpstreamState {
 
 export function upstreamState(upstream: string | null, remote: string, branch: string): UpstreamState {
   const target = `${remote}/${branch}`;
-  if (upstream === target) return { kind: "already", hint: `Already tracking ${target}` };
+  if (upstream === target) return { kind: "already", hint: `Upstream: ${target}` };
   if (upstream === null) return { kind: "none", hint: `Track ${target} (no upstream yet)` };
   return { kind: "other", hint: `Track ${target} instead of ${upstream}` };
 }
@@ -22,13 +22,6 @@ export function upstreamState(upstream: string | null, remote: string, branch: s
 export function effectiveChoice(choice: PushChoice, upstream: string | null): PushChoice {
   if (!choice.setUpstream || upstreamState(upstream, choice.remote, choice.branch).kind !== "already") return choice;
   return { ...choice, setUpstream: false };
-}
-
-/** What Remember keeps: Set as upstream only where the person could set it. While the branch
-    already tracks the target the box is locked, and the stored choice stays. */
-export function rememberedChoice(choice: PushChoice, upstream: string | null): RememberedPush {
-  if (upstreamState(upstream, choice.remote, choice.branch).kind !== "already") return choice;
-  return { ...choice, setUpstream: null };
 }
 
 export interface PushCommand {
