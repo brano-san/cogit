@@ -211,6 +211,7 @@
 
 <TemplateDialog
   title="Push commits to a remote repository"
+  fill
   {onclose}
   status={problem}
   destructive={danger}
@@ -225,128 +226,133 @@
     },
   ]}
 >
-  <div class="fields">
-    <div class="field wide">
-      <span class="caption">Local branch</span>
-      <RevisionCombobox
-        value={choice.local}
-        label="Local branch"
-        free={false}
-        options={request.locals.map((b) => ({ value: b.name, label: b.name, group: "" }))}
-        onchange={pickLocal}
-      />
-    </div>
-    <div class="field">
-      <span class="caption">Remote</span>
-      <RevisionCombobox
-        value={choice.remote}
-        label="Remote"
-        free={false}
-        tip={url ? `${choice.remote} — ${url}` : choice.remote}
-        popupWidth={REMOTE_LIST_WIDTH}
-        options={request.remotes.map((name) => ({ value: name, label: name, group: "", hint: urls[name] || undefined }))}
-        onchange={chooseRemote}
-      />
-    </div>
-    <div class="field">
-      <span class="caption">Remote branch</span>
-      <RevisionCombobox
-        value={choice.branch}
-        label="Remote branch"
-        options={branches.map((name) => ({ value: name, label: name, group: "" }))}
-        onchange={(next) => (choice.branch = next)}
-      />
-    </div>
-  </div>
-  <div class="status-line">
-    <span class="status truncate" class:stale title={status?.text}>{status?.text ?? ""}</span>
-    <button
-      type="button"
-      class="btn sm"
-      class:primary={stale}
-      title="Fetch {choice.remote} and read again"
-      disabled={fetching}
-      onclick={() => void fetchRemote()}
-    >
-      {fetching ? "Fetching…" : "Fetch"}
-    </button>
-  </div>
-  {#if preview && preview.behind > 0 && !choice.forceWithLease}
-    <Callout kind="warning">Remote has commits you don't have — push will be rejected. Fetch and integrate first.</Callout>
-  {/if}
-
-  <PushList label={commitsText(preview)} empty={!preview || preview.total === 0} open={listOpen} ontoggle={() => (listOpen = !listOpen)}>
-    {#each preview?.commits ?? [] as commit (commit.oid)}
-      <li>
-        <span class="oid mono">{shortOid(commit.oid)}</span>
-        <span class="summary truncate" title={commit.summary}>{commit.summary}</span>
-        <span class="who">{commit.author.name}</span>
-        <span class="who">{settings.formatDate(commit.author.timestamp, commit.author.tzOffsetMinutes)}</span>
-      </li>
-    {/each}
-    {#if more > 0}<li class="rest">and {more} more</li>{/if}
-  </PushList>
-
-  <div class="options">
-    {#if tracking.kind === "already"}
-      <p class="upstream">{tracking.hint}</p>
-    {:else}
-      <OptionRow bind:checked={choice.setUpstream} label="Set as upstream" tip={tracking.hint} />
-    {/if}
-    <div class="tags">
-      <span>Tags</span>
-      <Select value={choice.tags} label="Tags" options={TAG_CHOICES} onchange={(mode) => (choice.tags = mode)} />
-      {#if counter}<span class="count" title={counter.tip}>{counter.text}</span>{/if}
-    </div>
-    <OptionRow bind:checked={choice.notes} label="Push notes" tip="refs/notes/*, never forced" note={notesNote(preview)} />
-    <OptionRow
-      bind:checked={choice.forceWithLease}
-      label="Force (with lease)"
-      hint="Overwrite the remote branch unless it moved since your last fetch"
-    />
-    {#if choice.forceWithLease}
-      <div class="nested">
-        <OptionRow
-          bind:checked={choice.forceIfIncludes}
-          label="Only if the remote tip is in your branch's history"
-          tip="--force-if-includes"
+  <div class="pinned">
+    <div class="fields">
+      <div class="field wide">
+        <span class="caption">Local branch</span>
+        <RevisionCombobox
+          value={choice.local}
+          label="Local branch"
+          free={false}
+          options={request.locals.map((b) => ({ value: b.name, label: b.name, group: "" }))}
+          onchange={pickLocal}
         />
-        <p class="lease"><code title={preview?.remoteTip ?? undefined}>{lease.flag}</code> {lease.note}</p>
-        <Callout kind="warning">
-          The remote branch will be overwritten with yours: commits it has that you do not are lost there.
-          Off again the next time this dialog opens.
-        </Callout>
       </div>
-    {/if}
-    <OptionRow bind:checked={remember} label="Remember as default for repository" tip="Saves remote, tags and notes (Force is never saved)" />
+      <div class="field">
+        <span class="caption">Remote</span>
+        <RevisionCombobox
+          value={choice.remote}
+          label="Remote"
+          free={false}
+          tip={url ? `${choice.remote} — ${url}` : choice.remote}
+          popupWidth={REMOTE_LIST_WIDTH}
+          options={request.remotes.map((name) => ({ value: name, label: name, group: "", hint: urls[name] || undefined }))}
+          onchange={chooseRemote}
+        />
+      </div>
+      <div class="field">
+        <span class="caption">Remote branch</span>
+        <RevisionCombobox
+          value={choice.branch}
+          label="Remote branch"
+          options={branches.map((name) => ({ value: name, label: name, group: "" }))}
+          onchange={(next) => (choice.branch = next)}
+        />
+      </div>
+    </div>
+    <div class="status-line">
+      <span class="status truncate" class:stale title={status?.text}>{status?.text ?? ""}</span>
+      <button
+        type="button"
+        class="btn sm"
+        class:primary={stale}
+        title="Fetch {choice.remote} and read again"
+        disabled={fetching}
+        onclick={() => void fetchRemote()}
+      >
+        {fetching ? "Fetching…" : "Fetch"}
+      </button>
+    </div>
   </div>
 
-  <div class="group">
-    <button
-      type="button"
-      class="caption advanced"
-      aria-expanded={networkDialog.advancedOpen}
-      onclick={() => void networkDialog.setAdvancedOpen(!networkDialog.advancedOpen)}
-    >
-      <Disclosure open={networkDialog.advancedOpen} />Advanced
-    </button>
-    {#if networkDialog.advancedOpen}
-      <OptionRow bind:checked={choice.noVerify} label="Skip pre-push hook" flag="--no-verify" tip="Push without running the pre-push hook" />
-      <OptionRow
-        bind:checked={choice.dryRun}
-        label="Dry run"
-        flag="--dry-run"
-        tip="Show what would be pushed in the output window; nothing is sent"
-      />
-      <OptionRow
-        checked={choice.atomic && atomic.enabled}
-        disabled={!atomic.enabled}
-        label="Atomic"
-        flag="--atomic"
-        tip={atomic.tip}
-        onchange={(on) => (choice.atomic = on)}
-      />
+  <div class="scroll">
+    {#if preview && preview.behind > 0 && !choice.forceWithLease}
+      <Callout kind="warning">Remote has commits you don't have — push will be rejected. Fetch and integrate first.</Callout>
     {/if}
+
+    <PushList label={commitsText(preview)} empty={!preview || preview.total === 0} open={listOpen} ontoggle={() => (listOpen = !listOpen)}>
+      {#each preview?.commits ?? [] as commit (commit.oid)}
+        <li>
+          <span class="oid mono">{shortOid(commit.oid)}</span>
+          <span class="summary truncate" title={commit.summary}>{commit.summary}</span>
+          <span class="who">{commit.author.name}</span>
+          <span class="who">{settings.formatDate(commit.author.timestamp, commit.author.tzOffsetMinutes)}</span>
+        </li>
+      {/each}
+      {#if more > 0}<li class="rest">and {more} more</li>{/if}
+    </PushList>
+
+    <div class="options">
+      {#if tracking.kind === "already"}
+        <p class="upstream">{tracking.hint}</p>
+      {:else}
+        <OptionRow bind:checked={choice.setUpstream} label="Set as upstream" tip={tracking.hint} />
+      {/if}
+      <div class="tags">
+        <span>Tags</span>
+        <Select value={choice.tags} label="Tags" options={TAG_CHOICES} onchange={(mode) => (choice.tags = mode)} />
+        {#if counter}<span class="count" title={counter.tip}>{counter.text}</span>{/if}
+      </div>
+      <OptionRow bind:checked={choice.notes} label="Push notes" tip="refs/notes/*, never forced" note={notesNote(preview)} />
+      <OptionRow
+        bind:checked={choice.forceWithLease}
+        label="Force (with lease)"
+        hint="Overwrite the remote branch unless it moved since your last fetch"
+      />
+      {#if choice.forceWithLease}
+        <div class="nested">
+          <OptionRow
+            bind:checked={choice.forceIfIncludes}
+            label="Only if the remote tip is in your branch's history"
+            tip="--force-if-includes"
+          />
+          <p class="lease"><code title={preview?.remoteTip ?? undefined}>{lease.flag}</code> {lease.note}</p>
+          <Callout kind="warning">
+            The remote branch will be overwritten with yours: commits it has that you do not are lost there.
+            Off again the next time this dialog opens.
+          </Callout>
+        </div>
+      {/if}
+      <OptionRow bind:checked={remember} label="Remember as default for repository" tip="Saves remote, tags and notes (Force is never saved)" />
+    </div>
+
+    <div class="group">
+      <button
+        type="button"
+        class="caption advanced"
+        aria-expanded={networkDialog.advancedOpen}
+        onclick={() => void networkDialog.setAdvancedOpen(!networkDialog.advancedOpen)}
+      >
+        <Disclosure open={networkDialog.advancedOpen} />Advanced
+      </button>
+      {#if networkDialog.advancedOpen}
+        <OptionRow bind:checked={choice.noVerify} label="Skip pre-push hook" flag="--no-verify" tip="Push without running the pre-push hook" />
+        <OptionRow
+          bind:checked={choice.dryRun}
+          label="Dry run"
+          flag="--dry-run"
+          tip="Show what would be pushed in the output window; nothing is sent"
+        />
+        <OptionRow
+          checked={choice.atomic && atomic.enabled}
+          disabled={!atomic.enabled}
+          label="Atomic"
+          flag="--atomic"
+          tip={atomic.tip}
+          onchange={(on) => (choice.atomic = on)}
+        />
+      {/if}
+    </div>
   </div>
 
   <div class="command">
@@ -359,6 +365,26 @@
 </TemplateDialog>
 
 <style>
+  .pinned,
+  .scroll {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-5);
+    min-width: 0;
+  }
+
+  .pinned,
+  .command {
+    flex: none;
+  }
+
+  /* Only the options move: the fields, the status and the command stay in view. */
+  .scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
   .fields {
     display: grid;
     grid-template-columns: minmax(0, 3fr) minmax(0, 7fr);

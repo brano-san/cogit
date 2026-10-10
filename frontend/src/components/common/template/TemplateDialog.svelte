@@ -18,6 +18,9 @@
     cancelLabel?: string;
     /** Enter, when the main thing to do is not one of `actions`: Push's Fetch. */
     onenter?: () => void;
+    /** The blocks share the dialog's height instead of scrolling with it: one of them
+        scrolls (`flex: 1 1 auto; min-height: 0; overflow-y: auto`), the rest stay put. */
+    fill?: boolean;
     children: Snippet;
   }
 
@@ -29,6 +32,7 @@
     status = null,
     cancelLabel = "Cancel",
     onenter,
+    fill = false,
     children,
   }: Props = $props();
 </script>
@@ -41,7 +45,7 @@
   surface="var(--bg-elevated)"
   inset="var(--sp-6)"
 >
-  <div class="stack">{@render children()}</div>
+  <div class="stack" class:fill>{@render children()}</div>
 
   {#snippet footer()}
     {#if status}<span class="status" role="alert">{status}</span>{/if}
@@ -64,6 +68,11 @@
     flex-direction: column;
     gap: var(--sp-5);
     min-width: 0;
+  }
+
+  .stack.fill {
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
   /* Subtitle: `fg.secondary`, wraps. */
