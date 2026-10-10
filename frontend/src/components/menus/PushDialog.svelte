@@ -239,7 +239,8 @@
   actions={[
     {
       label: button.label,
-      primary: !stale && !choice.dryRun,
+      // A force push stays red: the footer marks only the primary action destructive.
+      primary: danger || (!stale && !choice.dryRun),
       disabled: !pushable,
       tip: button.nothing ? "Nothing to push" : undefined,
       onclick: () => void push(),
