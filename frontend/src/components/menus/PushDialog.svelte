@@ -4,6 +4,7 @@
   import CopyButton from "$components/common/CopyButton.svelte";
   import Disclosure from "$components/common/Disclosure.svelte";
   import RevisionCombobox from "$components/common/RevisionCombobox.svelte";
+  import Select from "$components/common/Select.svelte";
   import Callout from "$components/common/template/Callout.svelte";
   import OptionRow from "$components/common/template/OptionRow.svelte";
   import TemplateDialog from "$components/common/template/TemplateDialog.svelte";
@@ -23,7 +24,6 @@
     pushOptionsOf,
     pushProblem,
     remoteBranchChoices,
-    tagsHint,
     type PushChoice,
   } from "$lib/network-dialogs";
   import {
@@ -34,7 +34,8 @@
     pushButton,
     pushCommand,
     statusLine,
-    tagCountText,
+    notesNote,
+    tagCounter,
     upstreamState,
     type TagCount,
   } from "$lib/push-dialog";
@@ -59,12 +60,11 @@
   const LIST_CAP = 200;
   /** Room for a remote's URL beside its name. */
   const REMOTE_LIST_WIDTH = 400;
-  const TAG_MODES: readonly TagsMode[] = ["none", "follow", "all"];
-  const TAG_LABELS: Record<TagsMode, string> = {
-    none: "No tags",
-    follow: "Tags pointing to pushed commits",
-    all: "All tags",
-  };
+  const TAG_CHOICES: readonly (readonly [TagsMode, string])[] = [
+    ["none", "No tags"],
+    ["follow", "Tags pointing to pushed commits (--follow-tags)"],
+    ["all", "All tags (--tags)"],
+  ];
 
   // svelte-ignore state_referenced_locally
   const opened = request.locals.find((b) => b.name === request.local);
@@ -141,7 +141,6 @@
   /** After the last change, so a typed branch name is not asked of the remote letter by letter. */
   const TAG_DELAY_MS = 400;
   let tags = $state<TagCount | null>(null);
-  let tagsOpen = $state(false);
   let counted = 0;
 
   function failureLine(err: unknown): string {
@@ -186,11 +185,7 @@
     };
   });
 
-  const noteHint = $derived.by(() => {
-    if (!preview?.hasLocalNotes) return undefined;
-    if (preview.notesUnpushed === null) return "Not compared with the remote: fetch its notes to see";
-    return preview.notesUnpushed === 0 ? undefined : `${preview.notesUnpushed} notes not pushed`;
-  });
+  const counter = $derived(tagCounter(tags));
 
   const more = $derived(preview ? preview.total - preview.commits.length : 0);
   const status = $derived(preview && statusLine(preview, choice.remote, Date.now(), settings.current.fetchStaleHours));
@@ -277,45 +272,18 @@
     {#if more > 0}<li class="rest">and {more} more</li>{/if}
   </PushList>
 
-  <div class="group">
-    <span class="caption">Tracking</span>
+  <div class="options">
     {#if tracking.kind === "already"}
       <p class="upstream">{tracking.hint}</p>
     {:else}
-      <OptionRow bind:checked={choice.setUpstream} label="Set as upstream" hint={tracking.hint} />
+      <OptionRow bind:checked={choice.setUpstream} label="Set as upstream" tip={tracking.hint} />
     {/if}
-  </div>
-
-  <div class="group">
-    <span class="caption">Tags</span>
-    {#each TAG_MODES as mode (mode)}
-      <OptionRow
-        kind="radio"
-        name="push-tags"
-        label={TAG_LABELS[mode]}
-        hint={tagsHint(mode)}
-        checked={choice.tags === mode}
-        onchange={() => (choice.tags = mode)}
-      />
-      {#if mode !== "none" && choice.tags === mode && tags !== null}
-        <div class="nested">
-          <PushList
-            label={tagCountText(tags)}
-            empty={tags.state !== "done" || tags.tags.length === 0}
-            open={tagsOpen}
-            ontoggle={() => (tagsOpen = !tagsOpen)}
-          >
-            {#each tags.state === "done" ? tags.tags : [] as tag (tag)}<li class="mono">{tag}</li>{/each}
-          </PushList>
-        </div>
-      {/if}
-    {/each}
-  </div>
-
-  <div class="group">
-    <span class="caption">Options</span>
-    <OptionRow bind:checked={choice.notes} label="Push notes" hint="refs/notes/*, never forced" />
-    {#if noteHint}<p class="note">{noteHint}</p>{/if}
+    <div class="tags">
+      <span>Tags</span>
+      <Select value={choice.tags} label="Tags" options={TAG_CHOICES} onchange={(mode) => (choice.tags = mode)} />
+      {#if counter}<span class="count" title={counter.tip}>{counter.text}</span>{/if}
+    </div>
+    <OptionRow bind:checked={choice.notes} label="Push notes" tip="refs/notes/*, never forced" note={notesNote(preview)} />
     <OptionRow
       bind:checked={choice.forceWithLease}
       label="Force (with lease)"
@@ -326,7 +294,7 @@
         <OptionRow
           bind:checked={choice.forceIfIncludes}
           label="Only if the remote tip is in your branch's history"
-          hint="--force-if-includes"
+          tip="--force-if-includes"
         />
         <p class="lease"><code title={preview?.remoteTip ?? undefined}>{lease.flag}</code> {lease.note}</p>
         <Callout kind="warning">
@@ -335,11 +303,7 @@
         </Callout>
       </div>
     {/if}
-    <OptionRow
-      bind:checked={remember}
-      label="Remember as default for repository"
-      hint="Saves remote, tags and notes (Force is never saved)"
-    />
+    <OptionRow bind:checked={remember} label="Remember as default for repository" tip="Saves remote, tags and notes (Force is never saved)" />
   </div>
 
   <div class="group">
@@ -388,6 +352,27 @@
 
   .group {
     gap: var(--sp-3);
+  }
+
+  /* A dense list: one line an option, the explanation in the label's tooltip. */
+  .options {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+    min-width: 0;
+  }
+
+  .tags {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-4);
+    min-width: 0;
+    font-size: var(--fs-dense);
+  }
+
+  .count {
+    color: var(--text-muted);
+    white-space: nowrap;
   }
 
   .caption {
@@ -499,13 +484,6 @@
     color: var(--text-secondary);
     font-size: var(--fs-dense);
     overflow-wrap: anywhere;
-  }
-
-  .note {
-    margin: 0;
-    padding-left: calc(var(--sp-6) + var(--sp-2));
-    color: var(--text-secondary);
-    font-size: var(--fs-dense);
   }
 
   li {

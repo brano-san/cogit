@@ -14,7 +14,6 @@ import {
   pushOptionsOf,
   pushProblem,
   remoteBranchChoices,
-  tagsHint,
   type PushChoice,
 } from "./network-dialogs";
 
@@ -107,10 +106,6 @@ describe("push", () => {
     expect(remoteBranchChoices("origin", ["origin/main"], "main")).toEqual(["main"]);
   });
 
-  it("wraps the tags choice in words", () => {
-    expect(tagsHint("follow")).toMatch(/annotated/i);
-    expect(tagsHint("all")).toBe("Push all local tags (--tags)");
-  });
 });
 
 describe("remembering", () => {

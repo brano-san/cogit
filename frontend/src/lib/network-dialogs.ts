@@ -109,17 +109,6 @@ export function remoteBranchChoices(remote: string, remoteBranches: readonly str
   return [...names].sort();
 }
 
-export function tagsHint(mode: TagsMode): string {
-  switch (mode) {
-    case "none":
-      return "Tags stay where they are";
-    case "follow":
-      return "Annotated tags that point at pushed commits (--follow-tags)";
-    case "all":
-      return "Push all local tags (--tags)";
-  }
-}
-
 /** The half of the defaults that was asked to be remembered replaces its stored values;
     force and Set as upstream are not fields of the defaults at all. */
 export function mergeDefaults(stored: NetworkDefaults, remember: { pull?: PullChoice; push?: PushChoice }): NetworkDefaults {

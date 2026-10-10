@@ -3,10 +3,13 @@
   import Radio from "$components/common/Radio.svelte";
 
   /** One option: a short label with a `fg.muted` hint under it. Checkbox (default) binds
-      `checked`; radios of one choice share `name` and answer through `onchange`. */
+      `checked`; radios of one choice share `name` and answer through `onchange`. A dense list
+      puts the explanation in `tip` (the label's tooltip) and a count in `note` beside it. */
   interface Props {
     label: string;
     hint?: string;
+    tip?: string;
+    note?: string;
     kind?: "checkbox" | "radio";
     checked?: boolean;
     name?: string;
@@ -17,6 +20,8 @@
   let {
     label,
     hint,
+    tip,
+    note,
     kind = "checkbox",
     checked = $bindable(false),
     name,
@@ -27,7 +32,10 @@
 
 {#snippet text()}
   <span class="text">
-    <span class="label">{label}</span>
+    <span class="line">
+      <span class="label" title={tip}>{label}</span>
+      {#if note}<span class="note">{note}</span>{/if}
+    </span>
     {#if hint}<span class="hint">{hint}</span>{/if}
   </span>
 {/snippet}
@@ -53,8 +61,19 @@
     min-width: 0;
   }
 
+  .line {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: var(--sp-2);
+    min-width: 0;
+  }
+
   .label {
     overflow-wrap: anywhere;
+  }
+
+  .note {
+    color: var(--text-muted);
   }
 
   .hint {

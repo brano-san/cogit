@@ -141,17 +141,26 @@ export function staleChoices(current: number): [string, string][] {
 /** The tags a push would send, asked of the remote in the background. */
 export type TagCount = { state: "counting" } | { state: "done"; tags: string[] } | { state: "failed"; reason: string };
 
-export function tagCountText(count: TagCount): string {
-  switch (count.state) {
+/** The gray count beside the tags choice; `null` with no tags chosen. */
+export function tagCounter(count: TagCount | null): { text: string; tip?: string } | null {
+  switch (count?.state) {
+    case undefined:
+      return null;
     case "counting":
-      return "Counting tags…";
+      return { text: "· counting…" };
     case "failed":
-      return `Could not count tags: ${count.reason}`;
-    case "done": {
-      const n = count.tags.length;
-      return n === 0 ? "No tags will be pushed" : `${n} ${n === 1 ? "tag" : "tags"} will be pushed`;
-    }
+      return { text: "· could not count", tip: `Could not count tags: ${count.reason}` };
+    case "done":
+      return count.tags.length === 0
+        ? { text: "· 0 to push" }
+        : { text: `· ${count.tags.length} to push`, tip: count.tags.join("\n") };
   }
+}
+
+/** Beside Push notes: local notes the remote lacks, as of its notes last fetched. */
+export function notesNote(preview: PushPreview | null): string | undefined {
+  if (!preview?.hasLocalNotes || preview.notesUnpushed === 0) return undefined;
+  return preview.notesUnpushed === null ? "· not compared with the remote" : `· ${preview.notesUnpushed} not pushed`;
 }
 
 export function commitsText(preview: PushPreview | null): string {

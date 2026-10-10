@@ -13,7 +13,8 @@ import {
   pushStatus,
   staleChoices,
   statusLine,
-  tagCountText,
+  notesNote,
+  tagCounter,
   upstreamState,
   type TagCount,
 } from "./push-dialog";
@@ -161,12 +162,23 @@ describe("the status line", () => {
 });
 
 describe("counts", () => {
-  it("says how many tags would go, or why it cannot tell", () => {
-    expect(tagCountText({ state: "counting" })).toBe("Counting tags…");
-    expect(tagCountText({ state: "done", tags: [] })).toBe("No tags will be pushed");
-    expect(tagCountText({ state: "done", tags: ["v1"] })).toBe("1 tag will be pushed");
-    expect(tagCountText({ state: "done", tags: ["v1", "v2"] })).toBe("2 tags will be pushed");
-    expect(tagCountText({ state: "failed", reason: "no network" })).toBe("Could not count tags: no network");
+  it("counts the tags that would go beside the choice, their names or the failure in the tooltip", () => {
+    expect(tagCounter(null)).toBeNull();
+    expect(tagCounter({ state: "counting" })).toEqual({ text: "· counting…" });
+    expect(tagCounter({ state: "done", tags: [] })).toEqual({ text: "· 0 to push" });
+    expect(tagCounter({ state: "done", tags: ["v1", "v2"] })).toEqual({ text: "· 2 to push", tip: "v1\nv2" });
+    expect(tagCounter({ state: "failed", reason: "no network" })).toEqual({
+      text: "· could not count",
+      tip: "Could not count tags: no network",
+    });
+  });
+
+  it("says beside Push notes what is not on the remote yet", () => {
+    expect(notesNote(preview({ hasLocalNotes: false }))).toBeUndefined();
+    expect(notesNote(preview({ hasLocalNotes: true, notesUnpushed: 0 }))).toBeUndefined();
+    expect(notesNote(preview({ hasLocalNotes: true, notesUnpushed: 3 }))).toBe("· 3 not pushed");
+    expect(notesNote(preview({ hasLocalNotes: true, notesUnpushed: null }))).toBe("· not compared with the remote");
+    expect(notesNote(null)).toBeUndefined();
   });
 
   it("says how many commits would go", () => {
