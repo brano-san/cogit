@@ -25,21 +25,29 @@
   /** Every element whose title is moved aside now, `current` first. */
   let held: Element[] = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
-  /** A title Svelte writes back while the pointer is there (a live status) goes aside again. */
+  /** A title Svelte rewrites while the pointer is there (a live status) goes aside again, and
+      one it removes (a button's reason to be off, once it is on) stays gone. */
   const watcher =
     typeof MutationObserver === "undefined"
       ? null
       : new MutationObserver((records) => {
-          for (const record of records) {
-            if (record.target instanceof Element && held.includes(record.target)) stash(record.target);
+          for (const target of new Set(records.map((record) => record.target))) {
+            if (!(target instanceof Element) || !held.includes(target)) continue;
+            target.removeAttribute(STASH);
+            stash(target);
           }
+          if (shown) show();
         });
 
+  /** Leaves `title=""` in place of the title, not nothing: no native tooltip either way, but
+      removing an attribute that is not there records no mutation, so the owner's removal
+      would go unseen and the stale title come back. */
   function stash(element: Element) {
     const title = element.getAttribute("title");
-    if (title === null) return;
+    if (title === null || element.hasAttribute(STASH)) return;
     element.setAttribute(STASH, title);
-    element.removeAttribute("title");
+    element.setAttribute("title", "");
+    watcher?.takeRecords();
   }
 
   function anchorOf(node: EventTarget | null): Element | null {
@@ -72,8 +80,8 @@
   /** Dev builds: a title left on the way up from the pointer is a second, native tooltip. */
   function checkNoNative() {
     for (let node: Element | null = current; node; node = node.parentElement) {
-      if (node.hasAttribute("title")) console.warn("tooltip: a native title is live under the pointer", node);
-      if (node.hasAttribute("data-tip") && node.hasAttribute("title"))
+      if (node.getAttribute("title")) console.warn("tooltip: a native title is live under the pointer", node);
+      if (node.hasAttribute("data-tip") && node.getAttribute("title"))
         console.warn("tooltip: an element has both data-tip and title", node);
     }
   }
@@ -89,7 +97,7 @@
     for (const node of restore) {
       const stashed = node.getAttribute(STASH);
       node.removeAttribute(STASH);
-      if (stashed !== null && !node.hasAttribute("title")) node.setAttribute("title", stashed);
+      if (stashed !== null && node.getAttribute("title") === "") node.setAttribute("title", stashed);
     }
   }
 
@@ -104,7 +112,10 @@
     if (import.meta.env.DEV) checkNoNative();
     const text = textOf(element);
     const around = held.slice(1).map(textOf).find((each) => each !== "") ?? null;
-    if (text === "" && around === null) return;
+    if (text === "" && around === null) {
+      hide();
+      return;
+    }
     if (import.meta.env.DEV && text !== "" && around !== null && text === around) {
       console.warn("tooltip: an element repeats the title of the one around it", element);
     }
