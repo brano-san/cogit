@@ -1,6 +1,6 @@
 import type { BlockKind, PaneRow, UnifiedLine, UnifiedRow } from "./diff-blocks";
 import type { Gap } from "./diff-fold";
-import type { EditRow, Mark, Pick, Tone } from "./diff-pane-editor";
+import type { EditRow, Mark, Tone } from "./diff-pane-editor";
 import { mergePieces, type Token } from "./highlight";
 
 /** Colors go by meaning: red is what is gone, green what is new, violet what moved. Side by
@@ -14,18 +14,12 @@ export function toneOf(kind: BlockKind, deleting: boolean, joint = false): Tone 
 
 /** How the rows of the editable pane look besides their text: the diff view's own state. */
 export interface RowLook {
-  selected: ReadonlySet<string>;
-  stageable: boolean;
   flash: { from: number; to: number } | null;
   /** A row's search hits; `current` tells the hit the counter points at by its start. */
   hits: (index: number) => readonly [number, number][];
   current: (index: number, start: number) => boolean;
   /** The strip a fold draws, and what tells two strips apart. */
   fold: (gap: Gap, index: number) => { id: string; render: (host: HTMLElement) => () => void };
-}
-
-function pickOf(key: string | null, look: RowLook): Pick {
-  return key !== null && look.selected.has(key) ? (look.stageable ? "staging" : "marked") : null;
 }
 
 function flashed(row: { block: number; blockKind: BlockKind }, look: RowLook): boolean {
@@ -55,8 +49,6 @@ export function splitRows(rows: readonly PaneRow[], look: RowLook): EditRow[] {
       line: row.line,
       tone: toneOf(row.blockKind, false, true),
       old: null,
-      key: row.key,
-      pick: pickOf(row.key, look),
       flash: flashed(row, look),
       marks: marksOf(row.inline, index, look),
     };
@@ -72,7 +64,7 @@ export function unifiedRows(
 ): EditRow[] {
   return rows.map((row, index): EditRow => {
     if (row.kind === "gap") return foldOf(row.gap, index, look);
-    const common = { key: row.key, pick: pickOf(row.key, look), flash: flashed(row, look) };
+    const common = { flash: flashed(row, look) };
     if (row.type === "delete") {
       const pieces = mergePieces(row.text, tokens(row), row.inline, look.hits(index)).map((piece) => ({
         text: piece.text,

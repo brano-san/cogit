@@ -390,7 +390,7 @@ describe("line actions and the side of the index a diff shows", () => {
   });
 });
 
-// Stage lines built its request in App from the path asked for last and the hunks on
+// Staging lines built its request in App from the path asked for last and the hunks on
 // screen, the discard's old mix-up: click b while a is shown and a's lines went to b.
 describe("staging lines", () => {
   beforeEach(() => {
@@ -421,7 +421,7 @@ describe("staging lines", () => {
   });
 });
 
-// Discard lines went straight to the backend from the view. The file list stayed as it was
+// Discarding lines went straight to the backend from the view. The file list stayed as it was
 // (the watcher is quiet after our own writes) and the journal behind Undo was not read
 // again, so Undo said "Nothing to undo" while undo_last would have put the lines back.
 describe("discarding lines ends like any other change to the working tree", () => {

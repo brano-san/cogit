@@ -7,8 +7,6 @@ const GAP: Gap = { oldFrom: 1, oldTo: 4, newFrom: 1, hidden: 4, loaded: true, up
 
 function look(over: Partial<RowLook> = {}): RowLook {
   return {
-    selected: new Set(),
-    stageable: true,
     flash: null,
     hits: () => [],
     current: () => false,
@@ -37,28 +35,25 @@ describe("splitRows", () => {
     const out = splitRows(rows, look());
 
     expect(out[0]).toMatchObject({ kind: "fold", from: 1, hidden: 4, id: "fold 0" });
-    expect(out[1]).toMatchObject({ kind: "code", line: 5, tone: "changed", key: "i:5", pick: null, flash: false });
+    expect(out[1]).toMatchObject({ kind: "code", line: 5, tone: "changed", flash: false });
     expect(out[2]).toEqual({ kind: "filler" });
   });
 
-  it("marks the selected lines, the flashed block, changed words and search hits", () => {
+  it("marks the flashed block, changed words and search hits", () => {
     const rows = [line(5, { inline: [[0, 2]] })];
     const view = look({
-      selected: new Set(["i:5"]),
       flash: { from: 1, to: 1 },
       hits: () => [[1, 3]],
       current: (_index, start) => start === 1,
     });
 
     expect(splitRows(rows, view)[0]).toMatchObject({
-      pick: "staging",
       flash: true,
       marks: [
         { from: 0, to: 2, cls: "word" },
         { from: 1, to: 3, cls: "hit current" },
       ],
     });
-    expect(splitRows(rows, look({ selected: new Set(["i:5"]), stageable: false }))[0]).toMatchObject({ pick: "marked" });
   });
 });
 
@@ -87,12 +82,11 @@ describe("unifiedRows", () => {
       kind: "deleted",
       old: 2,
       tone: "del",
-      key: "d:2",
       pieces: [
         { text: "go", cls: "word" },
         { text: "ne", cls: "tok-keyword" },
       ],
     });
-    expect(out[2]).toMatchObject({ kind: "code", line: 2, old: null, tone: "add", key: "i:2" });
+    expect(out[2]).toMatchObject({ kind: "code", line: 2, old: null, tone: "add" });
   });
 });

@@ -17,7 +17,6 @@ import { LINE_HEIGHT as ROW } from "$lib/solver-geometry";
  */
 
 export type Tone = "del" | "add" | "changed" | "move" | "";
-export type Pick = "staging" | "marked" | null;
 export type PaneLayout = "split" | "unified";
 
 export interface Mark {
@@ -34,8 +33,6 @@ export interface CodeRow {
   tone: Tone;
   /** Unified: the old number of an unchanged line. */
   old: number | null;
-  key: string | null;
-  pick: Pick;
   flash: boolean;
   marks: readonly Mark[];
 }
@@ -45,8 +42,6 @@ export interface DeletedRow {
   kind: "deleted";
   old: number;
   tone: Tone;
-  key: string | null;
-  pick: Pick;
   flash: boolean;
   pieces: readonly { text: string; cls: string }[];
 }
@@ -70,13 +65,9 @@ export type EditRow = CodeRow | DeletedRow | FoldRow | FillerRow;
 
 export interface PaneRows {
   rows: readonly EditRow[];
-  /** Lines can be staged: a changed line shows its box. */
-  boxes: boolean;
 }
 
 export interface PaneEvents extends EditEvents {
-  /** A box in the gutter was clicked. */
-  pick: (key: string) => void;
   /** Where the text is scrolled sideways and how far it can go: told when the caret scrolls
       it past an edge, and when a line typed longer or shorter changes the reach. */
   sideways: (left: number, overflow: number) => void;
@@ -121,7 +112,7 @@ class Deleted extends WidgetType {
 
   constructor(readonly rows: readonly DeletedRow[]) {
     super();
-    this.#sig = JSON.stringify(rows.map((row) => [row.old, row.tone, row.pick, row.flash, row.pieces]));
+    this.#sig = JSON.stringify(rows.map((row) => [row.old, row.tone, row.flash, row.pieces]));
   }
 
   override eq(other: Deleted): boolean {
@@ -159,10 +150,9 @@ interface Pane {
   lines: DecorationSet;
   blocks: DecorationSet;
   words: DecorationSet;
-  boxes: boolean;
 }
 
-const EMPTY: Pane = { lines: Decoration.none, blocks: Decoration.none, words: Decoration.none, boxes: false };
+const EMPTY: Pane = { lines: Decoration.none, blocks: Decoration.none, words: Decoration.none };
 
 export const setRows = StateEffect.define<PaneRows>();
 
@@ -174,7 +164,7 @@ function classes(...names: (string | false | null | undefined)[]): string {
 
 /** Rows that point past the text (a diff of text since shortened) are skipped: the next
     diff puts them right. */
-export function buildPane(doc: Text, { rows, boxes }: PaneRows): Pane {
+export function buildPane(doc: Text, { rows }: PaneRows): Pane {
   const lines: Range<Decoration>[] = [];
   const blocks: Range<Decoration>[] = [];
   const words: Range<Decoration>[] = [];
@@ -223,7 +213,6 @@ export function buildPane(doc: Text, { rows, boxes }: PaneRows): Pane {
     lines: Decoration.set(lines, true),
     blocks: Decoration.set(blocks, true),
     words: Decoration.set(words, true),
-    boxes,
   };
 }
 
@@ -236,7 +225,6 @@ const paneField = StateField.define<Pane>({
       lines: pane.lines.map(tr.changes),
       blocks: pane.blocks.map(tr.changes),
       words: pane.words.map(tr.changes),
-      boxes: pane.boxes,
     };
   },
   provide: (field) => [
@@ -257,12 +245,11 @@ export function rowAt(state: EditorState, from: number): CodeRow | null {
   return found;
 }
 
-// --- the gutters: numbers and signs before the text, the boxes after it (side by side) ---
+// --- the gutter: numbers and signs before the text ---
 
 interface Cell {
   cls: string;
   text: string;
-  key?: string | null;
 }
 
 class Cells extends GutterMarker {
@@ -290,7 +277,6 @@ class Cells extends GutterMarker {
         const span = document.createElement("span");
         span.className = cell.cls;
         span.textContent = cell.text;
-        if (cell.key) span.dataset.key = cell.key;
         row.append(span);
       }
       box.append(row);
@@ -318,65 +304,41 @@ class Strip extends GutterMarker {
 const FOLD_STRIP = new Strip("dv-gutter-fold");
 const FILLER_STRIP = new Strip("dv-gutter-filler");
 
-function rowClass(pick: Pick, flash: boolean): string {
-  return classes(pick, flash && "flash");
-}
-
-function box(key: string | null, pick: Pick, boxes: boolean): Cell {
-  return { cls: classes("gutter", pick && "picked"), text: boxes && key ? (pick ? "■" : "□") : "", key };
+function rowClass(flash: boolean): string {
+  return classes(flash && "flash");
 }
 
 function num(value: number | null, tones: string): Cell {
   return { cls: classes("num", tones), text: value === null ? "" : String(value) };
 }
 
-function lineCells(state: EditorState, from: number, layout: PaneLayout, after: boolean): GutterMarker {
+function lineCells(state: EditorState, from: number, layout: PaneLayout): GutterMarker {
   const row = rowAt(state, from);
   const tones = row?.tone ?? "";
-  const pick = row?.pick ?? null;
-  const sel = box(row?.key ?? null, pick, state.field(paneField).boxes);
   const sign = { cls: classes("sign", tones), text: tones ? "+" : "" };
   const line = state.doc.lineAt(from).number;
   const cells: Cell[] =
-    layout === "unified" ? [sel, num(row?.old ?? null, tones), num(line, tones), sign] : after ? [sel] : [num(line, tones), sign];
-  return new Cells([cells], [rowClass(pick, row?.flash ?? false)]);
+    layout === "unified" ? [num(row?.old ?? null, tones), num(line, tones), sign] : [num(line, tones), sign];
+  return new Cells([cells], [rowClass(row?.flash ?? false)]);
 }
 
-function widgetCells(state: EditorState, widget: WidgetType, layout: PaneLayout): GutterMarker | null {
+function widgetCells(widget: WidgetType, layout: PaneLayout): GutterMarker | null {
   if (widget instanceof Fold) return FOLD_STRIP;
   if (widget instanceof Pad) return FILLER_STRIP;
   if (!(widget instanceof Deleted) || layout !== "unified") return null;
-  const boxes = state.field(paneField).boxes;
   return new Cells(
-    widget.rows.map((row) => [
-      box(row.key, row.pick, boxes),
-      num(row.old, row.tone),
-      num(null, row.tone),
-      { cls: classes("sign", row.tone), text: "−" },
-    ]),
-    widget.rows.map((row) => rowClass(row.pick, row.flash)),
+    widget.rows.map((row) => [num(row.old, row.tone), num(null, row.tone), { cls: classes("sign", row.tone), text: "−" }]),
+    widget.rows.map((row) => rowClass(row.flash)),
   );
 }
 
-function gutters(layout: PaneLayout, pick: (key: string) => void): Extension {
-  const side = (after: boolean) =>
-    gutter({
-      class: after ? "dv-gutter dv-gutter-after" : "dv-gutter",
-      side: after ? "after" : "before",
-      lineMarker: (view, line) => lineCells(view.state, line.from, layout, after),
-      widgetMarker: (view, widget) => widgetCells(view.state, widget, layout),
-      lineMarkerChange: (update) => update.transactions.some((tr) => tr.effects.some((effect) => effect.is(setRows))),
-      domEventHandlers: {
-        mousedown: (_view, _line, event) => {
-          const key = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-key]")?.dataset.key;
-          if (!key) return false;
-          event.preventDefault();
-          pick(key);
-          return true;
-        },
-      },
-    });
-  return layout === "unified" ? side(false) : [side(false), side(true)];
+function gutters(layout: PaneLayout): Extension {
+  return gutter({
+    class: "dv-gutter",
+    lineMarker: (view, line) => lineCells(view.state, line.from, layout),
+    widgetMarker: (_view, widget) => widgetCells(widget, layout),
+    lineMarkerChange: (update) => update.transactions.some((tr) => tr.effects.some((effect) => effect.is(setRows))),
+  });
 }
 
 /** Only what the row grid needs; the look is the diff view's stylesheet. */
@@ -429,7 +391,6 @@ export class DiffPaneEditor {
   #layout: PaneLayout;
   #gutters = new Compartment();
   #language = new Compartment();
-  #events: PaneEvents;
   #resized: ResizeObserver;
   #destroyed = false;
 
@@ -437,7 +398,6 @@ export class DiffPaneEditor {
       drawn again); the editor is dirty from the start then. */
   constructor(text: string, layout: PaneLayout, events: PaneEvents, saved: string = text) {
     this.#layout = layout;
-    this.#events = events;
     this.view = new EditorView({
       state: EditorState.create({
         doc: text,
@@ -446,7 +406,7 @@ export class DiffPaneEditor {
           grid,
           EditorState.tabSize.of(TAB_SIZE),
           paneField,
-          this.#gutters.of(gutters(layout, events.pick)),
+          this.#gutters.of(gutters(layout)),
           this.#language.of([]),
           syntaxHighlighting(classHighlighter),
           editing(events),
@@ -474,7 +434,7 @@ export class DiffPaneEditor {
     if (this.view.dom.parentElement !== parent) parent.append(this.view.dom);
     if (layout !== this.#layout) {
       this.#layout = layout;
-      this.view.dispatch({ effects: this.#gutters.reconfigure(gutters(layout, this.#events.pick)) });
+      this.view.dispatch({ effects: this.#gutters.reconfigure(gutters(layout)) });
     }
     this.view.requestMeasure();
   }

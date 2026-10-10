@@ -6,7 +6,7 @@ const listRepositories = vi.fn(async () => [{ repo: 4, name: "cogit" }]);
 vi.mock("$lib/ipc/investigate", () => ({ openInvestigateWindow }));
 vi.mock("$lib/ipc", () => ({ listRepositories }));
 
-const { investigateTarget, openInvestigate } = await import("./open");
+const { investigateRev, openInvestigate } = await import("./open");
 const { parseInvestigate } = await import("./params");
 
 describe("openInvestigate", () => {
@@ -29,26 +29,10 @@ describe("openInvestigate", () => {
   });
 });
 
-describe("investigateTarget", () => {
-  const commit = { kind: "commitVsParent", oid: "c1" } as const;
-
-  it("takes the first added line in the commit's version", () => {
-    expect(investigateTarget(commit, new Set(["i:9", "i:4", "d:2"]))).toEqual({ rev: "c1", line: 4 });
-  });
-
-  it("takes a deleted line in the version before the commit", () => {
-    expect(investigateTarget(commit, new Set(["d:7"]))).toEqual({ rev: "c1^", line: 7 });
-    expect(investigateTarget({ kind: "workTreeVsIndex" }, new Set(["d:3"]))).toEqual({
-      rev: "HEAD",
-      line: 3,
-    });
-  });
-
-  it("opens the working tree without a line when nothing is selected", () => {
-    expect(investigateTarget({ kind: "workTreeVsIndex" }, new Set())).toEqual({ rev: null, line: null });
-    expect(investigateTarget({ kind: "commitVsCommit", a: "a", b: "b" }, new Set())).toEqual({
-      rev: "b",
-      line: null,
-    });
+describe("investigateRev", () => {
+  it("opens a commit's diff on the commit's version, the working tree on the file", () => {
+    expect(investigateRev({ kind: "commitVsParent", oid: "c1" })).toBe("c1");
+    expect(investigateRev({ kind: "commitVsCommit", a: "a", b: "b" })).toBe("b");
+    expect(investigateRev({ kind: "workTreeVsIndex" })).toBeNull();
   });
 });

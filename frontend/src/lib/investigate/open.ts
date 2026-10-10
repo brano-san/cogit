@@ -1,6 +1,5 @@
 import { listRepositories, type DiffSpec, type RepoId } from "$lib/ipc";
 import { openInvestigateWindow } from "$lib/ipc/investigate";
-import { splitSelection } from "$lib/selection";
 import { investigateTitle, investigateUrl } from "./params";
 
 /** The one entry into Investigate; `rev: null` is the working tree, `line` is 1-based. */
@@ -23,23 +22,9 @@ async function nameOf(repo: RepoId): Promise<string> {
   }
 }
 
-/** A diff selection's line: the first added one, or else a deleted one in the version before. */
-export function investigateTarget(
-  spec: DiffSpec,
-  selected: ReadonlySet<string>,
-): { rev: string | null; line: number | null } {
-  const { deletes, inserts } = splitSelection(selected);
-  const after =
-    spec.kind === "commitVsParent" ? spec.oid : spec.kind === "commitVsCommit" ? spec.b : null;
-  if (inserts.length > 0) return { rev: after, line: Math.min(...inserts) };
-  if (deletes.length > 0) {
-    const before =
-      spec.kind === "commitVsParent"
-        ? `${spec.oid}^`
-        : spec.kind === "commitVsCommit"
-          ? spec.a
-          : "HEAD";
-    return { rev: before, line: Math.min(...deletes) };
-  }
-  return { rev: after, line: null };
+/** The version a diff's Investigate opens on: the commit a commit's diff shows, else the
+    working tree (`null`). */
+export function investigateRev(spec: DiffSpec): string | null {
+  if (spec.kind === "commitVsParent") return spec.oid;
+  return spec.kind === "commitVsCommit" ? spec.b : null;
 }

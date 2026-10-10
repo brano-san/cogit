@@ -16,7 +16,7 @@
   /** Everything this panel shows comes from its own stores; the callbacks are the actions
       that reach past it — staging touches the index, blame opens a window of its own. */
   interface Props {
-    onstage: (selected: ReadonlySet<string>, reverse: boolean) => void;
+    onstage: (keys: ReadonlySet<string>, reverse: boolean) => void;
     onblame: () => void;
     onwhitespace: (mode: Whitespace) => void;
     onexpand: (whole: boolean) => void;
@@ -119,7 +119,7 @@
     diff={diff.diff}
     path={diff.shownPath}
     stageable={diff.stageable}
-    onstage={(selected, reverse) => onstage(selected, reverse)}
+    onstage={(keys, reverse) => onstage(keys, reverse)}
     {onblame}
     whitespace={diff.whitespace}
     onwhitespace={(mode) => onwhitespace(mode)}

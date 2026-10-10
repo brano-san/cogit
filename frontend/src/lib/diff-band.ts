@@ -8,8 +8,6 @@ import type { Block, BlockKind, BlockModel } from "./diff-blocks";
 export const BAND_WIDTH = 42;
 /** The line-number gutter of one side. */
 export const NUM_WIDTH = 44;
-/** The selection gutter before it. Must match `.gutter` in DiffView.svelte. */
-export const GUTTER_WIDTH = 14;
 
 /** Neither code column goes below a fifth of the code width: the other side still shows. */
 export const SPLIT_MIN = 0.2;
@@ -22,7 +20,7 @@ function codeWidth(rowsWidth: number, sideWidth: number): number {
   return Math.max(rowsWidth - 2 * sideWidth - BAND_WIDTH, 0);
 }
 
-/** `[gutter][num][sign][code][band][num][sign][code][gutter]`: the fixed columns of a side
+/** `[num][sign][code][band][num][sign][code]`: the fixed columns of a side
     are `sideWidth`, and the left code column is `share` of what both code columns get.
     Every part is `border-box`, so the widths in the stylesheet are the real ones. */
 export function bandLeft(rowsWidth: number, share: number, sideWidth: number): number {

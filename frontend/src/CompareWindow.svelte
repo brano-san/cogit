@@ -96,9 +96,9 @@
     return () => void pending.then((stop) => stop()).catch(() => {});
   });
 
-  function stageLines(selected: ReadonlySet<string>, reverse: boolean) {
+  function stageLines(keys: ReadonlySet<string>, reverse: boolean) {
     const path = diff.shownPath;
-    if (path) void runMutation(mutation, () => diff.stageLines(selected, reverse), [path], false);
+    if (path) void runMutation(mutation, () => diff.stageLines(keys, reverse), [path], false);
   }
 
   // The file is gone from both sides (Discard removed it): nothing left to compare, and the

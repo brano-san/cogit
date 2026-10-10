@@ -1420,10 +1420,10 @@ ${event.error}`,
     );
   }
 
-  async function stageLines(selected: ReadonlySet<string>, reverse: boolean) {
+  async function stageLines(keys: ReadonlySet<string>, reverse: boolean) {
     const path = diff.shownPath;
     if (!path) return;
-    await mutate(() => diff.stageLines(selected, reverse), [path]);
+    await mutate(() => diff.stageLines(keys, reverse), [path]);
   }
 
   async function refreshSubmodule(row: import("$lib/module-tree").ModuleRow) {
@@ -3944,7 +3944,7 @@ ${event.error}`,
           <DiffPanel
             active={focused === "diff"}
             oninitsubmodule={(path) => void initSubmoduleAt(path)}
-            onstage={(selected, reverse) => void stageLines(selected, reverse)}
+            onstage={(keys, reverse) => void stageLines(keys, reverse)}
             onblame={() => void showBlame()}
             onwhitespace={(mode) => {
               const id = repository.current?.repo;

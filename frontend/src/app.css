@@ -275,7 +275,7 @@ body {
 }
 
 /* In a dense bar a destructive action is red text, outlined red under the pointer: a red
-   slab among a dozen small buttons shouts louder than the action (Discard lines, Delete
+   slab among a dozen small buttons shouts louder than the action (Discard, Delete
    file). Before the disabled rule, which has to win over it. */
 .btn.sm.danger {
   background: var(--surface-input);

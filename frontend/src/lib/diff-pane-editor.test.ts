@@ -8,11 +8,11 @@ function file(lines: number): Text {
 }
 
 function code(line: number, extra: Partial<CodeRow> = {}): EditRow {
-  return { kind: "code", line, tone: "", old: null, key: null, pick: null, flash: false, marks: [], ...extra };
+  return { kind: "code", line, tone: "", old: null, flash: false, marks: [], ...extra };
 }
 
 function deleted(old: number): DeletedRow {
-  return { kind: "deleted", old, tone: "del", key: `d:${old}`, pick: null, flash: false, pieces: [{ text: "gone", cls: "" }] };
+  return { kind: "deleted", old, tone: "del", flash: false, pieces: [{ text: "gone", cls: "" }] };
 }
 
 const fold = (from: number, hidden: number): EditRow => ({ kind: "fold", from, hidden, id: `${from}`, render: () => () => {} });
@@ -37,14 +37,14 @@ function placed(set: DecorationSet): Placed[] {
 describe("the editable pane on the diff's row grid", () => {
   it("folds whole lines into one row", () => {
     const doc = file(10);
-    const pane = buildPane(doc, { rows: [code(1), code(2), fold(3, 5), code(8), code(9), code(10)], boxes: true });
+    const pane = buildPane(doc, { rows: [code(1), code(2), fold(3, 5), code(8), code(9), code(10)]});
 
     expect(placed(pane.blocks)).toEqual([{ from: doc.line(3).from, to: doc.line(7).to, height: 18, side: expect.any(Number) }]);
   });
 
   it("puts filler before the line after it, as tall as the rows it stands for", () => {
     const doc = file(3);
-    const pane = buildPane(doc, { rows: [code(1), { kind: "filler" }, { kind: "filler" }, code(2), code(3)], boxes: true });
+    const pane = buildPane(doc, { rows: [code(1), { kind: "filler" }, { kind: "filler" }, code(2), code(3)]});
 
     const [filler] = placed(pane.blocks);
     expect(filler).toMatchObject({ from: doc.line(2).from, to: doc.line(2).from, height: 36 });
@@ -54,7 +54,7 @@ describe("the editable pane on the diff's row grid", () => {
   it("draws a run of deleted lines as one widget, and those after the last line at the end", () => {
     const doc = file(2);
     const rows = [code(1), deleted(2), deleted(3), code(2), deleted(5)];
-    const pane = buildPane(doc, { rows, boxes: true });
+    const pane = buildPane(doc, { rows});
 
     const [between, after] = placed(pane.blocks);
     expect(between).toMatchObject({ from: doc.line(2).from, height: 36 });
@@ -64,7 +64,7 @@ describe("the editable pane on the diff's row grid", () => {
 
   it("skips rows past the text: the next diff puts them right", () => {
     const doc = file(3);
-    const pane = buildPane(doc, { rows: [code(1), code(5), fold(3, 4)], boxes: true });
+    const pane = buildPane(doc, { rows: [code(1), code(5), fold(3, 4)]});
 
     expect(pane.lines.size).toBe(1);
     expect(placed(pane.blocks)).toEqual([]);
@@ -72,8 +72,8 @@ describe("the editable pane on the diff's row grid", () => {
 
   it("keeps each line's row for the gutters, and its marks inside the line", () => {
     const doc = file(2);
-    const row = code(2, { tone: "add", key: "i:2", marks: [{ from: 2, to: 99, cls: "word" }] });
-    const pane = buildPane(doc, { rows: [code(1), row], boxes: true });
+    const row = code(2, { tone: "add", marks: [{ from: 2, to: 99, cls: "word" }] });
+    const pane = buildPane(doc, { rows: [code(1), row]});
 
     const lines: unknown[] = [];
     pane.lines.between(0, doc.length, (from, _to, deco) => void lines.push([from, (deco.spec as { row: EditRow }).row]));

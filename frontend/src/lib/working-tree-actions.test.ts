@@ -29,7 +29,7 @@ function host(answer = true) {
 }
 
 // The Working Tree row's Stage, Unstage and Discard refreshed with no paths: the Diff kept
-// showing the discarded hunks, and Stage lines then worked on lines no longer there.
+// showing the discarded hunks, and staging a block then worked on lines no longer there.
 describe("runWorkingTreeAction", () => {
   it("names the files it stages, so the diff of one of them is read again", async () => {
     const { host: h, writes } = host();

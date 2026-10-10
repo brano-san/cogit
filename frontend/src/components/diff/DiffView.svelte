@@ -31,7 +31,6 @@
     ACTION_LEFT_X,
     ACTION_RIGHT_X,
     BAND_WIDTH,
-    GUTTER_WIDTH,
     NUM_WIDTH,
     SPLIT_EVEN,
     SPLIT_MAX,
@@ -73,9 +72,8 @@
     WHITESPACE_SHOWN_LABEL,
   } from "$lib/diff-toolbar";
   import { languageSupport, loadLanguage, mergePieces } from "$lib/highlight";
-  import { toggleLine } from "$lib/selection";
-  import { discardsWholeNewFile, keepSelection } from "$lib/diff-selection";
-  import { investigateTarget, openInvestigate } from "$lib/investigate/open";
+  import { discardsWholeNewFile } from "$lib/diff-selection";
+  import { investigateRev, openInvestigate } from "$lib/investigate/open";
   import { visibleRange } from "$lib/graph-geometry";
   import type { FileDiff, Hunk } from "$lib/ipc";
   // The panel above belongs to `master` and cannot grow props for the branch's own view
@@ -87,7 +85,8 @@
     path: string;
     /** Only the working tree can be staged; a commit's diff is read-only. */
     stageable?: boolean;
-    onstage?: (selected: ReadonlySet<string>, reverse: boolean) => void;
+    /** Stages (or, `reverse`, unstages) the lines of a block, by line key. */
+    onstage?: (keys: ReadonlySet<string>, reverse: boolean) => void;
     onblame?: () => void;
     whitespace?: import("$lib/ipc").Whitespace;
     onwhitespace?: (mode: import("$lib/ipc").Whitespace) => void;
@@ -125,8 +124,6 @@
   const stageable = $derived(stageableFile && !(diff.kind === "text" && diff.converted));
 
   const wsButton = $derived(whitespaceButton(whitespace));
-
-  let selected = $state<Set<string>>(new Set());
 
   /** The working file, open for this very diff: the right side (Unified: every line but the
       deleted ones) is then the file, typed into where it is shown. */
@@ -247,7 +244,7 @@
   let dragShare = $state<number | null>(null);
   let dragFrom: { x: number; share: number } | null = null;
   const share = $derived(dragShare ?? settings.current.diffSplit);
-  const sideWidth = $derived(GUTTER_WIDTH + NUM_WIDTH + signWidth);
+  const sideWidth = $derived(NUM_WIDTH + signWidth);
 
   const left = $derived(bandLeft(rowsWidth, share, sideWidth));
 
@@ -483,40 +480,17 @@
     untrack(loadWholeFile);
   });
 
-  /** Selecting works on any diff: a commit cannot be staged, but it can be investigated. */
-  function pick(key: string | null) {
-    if (key) selected = toggleLine(selected, key);
-  }
-
-  function pickHunk(hunk: number) {
-    const keys = hunkKeys(model, hunk);
-    const all = [...keys].every((key) => selected.has(key));
-    const next = new Set(selected);
-    for (const key of keys) {
-      if (all) next.delete(key);
-      else next.add(key);
-    }
-    selected = next;
-  }
-
-  function apply(reverse: boolean) {
-    if (selected.size === 0) return;
-    onstage?.(selected, reverse);
-    selected = new Set();
-  }
-
-  /** Stage, Unstage and Discard act on one hunk without disturbing the line selection. */
+  /** Stage and Unstage act on one block, every changed line of it. */
   function applyHunk(hunk: number, reverse: boolean) {
     onstage?.(hunkKeys(model, hunk), reverse);
   }
 
-  /** Opens the Investigate window (#15), on the selected line when there is one. */
+  /** Opens the Investigate window (#15) on the file. */
   function startInvestigate() {
     const repo = diffStore.repo;
     const spec = diffStore.spec;
     if (repo === null || !spec) return;
-    const target = investigateTarget(spec, selected);
-    void openInvestigate(repo, path, target.rev, target.line);
+    void openInvestigate(repo, path, investigateRev(spec), null);
   }
 
   /** Which lines a Discard is about to throw away; `null` while nothing is pending. */
@@ -534,7 +508,6 @@
     pendingDiscard = null;
     try {
       await diffStore.discardLines(pending.keys, pending.of);
-      selected = new Set();
     } catch (err) {
       errors.report(err, "Could not discard the lines", path);
     }
@@ -631,13 +604,11 @@
     });
   });
 
-  // Lines are chosen by number in one diff: another file, or the same file on the other
-  // side of the index, makes them mean other lines.
+  // Another file, or the same file on the other side of the index: the view starts over.
   $effect(() => {
     void path;
     void diffStore.spec?.kind;
     find.rewind();
-    selected = new Set();
     revealed = [];
     pendingDiscard = null;
     sideways = 0;
@@ -646,18 +617,6 @@
   });
 
   $effect(() => () => clearTimeout(flashTimer));
-
-  /** The hunks `selected` was chosen in. Staging a block re-diffs the file under the
-      selection; only the lines that still mean the same line stay selected. */
-  let selectedIn: readonly Hunk[] = [];
-  $effect(() => {
-    const now = hunks;
-    untrack(() => {
-      if (now === selectedIn) return;
-      selected = keepSelection(selected, selectedIn, now);
-      selectedIn = now;
-    });
-  });
 
   /** A new diff, a new layout or a resized view: the arrows follow what is on screen. */
   $effect(() => {
@@ -699,7 +658,6 @@
             diffStore.edited();
           },
           save: () => void saveFile(),
-          pick,
           sideways: (left, overflow) => {
             editorOverflow = overflow;
             if (left !== shift) sideways = left;
@@ -760,8 +718,6 @@
     if (editor === null) return null;
     const side = mode === "unified" ? "left" : "right";
     const look: RowLook = {
-      selected,
-      stageable,
       flash,
       hits: (index) => find.spansFor(index, side),
       current: (index, start) => find.isCurrent(index, side, start),
@@ -774,7 +730,7 @@
 
   $effect(() => {
     const rows = editorRows;
-    if (editor && rows) editor.setRows({ rows, boxes: stageable });
+    if (editor && rows) editor.setRows({ rows });
   });
 
   type FoldRole = "both" | "left" | "right";
@@ -788,7 +744,6 @@
       actions: diffStore.lineActions,
       frozen: dirty ? SAVE_FIRST : null,
       onopen: (how: "up" | "down" | "all", event: MouseEvent) => openGap(gap, how, event),
-      onselect: () => hunk !== null && pickHunk(hunk),
       onstage: (reverse: boolean) => hunk !== null && applyHunk(hunk, reverse),
       ondiscard: () => hunk !== null && askDiscard(hunkKeys(model, hunk), "this block"),
     };
@@ -836,18 +791,6 @@
 
 <svelte:window onkeydowncapture={onkeydown} />
 
-{#snippet gutterCell(key: string | null)}
-  <span
-    class="gutter"
-    class:picked={key !== null && selected.has(key)}
-    role="button"
-    tabindex="-1"
-    onclick={() => pick(key)}
-    onkeydown={(e) => e.key === "Enter" && pick(key)}
-    >{stageable && key !== null ? (selected.has(key) ? "■" : "□") : ""}</span
-  >
-{/snippet}
-
 {#snippet pane(side: PaneSide, rows: PaneRow[], range: { start: number; end: number })}
   {#each rows.slice(range.start, range.end) as row, k (range.start + k)}
     {@const index = range.start + k}
@@ -861,16 +804,12 @@
       </div>
     {:else}
       {@const tone = toneOf(row.blockKind, side === "left", true)}
-      {@const picked = row.key !== null && selected.has(row.key)}
       <div
         class="line"
-        class:staging={stageable && picked}
-        class:marked={!stageable && picked}
         class:flash={flashed(row)}
         style:top="{index * ROW_HEIGHT}px"
         data-line={side === "right" ? row.line : undefined}
       >
-        {#if side === "left"}{@render gutterCell(row.key)}{/if}
         <span class="num {tone}">{row.line}</span>
         <span class="sign {tone}">{tone === "" ? "" : side === "left" ? "−" : "+"}</span>
         <span class="code mono {tone}"
@@ -883,7 +822,6 @@
               >{/each}</span
           ></span
         >
-        {#if side === "right"}{@render gutterCell(row.key)}{/if}
       </div>
     {/if}
   {/each}
@@ -891,16 +829,12 @@
 
 {#snippet unifiedRow(row: UnifiedLine, index: number)}
   {@const tone = toneOf(row.blockKind, row.type === "delete")}
-  {@const picked = row.key !== null && selected.has(row.key)}
   <div
     class="line"
-    class:staging={stageable && picked}
-    class:marked={!stageable && picked}
     class:flash={flashed(row)}
     style:top="{index * ROW_HEIGHT}px"
     data-line={row.type === "delete" ? undefined : (row.new ?? undefined)}
   >
-    {@render gutterCell(row.key)}
     <span class="num {tone}">{row.old ?? ""}</span>
     <span class="num {tone}">{row.new ?? ""}</span>
     <span class="sign {tone}">{row.type === "delete" ? "−" : row.type === "insert" ? "+" : ""}</span>
@@ -947,33 +881,6 @@
         title="Search the lines shown in this diff (Ctrl+F); open the folds to search the whole file"
         onclick={() => (find.showing ? find.close() : openFind())}>Find</button
       >
-      {#if stageable}
-        <span class="picked tabular">{selected.size ? `${selected.size} selected` : ""}</span>
-        <button
-          type="button"
-          class="btn sm"
-          disabled={selected.size === 0 || !diffStore.lineActions.stage || dirty}
-          title={dirty ? SAVE_FIRST : undefined}
-          onclick={() => apply(false)}>Stage lines</button
-        >
-        <button
-          type="button"
-          class="btn sm"
-          disabled={selected.size === 0 || !diffStore.lineActions.unstage || dirty}
-          title={dirty ? SAVE_FIRST : undefined}
-          onclick={() => apply(true)}>Unstage lines</button
-        >
-        {#if diffStore.lineActions.discard}
-          <button
-            type="button"
-            class="btn sm danger"
-            disabled={selected.size === 0 || dirty}
-            title={dirty ? SAVE_FIRST : "Throw the selected lines away (always asks first)"}
-            onclick={() => askDiscard(new Set(selected), `${selected.size} selected lines`)}
-            >Discard lines</button
-          >
-        {/if}
-      {/if}
     {/if}
     <!-- A file the mode hides entirely still needs the button that shows it (F-067). -->
     {#if onwhitespace && (diff.kind === "text" || diff.kind === "whitespaceOnly")}
@@ -1008,7 +915,7 @@
         type="button"
         class="btn sm"
         disabled={diffStore.repo === null}
-        title="Trace where the lines came from, starting at the selected one (Ctrl+Alt+Shift+L)"
+        title="Trace where the lines of this file came from (Ctrl+Alt+Shift+L)"
         onclick={startInvestigate}>Investigate</button
       >
       <button
@@ -1047,7 +954,7 @@
 
   {#if pendingDiscard}
     <ConfirmDialog
-      title="Discard lines"
+      title="Discard Changes"
       message={pendingDiscard.wholeFile
         ? `Throw away every line of ${path}? The file will be deleted from disk. Undo can put it back.`
         : `Throw away ${pendingDiscard.label} in ${path}? Undo can put them back.`}
@@ -1093,7 +1000,6 @@
         style:--shift="{shift}px"
       >
         <div class="line ruler" aria-hidden="true">
-          <span class="gutter"></span>
           <span class="num"></span>
           <span class="num"></span>
           <span class="sign" bind:offsetWidth={signWidth}></span>
@@ -1104,7 +1010,7 @@
         {#if editor}
           <div
             class="cm-host"
-            style:--fold-left="{GUTTER_WIDTH + 2 * NUM_WIDTH + signWidth}px"
+            style:--fold-left="{2 * NUM_WIDTH + signWidth}px"
             style:--fold-width="{codeWidth}px"
             style:--room="{linesMax}px"
             bind:this={editorHost}
@@ -1145,7 +1051,6 @@
       >
         <div class="rows" style:height="{model.left.length * ROW_HEIGHT}px">
           <div class="line ruler" aria-hidden="true">
-            <span class="gutter"></span>
             <span class="num"></span>
             <span class="sign" bind:offsetWidth={signWidth}></span>
             <span class="code mono" bind:clientWidth={codeWidth}
@@ -1250,7 +1155,6 @@
             <span class="num"></span>
             <span class="sign"></span>
             <span class="code mono" bind:clientWidth={rightWidth}></span>
-            <span class="gutter"></span>
           </div>
           {#if editor}
             <div
@@ -1404,48 +1308,6 @@
     white-space: pre;
   }
 
-  .gutter,
-  .cm-host :global(.gutter) {
-    flex: 0 0 auto;
-    width: 14px;
-    color: var(--fg-secondary);
-    font-size: 9px;
-    text-align: center;
-    cursor: default;
-  }
-
-  .gutter.picked,
-  .cm-host :global(.gutter.picked) {
-    color: var(--status-success);
-  }
-
-  /* What the next Stage or Unstage will act on: the selected-row look, on the row and not
-     just in the 14-pixel gutter, so the extent of it reads at a glance (T6.7). */
-  .line.staging,
-  .cm-host :global(.cm-gutters-before .staging) {
-    box-shadow: inset 2px 0 0 var(--selected-bar);
-  }
-
-  .line.staging .gutter,
-  .line.staging .num,
-  .cm-host :global(.staging > .gutter),
-  .cm-host :global(.staging > .num) {
-    background: var(--bg-selected);
-  }
-
-  /* A read-only diff can still be selected, for Investigate; it just stages nothing. */
-  .line.marked,
-  .cm-host :global(.cm-gutters-before .marked) {
-    box-shadow: inset 2px 0 0 var(--accent);
-  }
-
-  .line.marked .gutter,
-  .line.marked .num,
-  .cm-host :global(.marked > .gutter),
-  .cm-host :global(.marked > .num) {
-    background: var(--bg-selected-inactive);
-  }
-
   /* Over the row's own fills, fading out in `FLASH_MS`; with reduced motion it just stays
      lit that long. Feedback, not a transition: nothing waits for it. */
   .line.flash::after,
@@ -1475,11 +1337,6 @@
 
   .grow {
     flex: 1 1 auto;
-  }
-
-  .picked {
-    color: var(--status-success);
-    font-size: 10px;
   }
 
   .num,

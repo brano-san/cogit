@@ -14,12 +14,11 @@
     /** Why Stage, Unstage and Discard wait: unsaved edits. */
     frozen?: string | null;
     onopen: (how: "up" | "down" | "all", event: MouseEvent) => void;
-    onselect: () => void;
     onstage: (reverse: boolean) => void;
     ondiscard: () => void;
   }
 
-  let { gap, hunk, role, stageable, actions, frozen = null, onopen, onselect, onstage, ondiscard }: Props = $props();
+  let { gap, hunk, role, stageable, actions, frozen = null, onopen, onstage, ondiscard }: Props = $props();
 </script>
 
 <div class="fold" role="group" aria-label="{gap.hidden} lines hidden">
@@ -50,7 +49,6 @@
   {/if}
   {#if role !== "left" && hunk !== null && stageable}
     <span class="acts">
-      <button type="button" title="Select every changed line of this block" onclick={onselect}>Select</button>
       <button
         type="button"
         title={frozen ?? "Stage this block"}
