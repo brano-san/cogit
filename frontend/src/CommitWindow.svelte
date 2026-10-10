@@ -20,7 +20,9 @@
     listedFiles,
     menuLabel,
     opening,
+    leftOut,
     parseCommitWindow,
+    partialQuestion,
     planCommit,
     readyBlocker,
     recentMessages,
@@ -50,6 +52,7 @@
   import { pushDetached } from "$lib/push-head";
   import { placePopup, type Box, type Placed } from "$lib/popup-place";
   import { followSettings } from "$lib/settings-sync";
+  import type { ConfirmRequest } from "$stores/confirm.svelte";
   import { notices } from "$stores/notices.svelte";
   import { settings } from "$stores/settings.svelte";
   import { worktree } from "$stores/worktree.svelte";
@@ -74,7 +77,16 @@
   let unborn = $state(false);
   let history = $state.raw<CommitDetails[]>([]);
   let committing = $state(false);
-  let asking = $state<{ pushAfter: boolean } | null>(null);
+  /** The question the window waits on, answered through `ask`. */
+  let question = $state<(ConfirmRequest & { settle: (yes: boolean) => void }) | null>(null);
+  const ask = (request: ConfirmRequest) => new Promise<boolean>((settle) => (question = { ...request, settle }));
+  const AMEND_PUBLISHED: ConfirmRequest = {
+    title: "Amend a Published Commit",
+    message:
+      "This commit is already on a remote. Amending it gives it a new id, so the branch will need a force-push and anyone who pulled it will have to reset. Continue?",
+    confirm: "Amend",
+    warning: true,
+  };
   let picking = $state(false);
   let chosen = $state<string | null>(null);
   let pending = $state<string | null>(null);
@@ -226,12 +238,13 @@
   }
 
 
+  /** Changes left out are asked about first, unless Amend only rewords (nothing ticked). */
   async function start(pushAfter: boolean) {
     if (!canCommit || !request) return;
-    if (amend && !unborn && (await publishedOrAssume(isPublished(request.repo, "HEAD")))) {
-      asking = { pushAfter };
-      return;
-    }
+    const out = leftOut(mode, ticked, worktree.staged, worktree.unstaged);
+    if (selected.length > 0 && out.length > 0 && !(await ask(partialQuestion(out, pushAfter)))) return;
+    const published = amend && !unborn && (await publishedOrAssume(isPublished(request.repo, "HEAD")));
+    if (published && !(await ask(AMEND_PUBLISHED))) return;
     await run(pushAfter);
   }
 
@@ -288,7 +301,7 @@
   }
 
   function onkeydown(event: KeyboardEvent) {
-    if (asking || picking) return;
+    if (question || picking) return;
     if (event.key === "Enter" && primary(event, ON_MAC)) {
       event.preventDefault();
       void start(false);
@@ -515,16 +528,18 @@
     </Dialog>
   {/if}
 
-  {#if asking}
+  {#if question}
+    {@const asked = question}
     <ConfirmDialog
-      title="Amend a Published Commit"
-      message="This commit is already on a remote. Amending it gives it a new id, so the branch will need a force-push and anyone who pulled it will have to reset. Continue?"
-      confirm="Amend"
-      warning
+      title={asked.title}
+      message={asked.message}
+      confirm={asked.confirm}
+      warning={asked.warning}
+      items={asked.items}
       onanswer={(yes) => {
-        const go = asking;
-        asking = null;
-        if (yes && go) void run(go.pushAfter);
+        // `asked` is derived from `question`: settle before it reads null.
+        asked.settle(yes);
+        question = null;
       }}
     />
   {/if}

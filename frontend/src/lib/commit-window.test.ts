@@ -6,7 +6,9 @@ import {
   listedFiles,
   menuLabel,
   opening,
+  leftOut,
   parseCommitWindow,
+  partialQuestion,
   planCommit,
   ready,
   readyBlocker,
@@ -148,6 +150,27 @@ describe("ready", () => {
     expect(readyBlocker({ ...base, message: " " })).toBe("Write a commit message first");
     expect(readyBlocker({ ...base, ticked: 0 })).toBe("Tick the files to commit");
     expect(readyBlocker({ ...base, ticked: 0, stagedTotal: 2, amend: true })).toMatch(/^Tick the files to amend with/);
+  });
+});
+
+describe("leftOut", () => {
+  const staged = [file("a"), file("b")];
+  const unstaged = [file("b"), file("c", "untracked")];
+  it("is nothing when every local change is ticked", () => {
+    expect(leftOut("local", new Set(["a", "b", "c"]), staged, unstaged)).toEqual([]);
+  });
+  it("lists the unticked files", () => {
+    expect(leftOut("local", new Set(["a", "c"]), staged, unstaged)).toEqual(["b"]);
+  });
+  it("in staged mode also lists every file with changes not staged, ticked or not", () => {
+    expect(leftOut("staged", new Set(["a", "b"]), staged, unstaged)).toEqual(["b", "c"]);
+    expect(leftOut("staged", new Set(["a"]), staged, unstaged)).toEqual(["b", "c"]);
+  });
+  it("asks with the files named and the button the commit was started with", () => {
+    const question = partialQuestion(["b", "c"], true);
+    expect(question.message).toContain("2 files");
+    expect(question.items).toEqual(["b", "c"]);
+    expect(question.confirm).toBe("Commit & Push");
   });
 });
 

@@ -157,6 +157,33 @@ export function ready(state: ReadyState): boolean {
   return readyBlocker(state) === null;
 }
 
+/** Paths whose changes the commit leaves out, whole or in part: the unticked ones, and in
+    staged mode every file with changes not staged, ticked or not. */
+export function leftOut(
+  mode: CommitMode,
+  ticked: ReadonlySet<string>,
+  staged: readonly FileEntry[],
+  unstaged: readonly FileEntry[],
+): string[] {
+  const out = listedFiles(mode, staged, unstaged)
+    .map((file) => file.path)
+    .filter((path) => !ticked.has(path));
+  if (mode === "local") return out;
+  const seen = new Set(out);
+  return [...out, ...unstaged.map((file) => file.path).filter((path) => !seen.has(path))];
+}
+
+/** Asked before a commit that leaves changes out (`leftOut`). */
+export function partialQuestion(paths: readonly string[], push: boolean) {
+  const files = paths.length === 1 ? "1 file" : `${paths.length} files`;
+  return {
+    title: "Commit Part of the Changes?",
+    message: `Changes in ${files} stay out of this commit: not ticked, or not staged. They remain in the working tree as they are.`,
+    confirm: push ? "Commit & Push" : "Commit",
+    items: [...paths],
+  };
+}
+
 export const RECENT_MESSAGES = 10;
 
 /** A commit's whole message as it was written. */
