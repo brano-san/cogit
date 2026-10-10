@@ -7,22 +7,25 @@
   import OptionRow from "$components/common/template/OptionRow.svelte";
   import TemplateDialog from "$components/common/template/TemplateDialog.svelte";
   import { shortOid } from "$lib/format";
-  import { pushPreview, type PushPreview, type TagsMode } from "$lib/ipc/network-dialogs";
+  import { pushPreview, type PushOptions, type PushPreview, type TagsMode } from "$lib/ipc/network-dialogs";
   import {
     pushChoiceOf,
     pushCommandLine,
+    pushOptionsOf,
     pushProblem,
     remoteBranchChoices,
     tagsHint,
     type PushChoice,
   } from "$lib/network-dialogs";
+  import { effectiveChoice, upstreamState } from "$lib/push-dialog";
   import { splitUpstream } from "$lib/push-to";
   import type { PushRequest } from "$stores/network-dialog.svelte";
 
   /** Push (item 12), the Push dialog: where, what goes, which tags and notes. */
   interface Props {
     request: PushRequest;
-    onpush: (choice: PushChoice, remember: boolean) => void;
+    /** `options` is what goes; `choice` is what Remember keeps. */
+    onpush: (choice: PushChoice, options: PushOptions, remember: boolean) => void;
     onclose: () => void;
   }
 
@@ -53,7 +56,9 @@
 
   const branches = $derived(remoteBranchChoices(choice.remote, request.remoteBranches, request.local));
   const problem = $derived(pushProblem(choice));
-  const command = $derived(pushCommandLine(choice));
+  const tracking = $derived(upstreamState(request.upstream, choice.remote, choice.branch));
+  const sent = $derived(effectiveChoice(choice, request.upstream));
+  const command = $derived(pushCommandLine(sent));
 
   function chooseRemote(next: string) {
     choice.remote = next;
@@ -91,7 +96,7 @@
   {onclose}
   status={problem}
   actions={[
-    { label: "Push", primary: true, disabled: problem !== null, onclick: () => onpush(choice, remember) },
+    { label: "Push", primary: true, disabled: problem !== null, onclick: () => onpush(choice, pushOptionsOf(sent), remember) },
   ]}
 >
   <p class="sub">Sends the commits of the current branch to the remote.</p>
@@ -149,11 +154,11 @@
   <div class="group">
     <span class="caption">Tracking</span>
     <OptionRow
-      bind:checked={choice.setUpstream}
+      checked={tracking.kind === "already" || choice.setUpstream}
+      disabled={tracking.kind === "already"}
       label="Set as upstream"
-      hint={request.upstream === null
-        ? "The branch has no upstream yet (--set-upstream)"
-        : `Track ${choice.remote}/${choice.branch} instead of ${request.upstream} (--set-upstream)`}
+      hint={tracking.hint}
+      onchange={(on) => (choice.setUpstream = on)}
     />
   </div>
 

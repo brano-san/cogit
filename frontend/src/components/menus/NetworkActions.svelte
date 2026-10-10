@@ -3,7 +3,7 @@
   import PushDialog from "./PushDialog.svelte";
   import { eachAtMost, FETCH_ALL_LANES } from "$lib/fetch-all";
   import { deleteMergedBranches, fetchRemote, listRemotes, reportTiming, type Branch, type RepoId } from "$lib/ipc";
-  import { networkDefaults, saveNetworkDefaults } from "$lib/ipc/network-dialogs";
+  import { networkDefaults, saveNetworkDefaults, type PushOptions } from "$lib/ipc/network-dialogs";
   import {
     EMPTY_DEFAULTS,
     fetchOptionsOf,
@@ -261,7 +261,7 @@
     await (action === "fetch" ? afterFetch(id) : afterRefChange(id));
   }
 
-  async function runPushDialog(choice: PushChoice, remember: boolean) {
+  async function runPushDialog(choice: PushChoice, options: PushOptions, remember: boolean) {
     const request = networkDialog.open;
     if (request?.kind !== "push") return;
     networkDialog.close();
@@ -271,7 +271,7 @@
       epoch = await runGuarded(host, "Could not push", async () => {
         if (remember) await saveNetworkDefaults(id, mergeDefaults(request.defaults, { push: choice }));
         await announceHooks(id, "push");
-        await pushFlow(networkApi, flowUi, id, pushOptionsOf(choice));
+        await pushFlow(networkApi, flowUi, id, options);
         successToast.show("Push succeeded");
       });
     } finally {
