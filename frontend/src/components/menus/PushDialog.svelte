@@ -51,8 +51,9 @@
     request: PushRequest;
     /** `options` is what goes; `choice` is what Remember keeps. */
     onpush: (choice: PushChoice, options: PushOptions, remember: boolean) => void;
-    /** Fetches `remote` and refreshes the panels; the dialog then reads everything again. */
-    onfetch: (remote: string) => Promise<void>;
+    /** Fetches `remote` and refreshes the panels; the dialog then reads everything again.
+        `false`: the fetch did not run to the end. */
+    onfetch: (remote: string) => Promise<boolean>;
     onclose: () => void;
   }
 
@@ -87,10 +88,14 @@
   /** Grows after a Fetch: what was read from the remote-tracking refs is read again. */
   let revision = $state(0);
 
+  /** When the dialog's Fetch of each remote ended: an empty remote leaves git nothing to date. */
+  let fetchedHere = $state<Record<string, number>>({});
+
   async function fetchRemote() {
+    const remote = choice.remote;
     fetching = true;
     try {
-      await onfetch(choice.remote);
+      if (await onfetch(remote)) fetchedHere[remote] = Date.now();
       revision += 1;
     } finally {
       fetching = false;
@@ -203,7 +208,10 @@
   });
 
   const more = $derived(preview ? preview.total - preview.commits.length : 0);
-  const status = $derived(preview && statusLine(preview, choice.remote, Date.now(), settings.current.fetchStaleHours));
+  const status = $derived(
+    preview &&
+      statusLine(preview, choice.remote, Date.now(), settings.current.fetchStaleHours, fetchedHere[choice.remote] ?? null),
+  );
   /** The status may no longer hold: Fetch comes first, Push waits. */
   const stale = $derived(status?.stale ?? false);
 

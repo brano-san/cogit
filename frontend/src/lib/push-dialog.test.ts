@@ -154,6 +154,14 @@ describe("the status line", () => {
     expect(statusLine(preview(), "origin", 0, 24)).toEqual({ text: "Up to date · never fetched", stale: true });
   });
 
+  // A fetch of an empty remote leaves no trace git keeps (an empty FETCH_HEAD, no tracking ref):
+  // the one the dialog ran is the last fetch.
+  it("takes the fetch run from the dialog as the last one when it is newer", () => {
+    const empty = preview({ remoteTip: null, total: 2, localTip: "b" });
+    expect(statusLine(empty, "origin", 60_000, 24, 0)).toEqual({ text: "New branch on origin · fetched 1 minute ago", stale: false });
+    expect(statusLine(preview({ fetchedAt: 30_000 }), "origin", 90_000, 24, 0).text).toBe("Up to date · fetched 1 minute ago");
+  });
+
   it("offers thresholds from an hour to a month, and keeps one written by hand", () => {
     expect(staleChoices(24)).toContainEqual(["24", "1 day"]);
     expect(staleChoices(24).map(([hours]) => hours)).toEqual(["1", "6", "12", "24", "72", "168", "720"]);

@@ -105,15 +105,17 @@ export function fetchedText(fetchedAt: number | null, now: number): string {
 const HOUR_MS = 3_600_000;
 
 /** The status as of the last fetch and how long ago that was; `stale` past `staleHours`
-    (Preferences ▸ Push) or with nothing ever fetched, when the status may no longer hold. */
+    (Preferences ▸ Push) or with nothing ever fetched, when the status may no longer hold.
+    `fetchedHere`: when the dialog's own Fetch of this remote ended, which git may not record. */
 export function statusLine(
   preview: PushPreview,
   remote: string,
   now: number,
   staleHours: number,
+  fetchedHere: number | null = null,
 ): { text: string; stale: boolean } {
   const status = pushStatus(preview, remote);
-  const { fetchedAt } = preview;
+  const fetchedAt = fetchedHere === null ? preview.fetchedAt : Math.max(preview.fetchedAt ?? 0, fetchedHere);
   if (fetchedAt === null) return { text: `${status} · never fetched`, stale: true };
   if (now - fetchedAt <= staleHours * HOUR_MS) return { text: `${status} · ${fetchedText(fetchedAt, now)}`, stale: false };
   const ago = relativeDate(Math.floor(fetchedAt / 1000), 0, Math.floor(now / 1000)).toLowerCase();

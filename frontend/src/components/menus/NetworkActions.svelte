@@ -290,17 +290,18 @@
   }
 
   /** Fetch from the Push dialog: the dialog stays and reads the branches afresh. */
-  async function fetchForPush(remote: string) {
+  async function fetchForPush(remote: string): Promise<boolean> {
     const request = networkDialog.open;
     const root = repository.current?.root;
-    if (request?.kind !== "push" || !root) return;
+    if (request?.kind !== "push" || !root) return false;
     const epoch = await runGuarded(host, "Could not fetch", () => network.fetch(request.repo, remote));
-    if (epoch === null) return;
+    if (epoch === null) return false;
     repoPulse.fetched(root);
     if (repository.epoch === epoch) await afterFetch(request.repo);
     if (networkDialog.open === request) {
       networkDialog.open = { ...request, ...pushBranchesOf(repository.current?.branches ?? []) };
     }
+    return true;
   }
 
   export function pullNow() {
