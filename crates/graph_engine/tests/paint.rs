@@ -553,7 +553,6 @@ const MERGEABLE: PaintSpec = PaintSpec {
     tips: Vec::new(),
     ancestry_of: None,
     mergeable: true,
-    dim_merges: false,
     varying: false,
 };
 
@@ -614,38 +613,85 @@ fn mergeable_outranks_ancestry() {
     assert_eq!(dimmed(&painted), vec![false, false, true]);
 }
 
-#[test]
-fn dim_merges_dims_only_merged_in_lines() {
-    let history = nodes(&[
-        ("m2", &["m1", "f1"]),
-        ("f1", &["m0"]),
-        ("m1", &["m0"]),
-        ("m0", &[]),
-    ]);
-    let spec = PaintSpec {
-        dim_merges: true,
-        ..PaintSpec::default()
-    };
-    let painted = Painted::new(&history, Some("m2"), &spec);
-    let mut any = false;
-    for (row, s, style, _) in painted.segments() {
-        if s.primary {
-            assert_eq!(style & PAINT_DIM, 0, "row {row}: {s:?}");
-        }
-        if row == 0 && !s.primary {
-            assert_ne!(style & PAINT_DIM, 0, "row {row}: {s:?}");
-            any = true;
+/// The line from a merge down to the commit it merged, bend included: its lane is the one
+/// of that commit, so highlighting the merged branch lights it whole while the merge's own
+/// ring, on another lane, stays dim.
+fn merge_line_lanes(painted: &Painted, merge: usize, merged: usize) -> Vec<u32> {
+    let target = painted.paint.node_lane[merged];
+    let mut lanes = Vec::new();
+    for (row, s, _, lane) in painted.segments() {
+        let leaves_merge = row == merge
+            && s.span == Span::Bottom
+            && !s.primary
+            && s.from == painted.rows[merge].lane
+            && s.to != s.from;
+        let between = row > merge
+            && row < merged
+            && s.span == Span::Through
+            && s.to == painted.rows[merged].lane;
+        if leaves_merge || between {
+            lanes.push(lane);
         }
     }
-    assert!(any);
-    assert!(dimmed(&painted).iter().all(|d| !d));
+    assert!(!lanes.is_empty(), "no merge line from row {merge}");
+    assert!(
+        lanes.iter().all(|lane| *lane == target),
+        "{lanes:?} vs {target}"
+    );
+    lanes
+}
+
+#[test]
+fn a_merged_in_line_is_on_the_lane_of_the_branch_tip_it_merged() {
+    let history = nodes(&[
+        ("m2", &["m1", "f2"]),
+        ("m1", &["m0"]),
+        ("f2", &["f1"]),
+        ("f1", &["m0"]),
+        ("m0", &[]),
+    ]);
+    let painted = Painted::new(&history, Some("m2"), &PaintSpec::default());
+    merge_line_lanes(&painted, 0, 2);
+    assert_ne!(painted.paint.node_lane[0], painted.paint.node_lane[2]);
+}
+
+#[test]
+fn a_merge_from_the_middle_of_a_branch_is_on_that_branch_lane() {
+    let history = nodes(&[
+        ("f3", &["f2"]),
+        ("m2", &["m1", "f2"]),
+        ("m1", &["m0"]),
+        ("f2", &["f1"]),
+        ("f1", &["m0"]),
+        ("m0", &[]),
+    ]);
+    let painted = Painted::new(&history, Some("m2"), &PaintSpec::default());
+    merge_line_lanes(&painted, 1, 3);
+    assert_eq!(
+        painted.paint.node_lane[0], painted.paint.node_lane[3],
+        "f3 and f2 are one branch"
+    );
+}
+
+#[test]
+fn ticked_branches_never_dim_a_merged_in_line() {
+    let history = nodes(&[
+        ("m2", &["m1", "f2"]),
+        ("m1", &["m0"]),
+        ("f2", &["f1"]),
+        ("f1", &["m0"]),
+        ("m0", &[]),
+    ]);
+    let painted = Painted::new(&history, Some("m2"), &tips(&[(2, 3)]));
+    for (row, s, style, _) in painted.segments() {
+        assert_eq!(style & PAINT_DIM, 0, "row {row}: {s:?}");
+    }
 }
 
 const VARYING: PaintSpec = PaintSpec {
     tips: Vec::new(),
     ancestry_of: None,
     mergeable: false,
-    dim_merges: false,
     varying: true,
 };
 

@@ -25,9 +25,6 @@ pub struct GraphPaintRequest {
     /// Mergeable Coloring: HEAD's history is dimmed, what it has not merged stands out.
     #[serde(default)]
     pub mergeable: bool,
-    /// Branch Coloring: merged-in lines are dimmed.
-    #[serde(default)]
-    pub dim_merges: bool,
     /// Varying Coloring: every branch in a colour of its own, kept through its merge.
     #[serde(default)]
     pub varying: bool,
@@ -153,7 +150,6 @@ impl PaintMemo {
                 .as_ref()
                 .and_then(|oid| self.index.get(oid).copied()),
             mergeable: request.mergeable,
-            dim_merges: request.dim_merges,
             varying: request.varying,
         };
         let watch = std::time::Instant::now();

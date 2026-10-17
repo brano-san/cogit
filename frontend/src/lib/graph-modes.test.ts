@@ -110,8 +110,10 @@ describe("focusLane", () => {
     expect(focusLane(on, null, 3, null, "1:1")).toBeNull();
   });
 
-  it("asks for lanes with merged-in lines dimmed even with no branch ticked", () => {
-    expect(paintRequest(on, [])).toEqual({ tips: [], dimMerges: true });
+  // A merged-in line takes the lane of the commit it ends in, so the highlighted branch
+  // lights it whole, bend included; dimming every merged-in line dimmed that one too.
+  it("asks for lanes even with no branch ticked, merged-in lines left to the lane", () => {
+    expect(paintRequest(on, [])).toEqual({ tips: [] });
   });
 
   it("colours every branch by its name, ticked or not", () => {

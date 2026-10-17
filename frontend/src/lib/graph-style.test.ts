@@ -104,6 +104,10 @@ describe("strokes", () => {
     expect(segmentStroke(segment(false), 1, paint, branch).alpha).toBe(DIM_ALPHA);
     expect(rowFaded(row(false), paint, branch)).toBe(false);
     expect(rowFaded(row(false), { ...paint, nodeLane: 2 }, branch)).toBe(true);
+    // The merge into the active branch: its line is on the branch lane, its ring is not.
+    const merge = { nodeLane: 2, nodeStyle: 0, segmentLanes: [2, 7], segmentStyles: [0, 3] };
+    expect(segmentStroke(segment(false), 1, merge, branch)).toMatchObject({ alpha: 1, token: "--graph-branch-3" });
+    expect(rowFaded(row(false), merge, branch)).toBe(true);
     const head = { branchOnly: true, focusLane: null };
     expect(rowFaded(row(true), undefined, head)).toBe(false);
     expect(rowFaded(row(false), undefined, head)).toBe(true);

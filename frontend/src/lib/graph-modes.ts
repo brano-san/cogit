@@ -146,7 +146,6 @@ export function paintRequest(
     tips: painted,
     ...(ancestryOf === null ? {} : { ancestryOf }),
     ...(mergeable ? { mergeable } : {}),
-    ...(branch ? { dimMerges: true } : {}),
     ...(varying ? { varying } : {}),
   };
 }

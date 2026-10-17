@@ -1451,8 +1451,6 @@ export type GraphPaintRequest = {
 	ancestryOf?: string | null,
 	/**  Mergeable Coloring: HEAD's history is dimmed, what it has not merged stands out. */
 	mergeable?: boolean,
-	/**  Branch Coloring: merged-in lines are dimmed. */
-	dimMerges?: boolean,
 	/**  Varying Coloring: every branch in a colour of its own, kept through its merge. */
 	varying?: boolean,
 };

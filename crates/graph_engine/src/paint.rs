@@ -18,8 +18,6 @@ pub struct PaintSpec {
     /// Mergeable Coloring: HEAD's history is dimmed, what it has not merged stands out;
     /// it outranks `ancestry_of`.
     pub mergeable: bool,
-    /// Branch Coloring: merged-in (not first-parent) lines are dimmed.
-    pub dim_merges: bool,
     /// Varying Coloring: every branch (a chain of first parents) gets a colour of its own.
     pub varying: bool,
 }
@@ -426,13 +424,6 @@ pub fn paint(
         let lit = kin_of(child) != 0 && parent.map_or(kin_of(child) >= CHOSEN, |p| kin_of(p) != 0);
         (slot, lit)
     };
-    let merged = |own: bool| {
-        if spec.dim_merges && !own {
-            PAINT_DIM
-        } else {
-            0
-        }
-    };
     let mut groups: Vec<(u8, bool)> = trace
         .groups
         .iter()
@@ -440,8 +431,7 @@ pub fn paint(
             if g.child == NONE {
                 (0, g.end != NONE && kin_of(g.end) != 0)
             } else {
-                let (slot, lit) = edge(g.child, g.own, g.end);
-                (slot | merged(g.own), lit)
+                edge(g.child, g.own, g.end)
             }
         })
         .collect();
@@ -478,7 +468,7 @@ pub fn paint(
     for &(segment, child) in &trace.join_segments {
         let end = trace.groups[trace.segment_group[segment] as usize].end;
         let (slot, lit) = edge(child, false, end);
-        segment_style[segment] = slot | dim(lit) | merged(false);
+        segment_style[segment] = slot | dim(lit);
     }
     Paint {
         node_lane: trace.node_lane,
