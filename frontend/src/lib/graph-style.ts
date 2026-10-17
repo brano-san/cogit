@@ -9,8 +9,8 @@ const SLOT_BITS = 0x0f;
 const DIM_BIT = 0x10;
 /** Outside the ancestry of the chosen commit (#26) lines and rings are this faint. */
 export const DIM_ALPHA = 0.28;
-/** The branch of the chosen commit stands out from the main line too. */
-export const FOCUS_LINE_WIDTH = GRAPH.mainLineWidth + 1;
+/** As wide as the main line: any wider and it buries the commit dots on it. */
+export const FOCUS_LINE_WIDTH = GRAPH.mainLineWidth;
 
 /** FNV-1a over the UTF-16 units: the same branch gets the same colour in every run and on
     every machine, whatever else is ticked. */
@@ -53,7 +53,7 @@ export interface StrokeOptions {
   branchOnly?: boolean;
   /** Mergeable Coloring: what is not dimmed is drawn in the accent. */
   accentLit?: boolean;
-  /** Drawn on top and wider: the branch of the chosen commit (#26). */
+  /** Drawn on top: the branch of the chosen commit (#26). */
   focusLane?: number | null;
 }
 
