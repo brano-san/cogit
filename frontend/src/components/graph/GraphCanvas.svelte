@@ -8,6 +8,7 @@
     nodeSquare,
     segmentCurve,
     textX,
+    transition,
   } from "$lib/graph-geometry";
   import { tokenColor } from "$lib/theme-colors";
   import { themeStore } from "$stores/theme.svelte";
@@ -22,8 +23,8 @@
     tint: string | null;
   }
 
-  /** Only the rows on screen: every segment belongs to its own row, so nothing outside
-      the view is ever needed to draw it (doc/07-graph-rendering.md). */
+  /** The rows on screen and the buffer around them: a turn between columns reaches half a
+      row into the next one, so a row reads its neighbours' segments (doc/07-graph-rendering.md). */
   interface Props {
     /** `unpushed`: a dot with a gap around it; a commit some remote branch has is a hollow ring. */
     rows: {
@@ -95,6 +96,7 @@
     context.clearRect(0, 0, box.cssWidth, box.cssHeight);
     context.imageSmoothingEnabled = true;
     context.lineCap = "round";
+    context.lineJoin = "round";
 
     const token = tokenColor;
     const main = token("--graph-main");
@@ -115,6 +117,7 @@
     context.rect(0, 0, edge, height);
     context.clip();
 
+    const segmentsAt = new Map(rows.map((row) => [row.listRow, row.layout.segments]));
     // Grey first, branch colours over it, the main line on top: where lines cross, the one
     // the eye follows wins.
     for (let layer = 0; layer < LAYERS; layer++) {
@@ -125,10 +128,17 @@
           context.strokeStyle = ink(look.token, look.alpha);
           context.lineWidth = look.width;
           context.beginPath();
-          if (headerRow > 0 && row.listRow === headRow && !segment.arrow && segment.span !== "bottom") {
+          const curve = segment.arrow
+            ? null
+            : segmentCurve(segment, row.listRow, scrollTop, {
+                above: segmentsAt.get(row.listRow - 1),
+                below: segmentsAt.get(row.listRow + 1),
+              });
+          // Across the Working Tree row to where the line in HEAD's row starts.
+          if (curve && headerRow > 0 && row.listRow === headRow && segment.span !== "bottom") {
             const x = laneX(segment.from);
             context.moveTo(x, headerRow * GRAPH.rowHeight - scrollTop);
-            context.lineTo(x, row.listRow * GRAPH.rowHeight - scrollTop);
+            context.lineTo(x, Math.min(curve.y1, curve.y2));
           }
           if (segment.arrow) {
             const stub = arrowStub(segment, row.listRow, scrollTop);
@@ -137,8 +147,7 @@
             context.moveTo(stub.left.x, stub.left.y);
             context.lineTo(stub.x2, stub.y2);
             context.lineTo(stub.right.x, stub.right.y);
-          } else {
-            const curve = segmentCurve(segment, row.listRow, scrollTop);
+          } else if (curve) {
             context.moveTo(curve.x1, curve.y1);
             if (curve.x1 === curve.x2) context.lineTo(curve.x2, curve.y2);
             else context.bezierCurveTo(curve.cx1, curve.cy1, curve.cx2, curve.cy2, curve.x2, curve.y2);
@@ -158,11 +167,10 @@
       context.beginPath();
       context.moveTo(top.x, top.y);
       if (top.x !== foot.x) {
-        const bend = top.y + GRAPH.rowHeight / 2;
-        const middle = (top.y + bend) / 2;
-        context.bezierCurveTo(top.x, middle, foot.x, middle, foot.x, bend);
+        const turn = transition(top, foot.x, "down");
+        context.bezierCurveTo(turn.cx1, turn.cy1, turn.cx2, turn.cy2, turn.x2, turn.y2);
       }
-      context.lineTo(foot.x, foot.y - GRAPH.ringRadius);
+      context.lineTo(foot.x, foot.y);
       context.stroke();
       context.restore();
     }

@@ -5,6 +5,9 @@ import {
   canvasPixelSize,
   arrowStub,
   segmentCurve,
+  svgPath,
+  transition,
+  type Curve,
   textX,
   hitTest,
   centreRow,
@@ -424,55 +427,141 @@ describe("nodeSquare", () => {
 // consecutive rows join without a kink and nothing is ever drawn horizontally (R-161).
 describe("segmentCurve", () => {
   const top = (row: number) => row * GRAPH.rowHeight;
+  const centre = (row: number) => top(row) + GRAPH.rowHeight / 2;
+  const seg = (from: number, to: number, span: "top" | "bottom" | "through") => ({ from, to, span, arrow: false });
 
-  it("leaves and arrives vertically", () => {
-    const curve = segmentCurve({ from: 1, to: 3, span: "through" }, 5, 0);
-    expect(curve.cx1).toBe(curve.x1);
-    expect(curve.cx2).toBe(curve.x2);
-    expect(curve.cy1).toBe(curve.cy2);
+  it("draws a lane passing through as the whole row, straight", () => {
+    const curve = segmentCurve(seg(2, 2, "through"), 4, 0)!;
+    expect([curve.x1, curve.y1, curve.x2, curve.y2]).toEqual([laneX(2), top(4), laneX(2), top(5)]);
   });
 
-  it("covers the upper half for a line into the node", () => {
-    const curve = segmentCurve({ from: 2, to: 0, span: "top" }, 4, 0);
-    expect([curve.y1, curve.y2]).toEqual([top(4), top(4) + GRAPH.rowHeight / 2]);
-    expect([curve.x1, curve.x2]).toEqual([laneX(2), laneX(0)]);
-  });
-
-  it("covers the lower half for a line out of the node", () => {
-    const curve = segmentCurve({ from: 0, to: 1, span: "bottom" }, 4, 0);
-    expect([curve.y1, curve.y2]).toEqual([top(4) + GRAPH.rowHeight / 2, top(5)]);
-  });
-
-  it("covers the whole row, and only it, for a lane passing through", () => {
-    const curve = segmentCurve({ from: 2, to: 1, span: "through" }, 4, 0);
-    expect([curve.y1, curve.y2]).toEqual([top(4), top(5)]);
-  });
-
-  it("meets the node at its centre", () => {
-    const into = segmentCurve({ from: 3, to: 1, span: "top" }, 7, 0);
+  it("meets the node at its centre from above and below", () => {
+    const into = segmentCurve(seg(1, 1, "top"), 7, 0)!;
+    const out = segmentCurve(seg(1, 1, "bottom"), 7, 0)!;
     expect({ x: into.x2, y: into.y2 }).toEqual(nodeCentre(1, 7, 0));
+    expect({ x: out.x1, y: out.y1 }).toEqual(nodeCentre(1, 7, 0));
   });
 
-  it("leaves the node from its centre, as a line into it arrives at its centre", () => {
-    const out = segmentCurve({ from: 1, to: 3, span: "bottom" }, 7, 0);
-    const into = segmentCurve({ from: 3, to: 1, span: "top" }, 7, 0);
-    const centre = nodeCentre(1, 7, 0);
-    expect({ x: out.x1, y: out.y1 }).toEqual(centre);
-    expect({ x: into.x2, y: into.y2 }).toEqual(centre);
-    // Mirror images: the same S, one half a row either side of the centre.
-    expect(out.y2 - out.y1).toBe(centre.y - into.y1);
-    expect(out.x2 - out.x1).toBe(into.x1 - into.x2);
+  it("turns a branch out of its parent over one row: from the node to the next row's centre", () => {
+    const fork = segmentCurve(seg(3, 1, "top"), 7, 0)!;
+    expect({ x: fork.x1, y: fork.y1 }).toEqual(nodeCentre(1, 7, 0));
+    expect([fork.x2, fork.y2]).toEqual([laneX(3), centre(6)]);
   });
 
-  it("ends a row where the next one starts, so a lane runs on without a gap", () => {
-    const leaving = segmentCurve({ from: 0, to: 2, span: "bottom" }, 3, 0);
-    const next = segmentCurve({ from: 2, to: 2, span: "through" }, 4, 0);
-    expect({ x: leaving.x2, y: leaving.y2 }).toEqual({ x: next.x1, y: next.y1 });
+  it("turns a merge into its second parent's column over one row", () => {
+    const merge = segmentCurve(seg(1, 3, "bottom"), 7, 0)!;
+    expect({ x: merge.x1, y: merge.y1 }).toEqual(nodeCentre(1, 7, 0));
+    expect([merge.x2, merge.y2]).toEqual([laneX(3), centre(8)]);
+  });
+
+  it("leaves the half row a turn covers to the turn", () => {
+    const merged = [seg(1, 3, "bottom")];
+    expect(segmentCurve(seg(3, 3, "through"), 8, 0, { above: merged })).toMatchObject({ y1: centre(8), y2: top(9) });
+    const forked = [seg(3, 1, "top")];
+    expect(segmentCurve(seg(3, 3, "through"), 6, 0, { below: forked })).toMatchObject({ y1: top(6), y2: centre(6) });
+    expect(segmentCurve(seg(3, 3, "top"), 8, 0, { above: merged })).toBeNull();
+    expect(segmentCurve(seg(3, 3, "bottom"), 6, 0, { below: forked })).toBeNull();
+  });
+
+  it("joins two nodes in one curve when a line leaves one and enters the next in a third column", () => {
+    const leaving = segmentCurve(seg(0, 1, "bottom"), 3, 0, { below: [seg(1, 2, "top")] })!;
+    expect({ x: leaving.x2, y: leaving.y2 }).toEqual(nodeCentre(2, 4, 0));
+    expect(segmentCurve(seg(1, 2, "top"), 4, 0, { above: [seg(0, 1, "bottom")] })).toBeNull();
   });
 
   it("follows the scroll", () => {
-    const curve = segmentCurve({ from: 0, to: 0, span: "through" }, 10, GRAPH.rowHeight * 10);
+    const curve = segmentCurve(seg(0, 0, "through"), 10, GRAPH.rowHeight * 10)!;
     expect(curve.y1).toBe(0);
+  });
+});
+
+describe("transition", () => {
+  const node = nodeCentre(2, 5, 0);
+  const mirrorY = (curve: Curve): Curve => ({
+    x1: curve.x1, y1: 2 * node.y - curve.y1, cx1: curve.cx1, cy1: 2 * node.y - curve.cy1,
+    cx2: curve.cx2, cy2: 2 * node.y - curve.cy2, x2: curve.x2, y2: 2 * node.y - curve.y2,
+  });
+  const mirrorX = (curve: Curve): Curve => ({
+    x1: 2 * node.x - curve.x1, y1: curve.y1, cx1: 2 * node.x - curve.cx1, cy1: curve.cy1,
+    cx2: 2 * node.x - curve.cx2, cy2: curve.cy2, x2: 2 * node.x - curve.x2, y2: curve.y2,
+  });
+
+  it("is the same shape for a branch leaving upwards and a merge going down: mirrored", () => {
+    for (const lane of [0, 3, 4]) {
+      expect(mirrorY(transition(node, laneX(lane), "up"))).toEqual(transition(node, laneX(lane), "down"));
+    }
+  });
+
+  it("is the same shape to the left and to the right: mirrored", () => {
+    const right = transition(node, laneX(3), "down");
+    const left = transition(node, laneX(1), "down");
+    expect(mirrorX(right)).toEqual(left);
+  });
+
+  it("leaves the node on a slant and meets the column upright", () => {
+    const curve = transition(node, laneX(3), "down");
+    expect(curve.cx1).not.toBe(curve.x1);
+    expect(curve.cy1).not.toBe(curve.y1);
+    expect(curve.cx2).toBe(curve.x2);
+  });
+});
+
+describe("edges at a node", () => {
+  it("all end in the node's centre", () => {
+    const row = 6;
+    const centre = nodeCentre(1, row, 0);
+    const ends = [
+      segmentCurve({ from: 1, to: 1, span: "top" }, row, 0)!,
+      segmentCurve({ from: 3, to: 1, span: "top" }, row, 0)!,
+      segmentCurve({ from: 1, to: 1, span: "bottom" }, row, 0)!,
+      segmentCurve({ from: 1, to: 0, span: "bottom" }, row, 0)!,
+      segmentCurve({ from: 1, to: 2, span: "bottom" }, row, 0)!,
+    ].map((curve) => [{ x: curve.x1, y: curve.y1 }, { x: curve.x2, y: curve.y2 }]);
+    for (const pair of ends) expect(pair).toContainEqual(centre);
+  });
+});
+
+describe("mini graphs, as drawn", () => {
+  type Seg = { from: number; to: number; span: "top" | "bottom" | "through"; arrow: boolean };
+  const s = (from: number, to: number, span: Seg["span"]): Seg => ({ from, to, span, arrow: false });
+  const draw = (rows: Seg[][]) =>
+    rows.map((segments, row) =>
+      segments.map((segment) => {
+        const curve = segmentCurve(segment, row, 0, { above: rows[row - 1], below: rows[row + 1] });
+        return curve ? svgPath(curve) : null;
+      }),
+    );
+
+  it("a commit forked from above and merged from below in the next column", () => {
+    // tip (1) ─ its parent C (0) is a merge whose second parent Q (1) is the next row.
+    expect(draw([
+      [s(1, 1, "bottom")],
+      [s(1, 0, "top"), s(0, 0, "bottom"), s(0, 1, "bottom")],
+      [s(0, 0, "through"), s(1, 1, "top"), s(1, 1, "bottom")],
+      [s(0, 0, "top"), s(1, 0, "top")],
+    ])).toMatchSnapshot();
+  });
+
+  it("branches leaving to the left and to the right", () => {
+    expect(draw([
+      [s(0, 0, "bottom")],
+      [s(0, 0, "through"), s(2, 2, "bottom")],
+      [s(0, 1, "top"), s(2, 1, "top"), s(1, 1, "bottom")],
+    ])).toMatchSnapshot();
+  });
+
+  it("a merge across two columns", () => {
+    expect(draw([
+      [s(1, 1, "through"), s(0, 0, "bottom"), s(0, 2, "bottom")],
+      [s(0, 0, "through"), s(1, 1, "through"), s(2, 2, "top"), s(2, 2, "bottom")],
+    ])).toMatchSnapshot();
+  });
+
+  it("an octopus", () => {
+    expect(draw([
+      [s(0, 0, "bottom"), s(0, 1, "bottom"), s(0, 2, "bottom"), s(0, 3, "bottom")],
+      [s(0, 0, "through"), s(1, 1, "through"), s(2, 2, "through"), s(3, 3, "top")],
+    ])).toMatchSnapshot();
   });
 });
 
@@ -495,35 +584,6 @@ describe("arrowStub", () => {
     expect(stub.y2).toBeGreaterThan(stub.y1);
     expect(stub.x2).toBeLessThan(laneX(2) - GRAPH.laneWidth / 2);
     expect(stub.y2).toBeLessThanOrEqual(5 * GRAPH.rowHeight);
-  });
-});
-
-describe("a lane leaving a node's column", () => {
-  const at = (curve: ReturnType<typeof segmentCurve>, t: number) => {
-    const u = 1 - t;
-    const mix = (a: number, b: number, c: number, d: number) =>
-      u * u * u * a + 3 * u * u * t * b + 3 * u * t * t * c + t * t * t * d;
-    return {
-      x: mix(curve.x1, curve.cx1, curve.cx2, curve.x2),
-      y: mix(curve.y1, curve.cy1, curve.cy2, curve.y2),
-    };
-  };
-  const closest = (curve: ReturnType<typeof segmentCurve>, lane: number) => {
-    const centre = nodeCentre(lane, 0, 0);
-    let best = Infinity;
-    for (let step = 0; step <= 200; step++) {
-      const point = at(curve, step / 200);
-      best = Math.min(best, Math.hypot(point.x - centre.x, point.y - centre.y));
-    }
-    return best - GRAPH.ringRadius - GRAPH.ringStroke / 2 - GRAPH.lineWidth / 2;
-  };
-
-  it("keeps clear of the ring when it turns in the upper half", () => {
-    expect(closest(segmentCurve({ from: 2, to: 3, span: "top" }, 0, 0), 2)).toBeGreaterThan(3);
-  });
-
-  it("would graze the ring if it turned over the whole row", () => {
-    expect(closest(segmentCurve({ from: 2, to: 3, span: "through" }, 0, 0), 2)).toBeLessThan(1);
   });
 });
 

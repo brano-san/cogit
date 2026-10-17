@@ -1,0 +1,73 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`mini graphs, as drawn > a commit forked from above and merged from below in the next column 1`] = `
+[
+  [
+    null,
+  ],
+  [
+    "M10 36C18 24 26 24 26 12",
+    "M10 36V48",
+    "M10 36C18 48 26 48 26 60",
+  ],
+  [
+    "M10 48V72",
+    null,
+    null,
+  ],
+  [
+    "M10 72V84",
+    "M10 84C18 72 26 72 26 60",
+  ],
+]
+`;
+
+exports[`mini graphs, as drawn > a merge across two columns 1`] = `
+[
+  [
+    "M26 0V24",
+    "M10 12V24",
+    "M10 12C26 24 42 24 42 36",
+  ],
+  [
+    "M10 24V48",
+    "M26 24V48",
+    null,
+    "M42 36V48",
+  ],
+]
+`;
+
+exports[`mini graphs, as drawn > an octopus 1`] = `
+[
+  [
+    "M10 12V24",
+    "M10 12C18 24 26 24 26 36",
+    "M10 12C26 24 42 24 42 36",
+    "M10 12C34 24 58 24 58 36",
+  ],
+  [
+    "M10 24V48",
+    "M26 36V48",
+    "M42 36V48",
+    null,
+  ],
+]
+`;
+
+exports[`mini graphs, as drawn > branches leaving to the left and to the right 1`] = `
+[
+  [
+    "M10 12V24",
+  ],
+  [
+    "M10 24V36",
+    null,
+  ],
+  [
+    "M26 60C18 48 10 48 10 36",
+    "M26 60C34 48 42 48 42 36",
+    "M26 60V72",
+  ],
+]
+`;

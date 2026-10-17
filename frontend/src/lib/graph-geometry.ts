@@ -177,22 +177,74 @@ export interface Curve {
   y2: number;
 }
 
-/** A cubic with both tangents vertical: a straight line when the column stays, an S
-    inside the one row when it changes. `listRow` counts the header rows. */
+/** Where along the chord the curve leaves the node, and how far up the column it rounds
+    into it: a slant out of the ring, upright at the far end (SmartGit's `<`). */
+const TURN = 0.5;
+
+/** A line changing column at a node, in one shape for a branch leaving its parent upwards
+    and a merge going down to its second parent: from the node's centre to the centre of
+    the next row in column `toX`. The two are mirror images, as are left and right. */
+export function transition(node: { x: number; y: number }, toX: number, direction: "up" | "down"): Curve {
+  const dy = direction === "down" ? GRAPH.rowHeight : -GRAPH.rowHeight;
+  const y2 = node.y + dy;
+  return {
+    x1: node.x,
+    y1: node.y,
+    cx1: node.x + (toX - node.x) * TURN,
+    cy1: node.y + dy * TURN,
+    cx2: toX,
+    cy2: y2 - dy * TURN,
+    x2: toX,
+    y2,
+  };
+}
+
+type Drawn = { from: number; to: number; span: "top" | "bottom" | "through"; arrow?: boolean };
+
+const turnsDown = (segments: readonly Drawn[] | undefined, lane: number) =>
+  segments?.find((s) => !s.arrow && s.span === "bottom" && s.to === lane && s.from !== lane);
+const turnsUp = (segments: readonly Drawn[] | undefined, lane: number) =>
+  segments?.find((s) => !s.arrow && s.span === "top" && s.from === lane && s.to !== lane);
+
+/** A segment of row `listRow` (counting the header rows), or `null` when a turn drawn by a
+    neighbouring row covers it. A turn reaches half a row into the next row, so that row's
+    straight half in the same column is left out; `above` and `below` are the segments of
+    the rows next to it, absent when not on hand (the header row, the ends of the list). */
 export function segmentCurve(
-  segment: { from: number; to: number; span: "top" | "bottom" | "through" },
+  segment: Drawn,
   listRow: number,
   scrollTop: number,
-): Curve {
+  { above, below }: { above?: readonly Drawn[]; below?: readonly Drawn[] } = {},
+): Curve | null {
   const top = listRow * GRAPH.rowHeight - scrollTop;
   const centre = top + GRAPH.rowHeight / 2;
   const bottom = top + GRAPH.rowHeight;
-  const y1 = segment.span === "bottom" ? centre : top;
-  const y2 = segment.span === "top" ? centre : bottom;
+  if (segment.from !== segment.to && segment.span !== "through") {
+    if (segment.span === "bottom") {
+      const next = turnsUp(below, segment.to);
+      return transition({ x: laneX(segment.from), y: centre }, laneX(next ? next.to : segment.to), "down");
+    }
+    // Two turns in a row, out of one node and into the next: the row above draws it whole.
+    if (turnsDown(above, segment.from)) return null;
+    return transition({ x: laneX(segment.to), y: centre }, laneX(segment.from), "up");
+  }
+  let y1 = segment.span === "bottom" ? centre : top;
+  let y2 = segment.span === "top" ? centre : bottom;
+  if (y1 === top && turnsDown(above, segment.from)) y1 = centre;
+  if (y2 === bottom && turnsUp(below, segment.to)) y2 = centre;
+  if (y1 >= y2) return null;
   const x1 = laneX(segment.from);
   const x2 = laneX(segment.to);
   const middle = (y1 + y2) / 2;
   return { x1, y1, cx1: x1, cy1: middle, cx2: x2, cy2: middle, x2, y2 };
+}
+
+/** The curve as an SVG path, for `Path2D` and for snapshots. */
+export function svgPath(curve: Curve): string {
+  const n = (value: number) => String(Math.round(value * 100) / 100);
+  const { x1, y1, cx1, cy1, cx2, cy2, x2, y2 } = curve;
+  if (x1 === x2 && cx1 === x1 && cx2 === x2) return `M${n(x1)} ${n(y1)}V${n(y2)}`;
+  return `M${n(x1)} ${n(y1)}C${n(cx1)} ${n(cy1)} ${n(cx2)} ${n(cy2)} ${n(x2)} ${n(y2)}`;
 }
 
 /** The line to a commit the list does not show, or to the far end of a cut link: a stub
