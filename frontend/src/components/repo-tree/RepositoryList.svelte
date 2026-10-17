@@ -695,8 +695,8 @@
     font-size: 10px;
   }
 
-  /* A corner each, so any two show at once: pull (or `?`) top left, the conflict badge top
-     right, push bottom right. The arrows reach past the icon's edges; the margins keep
+  /* A corner each, so any two show at once: pull (or `?`) top left, push top right, the
+     conflict badge bottom right. The arrows reach past the icon's edges; the margins keep
      them off the disclosure triangle and the changes dot. */
   .repo-icon {
     /* Larger than the 14 px of other kinds: the state badge is a quarter of its box and
@@ -714,12 +714,6 @@
   /* The badge is scaled by 1.375, off the pixel grid its crisp edges were drawn for. */
   .repo-icon :global(.icon) {
     shape-rendering: geometricPrecision;
-  }
-
-  /* `FileStateIcon` draws its badge in the bottom-right quarter, push's corner: up by half
-     its box puts it in the top-right one. */
-  .repo-icon :global(.icon.overlay-only) {
-    translate: 0 calc(var(--file-icon) / -2);
   }
 
   /* On the corners, with a halo of whatever is behind the row, so they sit on the icon's
@@ -754,8 +748,8 @@
   }
 
   .arrow.push {
+    top: -3px;
     right: -5px;
-    bottom: -3px;
     color: var(--indicator-push);
   }
 
