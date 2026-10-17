@@ -711,17 +711,8 @@ mod unstaged {
         let module = f.path().join("vendor/lib");
         std::fs::write(module.join("file0.txt"), "moved\n").unwrap();
         let git_in = |args: &[&str]| {
-            let out = std::process::Command::new("git")
-                .args([
-                    "-c",
-                    "user.name=t",
-                    "-c",
-                    "user.email=t@t",
-                    "-c",
-                    "commit.gpgsign=false",
-                ])
+            let out = test_fixtures::git_command_in(&module)
                 .args(args)
-                .current_dir(&module)
                 .output()
                 .unwrap();
             assert!(out.status.success(), "{out:?}");
