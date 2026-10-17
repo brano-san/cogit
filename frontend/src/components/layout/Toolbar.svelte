@@ -140,10 +140,16 @@
     // Measured with the labels showing: measured without them, the row fitted, the labels
     // came back, and the "…" that appears with them resized the row to measure again.
     const bar = element.closest(".toolbar");
+    // The width the labels need, from the last measurement with them showing: while the row
+    // is narrower than that it stays crowded without dropping the class, which cost two
+    // layouts per resize frame.
+    let needed = 0;
     const measure = () => {
       const was = bar?.classList.contains("crowded") ?? false;
+      if (was && element.clientWidth + 1 < needed) return;
       bar?.classList.remove("crowded");
-      crowded = element.scrollWidth > element.clientWidth + 1;
+      needed = element.scrollWidth;
+      crowded = needed > element.clientWidth + 1;
       if (was) bar?.classList.add("crowded");
     };
     const observer = new ResizeObserver(measure);
