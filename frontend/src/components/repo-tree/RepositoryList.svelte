@@ -695,7 +695,9 @@
     font-size: 10px;
   }
 
-  /* The arrows reach past the icon's right edge; the margin keeps them off the dot. */
+  /* A corner each, so any two show at once: pull (or `?`) top left, the conflict badge top
+     right, push bottom right. The arrows reach past the icon's edges; the margins keep
+     them off the disclosure triangle and the changes dot. */
   .repo-icon {
     /* Larger than the 14 px of other kinds: the state badge is a quarter of its box and
        at 8 px a conflict's circle and exclamation mark ran together. 22 px of badge box
@@ -706,7 +708,7 @@
     position: relative;
     display: inline-flex;
     flex: none;
-    margin-right: 3px;
+    margin: 0 3px;
   }
 
   /* The badge is scaled by 1.375, off the pixel grid its crisp edges were drawn for. */
@@ -714,11 +716,33 @@
     shape-rendering: geometricPrecision;
   }
 
-  /* On the corners, with a halo of the panel colour, so they sit on the icon's edge
-     without covering it. */
+  /* `FileStateIcon` draws its badge in the bottom-right quarter, push's corner: up by half
+     its box puts it in the top-right one. */
+  .repo-icon :global(.icon.overlay-only) {
+    translate: 0 calc(var(--file-icon) / -2);
+  }
+
+  /* On the corners, with a halo of whatever is behind the row, so they sit on the icon's
+     edge without covering it, on a striped, hovered or selected row as on a plain one. */
+  .row {
+    --mark-halo: var(--surface-panel);
+  }
+
+  .row.striped {
+    --mark-halo: var(--row-stripe);
+  }
+
+  .row:hover,
+  .row.menu {
+    --mark-halo: var(--state-hover);
+  }
+
+  .row.selected:not(.menu) {
+    --mark-halo: var(--state-selected);
+  }
+
   .arrow {
     position: absolute;
-    right: -5px;
     width: var(--sync-arrow);
     height: var(--sync-arrow);
     fill: none;
@@ -726,21 +750,24 @@
     stroke-width: 1.6;
     stroke-linecap: round;
     stroke-linejoin: round;
-    filter: drop-shadow(0 0 1px var(--surface-panel)) drop-shadow(0 0 1px var(--surface-panel));
+    filter: drop-shadow(0 0 1px var(--mark-halo, var(--surface-panel))) drop-shadow(0 0 1px var(--mark-halo, var(--surface-panel)));
   }
 
   .arrow.push {
-    top: -3px;
+    right: -5px;
+    bottom: -3px;
     color: var(--indicator-push);
   }
 
   .arrow.pull {
-    bottom: -3px;
+    top: -3px;
+    left: -5px;
     color: var(--indicator-pull);
   }
 
   .arrow.unknown {
-    bottom: -4px;
+    top: -4px;
+    left: -4px;
     width: auto;
     height: auto;
     color: var(--indicator-unknown);

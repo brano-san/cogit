@@ -92,11 +92,15 @@ function charWidth(node: HTMLElement): number {
 /** Svelte action: shows `path` cut in the middle to whatever width the node is given. */
 export function fitPath(node: HTMLElement, path: string) {
   let current = path;
+  // Measured once, not per resize frame: a canvas and a computed style each frame made
+  // dragging a window edge stutter on WebKitGTK.
+  let glyph = 0;
   const fit = () => {
     const width = node.clientWidth;
-    const glyph = charWidth(node);
-    node.textContent =
+    if (glyph <= 0) glyph = charWidth(node);
+    const text =
       width > 0 && glyph > 0 ? truncatePath(current, Math.floor(width / glyph)) : current;
+    if (node.textContent !== text) node.textContent = text;
   };
   const observer = new ResizeObserver(fit);
   observer.observe(node);
@@ -104,6 +108,7 @@ export function fitPath(node: HTMLElement, path: string) {
   return {
     update(next: string) {
       current = next;
+      glyph = 0;
       fit();
     },
     destroy() {
