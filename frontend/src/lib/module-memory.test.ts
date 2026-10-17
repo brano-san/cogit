@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EMPTY_MEMORY, forgetRoot, readModuleMemory, withNode, withOpenedRepository, withTop } from "./module-memory";
+import { EMPTY_MEMORY, atLaunch, forgetRoot, readModuleMemory, withNode, withOpenedRepository, withTop } from "./module-memory";
 
 describe("module memory", () => {
   it("keeps several repositories open at once", () => {
@@ -52,5 +52,12 @@ describe("a repository just opened", () => {
     const opened = withOpenedRepository(withNode(before, "/b", "x", true), "/a");
     expect(opened.nodes).toEqual({ "/b": ["x"] });
     expect(withOpenedRepository(opened, "/a")).toBe(opened);
+  });
+});
+
+describe("at launch", () => {
+  it("folds every repository but keeps the nodes remembered inside", () => {
+    const memory = { open: ["/a", "/b"], nodes: { "/a": ["lib"] } };
+    expect(atLaunch(memory)).toEqual({ open: [], nodes: { "/a": ["lib"] } });
   });
 });

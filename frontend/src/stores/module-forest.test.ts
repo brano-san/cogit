@@ -94,16 +94,15 @@ describe("the submodule trees of repositories not on screen", () => {
     ]);
   });
 
-  it("finds the trees as they were left after a restart", async () => {
+  it("starts folded after a restart, the nodes inside as they were left", async () => {
     const before = await fresh();
     await before.toggleTop("/a");
     await before.toggle("/a", before.rows("/a")[0]!);
-    await before.toggleTop("/b");
-    await before.toggleTop("/b");
 
     const after = await fresh();
-    await after.probe(["/a", "/b"]);
+    await after.probe(["/a"]);
+    expect(after.rows("/a")).toEqual([]);
+    await after.toggleTop("/a");
     expect(after.rows("/a").map((row) => row.key)).toEqual(["vendor/lib", "vendor/lib/deep"]);
-    expect(after.rows("/b")).toEqual([]);
   });
 });

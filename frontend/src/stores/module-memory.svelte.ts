@@ -1,4 +1,5 @@
 import {
+  atLaunch,
   forgetRoot,
   readModuleMemory,
   withNode,
@@ -21,7 +22,7 @@ function stored(): unknown {
 /** One record of the open submodule trees, read by the tree of the repository on screen
     and by the light trees of every other one, so the two can never disagree (R-352). */
 class ModuleMemoryStore {
-  memory = $state.raw<ModuleMemory>(readModuleMemory(stored()));
+  memory = $state.raw<ModuleMemory>(atLaunch(readModuleMemory(stored())));
 
   isOpen(root: string): boolean {
     return this.memory.open.includes(root);

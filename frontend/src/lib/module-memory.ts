@@ -63,3 +63,8 @@ export function forgetRoot(memory: ModuleMemory, root: string): ModuleMemory {
 export function withOpenedRepository(memory: ModuleMemory, root: string): ModuleMemory {
   return withTop(memory, root, true);
 }
+
+/** Cogit starts with every repository folded; what was open inside each is kept (R-352). */
+export function atLaunch(memory: ModuleMemory): ModuleMemory {
+  return { ...memory, open: [] };
+}
