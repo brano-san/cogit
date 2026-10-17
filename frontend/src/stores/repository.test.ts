@@ -26,7 +26,7 @@ const summary = (root: string) => ({
   head: { kind: "branch", data: { name: "master", oid: "a".repeat(40) } },
   branches: [],
   tags: [],
-  status: { staged: 0, unstaged: 0, untracked: 0, conflicted: 0 },
+  status: { staged: 0, unstaged: 0, untracked: 0, conflicted: 0, dirtySubmodules: 0 },
   state: { kind: "clean" },
   indexLock: null,
 });
@@ -616,7 +616,7 @@ describe("the refs after a commit", () => {
     commands.repoRefs.mockReturnValue(answer.promise);
     commands.workingState.mockResolvedValue({
       status: "ok",
-      data: { status: { staged: 0, unstaged: 3, untracked: 0, conflicted: 0 }, conflicted: [] },
+      data: { status: { staged: 0, unstaged: 3, untracked: 0, conflicted: 0, dirtySubmodules: 0 }, conflicted: [] },
     });
 
     const reading = repository.refreshRefs();

@@ -52,6 +52,6 @@ export function showsWorkingTree(
   state: RepoState | undefined,
 ): boolean {
   if (always || !status) return true;
-  if (status.staged + status.unstaged + status.untracked + status.conflicted > 0) return true;
+  if (status.staged + status.unstaged + status.untracked + status.conflicted + status.dirtySubmodules > 0) return true;
   return state !== undefined && state.kind !== "clean" && state.kind !== "detachedHead";
 }

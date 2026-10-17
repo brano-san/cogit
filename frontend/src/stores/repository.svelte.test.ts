@@ -23,7 +23,7 @@ const summary = (root: string) => ({
   head: { kind: "branch", data: { name: "master", oid: "a".repeat(40) } },
   branches: [],
   tags: [],
-  status: { staged: 0, unstaged: 0, untracked: 0, conflicted: 0 },
+  status: { staged: 0, unstaged: 0, untracked: 0, conflicted: 0, dirtySubmodules: 0 },
   state: { kind: "clean" },
   indexLock: null,
 });

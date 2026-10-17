@@ -129,7 +129,7 @@ describe("git am and bisect", () => {
 });
 
 describe("workingTreeLabel", () => {
-  const status = { staged: 1, unstaged: 2, untracked: 0, conflicted: 3 };
+  const status = { staged: 1, unstaged: 2, untracked: 0, conflicted: 3, dirtySubmodules: 0 };
 
   it("counts what the working tree holds", () => {
     expect(workingTreeLabel(status, { kind: "clean" })).toBe(
@@ -147,9 +147,22 @@ describe("workingTreeLabel", () => {
   });
 
   it("says clean when there is nothing to count", () => {
-    const none = { staged: 0, unstaged: 0, untracked: 0, conflicted: 0 };
+    const none = { staged: 0, unstaged: 0, untracked: 0, conflicted: 0, dirtySubmodules: 0 };
     expect(workingTreeLabel(none, { kind: "clean" })).toBe("Working Tree — clean");
     expect(workingTreeLabel(none, { kind: "rebasing" })).toBe("Working Tree — clean, rebasing");
+  });
+
+  it("names submodules with edits inside, alone or after the counts", () => {
+    const none = { staged: 0, unstaged: 0, untracked: 0, conflicted: 0, dirtySubmodules: 0 };
+    expect(workingTreeLabel({ ...none, dirtySubmodules: 1 }, { kind: "clean" })).toBe(
+      "Working Tree (1 submodule with modifications)",
+    );
+    expect(workingTreeLabel({ ...none, dirtySubmodules: 3 }, { kind: "clean" })).toBe(
+      "Working Tree (3 submodules with modifications)",
+    );
+    expect(workingTreeLabel({ ...none, unstaged: 5, dirtySubmodules: 1 }, { kind: "clean" })).toBe(
+      "Working Tree (5 modified, 1 submodule with modifications)",
+    );
   });
 
   it("leaves a detached HEAD to the banner", () => {

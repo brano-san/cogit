@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ChangeKind, RepoId } from "./ipc";
 import { runDiskPass, type DiskPassContext } from "./disk-pass";
 
-const STATE = { status: { staged: 0, unstaged: 1, untracked: 0, conflicted: 0 }, conflicted: [], indexLock: null };
+const STATE = { status: { staged: 0, unstaged: 1, untracked: 0, conflicted: 0, dirtySubmodules: 0 }, conflicted: [], indexLock: null };
 
 function context(over: Partial<DiskPassContext> = {}) {
   const log: string[] = [];

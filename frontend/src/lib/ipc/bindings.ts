@@ -2202,6 +2202,11 @@ export type RepoStatus = {
 	unstaged: number,
 	untracked: number,
 	conflicted: number,
+	/**
+	 *  Submodules whose recorded commit did not move but that hold edits or new files
+	 *  (`S.M.` / `S..U` in porcelain v2). Not a change of this repository: `is_clean` ignores it.
+	 */
+	dirtySubmodules: number,
 };
 
 export type RepoSummary = {

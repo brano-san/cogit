@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { runMutation, type MutationContext } from "./mutation";
 
 const REPO = 7 as never;
-const STATE = { status: { staged: 1, unstaged: 0, untracked: 0, conflicted: 0 }, conflicted: [], indexLock: null };
+const STATE = { status: { staged: 1, unstaged: 0, untracked: 0, conflicted: 0, dirtySubmodules: 0 }, conflicted: [], indexLock: null };
 
 function context(overrides: Partial<MutationContext> = {}) {
   const calls: string[] = [];

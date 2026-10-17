@@ -175,7 +175,7 @@ describe("the row of the repository on screen", () => {
       head: { kind: "branch", name: "main", oid: "a".repeat(40) },
       branches: [local("main")],
       tags: [],
-      status: { staged: 0, unstaged: 0, untracked: 0, conflicted: 0 },
+      status: { staged: 0, unstaged: 0, untracked: 0, conflicted: 0, dirtySubmodules: 0 },
       state: { kind: "clean" },
       indexLock: null,
       tagGroupSeparator: "/",
@@ -189,7 +189,7 @@ describe("the row of the repository on screen", () => {
     const now = summary({
       head: { kind: "branch", name: "feature", oid: "b".repeat(40) },
       branches: [local("main"), local("feature", { isHead: true, ahead: 2, behind: 1 })],
-      status: { staged: 0, unstaged: 1, untracked: 0, conflicted: 0 },
+      status: { staged: 0, unstaged: 1, untracked: 0, conflicted: 0, dirtySubmodules: 0 },
       state: { kind: "merging" },
     });
     expect(freshOverview(opened, now)).toMatchObject({
@@ -238,7 +238,7 @@ describe("the marks of a submodule node", () => {
       },
     ],
     tags: [],
-    status: { staged: 0, unstaged: 0, untracked: 1, conflicted: 0 },
+    status: { staged: 0, unstaged: 0, untracked: 1, conflicted: 0, dirtySubmodules: 0 },
     state: { kind: "clean" },
     indexLock: null,
     tagGroupSeparator: "/",
@@ -277,7 +277,7 @@ describe("the marks the panels hand to a row they let go of", () => {
         { name: "dev", fullName: "refs/heads/dev", kind: "local", oid: "a".repeat(40), isHead: true, upstream: "origin/dev", pushRemote: null, pushTarget: null, ahead: 0, behind: 2 },
       ],
       tags: [],
-      status: { staged: 1, unstaged: 0, untracked: 0, conflicted: 0 },
+      status: { staged: 1, unstaged: 0, untracked: 0, conflicted: 0, dirtySubmodules: 0 },
       state: { kind: "clean" },
       indexLock: null,
       tagGroupSeparator: "/",

@@ -57,6 +57,10 @@ export function workingTreeLabel(status: RepoStatus | undefined, state: RepoStat
   if (status && status.unstaged > 0) parts.push(`${status.unstaged} modified`);
   if (status && status.untracked > 0) parts.push(`${status.untracked} untracked`);
   if (status && status.conflicted > 0) parts.push(`${status.conflicted} conflicted`);
+  if (status && status.dirtySubmodules > 0) {
+    const noun = status.dirtySubmodules === 1 ? "submodule" : "submodules";
+    parts.push(`${status.dirtySubmodules} ${noun} with modifications`);
+  }
   const counts = !status ? "Working Tree" : parts.length > 0 ? `Working Tree (${parts.join(", ")})` : "Working Tree — clean";
   const ongoing = state ? ONGOING[state.kind] : undefined;
   return ongoing ? `${counts}, ${ongoing}` : counts;

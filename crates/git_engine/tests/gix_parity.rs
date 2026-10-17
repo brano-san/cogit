@@ -638,6 +638,12 @@ mod unstaged {
                         fields.next();
                     }
                     let xy = entry.split(' ').nth(1).unwrap();
+                    // `S<c><m><u>`: a submodule whose commit did not move, dirty inside.
+                    let sub = entry.split(' ').nth(2).unwrap().as_bytes();
+                    if sub[0] == b'S' && sub[1] == b'.' {
+                        git.dirty_submodules += u32::from(sub[2] == b'M' || sub[3] == b'U');
+                        continue;
+                    }
                     git.staged += u32::from(&xy[..1] != ".");
                     git.unstaged += u32::from(&xy[1..2] != ".");
                 }
@@ -667,10 +673,89 @@ mod unstaged {
                 staged: 2,
                 unstaged: 2,
                 untracked: 3,
-                conflicted: 0
+                conflicted: 0,
+                dirty_submodules: 0,
             }
         );
         assert_eq!(ours, git);
+    }
+
+    #[test]
+    fn a_submodule_edited_inside_counts_as_one_with_modifications() {
+        let f = test_fixtures::with_submodule().unwrap();
+        f.write_file("vendor/lib/file0.txt", "edited in the module\n")
+            .unwrap();
+        f.write_file("vendor/lib/loose.txt", "untracked in the module\n")
+            .unwrap();
+
+        let (ours, git) = counters(&f);
+        assert_eq!(git.dirty_submodules, 1, "{git:?}");
+        assert_eq!(git.unstaged, 0, "{git:?}");
+        assert_eq!(ours, git);
+    }
+
+    #[test]
+    fn a_submodule_with_only_new_files_inside_counts_too() {
+        let f = test_fixtures::with_submodule().unwrap();
+        f.write_file("vendor/lib/loose.txt", "untracked in the module\n")
+            .unwrap();
+
+        let (ours, git) = counters(&f);
+        assert_eq!(git.dirty_submodules, 1, "{git:?}");
+        assert_eq!(ours, git);
+    }
+
+    #[test]
+    fn a_moved_submodule_is_a_change_not_one_with_modifications() {
+        let f = test_fixtures::with_submodule().unwrap();
+        let module = f.path().join("vendor/lib");
+        std::fs::write(module.join("file0.txt"), "moved\n").unwrap();
+        let git_in = |args: &[&str]| {
+            let out = std::process::Command::new("git")
+                .args([
+                    "-c",
+                    "user.name=t",
+                    "-c",
+                    "user.email=t@t",
+                    "-c",
+                    "commit.gpgsign=false",
+                ])
+                .args(args)
+                .current_dir(&module)
+                .output()
+                .unwrap();
+            assert!(out.status.success(), "{out:?}");
+        };
+        git_in(&["commit", "-qam", "move"]);
+        std::fs::write(module.join("file0.txt"), "and dirty\n").unwrap();
+
+        let (ours, git) = counters(&f);
+        assert_eq!((git.unstaged, git.dirty_submodules), (1, 0), "{git:?}");
+        assert_eq!(ours, git);
+    }
+
+    #[test]
+    fn a_submodule_ignored_as_configured_is_not_counted() {
+        let f = test_fixtures::with_submodule().unwrap();
+        f.write_file("vendor/lib/file0.txt", "edited in the module\n")
+            .unwrap();
+        f.git(&["config", "submodule.vendor/lib.ignore", "dirty"])
+            .unwrap();
+
+        let (ours, git) = counters(&f);
+        assert_eq!(git.dirty_submodules, 0, "{git:?}");
+        assert_eq!(ours, git);
+    }
+
+    #[test]
+    fn the_files_list_counts_a_dirty_submodule_as_status_does() {
+        let f = test_fixtures::with_submodule().unwrap();
+        f.write_file("vendor/lib/file0.txt", "edited in the module\n")
+            .unwrap();
+
+        let files = open(&f).worktree_files().unwrap();
+        assert_eq!(files.state.status.dirty_submodules, 1);
+        assert!(files.unstaged.is_empty(), "{:?}", files.unstaged);
     }
 
     #[test]

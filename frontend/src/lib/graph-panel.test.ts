@@ -31,7 +31,7 @@ describe("an empty history", () => {
 });
 
 describe("showsWorkingTree", () => {
-  const clean = { staged: 0, unstaged: 0, untracked: 0, conflicted: 0 };
+  const clean = { staged: 0, unstaged: 0, untracked: 0, conflicted: 0, dirtySubmodules: 0 };
 
   it("always shows the row while the setting is on", () => {
     expect(showsWorkingTree(true, clean, { kind: "clean" })).toBe(true);
@@ -43,7 +43,7 @@ describe("showsWorkingTree", () => {
   });
 
   it("brings it back for any change", () => {
-    for (const change of ["staged", "unstaged", "untracked", "conflicted"] as const) {
+    for (const change of ["staged", "unstaged", "untracked", "conflicted", "dirtySubmodules"] as const) {
       expect(showsWorkingTree(false, { ...clean, [change]: 1 }, { kind: "clean" }), change).toBe(true);
     }
   });

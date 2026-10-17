@@ -80,9 +80,11 @@ impl RepoHandle {
             .into_iter(None::<gix::bstr::BString>)
             .map_err(|err| GitError::Internal(format!("cannot read status: {err}")))?;
 
+        let mut dirty_submodules = 0;
         for item in iter {
             let item = item.map_err(|err| GitError::Internal(format!("status failed: {err}")))?;
             if inert(&item) {
+                dirty_submodules += u32::from(dirty_submodule(&item));
                 continue;
             }
             match item {
@@ -129,6 +131,7 @@ impl RepoHandle {
         });
 
         files.state = self.state_of(&files);
+        files.state.status.dirty_submodules = dirty_submodules;
 
         if view.unchanged || view.assume_unchanged || view.skipped {
             self.add_index_entries(&mut files, view)?;
@@ -349,6 +352,20 @@ pub(crate) fn inert(item: &Item) -> bool {
         }) => inner.checked_out_head_id == inner.index_id,
         Item::IndexWorktree(WorktreeItem::DirectoryContents { entry, .. }) => {
             entry.disk_kind == Some(gix::dir::entry::Kind::Repository)
+        }
+        _ => false,
+    }
+}
+
+/// An inert submodule with edits or new files inside: `S.M.` / `S..U` of `git status`, which
+/// already left out what `submodule.<name>.ignore` and `diff.ignoreSubmodules` ignore.
+pub(crate) fn dirty_submodule(item: &Item) -> bool {
+    match item {
+        Item::IndexWorktree(WorktreeItem::Modification {
+            status: status @ EntryStatus::Change(WorktreeChange::SubmoduleModification(inner)),
+            ..
+        }) if inner.checked_out_head_id == inner.index_id => {
+            submodule_change(status).is_some_and(|change| change.modified || change.untracked)
         }
         _ => false,
     }
