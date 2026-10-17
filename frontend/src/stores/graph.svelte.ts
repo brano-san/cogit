@@ -11,6 +11,7 @@ import {
 } from "$lib/ipc";
 import type { GraphBlock, GraphEntry } from "$lib/graph-wire";
 import { repository } from "$stores/repository.svelte";
+import { unpushed } from "$stores/unpushed.svelte";
 import { GRAPH_MODE_DEFAULTS, graphView, viewReloads, walkedView } from "$lib/graph-modes";
 import { LONG_LINK_ROWS } from "$lib/graph-row";
 import { isEmptyQuery, sameQuery } from "$lib/query";
@@ -216,6 +217,7 @@ class GraphStore {
   async #load(repo: RepoId, query: CommitQuery, retry: boolean): Promise<void> {
     // Asked for by work begun before the panels moved on to another repository, or closed it.
     if (repository.current?.repo !== repo) return;
+    if (retry) void unpushed.refresh(repo);
     const load = ++this.#loads;
     this.query = query;
     const fresh = walk(repo, query);
@@ -277,6 +279,7 @@ class GraphStore {
     this.query = EMPTY_QUERY;
     this.visibleRefs = null;
     this.reveal = null;
+    unpushed.clear();
     this.#shown = null;
     this.#next = null;
     this.loading = false;

@@ -137,6 +137,10 @@ impl AppState {
         self.handle(repo)?.is_published(rev)
     }
 
+    pub fn unpushed(&self, repo: RepoId) -> Result<Vec<String>, git_engine::GitError> {
+        self.handle(repo)?.unpushed()
+    }
+
     pub fn is_merged_into_head(
         &self,
         repo: RepoId,

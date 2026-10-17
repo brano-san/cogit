@@ -1010,6 +1010,10 @@ export async function isPublished(repo: RepoId, rev: string) {
   return unwrap(await commands.isPublished(repo, rev));
 }
 
+export async function unpushedCommits(repo: RepoId) {
+  return unwrap(await commands.unpushedCommits(repo));
+}
+
 export async function isMergedIntoHead(repo: RepoId, rev: string) {
   return unwrap(await commands.isMergedIntoHead(repo, rev));
 }

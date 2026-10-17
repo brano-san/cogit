@@ -25,7 +25,15 @@
   /** Only the rows on screen: every segment belongs to its own row, so nothing outside
       the view is ever needed to draw it (doc/07-graph-rendering.md). */
   interface Props {
-    rows: { listRow: number; layout: GraphRow; stash?: boolean; paint?: RowPaint; bisect?: BisectPaint }[];
+    /** `unpushed`: a hollow ring, where a commit some remote branch has is filled. */
+    rows: {
+      listRow: number;
+      layout: GraphRow;
+      stash?: boolean;
+      unpushed?: boolean;
+      paint?: RowPaint;
+      bisect?: BisectPaint;
+    }[];
     scrollTop: number;
     width: number;
     height: number;
@@ -159,8 +167,9 @@
       context.restore();
     }
 
-    // One hollow ring for every node, filled with what is behind it so no line shows through;
-    // a stash is a square in the stash colour (#19).
+    // A pushed commit is a ring filled in its own colour; an unpushed one stays hollow,
+    // filled with what is behind it so no line shows through. A stash is a square in the
+    // stash colour (#19).
     const stash = token("--status-stash");
     const fills = new Map<string, string>();
     for (const row of rows) {
@@ -172,16 +181,25 @@
         const { x, y } = nodeCentre(row.layout.lane, row.listRow, scrollTop);
         context.arc(x, y, GRAPH.ringRadius, 0, Math.PI * 2);
       }
+      const ring = nodeStroke(row.layout, row.paint, options);
+      const ringInk = row.stash ? stash : ink(ring.token, ring.alpha);
       const dot = row.bisect?.dot ?? null;
-      const layers = nodeFill(row.listRow, selectedRows, hoverRow, stripes, row.bisect?.tint ?? null);
-      for (const layer of dot ? [...layers, dot] : layers) {
+      for (const layer of nodeFill(row.listRow, selectedRows, hoverRow, stripes, row.bisect?.tint ?? null)) {
         if (!fills.has(layer)) fills.set(layer, token(layer));
         context.fillStyle = fills.get(layer) ?? panel;
         context.fill();
       }
-      const ring = nodeStroke(row.layout, row.paint, options);
+      if (!row.stash && !row.unpushed) {
+        context.fillStyle = ringInk;
+        context.fill();
+      }
+      if (dot) {
+        if (!fills.has(dot)) fills.set(dot, token(dot));
+        context.fillStyle = fills.get(dot) ?? panel;
+        context.fill();
+      }
       context.lineWidth = GRAPH.ringStroke;
-      context.strokeStyle = row.stash ? stash : ink(ring.token, ring.alpha);
+      context.strokeStyle = ringInk;
       context.stroke();
     }
     context.restore();

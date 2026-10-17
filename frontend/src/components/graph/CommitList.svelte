@@ -63,6 +63,7 @@
   import { commit as selection } from "$stores/commit.svelte";
   import { compareView } from "$stores/compare-view.svelte";
   import { graph } from "$stores/graph.svelte";
+  import { unpushed } from "$stores/unpushed.svelte";
   import {
     GRAPH_MODE_DEFAULTS,
     branchTips,
@@ -529,6 +530,7 @@
       listRow,
       layout: entry.layout,
       stash: stashOids.has(entry.commit.oid),
+      unpushed: unpushed.has(entry.commit.oid),
       paint: graphOverlays.paintAt(entry.layout.row),
       bisect: bisectPaint(entry.commit.oid),
     })),

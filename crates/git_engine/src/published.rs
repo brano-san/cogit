@@ -88,6 +88,41 @@ impl RepoHandle {
         )
     }
 
+    /// `git rev-list --branches HEAD --not --remotes`: commits of local branches and HEAD
+    /// that no remote-tracking branch reaches. Empty without a configured remote, where
+    /// "not pushed" has no meaning.
+    pub fn unpushed(&self) -> crate::Result<Vec<String>> {
+        if self.repo.remote_names().is_empty() {
+            return Ok(Vec::new());
+        }
+        let internal = |err: &dyn std::fmt::Display| {
+            crate::GitError::Internal(format!("cannot list unpushed commits: {err}"))
+        };
+        let platform = self.repo.references().map_err(|e| internal(&e))?;
+        let peeled = |refs: gix::reference::iter::Iter<'_, '_>| -> Vec<ObjectId> {
+            refs.filter_map(Result::ok)
+                .filter_map(|mut r| r.peel_to_commit().ok().map(|c| c.id))
+                .collect()
+        };
+        let mut tips = peeled(platform.local_branches().map_err(|e| internal(&e))?);
+        tips.extend(self.repo.head_id().ok().map(gix::Id::detach));
+        let hidden = peeled(platform.remote_branches().map_err(|e| internal(&e))?);
+        let started = std::time::Instant::now();
+        let found: crate::Result<Vec<String>> = self
+            .repo
+            .rev_walk(tips)
+            .with_hidden(hidden)
+            .all()
+            .map_err(|e| internal(&e))?
+            .map(|info| {
+                info.map(|info| info.id.to_string())
+                    .map_err(|e| internal(&e))
+            })
+            .collect();
+        tracing::info!(elapsed = ?started.elapsed(), count = found.as_ref().map_or(0, Vec::len), "unpushed commits");
+        found
+    }
+
     pub(crate) fn commit_of(&self, rev: &str) -> Option<ObjectId> {
         let object = self.repo.rev_parse_single(rev).ok()?.object().ok()?;
         Some(object.peel_to_commit().ok()?.id)

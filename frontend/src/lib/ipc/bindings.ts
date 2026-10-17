@@ -556,6 +556,11 @@ export const commands = {
 	runHook: (repo: RepoId, name: string) => typedError<HookRun, GitError>(__TAURI_INVOKE("run_hook", { repo, name })),
 	rollbackTo: (repo: RepoId, rev: string, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("rollback_to", { repo, rev, paths })),
 	isPublished: (repo: RepoId, rev: string) => typedError<boolean, GitError>(__TAURI_INVOKE("is_published", { repo, rev })),
+	/**
+	 *  Commits of local branches and HEAD that no remote-tracking branch reaches: the graph's
+	 *  hollow rings.
+	 */
+	unpushedCommits: (repo: RepoId) => typedError<string[], GitError>(__TAURI_INVOKE("unpushed_commits", { repo })),
 	isMergedIntoHead: (repo: RepoId, rev: string) => typedError<boolean, GitError>(__TAURI_INVOKE("is_merged_into_head", { repo, rev })),
 	/**  After a pull: deletes merged branches whose upstream is gone; returns their names. */
 	deleteMergedBranches: (repo: RepoId) => typedError<string[], GitError>(__TAURI_INVOKE("delete_merged_branches", { repo })),

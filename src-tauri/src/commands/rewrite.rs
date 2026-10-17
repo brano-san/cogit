@@ -188,6 +188,18 @@ pub async fn is_published(
     blocking("is_published", move || app_state.is_published(repo, &rev)).await
 }
 
+/// Commits of local branches and HEAD that no remote-tracking branch reaches: the graph's
+/// hollow rings.
+#[tauri::command]
+#[specta::specta]
+pub async fn unpushed_commits(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<Vec<String>, GitError> {
+    let app_state = state.state.clone();
+    blocking("unpushed_commits", move || app_state.unpushed(repo)).await
+}
+
 /// The shared branches that already hold this commit; empty means it is safe to rewrite.
 #[tauri::command]
 #[specta::specta]
