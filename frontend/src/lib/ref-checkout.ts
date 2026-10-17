@@ -175,16 +175,16 @@ function remoteOffer(remote: Branch, ctx: CheckoutContext): CheckoutOffer {
   };
 }
 
-/** A commit or a tag: a new branch there, or a look at it with HEAD detached. */
+/** A commit or a tag: a new branch there, or a look at it with HEAD detached. The
+    choices come first in that order: a fast-forward, a new branch, detached HEAD. */
 function commitOffer(source: string, oid: string, ctx: CheckoutContext): CheckoutOffer {
-  const blocked = detachedAt(ctx.head, oid);
   return {
     source,
     plain: null,
     create: { name: "", start: oid, remote: null },
-    detach: { oid, blocked },
+    detach: { oid, blocked: detachedAt(ctx.head, oid) },
     local: null,
-    initial: blocked === null ? "detach" : "create",
+    initial: "create",
   };
 }
 

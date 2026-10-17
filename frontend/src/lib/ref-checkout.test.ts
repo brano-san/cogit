@@ -182,13 +182,13 @@ describe("checkoutOffer", () => {
     expect(pickProblem(offer, pick("create", "feature-2"), [remote, loose])).toBeNull();
   });
 
-  it("offers a tag's commit detached, or a new branch there that tracks nothing", () => {
+  it("offers a new branch at a tag's commit first, tracking nothing, or the commit detached", () => {
     const release = tag("v1.0");
     const at = nodeTarget(node({ kind: "tag", tag: release, label: "v1.0" }), [release])!;
     const offer = checkoutOffer(at, ctx([]), "branches")!;
     expect(offer.source).toBe("tag v1.0");
     expect(offer.create).toEqual({ name: "", start: release.oid, remote: null });
-    expect(offer.initial).toBe("detach");
+    expect(offer.initial).toBe("create");
     expect(checkoutRequest(offer, pick("create", "hotfix", true))?.target).toEqual({
       kind: "newBranch",
       name: "hotfix",
@@ -209,6 +209,8 @@ describe("checkoutOffer", () => {
     const offer = checkoutOffer({ ref: null, branch: null, oid }, ctx([]), "graph")!;
     expect(offer.source).toBe("commit ddddddd");
     expect(offer.local).toBeNull();
+    // Without a fast-forward to offer: a local branch first, detached HEAD last.
+    expect(offer.initial).toBe("create");
     expect(checkoutRequest(offer, pick("detach"))).toEqual({
       target: { kind: "commit", oid },
       branch: null,
