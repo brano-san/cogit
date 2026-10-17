@@ -4348,7 +4348,9 @@ ${event.error}`,
     upstream={tracked?.upstream ?? undefined}
     ahead={tracked?.ahead ?? 0}
     behind={tracked?.behind ?? 0}
-    summary={repo ? `${graph.total} commits · ${repo.branches.length} refs` : undefined}
+    summary={repo
+      ? `${graph.total} commit${graph.total === 1 ? "" : "s"} · ${repo.branches.length} branch${repo.branches.length === 1 ? "" : "es"} · ${repo.tags.length} tag${repo.tags.length === 1 ? "" : "s"}`
+      : undefined}
     fileOpen={diff.path !== null}
     {...fileFormat(diff.diff)}
     activity={activity({
