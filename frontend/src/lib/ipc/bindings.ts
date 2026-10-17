@@ -292,7 +292,7 @@ export const commands = {
 	stashSelection: (repo: RepoId, paths: string[], message: string) => typedError<null, GitError>(__TAURI_INVOKE("stash_selection", { repo, paths, message })),
 	runCheck: (repo: RepoId, command: string) => typedError<HookRun, GitError>(__TAURI_INVOKE("run_check", { repo, command })),
 	/**  Asked for by the user after a confirmation; gc and commit-graph only write objects. */
-	runMaintenance: (repo: RepoId, task: MaintenanceTask) => typedError<null, GitError>(__TAURI_INVOKE("run_maintenance", { repo, task })),
+	runMaintenance: (repo: RepoId, task: MaintenanceTask, prune: GcPrune) => typedError<null, GitError>(__TAURI_INVOKE("run_maintenance", { repo, task, prune })),
 	addToExclude: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("add_to_exclude", { repo, paths })),
 	ignoreRules: (repo: RepoId, paths: string[]) => typedError<IgnoreRule[], GitError>(__TAURI_INVOKE("ignore_rules", { repo, paths })),
 	/**  Asks the LFS server: run on demand, never on a refresh. */
@@ -1353,6 +1353,11 @@ export type Found = {
 };
 
 export type FoundKind = "branch" | "tag" | "commit" | "file";
+
+/**  How old an unreachable object must be for `git gc` to delete it; asked each time. */
+export type GcPrune = 
+/**  Git's own default. */
+"twoWeeks" | "oneWeek" | "oneDay" | "oneHour" | "now";
 
 export type GitCandidate = {
 	path: string,

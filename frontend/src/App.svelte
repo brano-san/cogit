@@ -234,7 +234,7 @@
   import { errors } from "$stores/errors.svelte";
   import { errorWindow } from "$stores/error-window.svelte";
   import { notices } from "$stores/notices.svelte";
-  import { FETCH_MODULES, FIX_GIT, MAINTENANCE, RUN_GC, TRUST_DIRECTORY } from "$lib/health";
+  import { FETCH_MODULES, FIX_GIT, GC_PRUNE, MAINTENANCE, RUN_GC, TRUST_DIRECTORY, gcPruneWarning } from "$lib/health";
   import { hooksNote, pendingHooks } from "$lib/pending-hooks";
   import { output } from "$stores/output.svelte";
   import { taskbar } from "$stores/taskbar.svelte";
@@ -1564,10 +1564,22 @@ ${event.error}`,
     if (maintenance) {
       const id = repository.current?.repo;
       if (!id) return;
-      const go = await confirmation.ask({ title: action.label.replace("…", ""), message: maintenance.question, confirm: "Run" });
-      if (!go) return;
+      const title = action.label.replace("…", "");
+      const asked = await confirmation.askWithChoice({
+        title,
+        message: maintenance.question,
+        confirm: "Run",
+        choice:
+          maintenance.task === "gc"
+            ? { label: "Prune unreachable objects older than", value: "twoWeeks", options: GC_PRUNE }
+            : undefined,
+      });
+      if (!asked.yes) return;
+      const prune = GC_PRUNE.find(([key]) => key === asked.choice)?.[0] ?? "twoWeeks";
+      const warning = maintenance.task === "gc" ? gcPruneWarning(prune) : null;
+      if (warning && !(await confirmation.ask({ title, message: warning, confirm: "Run", warning: true }))) return;
       try {
-        await runMaintenance(id, maintenance.task);
+        await runMaintenance(id, maintenance.task, prune);
       } catch (err) {
         errors.report(err, "Maintenance failed");
         await health.recheck();

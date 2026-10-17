@@ -1044,7 +1044,8 @@
     warning={confirmation.open.warning}
     items={confirmation.open.items}
     option={confirmation.open.option}
-    onanswer={(yes, checked) => confirmation.answer(yes, checked)}
+    choice={confirmation.open.choice}
+    onanswer={(yes, checked, choice) => confirmation.answer(yes, checked, choice)}
   />
 {/if}
 

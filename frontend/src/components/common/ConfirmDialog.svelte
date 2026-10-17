@@ -1,6 +1,8 @@
 <script lang="ts">
   import Dialog from "$components/common/Dialog.svelte";
   import Checkbox from "$components/common/Checkbox.svelte";
+  import Select from "$components/common/Select.svelte";
+  import type { ConfirmChoice } from "$stores/confirm.svelte";
 
   interface Props {
     title: string;
@@ -9,17 +11,20 @@
     warning?: boolean;
     items?: readonly string[];
     option?: string;
-    onanswer: (yes: boolean, checked: boolean) => void;
+    choice?: ConfirmChoice;
+    onanswer: (yes: boolean, checked: boolean, choice?: string) => void;
   }
 
-  let { title, message, confirm, warning = false, items, option, onanswer }: Props = $props();
+  let { title, message, confirm, warning = false, items, option, choice, onanswer }: Props = $props();
   let checked = $state(false);
+  // svelte-ignore state_referenced_locally
+  let picked = $state(choice?.value);
 </script>
 
 <Dialog
   {title}
   onclose={() => onanswer(false, false)}
-  onconfirm={() => onanswer(true, checked)}
+  onconfirm={() => onanswer(true, checked, picked)}
   width="min(460px, 90vw)"
 >
   <p class="message">{message}</p>
@@ -27,6 +32,12 @@
     <ul class="items mono">
       {#each items as item (item)}<li>{item}</li>{/each}
     </ul>
+  {/if}
+  {#if choice && picked !== undefined}
+    <label class="option">
+      {choice.label}
+      <Select value={picked} options={choice.options} label={choice.label} onchange={(value) => (picked = value)} />
+    </label>
   {/if}
   {#if option}
     <div class="option"><Checkbox bind:checked label={option} /></div>
@@ -43,7 +54,7 @@
       class:primary={!warning}
       class:warning
       data-autofocus={!warning || undefined}
-      onclick={() => onanswer(true, checked)}
+      onclick={() => onanswer(true, checked, picked)}
     >
       {confirm}
     </button>

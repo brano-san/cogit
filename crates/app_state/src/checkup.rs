@@ -8,8 +8,9 @@ impl AppState {
         &self,
         repo: RepoId,
         task: git_engine::MaintenanceTask,
+        prune: git_engine::GcPrune,
     ) -> Result<(), GitError> {
-        self.handle(repo)?.run_maintenance(task)
+        self.handle(repo)?.run_maintenance(task, prune)
     }
 
     pub fn add_to_exclude(&self, repo: RepoId, paths: &[String]) -> Result<(), GitError> {

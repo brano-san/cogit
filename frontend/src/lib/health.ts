@@ -1,4 +1,4 @@
-import type { HealthFinding, HealthIssue } from "$lib/ipc";
+import type { GcPrune, HealthFinding, HealthIssue } from "$lib/ipc";
 
 export interface HealthPlace {
   label: string;
@@ -38,7 +38,7 @@ export const CLEAR_GC_LOCK = "clear-gc-lock";
 export const MAINTENANCE: Record<string, { task: "gc" | "commitGraph" | "clearGcLock"; question: string; done: string }> = {
   [RUN_GC]: {
     task: "gc",
-    question: "Run git gc? It packs loose objects and prunes unreachable ones older than two weeks; it can take a while on a large repository.",
+    question: "Run git gc? It packs loose objects and prunes unreachable ones older than the age below; it can take a while on a large repository.",
     done: "Garbage collection finished",
   },
   [WRITE_COMMIT_GRAPH]: {
@@ -52,6 +52,24 @@ export const MAINTENANCE: Record<string, { task: "gc" | "commitGraph" | "clearGc
     done: "gc.pid removed",
   },
 };
+
+/** Git's own default first; anything shorter asks again before it runs. */
+export const GC_PRUNE: readonly (readonly [GcPrune, string])[] = [
+  ["twoWeeks", "2 weeks"],
+  ["oneWeek", "1 week"],
+  ["oneDay", "1 day"],
+  ["oneHour", "1 hour"],
+  ["now", "Now"],
+];
+
+export function gcPruneWarning(prune: GcPrune): string | null {
+  if (prune === "twoWeeks") return null;
+  const what =
+    prune === "now"
+      ? "every unreachable object"
+      : `the unreachable objects older than ${GC_PRUNE.find(([key]) => key === prune)?.[1] ?? prune}`;
+  return `This deletes ${what} instead of keeping them for two weeks, as git does by default: a stash you dropped or content you staged and never committed cannot be recovered afterwards. This cannot be undone.`;
+}
 
 function bytes(count: number): string {
   if (count >= 1 << 30) return `${(count / (1 << 30)).toFixed(1)} GB`;

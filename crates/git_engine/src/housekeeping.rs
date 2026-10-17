@@ -18,6 +18,31 @@ pub enum MaintenanceTask {
     ClearGcLock,
 }
 
+/// How old an unreachable object must be for `git gc` to delete it; asked each time.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum GcPrune {
+    /// Git's own default.
+    #[default]
+    TwoWeeks,
+    OneWeek,
+    OneDay,
+    OneHour,
+    Now,
+}
+
+impl GcPrune {
+    fn arg(self) -> &'static str {
+        match self {
+            Self::TwoWeeks => "--prune=2.weeks.ago",
+            Self::OneWeek => "--prune=1.week.ago",
+            Self::OneDay => "--prune=1.day.ago",
+            Self::OneHour => "--prune=1.hour.ago",
+            Self::Now => "--prune=now",
+        }
+    }
+}
+
 #[derive(Debug, Default, PartialEq, Eq)]
 struct ObjectCounts {
     loose: u64,
@@ -204,9 +229,14 @@ impl RepoHandle {
             .is_ok_and(|()| head == LFS_POINTER)
     }
 
-    pub fn run_maintenance(&self, task: MaintenanceTask) -> Result<()> {
+    pub fn gc(&self, prune: GcPrune) -> Result<()> {
+        self.run_git(&["gc", prune.arg()]).map(drop)
+    }
+
+    /// `prune` matters to `Gc` only.
+    pub fn run_maintenance(&self, task: MaintenanceTask, prune: GcPrune) -> Result<()> {
         match task {
-            MaintenanceTask::Gc => self.run_git(&["gc"]).map(drop),
+            MaintenanceTask::Gc => self.gc(prune),
             MaintenanceTask::CommitGraph => self
                 .run_git(&["commit-graph", "write", "--reachable", "--changed-paths"])
                 .map(drop),

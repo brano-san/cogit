@@ -4,7 +4,7 @@
 //! What is worth a warning when a repository is opened, and what the second machine
 //! needed to be told: a clone made on Linux and used from Windows (doc/12-risks.md, R-150).
 
-use git_engine::{HealthIssue, RepoHandle, case_sensitive};
+use git_engine::{GcPrune, HealthIssue, RepoHandle, case_sensitive};
 
 /// The fixtures write a fixed `.git/config` without `core.ignorecase`, which on Windows is
 /// exactly what a Linux clone looks like. `git init` itself writes the value it probed.
@@ -323,4 +323,25 @@ fn replace_refs_are_reported_as_replaced_history() {
             .iter()
             .any(|finding| finding.issue == HealthIssue::ReplacedHistory { count: 1 })
     );
+}
+
+/// `git gc` prunes unreachable objects older than the expiry the user picked, not the
+/// repository's `gc.pruneExpire`.
+#[test]
+fn gc_prunes_unreachable_objects_older_than_the_chosen_expiry() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file("loose.txt", "nobody points at this\n")
+        .unwrap();
+    let oid = f
+        .git(&["hash-object", "-w", "loose.txt"])
+        .unwrap()
+        .trim()
+        .to_owned();
+    let present = || f.git(&["cat-file", "-e", &oid]).is_ok();
+    let handle = RepoHandle::open(f.path()).unwrap();
+
+    handle.gc(GcPrune::TwoWeeks).unwrap();
+    assert!(present(), "a fresh object is younger than two weeks");
+    handle.gc(GcPrune::Now).unwrap();
+    assert!(!present(), "now prunes it");
 }

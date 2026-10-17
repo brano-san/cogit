@@ -120,7 +120,7 @@ pub use health::{HealthFinding, HealthIssue, case_sensitive};
 pub use history::{CommitRow, CommitText};
 pub use hook_run::HookRun;
 pub use hooks::{Hook, HookOverview, HookSource, HookState, is_hook_name};
-pub use housekeeping::MaintenanceTask;
+pub use housekeeping::{GcPrune, MaintenanceTask};
 pub use init::{FolderKind, folder_kind, init_repository};
 pub use interactive::{TodoAction, TodoEntry, render_todo, render_todo_paused};
 pub use lfs::{LfsFileState, LfsLock, LfsOp, lfs_version, lfs_version_from};

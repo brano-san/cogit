@@ -11,6 +11,7 @@ pub async fn run_maintenance(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,
     task: git_engine::MaintenanceTask,
+    prune: git_engine::GcPrune,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
     mutating(
@@ -18,7 +19,7 @@ pub async fn run_maintenance(
         repo,
         OperationKind::Other,
         "run_maintenance",
-        move || app_state.run_maintenance(repo, task),
+        move || app_state.run_maintenance(repo, task, prune),
     )
     .await
 }

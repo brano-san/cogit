@@ -24,6 +24,7 @@ import type {
   FlowKind,
   GitError,
   MaintenanceTask,
+  GcPrune,
   GraphPaintRequest,
   GraphProgress,
   MergeOptions,
@@ -78,6 +79,7 @@ export type {
   IgnoreRule,
   LfsLock,
   MaintenanceTask,
+  GcPrune,
   RerereStatus,
   SignatureCheck,
   Trailer,
@@ -1232,8 +1234,8 @@ export async function investigate(
   return unwrap(await commands.investigate(repo, path, from, to, limit));
 }
 
-export async function runMaintenance(repo: RepoId, task: MaintenanceTask) {
-  return unwrap(await commands.runMaintenance(repo, task));
+export async function runMaintenance(repo: RepoId, task: MaintenanceTask, prune: GcPrune = "twoWeeks") {
+  return unwrap(await commands.runMaintenance(repo, task, prune));
 }
 
 export async function addToExclude(repo: RepoId, paths: string[]) {

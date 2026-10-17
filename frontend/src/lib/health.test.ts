@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { HealthFinding } from "$lib/ipc";
-import { groupFindings, placeOf, visibleWarnings } from "./health";
+import { GC_PRUNE, gcPruneWarning, groupFindings, placeOf, visibleWarnings } from "./health";
 
 const ignoreCase = (module: string): HealthFinding => ({
   module,
@@ -120,5 +120,18 @@ describe("visibleWarnings", () => {
     expect(visibleWarnings(warnings, new Set(), later).map((w) => w.id)).toEqual([
       warnings[0]!.id,
     ]);
+  });
+});
+
+describe("the gc expiry", () => {
+  it("offers two weeks first, as git does, and nothing shorter is silent", () => {
+    expect(GC_PRUNE[0]?.[0]).toBe("twoWeeks");
+    expect(gcPruneWarning("twoWeeks")).toBeNull();
+    for (const [prune] of GC_PRUNE.slice(1)) expect(gcPruneWarning(prune)).toContain("cannot be undone");
+  });
+
+  it("names how short the expiry is", () => {
+    expect(gcPruneWarning("now")).toContain("every unreachable object");
+    expect(gcPruneWarning("oneDay")).toContain("older than 1 day");
   });
 });
