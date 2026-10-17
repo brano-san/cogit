@@ -163,7 +163,20 @@ export const CATEGORIES: Category[] = [
     id: "theme",
     title: "Theme & Colors",
     parent: "ui",
-    groups: [{ title: "Appearance", fields: [{ key: "theme", label: "Theme", keywords: ["dark", "light", "grey", "gray"] }] }],
+    groups: [
+      {
+        title: "Appearance",
+        fields: [
+          { key: "theme", label: "Theme", keywords: ["dark", "light", "grey", "gray"] },
+          {
+            key: "graphStripes",
+            label: "Alternate row background",
+            hint: "In every list: Graph, Files, Repositories, Branches, Worktrees.",
+            keywords: ["stripes", "zebra", "banded", "lists", "graph", "files", "repositories", "branches", "worktrees"],
+          },
+        ],
+      },
+    ],
   },
   {
     id: "graph",
@@ -191,12 +204,6 @@ export const CATEGORIES: Category[] = [
         title: "Rows",
         fields: [
           { key: "graphDensity", label: "Row height", keywords: ["density", "compact", "comfortable"] },
-          {
-            key: "graphStripes",
-            label: "Alternate row background",
-            hint: "Also in Files, Repositories, Branches and Worktrees.",
-            keywords: ["stripes", "zebra", "banded", "lists", "files", "repositories", "branches", "worktrees"],
-          },
           {
             key: "graphShowNotes",
             label: "Show Git Notes",

@@ -266,9 +266,19 @@ describe("the graph page (#23)", () => {
   const graph = CATEGORIES.find((category) => category.id === "graph");
   const keys = graph?.groups.flatMap((group) => group.fields.map((field) => field.key)) ?? [];
 
+  // Stripes kept their old key but paint every list, so they live with the theme.
   it("holds every graph display key and every graph mode", () => {
-    const graphKeys = Object.keys(DEFAULT_SETTINGS).filter((key) => key.startsWith("graph"));
+    const graphKeys = Object.keys(DEFAULT_SETTINGS).filter(
+      (key) => key.startsWith("graph") && key !== "graphStripes",
+    );
     for (const key of graphKeys) expect(keys).toContain(key);
+  });
+
+  it("leaves the stripes of every list to Theme & Colors", () => {
+    const theme = CATEGORIES.find((category) => category.id === "theme");
+    const themeKeys = theme?.groups.flatMap((group) => group.fields.map((field) => field.key));
+    expect(keys).not.toContain("graphStripes");
+    expect(themeKeys).toContain("graphStripes");
   });
 
   it("restores the columns and the modes with the rest of the page", () => {
