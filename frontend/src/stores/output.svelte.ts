@@ -70,6 +70,7 @@ class OutputStore {
     if (event.severity !== "success") this.problems += 1;
     if (this.open) void this.refresh();
 
+    if (event.answered) return;
     if (event.severity === "failure") await notices.command(event);
     else if (event.severity === "warning") this.warning = event;
   }

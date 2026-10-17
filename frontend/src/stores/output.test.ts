@@ -15,13 +15,14 @@ const { notices } = await import("./notices.svelte");
 
 type Severity = "success" | "warning" | "failure";
 
-const notice = (id: number, severity: Severity) => ({
+const notice = (id: number, severity: Severity, answered = false) => ({
   id,
   repo: "C:/repos/cogit",
   operation: "Push",
   severity,
   summary: `summary ${id}`,
   stoppedOnConflicts: false,
+  answered,
 });
 
 const record = (id: number) => ({
@@ -37,6 +38,7 @@ const record = (id: number) => ({
   summary: "error: failed to push some refs",
   startedAtMs: 1,
   stoppedOnConflicts: false,
+  answered: false,
 });
 
 const row = (id: number, exitCode: number | null = 0, warned = false) => ({
@@ -66,6 +68,14 @@ describe("output store", () => {
     expect(output.shown).toBeNull();
     expect(notices.current).toBeUndefined();
     expect(commands.commandOutcome).toHaveBeenCalledWith(7);
+  });
+
+  // Delete Branch asks "Force Delete?" itself: git's refusal is no error on top of that.
+  it("leaves a refusal the app answers with its own question to the journal", async () => {
+    await output.notice(notice(8, "failure", true));
+
+    expect(commands.commandOutcome).not.toHaveBeenCalled();
+    expect(notices.current).toBeUndefined();
   });
 
   it("opens the record Show Output asks for, with the output the notice did not carry", async () => {

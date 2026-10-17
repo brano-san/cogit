@@ -52,6 +52,9 @@ pub struct GitOutput {
     /// rebase, cherry-pick, revert, pull or am that went as far as it could and handed the
     /// rest to the user. Set when the record is journaled, from the index.
     pub stopped_on_conflicts: bool,
+    /// A refusal the app turned into its own question (`branch -d` of an unmerged branch):
+    /// journaled as git said it, but no error notice.
+    pub answered: bool,
 }
 
 impl GitOutput {
@@ -93,6 +96,7 @@ impl GitOutput {
             stderr,
             duration_ms,
             stopped_on_conflicts: false,
+            answered: false,
         }
     }
 
@@ -244,6 +248,16 @@ impl RepoHandle {
     }
 
     /// For the handful of commands that need a variable `base_command` deliberately pins.
+    /// `run_git` for a command whose refusal `asked` recognises as a question the caller
+    /// puts to the user instead of an error.
+    pub(crate) fn run_git_asking(
+        &self,
+        args: &[&str],
+        asked: &dyn Fn(&str) -> bool,
+    ) -> Result<GitOutput> {
+        self.spawn_inner(redact_command(args), args, false, &[], None, Some(asked))
+    }
+
     pub(crate) fn run_git_with_env(
         &self,
         args: &[&str],
@@ -307,6 +321,18 @@ impl RepoHandle {
         env: &[(&str, &str)],
         input: Option<&[u8]>,
     ) -> Result<GitOutput> {
+        self.spawn_inner(command, args, reading, env, input, None)
+    }
+
+    fn spawn_inner(
+        &self,
+        command: String,
+        args: &[&str],
+        reading: bool,
+        env: &[(&str, &str)],
+        input: Option<&[u8]>,
+        asked: Option<&dyn Fn(&str) -> bool>,
+    ) -> Result<GitOutput> {
         let started = std::time::Instant::now();
 
         tracing::info!(command = %command, "running git");
@@ -321,7 +347,9 @@ impl RepoHandle {
         }
         .map_err(not_started)?;
 
-        let result = GitOutput::from_process(self.root(), command, &output, started);
+        let mut result = GitOutput::from_process(self.root(), command, &output, started);
+        result.answered =
+            !output.status.success() && asked.is_some_and(|asked| asked(&result.stderr));
 
         self.journal_entry(result.clone());
 

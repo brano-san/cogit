@@ -156,3 +156,29 @@ fn only_the_commands_that_stop_halfway_are_candidates() {
         Some(1)
     ));
 }
+
+#[test]
+fn a_refusal_turned_into_a_question_is_journaled_as_answered() {
+    let f = test_fixtures::branched().unwrap();
+    let (repo, log) = journaled(&f);
+
+    repo.delete_branch("dev", false).unwrap();
+
+    let entry = last(&log);
+    assert_ne!(
+        entry.exit_code,
+        Some(0),
+        "git's own words stay in the journal"
+    );
+    assert!(entry.answered, "the app asks instead: no error notice");
+}
+
+#[test]
+fn a_plain_failure_is_not_answered() {
+    let f = test_fixtures::linear(1).unwrap();
+    let (repo, log) = journaled(&f);
+
+    assert!(repo.delete_branch("missing", false).is_err());
+
+    assert!(!last(&log).answered);
+}

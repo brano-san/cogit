@@ -16,6 +16,8 @@ pub struct CommandNotice {
     pub summary: String,
     /// Exit 1 with unmerged paths left: partial success, not a failure.
     pub stopped_on_conflicts: bool,
+    /// The app asks the user itself (`GitOutput::answered`): no error notice.
+    pub answered: bool,
 }
 
 impl From<&git_engine::GitOutput> for CommandNotice {
@@ -27,6 +29,7 @@ impl From<&git_engine::GitOutput> for CommandNotice {
             severity: entry.severity,
             summary: entry.summary.clone(),
             stopped_on_conflicts: entry.stopped_on_conflicts,
+            answered: entry.answered,
         }
     }
 }

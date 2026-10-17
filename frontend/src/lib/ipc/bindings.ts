@@ -126,6 +126,11 @@ export const commands = {
 	 *  rest to the user. Set when the record is journaled, from the index.
 	 */
 	stoppedOnConflicts: boolean,
+	/**
+	 *  A refusal the app turned into its own question (`branch -d` of an unmerged branch):
+	 *  journaled as git said it, but no error notice.
+	 */
+	answered: boolean,
 } | null>("command_outcome", { id }),
 	/**
 	 *  Closes whichever window asked. In Rust rather than through `getCurrentWindow()`, which
@@ -870,6 +875,8 @@ export type CommandNotice = {
 	summary: string,
 	/**  Exit 1 with unmerged paths left: partial success, not a failure. */
 	stoppedOnConflicts: boolean,
+	/**  The app asks the user itself (`GitOutput::answered`): no error notice. */
+	answered: boolean,
 };
 
 /**
@@ -1425,6 +1432,11 @@ export type GitOutput = {
 	 *  rest to the user. Set when the record is journaled, from the index.
 	 */
 	stoppedOnConflicts: boolean,
+	/**
+	 *  A refusal the app turned into its own question (`branch -d` of an unmerged branch):
+	 *  journaled as git said it, but no error notice.
+	 */
+	answered: boolean,
 };
 
 /**  What `git --version` said for a program chosen in Preferences. */

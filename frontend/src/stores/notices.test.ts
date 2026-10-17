@@ -38,6 +38,7 @@ const failed = (id: number, summary?: string) => ({
   severity: "failure" as const,
   summary: summary ?? "error: failed to push some refs",
   stoppedOnConflicts: false,
+  answered: false,
 });
 
 const ignoreCase = { kind: "ignoreCaseMismatch", configured: false, actual: true } as const;

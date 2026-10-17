@@ -146,7 +146,9 @@ impl RepoHandle {
     pub fn delete_branch(&self, name: &str, force: bool) -> Result<BranchDeletion> {
         let name = require_name(name)?;
         let flag = if force { "-D" } else { "-d" };
-        match self.run_git(&["branch", flag, "--", name]) {
+        match self.run_git_asking(&["branch", flag, "--", name], &|stderr: &str| {
+            !force && is_not_fully_merged(stderr)
+        }) {
             Ok(_) => Ok(BranchDeletion::Deleted),
             Err(GitError::Command(err)) if !force && is_not_fully_merged(&err.stderr) => {
                 Ok(BranchDeletion::NotFullyMerged)
