@@ -47,6 +47,14 @@ describe("scan store", () => {
     expect(scan.hits.map((found) => found.name)).toEqual(["alpha", "beta"]);
   });
 
+  it("walks every drive when no folder is given, and says so", async () => {
+    findsBackend([hit("C:/w/alpha"), hit("E:/Work/beta")]);
+    await scan.run(null, 6);
+    expect(commands.scanForRepositories.mock.calls[0]?.[0]).toBeNull();
+    expect(scan.folder).toBe("All drives");
+    expect(scan.hits).toHaveLength(2);
+  });
+
   it("preselects everything that is not open yet", async () => {
     findsBackend([hit("/w/alpha"), hit("/w/open-one", true)]);
     await scan.run("/w", 6);

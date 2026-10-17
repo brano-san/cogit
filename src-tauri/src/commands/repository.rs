@@ -54,18 +54,21 @@ pub enum ScanChunk {
 }
 
 /// A folder can hold hundreds of repositories, so hits stream in as they are found.
+/// No `path`: every drive, one after another.
 /// The walk ends on `cancel_operation`: a channel the page stopped listening to still
 /// accepts every send.
 #[tauri::command]
 #[specta::specta]
 pub async fn scan_for_repositories(
     state: tauri::State<'_, crate::AppContext>,
-    path: String,
+    path: Option<String>,
     max_depth: u32,
     on_found: tauri::ipc::Channel<ScanChunk>,
 ) -> Result<u32, GitError> {
     let app_state = state.state.clone();
-    let path = PathBuf::from(path);
+    let roots = path.map_or_else(git_engine::discover::drive_roots, |path| {
+        vec![PathBuf::from(path)]
+    });
     let depth = max_depth.clamp(1, 12) as usize;
     let run = state.state.start_read();
     let cancel = run.token();
@@ -73,15 +76,22 @@ pub async fn scan_for_repositories(
 
     let found = blocking("scan_for_repositories", move || {
         let mut found = 0_u32;
-        app_state.scan_for_repositories(
-            &path,
-            depth,
-            || cancel.is_cancelled(),
-            |hit| {
-                found += 1;
-                on_found.send(ScanChunk::Found { hit }).is_ok()
-            },
-        );
+        let mut listening = true;
+        for root in &roots {
+            if !listening || cancel.is_cancelled() {
+                break;
+            }
+            app_state.scan_for_repositories(
+                root,
+                depth,
+                || cancel.is_cancelled(),
+                |hit| {
+                    found += 1;
+                    listening = on_found.send(ScanChunk::Found { hit }).is_ok();
+                    listening
+                },
+            );
+        }
         Ok(found)
     })
     .await;

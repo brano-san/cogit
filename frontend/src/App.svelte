@@ -819,7 +819,7 @@
     pr: () => void openPullRequest(),
     scan: () => {
       scanOpen = true;
-      void browseForScan();
+      void scanEverywhere();
     },
     journal: () => {
       journalOpen = true;
@@ -2968,6 +2968,13 @@ ${event.error}`,
       splitBusy = false;
     }
     await afterMutation();
+  }
+
+  /** The dialog opens already looking: every drive, until a folder is chosen instead. */
+  async function scanEverywhere() {
+    const watch = measure("scan-drives");
+    await scan.run(null, 6);
+    watch.stop(`${scan.hits.length} repositories`);
   }
 
   async function browseForScan() {

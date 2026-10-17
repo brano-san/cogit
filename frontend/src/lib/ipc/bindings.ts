@@ -524,10 +524,11 @@ export const commands = {
 	modalOpen: (open: boolean) => __TAURI_INVOKE<void>("modal_open", { open }),
 	/**
 	 *  A folder can hold hundreds of repositories, so hits stream in as they are found.
+	 *  No `path`: every drive, one after another.
 	 *  The walk ends on `cancel_operation`: a channel the page stopped listening to still
 	 *  accepts every send.
 	 */
-	scanForRepositories: (path: string, maxDepth: number, onFound: Channel<ScanChunk>) => typedError<number, GitError>(__TAURI_INVOKE("scan_for_repositories", { path, maxDepth, onFound })),
+	scanForRepositories: (path: string | null, maxDepth: number, onFound: Channel<ScanChunk>) => typedError<number, GitError>(__TAURI_INVOKE("scan_for_repositories", { path, maxDepth, onFound })),
 	/**  `git ls-remote` behind the first page's Next: nothing is written, nobody is asked. */
 	remoteBranches: (source: string, login: {
 	username: string,

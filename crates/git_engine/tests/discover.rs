@@ -1,6 +1,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use git_engine::discover::{ScanOptions, scan, scan_cancellable, scan_until};
+use git_engine::discover::{
+    ScanOptions, drive_roots, is_system_folder, scan, scan_cancellable, scan_until,
+};
 use std::fs;
 use std::path::Path;
 
@@ -328,4 +330,23 @@ fn a_scan_cancelled_before_it_starts_finds_nothing() {
     );
 
     assert_eq!(reported, 0);
+}
+
+#[test]
+fn every_drive_is_a_root_that_exists() {
+    let roots = drive_roots();
+    assert!(!roots.is_empty());
+    for root in &roots {
+        assert!(root.parent().is_none(), "{root:?} is a drive's root");
+        assert!(root.is_dir(), "{root:?} exists");
+    }
+}
+
+#[test]
+fn the_system_folders_of_a_drive_are_left_out_but_not_a_project_of_that_name() {
+    let drive = drive_roots().remove(0);
+    assert!(is_system_folder(&drive.join("Windows")));
+    assert!(is_system_folder(&drive.join("program files")));
+    assert!(!is_system_folder(&drive.join("Work")));
+    assert!(!is_system_folder(&drive.join("src").join("Windows")));
 }

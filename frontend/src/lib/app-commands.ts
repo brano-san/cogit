@@ -334,7 +334,7 @@ export function appCommands(facts: AppCommandFacts, run: AppCommandActions): Pal
     },
     {
       id: "scan",
-      title: "Scan Folder for Repositories",
+      title: "Search for Repositories",
       synonyms: ["discover", "find repositories", "import"],
       run: run.scan,
     },

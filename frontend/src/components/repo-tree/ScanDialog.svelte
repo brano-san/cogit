@@ -42,14 +42,14 @@
 </script>
 
 <Dialog
-  title="Scan folder for repositories"
+  title="Search for repositories"
   width="min(720px, 92vw)"
   flush
   {onclose}
   onconfirm={open}
 >
   <div class="bar">
-    <button class="btn" type="button" onclick={onbrowse} disabled={scan.busy}>Choose Folder…</button>
+    <button class="btn" type="button" onclick={onbrowse}>Choose Folder…</button>
     <span class="folder truncate" title={scan.folder ?? ""}>{scan.folder ?? "No folder chosen"}</span>
   </div>
 
@@ -81,7 +81,7 @@
           {scan.busy
             ? "Scanning…"
             : scan.done
-              ? "No repository under that folder."
+              ? "No repository found."
               : "Pick a folder and Cogit will look through it for repositories."}
         </p>
         {#if !scan.folder && !scan.busy}

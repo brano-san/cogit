@@ -133,7 +133,7 @@ describe("app commands", () => {
       ["settings", "Preferences"],
       ["find", "Find Object"],
       ["pr", "Create Pull Request"],
-      ["scan", "Scan Folder for Repositories"],
+      ["scan", "Search for Repositories"],
       ["journal", "Safety Journal"],
       ["fetch-all", "Fetch All"],
       ["reveal-log", "Reveal Log File"],

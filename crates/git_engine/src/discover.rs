@@ -25,6 +25,49 @@ const SKIP: &[&str] = &[
     "System Volume Information",
 ];
 
+/// Top-level folders of a drive that hold the system and installed programs, never a
+/// checkout: a scan of every drive would spend most of its time there.
+const SYSTEM: &[&str] = &[
+    "Windows",
+    "Program Files",
+    "Program Files (x86)",
+    "ProgramData",
+    "Recovery",
+    "PerfLogs",
+    "$WinREAgent",
+    "proc",
+    "sys",
+    "dev",
+    "usr",
+    "bin",
+    "sbin",
+    "lib",
+    "boot",
+    "System",
+];
+
+/// Only right under a drive's root: `src/windows` in a project is still walked.
+pub fn is_system_folder(path: &Path) -> bool {
+    path.parent()
+        .is_some_and(|parent| parent.parent().is_none())
+        && path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| SYSTEM.iter().any(|skip| skip.eq_ignore_ascii_case(name)))
+}
+
+/// Every drive to scan: the lettered ones that exist on Windows, `/` elsewhere.
+pub fn drive_roots() -> Vec<PathBuf> {
+    if cfg!(windows) {
+        (b'A'..=b'Z')
+            .map(|letter| PathBuf::from(format!("{}:\\", char::from(letter))))
+            .filter(|root| root.is_dir())
+            .collect()
+    } else {
+        vec![PathBuf::from("/")]
+    }
+}
+
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Found {
@@ -144,7 +187,7 @@ fn walk<F: FnMut(Found) -> bool + Send, C: Fn() -> bool + Sync>(
             // second syscall per entry, and a symlink could send the walk round a loop.
             entry.file_type().ok()?.is_dir().then(|| entry.path())
         })
-        .filter(|path| !is_skipped(path) && !is_ignored(path, &chain))
+        .filter(|path| !is_skipped(path) && !is_system_folder(path) && !is_ignored(path, &chain))
         .collect();
 
     children

@@ -23,7 +23,7 @@ const EDIT_CONFIG: &[Entry] = &[
 const REPOSITORY: &[Entry] = &[
     Entry::Item("open", "Open Repository…", Some("CmdOrCtrl+O")),
     Entry::Item("clone", "Clone…", None),
-    Entry::Item("scan", "Scan Folder for Repositories…", None),
+    Entry::Item("scan", "Search for Repositories…", None),
     Entry::Item("close", "Close Repository", Some("CmdOrCtrl+W")),
     Entry::Separator,
     Entry::Item("worktree-add", "Add Worktree…", None),

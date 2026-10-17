@@ -341,7 +341,7 @@ export async function graphOverlay(
 /** Hits stream in as the walk finds them; the promise resolves with the total. `onStarted`
     gets the id `cancelOperation` stops the walk by, before the first hit. */
 export async function scanForRepositories(
-  path: string,
+  path: string | null,
   maxDepth: number,
   onFound: (hit: ScanHit) => void,
   onStarted: (id: number) => void = () => {},

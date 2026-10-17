@@ -1,6 +1,10 @@
 import { cancelOperation, type CogitError, scanForRepositories, type ScanHit, toCogitError } from "$lib/ipc";
 
+/** What the dialog names as the scanned place when no folder was chosen. */
+export const ALL_DRIVES = "All drives";
+
 class ScanStore {
+  /** The folder scanned, or `ALL_DRIVES`; null before any scan. */
   folder = $state<string | null>(null);
   hits = $state.raw<ScanHit[]>([]);
   chosen = $state.raw<ReadonlySet<string>>(new Set());
@@ -21,10 +25,11 @@ class ScanStore {
     return this.openable.filter((hit) => this.chosen.has(hit.root)).map((hit) => hit.root);
   }
 
-  async run(folder: string, depth: number): Promise<void> {
+  /** `folder` null: every drive. */
+  async run(folder: string | null, depth: number): Promise<void> {
     this.#stopWalk();
     const generation = ++this.#generation;
-    this.folder = folder;
+    this.folder = folder ?? ALL_DRIVES;
     this.hits = [];
     this.chosen = new Set();
     this.error = null;
