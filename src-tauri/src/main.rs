@@ -26,17 +26,25 @@ fn main() {
     ) {
         std::process::exit(code);
     }
-    // WebKitGTK's DMA-BUF renderer under the proprietary NVIDIA driver repaints at ~10 fps
-    // while a window is resized (R-764). Before any thread starts, and never over the user's own value.
+    // WebKitGTK workarounds for GPU drivers it trips over, before any thread starts and never
+    // over the user's own value. Proprietary NVIDIA: the DMA-BUF renderer drops the Wayland
+    // connection (Error 71) or repaints at ~10 fps (R-764). VMware's vmwgfx: accelerated
+    // compositing waits on a fence that never signals, so the window stays black (R-765).
     #[cfg(target_os = "linux")]
-    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none()
-        && std::path::Path::new("/proc/driver/nvidia/version").exists()
-    {
-        // SAFETY: single-threaded here; Tauri and its threads start in `run` below.
-        #[allow(unsafe_code)]
-        unsafe {
-            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1")
-        };
+    for (driver, var) in [
+        (
+            "/proc/driver/nvidia/version",
+            "WEBKIT_DISABLE_DMABUF_RENDERER",
+        ),
+        ("/sys/module/vmwgfx", "WEBKIT_DISABLE_COMPOSITING_MODE"),
+    ] {
+        if std::env::var_os(var).is_none() && std::path::Path::new(driver).exists() {
+            // SAFETY: single-threaded here; Tauri and its threads start in `run` below.
+            #[allow(unsafe_code)]
+            unsafe {
+                std::env::set_var(var, "1")
+            };
+        }
     }
     if let Err(err) = cogit_lib::run() {
         cogit_lib::report_fatal(&err);
