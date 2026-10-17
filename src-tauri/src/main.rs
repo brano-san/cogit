@@ -27,14 +27,23 @@ fn main() {
         std::process::exit(code);
     }
     // WebKitGTK workarounds for GPU drivers it trips over, before any thread starts and never
-    // over the user's own value. Proprietary NVIDIA: the DMA-BUF renderer drops the Wayland
-    // connection (Error 71) or repaints at ~10 fps (R-764). VMware's vmwgfx: accelerated
-    // compositing waits on a fence that never signals, so the window stays black (R-765).
+    // over the user's own value. Proprietary NVIDIA on Wayland: explicit sync drops the
+    // connection (Error 71); without it DMA-BUF stays zero-copy, 2–4x faster than turning
+    // DMA-BUF off. On X11 its GBM buffers fail and the window is black, so DMA-BUF goes
+    // (R-764). VMware's vmwgfx: accelerated compositing waits on a fence that never
+    // signals, so the window stays black (R-765).
+    #[cfg(target_os = "linux")]
+    let wayland = std::env::var_os("WAYLAND_DISPLAY").is_some()
+        && !std::env::var("GDK_BACKEND").is_ok_and(|backend| backend.starts_with("x11"));
     #[cfg(target_os = "linux")]
     for (driver, var) in [
         (
             "/proc/driver/nvidia/version",
-            "WEBKIT_DISABLE_DMABUF_RENDERER",
+            if wayland {
+                "__NV_DISABLE_EXPLICIT_SYNC"
+            } else {
+                "WEBKIT_DISABLE_DMABUF_RENDERER"
+            },
         ),
         ("/sys/module/vmwgfx", "WEBKIT_DISABLE_COMPOSITING_MODE"),
     ] {
