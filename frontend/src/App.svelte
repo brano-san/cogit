@@ -467,14 +467,14 @@
       const first =
         early === null
           ? Promise.resolve()
-          : activate(early, remembered).finally(() => repository.markReady());
+          : activate(early, remembered, true).finally(() => repository.markReady());
       void timed("startup", "restore the session", () => repository.restore(early)).then(async () => {
         await first;
         if (early === null || repository.phase.kind === "closed") {
           const back =
             repository.openRepos.find((entry) => entry.root === wanted) ?? repository.openRepos[0];
           try {
-            if (back) await activate(back.root, back.root === wanted ? remembered : null);
+            if (back) await activate(back.root, back.root === wanted ? remembered : null, true);
           } finally {
             // Only now is "nothing open" the answer rather than the first frame.
             repository.markReady();
@@ -1926,7 +1926,11 @@ ${event.error}`,
 
   /** The root of the repository now on screen, or null when this open lost to a newer
       one or failed. */
-  async function activate(root: string, restoreOid: string | null = null): Promise<string | null> {
+  async function activate(
+    root: string,
+    restoreOid: string | null = null,
+    restoring = false,
+  ): Promise<string | null> {
     const story = `open:${root}`;
     trace(story, "activate: panels cleared");
     forgetPanels();
@@ -1941,7 +1945,8 @@ ${event.error}`,
     trace(story, `activate: repository.current is ${opened ? opened.name : "null"}`);
     if (opened) {
       refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));
-      if (!wasOpen.has(opened.root)) moduleMemory.opened(opened.root);
+      // A repository restored at launch stays folded; one opened by the user shows its submodules (R-546).
+      if (!restoring && !wasOpen.has(opened.root)) moduleMemory.opened(opened.root);
       void submodules.own(opened.repo, opened.root);
       void health.check(opened.repo, opened.root, opened.name);
       session.setActive(opened.root);
