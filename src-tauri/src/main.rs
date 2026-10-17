@@ -26,6 +26,18 @@ fn main() {
     ) {
         std::process::exit(code);
     }
+    // WebKitGTK's DMA-BUF renderer under the proprietary NVIDIA driver repaints at ~10 fps
+    // while a window is resized (R-764). Before any thread starts, and never over the user's own value.
+    #[cfg(target_os = "linux")]
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none()
+        && std::path::Path::new("/proc/driver/nvidia/version").exists()
+    {
+        // SAFETY: single-threaded here; Tauri and its threads start in `run` below.
+        #[allow(unsafe_code)]
+        unsafe {
+            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1")
+        };
+    }
     if let Err(err) = cogit_lib::run() {
         cogit_lib::report_fatal(&err);
         std::process::exit(1);
