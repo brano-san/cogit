@@ -83,8 +83,8 @@ impl RepoHandle {
         let mut dirty_submodules = 0;
         for item in iter {
             let item = item.map_err(|err| GitError::Internal(format!("status failed: {err}")))?;
+            dirty_submodules += u32::from(changed_submodule(&item));
             if inert(&item) {
-                dirty_submodules += u32::from(dirty_submodule(&item));
                 continue;
             }
             match item {
@@ -357,18 +357,15 @@ pub(crate) fn inert(item: &Item) -> bool {
     }
 }
 
-/// An inert submodule with edits or new files inside: `S.M.` / `S..U` of `git status`, which
-/// already left out what `submodule.<name>.ignore` and `diff.ignoreSubmodules` ignore.
-pub(crate) fn dirty_submodule(item: &Item) -> bool {
-    match item {
-        Item::IndexWorktree(WorktreeItem::Modification {
-            status: status @ EntryStatus::Change(WorktreeChange::SubmoduleModification(inner)),
-            ..
-        }) if inner.checked_out_head_id == inner.index_id => {
-            submodule_change(status).is_some_and(|change| change.modified || change.untracked)
-        }
-        _ => false,
-    }
+/// A submodule moved or with edits or new files inside: `S<c><m><u>` with a worktree change
+/// in `git status`, which already left out what `submodule.<name>.ignore` and
+/// `diff.ignoreSubmodules` ignore.
+pub(crate) fn changed_submodule(item: &Item) -> bool {
+    let Item::IndexWorktree(WorktreeItem::Modification { status, .. }) = item else {
+        return false;
+    };
+    submodule_change(status)
+        .is_some_and(|change| change.new_commits || change.modified || change.untracked)
 }
 
 fn submodule_change(

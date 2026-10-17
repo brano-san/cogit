@@ -2206,8 +2206,8 @@ export type RepoStatus = {
 	untracked: number,
 	conflicted: number,
 	/**
-	 *  Submodules whose recorded commit did not move but that hold edits or new files
-	 *  (`S.M.` / `S..U` in porcelain v2). Not a change of this repository: `is_clean` ignores it.
+	 *  Submodules changed in the tree: moved, or with edits or new files inside (`S<c><m><u>`).
+	 *  A moved one is also in `unstaged`; `is_clean` ignores the rest.
 	 */
 	dirtySubmodules: number,
 };

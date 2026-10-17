@@ -11,8 +11,8 @@ pub struct RepoStatus {
     pub unstaged: u32,
     pub untracked: u32,
     pub conflicted: u32,
-    /// Submodules whose recorded commit did not move but that hold edits or new files
-    /// (`S.M.` / `S..U` in porcelain v2). Not a change of this repository: `is_clean` ignores it.
+    /// Submodules changed in the tree: moved, or with edits or new files inside (`S<c><m><u>`).
+    /// A moved one is also in `unstaged`; `is_clean` ignores the rest.
     pub dirty_submodules: u32,
 }
 
@@ -48,8 +48,8 @@ impl RepoHandle {
         let mut conflicted = Vec::new();
         for item in self.status_items()? {
             let item = item.map_err(|err| GitError::Internal(format!("status failed: {err}")))?;
+            status.dirty_submodules += u32::from(crate::worktree::changed_submodule(&item));
             if crate::worktree::inert(&item) {
-                status.dirty_submodules += u32::from(crate::worktree::dirty_submodule(&item));
                 continue;
             }
             match item {
