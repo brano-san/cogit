@@ -21,6 +21,8 @@ export const GRAPH = {
   leftPad: 10,
   ringRadius: 3.5,
   ringStroke: 1.5,
+  /** Lines stop this short of a commit no remote has (R-761). */
+  localGap: 1.5,
   lineWidth: 2,
   mainLineWidth: 2.75,
   textGap: 8,

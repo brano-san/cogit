@@ -25,7 +25,7 @@
   /** Only the rows on screen: every segment belongs to its own row, so nothing outside
       the view is ever needed to draw it (doc/07-graph-rendering.md). */
   interface Props {
-    /** `unpushed`: a hollow ring, where a commit some remote branch has is filled. */
+    /** `unpushed`: a dot with a gap around it; a commit some remote branch has is a hollow ring. */
     rows: {
       listRow: number;
       layout: GraphRow;
@@ -167,12 +167,27 @@
       context.restore();
     }
 
-    // A pushed commit is a ring filled in its own colour; an unpushed one stays hollow,
-    // filled with what is behind it so no line shows through. A stash is a square in the
-    // stash colour (#19).
+    // A commit no remote has is a dot in its own colour, the lines stopping just short of it;
+    // a pushed one is a hollow ring, filled with what is behind it so no line shows through.
+    // A stash is a square in the stash colour (#19).
     const stash = token("--status-stash");
     const fills = new Map<string, string>();
+    const fillBehind = (layers: string[]) => {
+      for (const layer of layers) {
+        if (!fills.has(layer)) fills.set(layer, token(layer));
+        context.fillStyle = fills.get(layer) ?? panel;
+        context.fill();
+      }
+    };
     for (const row of rows) {
+      const local = !row.stash && row.unpushed === true;
+      const behind = nodeFill(row.listRow, selectedRows, hoverRow, stripes, row.bisect?.tint ?? null);
+      if (local) {
+        const { x, y } = nodeCentre(row.layout.lane, row.listRow, scrollTop);
+        context.beginPath();
+        context.arc(x, y, GRAPH.ringRadius + GRAPH.ringStroke / 2 + GRAPH.localGap, 0, Math.PI * 2);
+        fillBehind(behind);
+      }
       context.beginPath();
       if (row.stash) {
         const square = nodeSquare(row.layout.lane, row.listRow, scrollTop);
@@ -184,12 +199,8 @@
       const ring = nodeStroke(row.layout, row.paint, options);
       const ringInk = row.stash ? stash : ink(ring.token, ring.alpha);
       const dot = row.bisect?.dot ?? null;
-      for (const layer of nodeFill(row.listRow, selectedRows, hoverRow, stripes, row.bisect?.tint ?? null)) {
-        if (!fills.has(layer)) fills.set(layer, token(layer));
-        context.fillStyle = fills.get(layer) ?? panel;
-        context.fill();
-      }
-      if (!row.stash && !row.unpushed) {
+      fillBehind(behind);
+      if (local) {
         context.fillStyle = ringInk;
         context.fill();
       }

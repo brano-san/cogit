@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   GRAPH,
+  LANE_WIDTH,
   canvasPixelSize,
   arrowStub,
   segmentCurve,
@@ -652,5 +653,12 @@ describe("a list taller than the layout limit", () => {
   it("round-trips a position", () => {
     const k = scrollScale(1_500_000 * 24, viewport);
     expect(toVirtual(fromVirtual(9_876_543, k), k)).toBeCloseTo(9_876_543, 3);
+  });
+});
+
+describe("the gap around a local commit", () => {
+  it("is there, and stays clear of the next lane at the narrowest width", () => {
+    expect(GRAPH.localGap).toBeGreaterThan(0);
+    expect(GRAPH.ringRadius + GRAPH.ringStroke / 2 + GRAPH.localGap).toBeLessThan(LANE_WIDTH.min / 2);
   });
 });
