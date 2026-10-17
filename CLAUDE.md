@@ -40,8 +40,8 @@ gix, imara-diff, keyring, similar, Svelte 5, Tauri v2 broke APIs in 2025–26; t
 
 ## Graph (authoritative; sync `07-graph-rendering.md` in same commit)
 
-- Lane 0 = first-parent chain of HEAD (else `master`, then `main`): continuous, fixed. Others compact; new lane right next to its commit's lane.
-- Lane changes = S-curves within one row; lines meet node centers.
+- Lane 0 = first-parent chain of HEAD (else `master`, then `main`): continuous, fixed. Other lanes keep their column; a new lane takes the first free column right of its commit's lane; a lane moves left only at its own node.
+- A line changes column only at a node: a half-row S-curve into or out of its center. Passing lines stay straight.
 - Monochrome default: main line bright, rest gray. Branches ticked in Branches get own color from tip down first parents to join point; history already on main line keeps default.
 - Color/emphasis = paint over finished layout (`graph_engine::paint`); never alters layout.
 

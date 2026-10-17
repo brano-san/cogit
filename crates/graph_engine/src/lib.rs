@@ -90,6 +90,24 @@ pub(crate) struct Lane {
     pub(crate) ended: bool,
 }
 
+impl Lane {
+    /// A column nobody uses any more, kept so the lines right of it stay where they are.
+    pub(crate) fn free(id: u64) -> Self {
+        Self {
+            id,
+            waits: None,
+            color: 0,
+            drawn: false,
+            primary: false,
+            ended: false,
+        }
+    }
+
+    pub(crate) fn is_free(&self) -> bool {
+        self.waits.is_none() && !self.drawn && !self.ended && !self.primary
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct LayoutCursor {
     pub(crate) lanes: Vec<Lane>,
