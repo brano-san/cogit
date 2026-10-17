@@ -12,7 +12,7 @@
   import { diffEdit } from "$stores/diff-edit.svelte";
   import type { SearchRow } from "$lib/diff-rows";
   import { diffTokens, paneTokens, unifiedTokens } from "$lib/diff-highlight";
-  import { FLASH_MS, changeSteps, foldDiff, missingLines, navState, revealRange, stepsAround, type ChangeSteps, type Gap, type LineRange } from "$lib/diff-fold";
+  import { FLASH_MS, changeSteps, foldDiff, missingLines, navState, openingRow, revealRange, stepsAround, type ChangeSteps, type Gap, type LineRange } from "$lib/diff-fold";
   import {
     buildBlocks,
     changeRow,
@@ -617,6 +617,18 @@
     sideways = 0;
     flash = null;
     for (const el of [unifiedEl, leftEl, rightEl]) if (el) el.scrollTop = 0;
+    opening = true;
+  });
+
+  /** Another file opens at its first change, as if Next Change had been pressed; a reload
+      of the same one (after staging) stays where it is. */
+  let opening = false;
+  $effect(() => {
+    void starts;
+    const el = mode === "unified" ? unifiedEl : leftEl;
+    if (!opening || !el) return;
+    opening = false;
+    el.scrollTop = openingRow(starts, LEAD) * ROW_HEIGHT;
   });
 
   $effect(() => () => clearTimeout(flashTimer));

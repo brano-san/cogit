@@ -288,6 +288,11 @@ export function changeSteps(starts: readonly number[], top: number, bottom: numb
   return (starts[at] ?? 0) >= top ? stepsAround(at) : { prev: at, next: at + 1 };
 }
 
+/** The first row a diff opens at: its first change where Next Change would put it. */
+export function openingRow(starts: readonly number[], lead: number): number {
+  return Math.max((starts[0] ?? 0) - lead, 0);
+}
+
 export function navState(count: number, steps: ChangeSteps): { prev: boolean; next: boolean } {
   const exists = (index: number) => index >= 0 && index < count;
   return { prev: exists(steps.prev), next: exists(steps.next) };

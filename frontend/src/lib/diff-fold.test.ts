@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DiffRow, Hunk } from "./ipc/bindings";
 import {
+  openingRow,
   changeSteps,
   foldContext,
   foldDiff,
@@ -374,5 +375,17 @@ describe("the whole file", () => {
     expect(missingLines([gap(false)])).toBe(true);
     expect(missingLines([gap(true)])).toBe(false);
     expect(missingLines([])).toBe(false);
+  });
+});
+
+describe("openingRow", () => {
+  it("opens a diff at its first change, as Next Change puts it", () => {
+    expect(openingRow([40, 90], 3)).toBe(37);
+    expect(changeSteps([40, 90], 37, 60, 3)).toEqual(stepsAround(0));
+  });
+
+  it("stays at the top when the first change is there, or there is none", () => {
+    expect(openingRow([1], 3)).toBe(0);
+    expect(openingRow([], 3)).toBe(0);
   });
 });
