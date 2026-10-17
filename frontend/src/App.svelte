@@ -4,7 +4,7 @@
   import { checkForUpdates, message, noSelfUpdateNote, type UpdateOutcome } from "$lib/updates";
   import { leaveRepositoryDialogs } from "$lib/leaving";
   import { retryOf } from "$lib/retry";
-  import { parseQuery } from "$lib/query";
+  import { isEmptyQuery, parseQuery } from "$lib/query";
   import { publishedOrAssume } from "$lib/published";
   import { menuStatePusher } from "$lib/menu-state";
   import { branchNameProblem, optional, presetNameProblem, textProblem } from "$lib/names";
@@ -1100,9 +1100,13 @@ ${event.error}`,
   function filterGraph(query: import("$lib/ipc").CommitQuery) {
     const id = repository.current?.repo;
     if (!id) return;
-    commit.clear();
-    diff.clear();
-    void graph.load(id, query);
+    // A commit picked among the matches stays picked, and the whole history opens at it.
+    const keep = isEmptyQuery(query) && !isEmptyQuery(graph.query) ? commit.oid : null;
+    if (!keep) {
+      commit.clear();
+      diff.clear();
+    }
+    void graph.load(id, query, keep ?? undefined);
   }
 
   async function stage(paths: string[]) {

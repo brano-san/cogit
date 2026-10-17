@@ -38,11 +38,14 @@ interface Walk {
   blocks: Map<number, GraphBlock>;
   /** Blocks on their way, so a second caller waits for the same answer. */
   asking: Map<number, Promise<void>>;
+  /** The commit the list opens at instead of its top; `row` once the walk has reached it. */
+  reveal: { oid: string; row: number | null; looking: boolean } | null;
 }
 
-const walk = (repo: RepoId, query: CommitQuery = EMPTY_QUERY): Walk => ({
+const walk = (repo: RepoId, query: CommitQuery = EMPTY_QUERY, reveal?: string): Walk => ({
   repo,
   query,
+  reveal: reveal ? { oid: reveal, row: null, looking: false } : null,
   generation: null,
   base: null,
   kept: 0,
@@ -210,17 +213,18 @@ class GraphStore {
     return this.rowAt(index);
   }
 
-  async load(repo: RepoId, query: CommitQuery = EMPTY_QUERY): Promise<void> {
-    await this.#load(repo, query, true);
+  /** `reveal`: the list opens at that commit, its rows already there, when the history has it. */
+  async load(repo: RepoId, query: CommitQuery = EMPTY_QUERY, reveal?: string): Promise<void> {
+    await this.#load(repo, query, true, reveal);
   }
 
-  async #load(repo: RepoId, query: CommitQuery, retry: boolean): Promise<void> {
+  async #load(repo: RepoId, query: CommitQuery, retry: boolean, reveal?: string): Promise<void> {
     // Asked for by work begun before the panels moved on to another repository, or closed it.
     if (repository.current?.repo !== repo) return;
     if (retry) void unpushed.refresh(repo);
     const load = ++this.#loads;
     this.query = query;
-    const fresh = walk(repo, query);
+    const fresh = walk(repo, query, reveal);
     // Any history on screen stays until the new one covers it, another repository's too:
     // an empty list between them is the blink R-300 removes.
     if (this.#shown && this.#shown.total > 0) {
@@ -245,13 +249,14 @@ class GraphStore {
           fresh.total = progress.total;
           fresh.complete = progress.isLast;
           if (fresh === this.#shown) this.#publish();
+          this.#find(fresh);
           this.#ask(fresh);
         },
         { ...query, visibleRefs: this.visibleRefs, view: walkedView(this.view, query), longLinkRows: this.longLinkRows },
       );
       if (load === this.#loads) this.skipped = skipped ?? [];
       if (load === this.#loads && !fresh.complete && !(await this.#settle(fresh, load)) && retry) {
-        return await this.#load(repo, query, false);
+        return await this.#load(repo, query, false, reveal);
       }
     } catch (err) {
       if (load === this.#loads) {
@@ -288,6 +293,7 @@ class GraphStore {
   }
 
   #show(next: Walk): void {
+    if (next.reveal?.row != null) this.requestReveal(next.reveal.oid);
     if (this.#opensAtTop(next)) {
       this.#range = this.#rangeOf(next);
       this.home += 1;
@@ -321,8 +327,35 @@ class GraphStore {
 
   /** Where `of` will be on screen. */
   #rangeOf(of: Walk): { start: number; end: number } {
+    const height = this.#range.end - this.#range.start;
+    if (of.reveal) {
+      const start = Math.max(0, (of.reveal.row ?? 0) - Math.floor(height / 2));
+      return { start, end: start + height };
+    }
     if (!this.#opensAtTop(of)) return this.#range;
-    return { start: 0, end: this.#range.end - this.#range.start };
+    return { start: 0, end: height };
+  }
+
+  /** The row of the commit `of` opens at, asked again as the walk goes on; a history that
+      ends without it opens at the top. */
+  #find(of: Walk): void {
+    const reveal = of.reveal;
+    if (!reveal || reveal.row !== null || reveal.looking || of.generation === null) return;
+    reveal.looking = true;
+    const total = of.total;
+    graphRowOf(of.repo, of.generation, reveal.oid).then(
+      (row) => {
+        reveal.looking = false;
+        if (row !== null) reveal.row = row;
+        else if (of.complete) of.reveal = null;
+        else if (of.total > total) return this.#find(of);
+        this.#ask(of);
+      },
+      () => {
+        of.reveal = null;
+        this.#ask(of);
+      },
+    );
   }
 
   /** Blocks around the screen that are missing, or were cut short by the walk. */
@@ -396,7 +429,7 @@ class GraphStore {
 
   /** A reload takes over once it has every row on screen, or has no more to give. */
   #promote(of: Walk): void {
-    if (of !== this.#next) return;
+    if (of !== this.#next || (of.reveal && of.reveal.row === null)) return;
     const { end } = this.#rangeOf(of);
     const shown = this.#shown;
     const streams = shown !== null && shown.repo === of.repo && !sameQuery(shown.query, of.query) && of.total > 0;

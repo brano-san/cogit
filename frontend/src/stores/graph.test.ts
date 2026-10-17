@@ -48,6 +48,7 @@ vi.mock("$lib/graph-wire", () => ({ decodeBase64Window: (block: unknown) => bloc
 
 const { graph } = await import("./graph.svelte");
 const { repository } = await import("./repository.svelte");
+const { EMPTY_QUERY } = await import("$lib/ipc");
 
 type RepoId = import("$lib/ipc").RepoId;
 const A = 1 as RepoId;
@@ -692,5 +693,55 @@ describe("another filter", () => {
 
     expect(graph.home).toBe(home);
     expect(graph.rowAt(520)?.commit.oid).toBe("n520");
+  });
+});
+
+// A commit picked among a filter's matches is where the whole history opens once the filter
+// is cleared: already on screen, with its rows, not first the top and then a jump.
+describe("clearing the filter with a commit selected", () => {
+
+  it("opens the history at that commit, its rows loaded before the list switches", async () => {
+    await loaded(A, ids(100, "a"));
+    void graph.load(A, { ...graph.query, author: "x" });
+    await last().send(["a520"], true);
+    graph.show(0, 40);
+
+    void graph.load(A, EMPTY_QUERY, "a520");
+    await last().send(ids(600, "a"));
+    await settle();
+
+    expect(graph.reveal?.oid).toBe("a520");
+    expect(graph.rowAt(520)?.commit.oid).toBe("a520");
+    expect(graph.total).toBe(600);
+  });
+
+  it("waits for the walk to reach the commit before it switches", async () => {
+    await loaded(A, ids(100, "a"));
+    void graph.load(A, { ...graph.query, author: "x" });
+    await last().send(["a520"], true);
+    graph.show(0, 40);
+
+    void graph.load(A, EMPTY_QUERY, "a520");
+    await last().send(ids(300, "a"));
+    await settle();
+    expect(graph.rowAt(0)?.commit.oid).toBe("a520");
+
+    await last().send(ids(300, "b").map((_, i) => `a${300 + i}`), true);
+    await settle();
+    expect(graph.rowAt(520)?.commit.oid).toBe("a520");
+  });
+
+  it("opens at the top when the history has no such commit", async () => {
+    await loaded(A, ids(100, "a"));
+    void graph.load(A, { ...graph.query, author: "x" });
+    await last().send(["gone"], true);
+    const home = graph.home;
+
+    void graph.load(A, EMPTY_QUERY, "gone");
+    await last().send(ids(100, "a"), true);
+    await settle();
+
+    expect(graph.home).toBe(home + 1);
+    expect(graph.rowAt(0)?.commit.oid).toBe("a0");
   });
 });
