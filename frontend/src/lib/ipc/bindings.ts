@@ -1499,6 +1499,8 @@ export type GraphView = {
 	expanded?: string[],
 	/**  Show Graph While Filtering: a filtered list keeps lines between its matches (R-575). */
 	filteredGraph?: boolean,
+	/**  `--date-order` instead of the default `--topo-order` (R-766). */
+	dateOrder?: boolean,
 };
 
 /**  Assuming "HEAD is a branch" crashes on an unborn or detached checkout (INV-07). */

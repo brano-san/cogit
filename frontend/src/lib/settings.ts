@@ -22,6 +22,8 @@ export const GRAPH_COLUMNS = ["hash", "author", "avatar", "time"] as const;
 export type GraphColumn = (typeof GRAPH_COLUMNS)[number];
 export type GraphTimeFormat = "relative" | "date" | "dateTime";
 export type GraphDensity = "compact" | "normal" | "comfortable";
+/** `--topo-order` or `--date-order` (R-766). */
+export type GraphSort = "topological" | "date";
 
 /** Who draws the menu bar, the drop-downs, the context menus: the page (`on`), the platform
     (`off`), or the platform's own choice (`auto`: the page on Linux, the platform on Windows
@@ -99,6 +101,7 @@ export interface Settings {
       commit's branch forward (R-574). */
   graphColoring: GraphColoring;
   graphFirstParent: boolean;
+  graphSort: GraphSort;
   graphAncestry: boolean;
   graphCollapseMerged: boolean;
   /** Show Only Selected Branches and Tags: labels only for refs ticked in Branches (F-561). */
@@ -169,6 +172,7 @@ export const DEFAULT_SETTINGS: Settings = {
   graphHighlightChecked: true,
   graphColoring: "default",
   graphFirstParent: false,
+  graphSort: "topological",
   graphAncestry: false,
   graphCollapseMerged: false,
   graphSelectedRefsOnly: false,
@@ -199,6 +203,7 @@ const ENUMS: Partial<Record<keyof Settings, readonly string[]>> = {
   graphTimeFormat: ["relative", "date", "dateTime"],
   graphDensity: ["compact", "normal", "comfortable"],
   graphColoring: GRAPH_COLORINGS,
+  graphSort: ["topological", "date"],
 };
 
 const RANGES: Partial<Record<keyof Settings, [number, number]>> = {

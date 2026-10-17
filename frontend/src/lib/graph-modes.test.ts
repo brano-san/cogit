@@ -63,6 +63,11 @@ describe("graphView", () => {
     expect(graphView(folding, opened)).toEqual({ firstParent: false, collapseMerged: true, expanded: ["a", "b"] });
     expect(graphView(GRAPH_MODE_DEFAULTS, opened).expanded).toEqual([]);
   });
+
+  it("asks for date order only when chosen, topological by default", () => {
+    expect(graphView(GRAPH_MODE_DEFAULTS)).not.toHaveProperty("dateOrder");
+    expect(graphView(GRAPH_MODE_DEFAULTS, new Set(), true)).toMatchObject({ dateOrder: true });
+  });
 });
 
 describe("viewReloads", () => {
@@ -83,6 +88,12 @@ describe("viewReloads", () => {
   it("walks a filtered list again only for its lines", () => {
     expect(viewReloads(plain, lines, true)).toBe(true);
     expect(viewReloads(plain, folding, true)).toBe(false);
+  });
+
+  it("walks again for another order, filtered or not: a filtered list keeps the graph's order", () => {
+    const dated = graphView(GRAPH_MODE_DEFAULTS, new Set(), true);
+    expect(viewReloads(plain, dated, true)).toBe(true);
+    expect(viewReloads(plain, dated, false)).toBe(true);
   });
 
   it("walks the whole history again for anything but the lines", () => {

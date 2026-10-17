@@ -1,5 +1,5 @@
-//! `git log --date-order`: newest first, never a parent above a child (R-162). Arrival
-//! is date order, so Kahn's window only holds back a commit whose child is still to come.
+//! The two orders of the graph: `git log --date-order`, newest first, never a parent above a
+//! child (R-162), streamed through a window; and `--topo-order`, the default (R-766).
 
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
@@ -169,6 +169,71 @@ where
     }
 }
 
+/// `git log --topo-order` (`sort_in_topological_order`, graph order): Kahn's algorithm on a
+/// stack, so a merged branch follows its merge in one run before the line it joined goes on.
+/// Needs the whole walk before the first row: a tip's children could come last. `source` is
+/// newest first; tips leave in that order, `first` ahead of them when it is one (R-164).
+/// `first_parent` sorts by first parents only, as `--first-parent` does.
+pub(crate) fn in_graph_order<Id, T, I>(
+    source: I,
+    first: Option<Id>,
+    first_parent: bool,
+) -> std::vec::IntoIter<T>
+where
+    Id: Copy + Eq + Hash,
+    T: Walked<Id>,
+    I: Iterator<Item = T>,
+{
+    let mut items: Vec<Option<T>> = source.map(Some).collect();
+    let at: HashMap<Id, usize> = items
+        .iter()
+        .enumerate()
+        .filter_map(|(index, item)| item.as_ref().map(|item| (item.id(), index)))
+        .collect();
+    let follow = if first_parent { 1 } else { usize::MAX };
+    let mut children = vec![0_usize; items.len()];
+    for item in items.iter().flatten() {
+        for parent in item.parents().iter().take(follow) {
+            if let Some(&index) = at.get(parent) {
+                children[index] += 1;
+            }
+        }
+    }
+    let mut stack: Vec<usize> = (0..items.len())
+        .rev()
+        .filter(|&index| children[index] == 0)
+        .collect();
+    if let Some(head) = first.and_then(|first| at.get(&first).copied())
+        && let Some(position) = stack.iter().position(|&index| index == head)
+    {
+        stack.remove(position);
+        stack.push(head);
+    }
+    let mut out = Vec::with_capacity(items.len());
+    while let Some(index) = stack.pop() {
+        let Some(item) = items[index].take() else {
+            continue;
+        };
+        for parent in item.parents().iter().take(follow) {
+            if let Some(&parent) = at.get(parent) {
+                children[parent] -= 1;
+                if children[parent] == 0 {
+                    stack.push(parent);
+                }
+            }
+        }
+        out.push(item);
+    }
+    if out.len() < items.len() {
+        tracing::error!(
+            stranded = items.len() - out.len(),
+            "commit order stalled; the rest goes out in walk order"
+        );
+        out.extend(items.into_iter().flatten());
+    }
+    out.into_iter()
+}
+
 #[cfg(test)]
 mod tests {
     use super::in_date_order as order;
@@ -298,5 +363,132 @@ mod tests {
     #[test]
     fn an_empty_stream_ends_at_once() {
         assert!(run(&[], 16).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod graph_order_tests {
+    use super::in_graph_order;
+
+    /// `(id, parents)` newest first by date, as the walk hands them over; the id is the date.
+    fn run(commits: &[(u32, &[u32])], first: Option<u32>) -> Vec<u32> {
+        let source: Vec<(u32, Vec<u32>)> = commits
+            .iter()
+            .map(|(id, parents)| (*id, parents.to_vec()))
+            .collect();
+        in_graph_order(source.into_iter(), first, false)
+            .map(|(id, _)| id)
+            .collect()
+    }
+
+    fn dates<'a>(commits: &[(u32, &'a [u32])]) -> Vec<(u32, &'a [u32])> {
+        let mut sorted = commits.to_vec();
+        sorted.sort_by_key(|a| std::cmp::Reverse(a.0));
+        sorted
+    }
+
+    /// `git help rev-list`, --topo-order: lines 1-2-4-7 and 1-3-5-6-8, 7 merged into 8.
+    #[test]
+    fn the_example_of_git_help_rev_list() {
+        let first_parent_low = dates(&[
+            (8, &[6, 7]),
+            (7, &[4]),
+            (6, &[5]),
+            (5, &[3]),
+            (4, &[2]),
+            (3, &[1]),
+            (2, &[1]),
+            (1, &[]),
+        ]);
+        assert_eq!(run(&first_parent_low, None), vec![8, 7, 4, 2, 6, 5, 3, 1]);
+        let first_parent_high = dates(&[
+            (8, &[7, 6]),
+            (7, &[4]),
+            (6, &[5]),
+            (5, &[3]),
+            (4, &[2]),
+            (3, &[1]),
+            (2, &[1]),
+            (1, &[]),
+        ]);
+        assert_eq!(run(&first_parent_high, None), vec![8, 6, 5, 3, 7, 4, 2, 1]);
+    }
+
+    /// The merged branch is older than the main line's commits: it still comes right after
+    /// the merge, all of it, before the main line goes on.
+    #[test]
+    fn a_merged_branch_follows_its_merge_in_one_run() {
+        let history = dates(&[
+            (9, &[8, 3]),
+            (8, &[7]),
+            (7, &[6]),
+            (6, &[1]),
+            (3, &[2]),
+            (2, &[1]),
+            (1, &[]),
+        ]);
+        assert_eq!(run(&history, None), vec![9, 3, 2, 8, 7, 6, 1]);
+    }
+
+    /// master merges bugfix, which had merged master in before.
+    #[test]
+    fn a_chain_of_merges_back_and_forth() {
+        let history = dates(&[
+            (10, &[8, 9]),
+            (9, &[7, 6]),
+            (8, &[6]),
+            (7, &[5]),
+            (6, &[4]),
+            (5, &[4]),
+            (4, &[]),
+        ]);
+        assert_eq!(run(&history, None), vec![10, 9, 7, 5, 8, 6, 4]);
+    }
+
+    #[test]
+    fn an_octopus_shows_its_last_parent_first() {
+        let history = dates(&[(9, &[8, 6, 4]), (8, &[2]), (6, &[2]), (4, &[2]), (2, &[])]);
+        assert_eq!(run(&history, None), vec![9, 4, 6, 8, 2]);
+    }
+
+    /// Tips newest first; a branch with no common history keeps to itself.
+    #[test]
+    fn several_tips_and_an_unrelated_root() {
+        let history = dates(&[
+            (7, &[3]),
+            (6, &[5]),
+            (5, &[]),
+            (4, &[3]),
+            (3, &[1]),
+            (1, &[]),
+        ]);
+        assert_eq!(run(&history, None), vec![7, 6, 5, 4, 3, 1]);
+    }
+
+    /// Tips of the same date keep the walk's order, so the graph does not jump between loads.
+    #[test]
+    fn tips_of_one_date_keep_the_order_they_arrived_in() {
+        let source = vec![(2, vec![1]), (3, vec![1]), (1, vec![])];
+        let order: Vec<u32> = in_graph_order(source.into_iter(), None, false)
+            .map(|(id, _)| id)
+            .collect();
+        assert_eq!(order, vec![2, 3, 1]);
+    }
+
+    /// HEAD goes first when no commit above it waits (R-164).
+    #[test]
+    fn the_commit_asked_for_first_leads_when_it_is_a_tip() {
+        let history = dates(&[(5, &[3]), (4, &[2]), (3, &[1]), (2, &[1]), (1, &[])]);
+        assert_eq!(run(&history, Some(4)), vec![4, 2, 5, 3, 1]);
+        assert_eq!(
+            run(&history, Some(3)),
+            vec![5, 3, 4, 2, 1],
+            "3 has a child: git's order"
+        );
+    }
+
+    #[test]
+    fn nothing_in_nothing_out() {
+        assert!(run(&[], None).is_empty());
     }
 }

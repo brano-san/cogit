@@ -178,8 +178,16 @@ fn interleaved() -> test_fixtures::Fixture {
 }
 
 fn walked(repo: &RepoHandle) -> Vec<String> {
+    walked_in(repo, false)
+}
+
+fn walked_in(repo: &RepoHandle, date_order: bool) -> Vec<String> {
     let query = git_engine::CommitQuery {
         visible_refs: None,
+        view: git_engine::GraphView {
+            date_order,
+            ..Default::default()
+        },
         ..Default::default()
     };
     let mut seen = Vec::new();
@@ -191,10 +199,27 @@ fn walked(repo: &RepoHandle) -> Vec<String> {
     seen
 }
 
-/// `git log --date-order`: lines that lived side by side are drawn side by side, which
-/// keeps every edge as short as the history allows (doc/12-risks.md, R-162).
+/// By date, `git log --date-order`: lines that lived side by side are drawn side by side
+/// (doc/12-risks.md, R-162).
 #[test]
-fn lines_that_lived_at_the_same_time_are_read_in_date_order() {
+fn by_date_lines_that_lived_at_the_same_time_are_read_interleaved() {
+    let f = interleaved();
+    f.git(&["switch", "feature"]).unwrap();
+    let repo = RepoHandle::open(f.path()).unwrap();
+
+    let order = walked_in(&repo, true);
+
+    assert_eq!(
+        order[..4],
+        ["commit 40", "commit 30", "commit 20", "commit 10"],
+        "{order:?}"
+    );
+}
+
+/// By default, `git log --topo-order`: a line goes on down to its fork before the next one
+/// starts (R-766).
+#[test]
+fn lines_that_lived_at_the_same_time_are_read_one_after_the_other() {
     let f = interleaved();
     f.git(&["switch", "feature"]).unwrap();
     let repo = RepoHandle::open(f.path()).unwrap();
@@ -203,7 +228,7 @@ fn lines_that_lived_at_the_same_time_are_read_in_date_order() {
 
     assert_eq!(
         order[..4],
-        ["commit 40", "commit 30", "commit 20", "commit 10"],
+        ["commit 40", "commit 20", "commit 30", "commit 10"],
         "{order:?}"
     );
 }

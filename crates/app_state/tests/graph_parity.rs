@@ -3,10 +3,10 @@
 
 //! The graph against the console `git`, with a commit-graph file, a stale one and none.
 //!
-//! The graph's order is `--date-order` with HEAD first (R-162, R-164), not `--topo-order`,
-//! so against `--topo-order` the commits and their parents are compared as a set and the
-//! order only as a topological one; against `--date-order` it is compared line for line
-//! where no two commits share a second and HEAD is the newest tip.
+//! The graph's order is `--topo-order` (R-766), or `--date-order` when the view asks for it
+//! (R-162), with HEAD first when it is a tip (R-164). The commits and their parents are
+//! compared as a set and the order as a topological one; line for line where no two commits
+//! share a second and HEAD is the newest tip, so git's tie-breaks and R-164 do not come in.
 
 use app_state::{AppState, RepoId};
 use git_engine::CommitQuery;
@@ -116,19 +116,37 @@ fn git_text(f: &test_fixtures::Fixture) -> HashMap<String, String> {
     .collect()
 }
 
+fn by_date(first_parent: bool) -> CommitQuery {
+    CommitQuery {
+        view: git_engine::GraphView {
+            first_parent,
+            date_order: true,
+            ..git_engine::GraphView::default()
+        },
+        ..CommitQuery::default()
+    }
+}
+
 fn check(f: &test_fixtures::Fixture, distinct_times: bool) {
     let state = AppState::new();
     let repo = state.open_repository(f.path()).unwrap().repo;
     let rows = graph(&state, repo, &CommitQuery::default());
+    let dated = graph(&state, repo, &by_date(false));
 
     let ours: HashSet<String> = lines(&rows).into_iter().collect();
     let theirs: HashSet<String> = git_lines(f, "--topo-order", &[]).into_iter().collect();
     assert_eq!(ours, theirs, "commits and parents against --topo-order");
     assert_eq!(rows.len(), ours.len(), "each commit once");
     assert_topological(&rows);
+    assert_topological(&dated);
     if distinct_times {
         assert_eq!(
             lines(&rows),
+            git_lines(f, "--topo-order", &[]),
+            "against --topo-order"
+        );
+        assert_eq!(
+            lines(&dated),
             git_lines(f, "--date-order", &[]),
             "against --date-order"
         );
@@ -160,7 +178,20 @@ fn check(f: &test_fixtures::Fixture, distinct_times: bool) {
     assert_eq!(ours, theirs, "--first-parent");
     assert_eq!(first.len(), ours.len());
     if distinct_times {
-        let ours: Vec<String> = lines(&first).iter().map(|l| first_line(l)).collect();
+        // Without a commit-graph git sorts `--first-parent --topo-order` by every parent, with
+        // one by the first only; the graph draws first parents only, so sorts by those (R-766).
+        if f.path().join(".git/objects/info/commit-graph").exists() {
+            let ours: Vec<String> = lines(&first).iter().map(|l| first_line(l)).collect();
+            let theirs: Vec<String> = git_lines(f, "--topo-order", &["--first-parent"])
+                .iter()
+                .map(|l| first_line(l))
+                .collect();
+            assert_eq!(ours, theirs, "--first-parent --topo-order");
+        }
+        let ours: Vec<String> = lines(&graph(&state, repo, &by_date(true)))
+            .iter()
+            .map(|l| first_line(l))
+            .collect();
         let theirs: Vec<String> = git_lines(f, "--date-order", &["--first-parent"])
             .iter()
             .map(|l| first_line(l))

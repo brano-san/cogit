@@ -6,7 +6,7 @@ needle|id|
 needle|name|
 needle|content|readme tail
 needle|notes|
-needle|all|readme tail,binary needle
+needle|all|binary needle,readme tail
 STRASSE|author|
 STRASSE|committer|
 STRASSE|message|
@@ -88,15 +88,15 @@ carol|name|
 carol|content|
 carol|notes|
 carol|all|tune the parser
-fixture|author|shuffle lines,move parser,drop the widget,merge side into master,readme tail,binary needle,unicode ÄRGER,touch the readme,add the third file,tune the parser,commit 0
-fixture|committer|shuffle lines,move parser,drop the widget,merge side into master,readme tail,binary needle,unicode ÄRGER,touch the readme,add the third file,commit 0
+fixture|author|shuffle lines,move parser,drop the widget,merge side into master,binary needle,unicode ÄRGER,readme tail,touch the readme,add the third file,tune the parser,commit 0
+fixture|committer|shuffle lines,move parser,drop the widget,merge side into master,binary needle,unicode ÄRGER,readme tail,touch the readme,add the third file,commit 0
 fixture|message|
 fixture|refs|
 fixture|id|
 fixture|name|
 fixture|content|
 fixture|notes|
-fixture|all|shuffle lines,move parser,drop the widget,merge side into master,readme tail,binary needle,unicode ÄRGER,touch the readme,add the third file,tune the parser,commit 0
+fixture|all|shuffle lines,move parser,drop the widget,merge side into master,binary needle,unicode ÄRGER,readme tail,touch the readme,add the third file,tune the parser,commit 0
 rel/|author|
 rel/|committer|
 rel/|message|

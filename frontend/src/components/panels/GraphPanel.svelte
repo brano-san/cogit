@@ -94,6 +94,7 @@
     ancestry={settings.current.graphAncestry}
     collapseMerged={settings.current.graphCollapseMerged}
     filteredGraph={settings.current.graphWhileFiltering}
+    sortByDate={settings.current.graphSort === "date"}
     selectedRefsOnly={settings.current.graphSelectedRefsOnly}
     includeTracked={settings.current.graphIncludeTracked}
     workingTreeAlways={settings.current.graphWorkingTreeAlways}

@@ -122,6 +122,8 @@
     collapseMerged?: boolean;
     /** A filtered list keeps lines between its matches (`graphWhileFiltering`). */
     filteredGraph?: boolean;
+    /** `--date-order` instead of `--topo-order` (`graphSort`). */
+    sortByDate?: boolean;
     /** Labels only for refs ticked in Branches (`graphSelectedRefsOnly`). */
     selectedRefsOnly?: boolean;
     /** A ticked branch brings its upstream along (`graphIncludeTracked`). */
@@ -155,6 +157,7 @@
     ancestry = GRAPH_MODE_DEFAULTS.ancestry,
     collapseMerged = GRAPH_MODE_DEFAULTS.collapseMerged,
     filteredGraph = GRAPH_MODE_DEFAULTS.filteredGraph,
+    sortByDate = false,
     selectedRefsOnly = false,
     includeTracked = false,
     workingTreeAlways = true,
@@ -187,7 +190,7 @@
     untrack(() => void notedCommitsStore.refresh(repo));
   });
   $effect(() => {
-    const view = graphView(modes, graphFolds.expanded);
+    const view = graphView(modes, graphFolds.expanded, sortByDate);
     untrack(() => graph.setView(view));
   });
 

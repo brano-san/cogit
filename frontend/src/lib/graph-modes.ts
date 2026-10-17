@@ -98,14 +98,16 @@ export function branchTips(branches: readonly Pick<Branch, "name" | "kind" | "oi
 }
 
 /** The modes that decide which commits the walk shows; the rest only paint. The opened
-    merges count only while merged branches fold, so opening one elsewhere walks nothing. */
-export function graphView(modes: GraphModes, expanded: ReadonlySet<string> = new Set()): GraphView {
+    merges count only while merged branches fold, so opening one elsewhere walks nothing.
+    `dateOrder`: `--date-order` instead of `--topo-order` (R-766). */
+export function graphView(modes: GraphModes, expanded: ReadonlySet<string> = new Set(), dateOrder = false): GraphView {
   const effective = effectiveModes(modes);
   return {
     firstParent: effective.firstParent,
     collapseMerged: effective.collapseMerged,
     expanded: effective.collapseMerged ? [...expanded].sort() : [],
     ...(effective.filteredGraph ? { filteredGraph: true } : {}),
+    ...(dateOrder ? { dateOrder: true } : {}),
   };
 }
 
@@ -118,11 +120,11 @@ export function walkedView(view: GraphView, query: CommitQuery): GraphView {
   return walk;
 }
 
-/** Whether a new view needs a new walk: a filtered list takes only the lines between its
-    matches from it, the whole history everything but those (R-51, R-575). */
+/** Whether a new view needs a new walk: a filtered list takes only its order and the lines
+    between its matches from it, the whole history everything but those (R-51, R-575). */
 export function viewReloads(before: GraphView, after: GraphView, filtered: boolean): boolean {
-  const lines = (view: GraphView) => view.filteredGraph ?? false;
-  if (filtered) return lines(before) !== lines(after);
+  const kept = (view: GraphView) => `${view.filteredGraph ?? false} ${view.dateOrder ?? false}`;
+  if (filtered) return kept(before) !== kept(after);
   const walked = (view: GraphView) => JSON.stringify({ ...view, filteredGraph: undefined });
   return walked(before) !== walked(after);
 }

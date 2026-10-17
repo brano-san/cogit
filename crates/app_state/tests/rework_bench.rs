@@ -156,3 +156,43 @@ fn gh03_what_a_pass_reads() {
         reread + files + counters
     );
 }
+
+/// R-766: the first chunk and the whole walk of the default graph, the order git's
+/// `--topo-order` gives needing every commit before its first row.
+#[test]
+#[ignore = "needs COGIT_BENCH_REPO"]
+fn first_screen_of_the_graph() {
+    let Ok(path) = std::env::var("COGIT_BENCH_REPO") else {
+        return;
+    };
+    let mut firsts = Vec::new();
+    let mut walks = Vec::new();
+    for round in 0..7 {
+        let state = AppState::new();
+        let repo = state.open_repository(Path::new(&path)).unwrap().repo;
+        let generation = state.begin_graph();
+        let started = Instant::now();
+        let mut first = None;
+        state
+            .build_graph(
+                repo,
+                &CommitQuery::default(),
+                generation,
+                DEFAULT_CHUNK_SIZE,
+                |_| {
+                    first.get_or_insert_with(|| started.elapsed());
+                    true
+                },
+            )
+            .unwrap();
+        if round > 0 {
+            firsts.push(first.unwrap());
+            walks.push(started.elapsed());
+        }
+    }
+    println!(
+        "first chunk median {:?}, walk median {:?}",
+        median(firsts),
+        median(walks)
+    );
+}

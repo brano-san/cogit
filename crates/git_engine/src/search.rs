@@ -2,7 +2,7 @@ use rayon::prelude::*;
 
 use crate::graph_walk::{ByTime, CommitReader, CutParents, Reuse, WalkedHistory};
 use crate::text_search::TextMatch;
-use crate::topo::{LOOKAHEAD, in_date_order};
+use crate::topo::{LOOKAHEAD, in_date_order, in_graph_order};
 use crate::{CommitRow, Mailmap, RepoHandle, Result, TextFields};
 use serde::{Deserialize, Serialize};
 
@@ -51,6 +51,8 @@ pub struct GraphView {
     pub expanded: Vec<String>,
     /// Show Graph While Filtering: a filtered list keeps lines between its matches (R-575).
     pub filtered_graph: bool,
+    /// `--date-order` instead of the default `--topo-order` (R-766).
+    pub date_order: bool,
 }
 
 /// Commits a name or content search tests at once, and the share one thread takes (R-625).
@@ -154,7 +156,7 @@ impl RepoHandle {
         Ok(tips)
     }
 
-    /// Newest first by commit time, as `git log` reads: for search, history, Investigate.
+    /// In the graph's order (`query.view`): for search, history, Investigate.
     pub fn search_commits(
         &self,
         query: &CommitQuery,
@@ -232,13 +234,13 @@ impl RepoHandle {
                 text,
                 passed,
             };
-            self.stream_rows(
-                query,
-                chunk_size,
-                in_date_order(walk, LOOKAHEAD, head),
-                rows,
-                on_chunk,
-            )?;
+            // A filtered list keeps the graph's order: it only leaves rows out.
+            let ordered: Box<dyn Iterator<Item = _>> = if query.view.date_order {
+                Box::new(in_date_order(walk, LOOKAHEAD, head))
+            } else {
+                Box::new(in_graph_order(walk, head, first_parent))
+            };
+            self.stream_rows(query, chunk_size, ordered, rows, on_chunk)?;
         }
         Ok(skipped)
     }

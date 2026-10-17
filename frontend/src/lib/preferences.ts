@@ -210,6 +210,12 @@ export const CATEGORIES: Category[] = [
         fields: [
           { key: "laneWidth", label: "Lane width", keywords: ["column", "spacing"] },
           {
+            key: "graphSort",
+            label: "Sort commits",
+            hint: "Topological: a branch's commits stay together. By date: commits of parallel branches interleave.",
+            keywords: ["order", "sort", "topological", "topo-order", "date-order", "date", "chronological"],
+          },
+          {
             key: "graphColoring",
             label: "Coloring",
             hint: "The same four as in the menu beside the Graph filter.",

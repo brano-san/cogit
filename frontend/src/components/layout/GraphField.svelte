@@ -33,6 +33,11 @@
     ["dateTime", "Yesterday 14:05 · 09-09-2026 14:05"],
   ] as const;
 
+  const SORTS = [
+    ["topological", "Topological"],
+    ["date", "By date"],
+  ] as const;
+
   const DENSITIES = [
     ["compact", "Compact"],
     ["normal", "Normal"],
@@ -134,6 +139,15 @@
         </span>
       {/each}
       {#if disabled}<span class="why">The Time column is hidden.</span>{/if}
+    </div>
+  </div>
+{:else if field.key === "graphSort"}
+  <div class="row choice" role="radiogroup" aria-label={field.label}>
+    <span>{field.label}</span>
+    <div class="options">
+      {#each SORTS as [id, title] (id)}
+        <Radio name="graphSort" checked={value.graphSort === id} onchange={() => onset("graphSort", id)} label={title} />
+      {/each}
     </div>
   </div>
 {:else if field.key === "graphDensity"}
