@@ -23,7 +23,7 @@ function bootTheme(): Plugin {
   return {
     name: "cogit-boot-theme",
     transformIndexHtml() {
-      const themes = { light: "light", lightGrey: "light-gray", darkGrey: "dark-gray", dark: "dark" };
+      const themes = { light: "light", lightGrey: "light-gray", darkGrey: "dark-gray", graphite: "graphite", dark: "dark" };
       const css = Object.entries(themes)
         .map(([id, file]) => {
           const { tokens, family } = JSON.parse(fs.readFileSync(fileURLToPath(new URL(`./src/themes/${file}.json`, import.meta.url)), "utf8"));

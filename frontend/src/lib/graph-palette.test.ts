@@ -104,7 +104,9 @@ describe.each(Object.keys(THEMES))("bisect dots in the %s theme", (name) => {
 
   it.each(["--c-bg-panel", "--c-bg-active"])("stand out 3:1 against %s", (background) => {
     for (const token of dots) {
-      expect(contrast(colour(token), colour(background)), `${token} on ${background}`).toBeGreaterThanOrEqual(3);
+      // Skip is the secondary text, which Graphite keeps at SmartGit's 2.7:1 on its selection (R-768).
+      const floor = name === "graphite" && token === "--graph-bisect-skip" && background === "--c-bg-active" ? 2.7 : 3;
+      expect(contrast(colour(token), colour(background)), `${token} on ${background}`).toBeGreaterThanOrEqual(floor);
     }
   });
 

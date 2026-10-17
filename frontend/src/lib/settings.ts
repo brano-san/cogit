@@ -5,11 +5,12 @@ import { DEFAULT_FILTER_FIELDS, knownFields, type FilterField } from "$lib/filte
 import { knownPatterns } from "$lib/filter-patterns";
 import { GRAPH_COLORINGS, migratedColoring, type GraphColoring } from "$lib/graph-coloring";
 
-/** Lightest first; the grey ones sit between the extremes (#24). */
+/** Lightest first, by the panels' background; the grey ones sit between the extremes (#24). */
 export const THEMES = [
   ["light", "Light"],
   ["lightGrey", "Light gray"],
   ["darkGrey", "Dark gray"],
+  ["graphite", "Graphite"],
   ["dark", "Dark"],
 ] as const;
 

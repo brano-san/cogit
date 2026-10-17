@@ -2,6 +2,7 @@ import schemaFile from "../themes/tokens.schema.json";
 import light from "../themes/light.json";
 import lightGray from "../themes/light-gray.json";
 import darkGray from "../themes/dark-gray.json";
+import graphite from "../themes/graphite.json";
 import dark from "../themes/dark.json";
 import type { Theme } from "./settings";
 
@@ -25,6 +26,7 @@ export const THEME_FILES: Record<Theme, ThemeFile> = {
   light: light as ThemeFile,
   lightGrey: lightGray as ThemeFile,
   darkGrey: darkGray as ThemeFile,
+  graphite: graphite as ThemeFile,
   dark: dark as ThemeFile,
 };
 

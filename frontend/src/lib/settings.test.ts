@@ -110,8 +110,8 @@ describe("needsRestart", () => {
 });
 
 describe("themes", () => {
-  it("offers four, from the lightest to the darkest (#24)", () => {
-    expect(THEMES.map(([id]) => id)).toEqual(["light", "lightGrey", "darkGrey", "dark"]);
+  it("offers five, from the lightest to the darkest panels (#24)", () => {
+    expect(THEMES.map(([id]) => id)).toEqual(["light", "lightGrey", "darkGrey", "graphite", "dark"]);
   });
 
   it("keeps every one of them from a stored file", () => {

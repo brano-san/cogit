@@ -49,8 +49,8 @@ describe("theme files", () => {
     expect(Object.values(SCHEMA).filter((entry) => !entry.description)).toEqual([]);
   });
 
-  it("keeps the two light themes in the light family and the two dark ones in the dark", () => {
-    expect(IDS.map((id) => THEME_FILES[id].family)).toEqual(["light", "light", "dark", "dark"]);
+  it("keeps the two light themes in the light family and the three dark ones in the dark", () => {
+    expect(IDS.map((id) => THEME_FILES[id].family)).toEqual(["light", "light", "dark", "dark", "dark"]);
   });
 
   // The text of the main surfaces: WCAG AA for body text.
@@ -70,7 +70,10 @@ describe("theme files", () => {
       if (ratio < min) bad.push(`${fg} on ${bg}: ${ratio.toFixed(2)} < ${min}`);
     };
     for (const bg of ["bg.editor", "bg.panel", "bg.app"]) check("fg.muted", bg, 4.5);
-    for (const fg of ["fg.primary", "fg.secondary"]) for (const bg of all) check(fg, bg, 4.5);
+    // Graphite keeps SmartGit's selection (#485394, #515259) with its #a0a0a0 dates on it (R-768).
+    const selection = id === "graphite" ? ["bg.selected", "bg.selectedInactive"] : [];
+    for (const fg of ["fg.primary", "fg.secondary"])
+      for (const bg of all) check(fg, bg, fg === "fg.secondary" && selection.includes(bg) ? 2.7 : 4.5);
     check("diff.lineNumber", "bg.editor", 3);
     expect(bad).toEqual([]);
   });
@@ -233,6 +236,7 @@ describe("applyVariables", () => {
       ["light", false],
       ["lightGrey", false],
       ["darkGrey", true],
+      ["graphite", true],
       ["dark", true],
     ]);
   });
