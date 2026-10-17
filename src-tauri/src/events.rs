@@ -32,6 +32,15 @@ pub struct MergeResolved {
     pub path: String,
 }
 
+/// The Commit window committed: the main one reloads what it shows, since the watcher is
+/// silent for our own writes (R-25) and only the writing window reloads itself. The page
+/// emits it itself, like `RevealCommit`.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoWritten {
+    pub repo: app_state::RepoId,
+}
+
 /// An external merge tool exited; the solver window and the main one both read it.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
 #[serde(rename_all = "camelCase")]

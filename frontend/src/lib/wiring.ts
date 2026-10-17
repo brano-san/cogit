@@ -9,6 +9,7 @@ import {
   onRepoChanged,
   onWatchLimited,
   onRevealCommit,
+  onRepoWritten,
   onSessionEnding,
   onNotificationClicked,
   type CommandNotice,
@@ -18,6 +19,7 @@ import {
   type RepoChanged,
   type WatchLimited,
   type RevealCommit,
+  type RepoWritten,
 } from "$lib/ipc";
 import { counted } from "$lib/listener-count";
 
@@ -31,6 +33,8 @@ export interface Handlers {
   mergeResolved: (event: MergeResolved) => void;
   /** The Blame window asked to show the commit behind a line. */
   revealCommit: (event: RevealCommit) => void;
+  /** Another window wrote to a repository (the Commit window committed). */
+  repoWritten: (event: RepoWritten) => void;
   /** One per git command, whatever it did. */
   commandRecorded: (event: CommandNotice) => void;
   /** Return false to keep the window open. */
@@ -57,6 +61,7 @@ export function connect(handlers: Handlers): Stop {
     onAvatarReady((event) => handlers.avatarReady(event.email)),
     onMergeResolved(handlers.mergeResolved),
     onRevealCommit(handlers.revealCommit),
+    onRepoWritten(handlers.repoWritten),
     onCommandRecorded(handlers.commandRecorded),
     onSessionEnding(handlers.sessionEnding),
     onNotificationClicked(handlers.notificationClicked),

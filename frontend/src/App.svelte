@@ -1234,6 +1234,14 @@ ${event.error}`,
     return true;
   }
 
+  /** The Commit window committed: what this window's own commit reloads, but the message. */
+  async function afterCommitElsewhere(id: RepoId) {
+    diff.clear();
+    await repository.refreshRefs();
+    await afterMutation();
+    void graph.load(id, graph.query);
+  }
+
   /** A fetch moves only remote-tracking refs: the refs and the graph are read again, the
       selected commit and the open diff stay. Which commits are published may have changed. */
   async function afterFetch(worked: RepoId) {
@@ -3369,6 +3377,10 @@ ${event.error}`,
           resolvedElsewhere: (path) => conflicts.resolvedElsewhere(path),
           reload: () => afterWorkingTreeChange(),
         }),
+      repoWritten: (event) => {
+        const id = repository.current?.repo;
+        if (id?.valueOf() === event.repo.valueOf()) void afterCommitElsewhere(id);
+      },
       revealCommit: (event) => {
         if (repository.current?.repo.valueOf() !== event.repo.valueOf()) return;
         stashView.clear();

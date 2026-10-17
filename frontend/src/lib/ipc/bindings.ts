@@ -644,6 +644,7 @@ export const events = {
 	notificationClicked: makeEvent<NotificationClicked>("notification-clicked"),
 	operationChanged: makeEvent<OperationChanged>("operation-changed"),
 	repoChanged: makeEvent<RepoChanged>("repo-changed"),
+	repoWritten: makeEvent<RepoWritten>("repo-written"),
 	revealCommit: makeEvent<RevealCommit>("reveal-commit"),
 	sessionEnding: makeEvent<SessionEnding>("session-ending"),
 	watchLimited: makeEvent<WatchLimited>("watch-limited"),
@@ -2244,6 +2245,15 @@ export type RepoSummary = {
 	indexLock: string | null,
 	/**  `cogit.tagGroupSeparator`, `/` when unset; read on every open, so a refresh sees a change. */
 	tagGroupSeparator: string,
+};
+
+/**
+ *  The Commit window committed: the main one reloads what it shows, since the watcher is
+ *  silent for our own writes (R-25) and only the writing window reloads itself. The page
+ *  emits it itself, like `RevealCommit`.
+ */
+export type RepoWritten = {
+	repo: RepoId,
 };
 
 export type RerereStatus = {

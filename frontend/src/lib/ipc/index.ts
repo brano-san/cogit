@@ -34,6 +34,7 @@ import type {
   CommandNotice,
   TaskbarSignals,
   RevealCommit,
+  RepoWritten,
   NotificationClicked,
   OperationChanged,
   PatchRequest,
@@ -154,6 +155,7 @@ export type {
   OperationChanged,
   Origin,
   RevealCommit,
+  RepoWritten,
   NotificationClicked,
   Overlap,
   OverlapRow,
@@ -1120,6 +1122,15 @@ export async function mergeResolved(repo: RepoId, path: string) {
 
 export async function onMergeResolved(handler: (event: MergeResolved) => void) {
   return await counted(events.mergeResolved.listen((event) => handler(event.payload)));
+}
+
+/** From the Commit window, after it wrote: the main one reads the repository again. */
+export async function repoWritten(repo: RepoId) {
+  await events.repoWritten.emit({ repo });
+}
+
+export async function onRepoWritten(handler: (event: RepoWritten) => void) {
+  return await counted(events.repoWritten.listen((event) => handler(event.payload)));
 }
 
 /** From the Blame window: the main one selects the commit and scrolls the graph to it. */

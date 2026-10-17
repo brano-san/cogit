@@ -37,6 +37,7 @@
   import { shortOid } from "$lib/format";
   import {
     closeThisWindow,
+    repoWritten,
     commitTemplate,
     isPublished,
     listRemotes,
@@ -265,6 +266,8 @@
       return;
     } finally {
       committing = false;
+      // Staged or committed: the main window learns it only from here (R-25).
+      void repoWritten(request.repo);
     }
     writeDraft(null);
     message = messageAfterCommit(template);
