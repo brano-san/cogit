@@ -27,6 +27,8 @@
 
   const pick = $derived<CheckoutPick>({ choice, name, track });
   const problem = $derived(pickProblem(offer, pick, branches));
+  /** A name not typed yet only keeps Checkout off: the field opens empty, not in red. */
+  const shown = $derived(choice === "create" && name !== "" ? problem : null);
   const typed = $derived(offer.create !== null && name.trim() !== offer.create.name);
 
   function submit() {
@@ -70,13 +72,13 @@
               bind:value={name}
               use:refNameField
               aria-label="Local branch name"
-              aria-invalid={choice === "create" && problem !== null}
-              aria-describedby={choice === "create" && problem ? "checkout-name-problem" : undefined}
+              aria-invalid={shown !== null}
+              aria-describedby={shown ? "checkout-name-problem" : undefined}
               data-autofocus={offer.initial === "create" || undefined}
               onfocus={() => (choice = "create")}
             />
-            {#if choice === "create" && problem}
-              <span class="problem" id="checkout-name-problem">{problem}</span>
+            {#if shown}
+              <span class="problem" id="checkout-name-problem">{shown}</span>
             {/if}
             {#if offer.create.remote}
               <Checkbox
