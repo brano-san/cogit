@@ -34,7 +34,9 @@ fn main() {
     {
         // SAFETY: single-threaded here; Tauri and its threads start in `run` below.
         #[allow(unsafe_code)]
-        unsafe { std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1") };
+        unsafe {
+            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1")
+        };
     }
     if let Err(err) = cogit_lib::run() {
         cogit_lib::report_fatal(&err);
