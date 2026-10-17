@@ -4,7 +4,7 @@ import { selectedLabels, withTracked } from "./selected-refs";
 
 const labels: RefLabel[] = [
   { text: "main", kind: "head" },
-  { text: "origin=topic", kind: "local", remotes: ["origin"], name: "topic" },
+  { text: "origin=topic", kind: "local", upstream: "origin/topic", prefix: "origin", name: "topic" },
   { text: "other", kind: "local" },
   { text: "origin/feature", kind: "remote" },
   { text: "v1.0", kind: "tag" },

@@ -17,11 +17,10 @@ function idsOf(label: RefLabel): string[] {
   }
 }
 
-/** A branch and the remote copies of it on the same commit share a label (`origin=x`):
-    ticking any of them shows it. */
+/** A branch and its upstream on the same commit share a label (`origin=x`): ticking
+    either shows it. */
 function twinIds(label: RefLabel): string[] {
-  const name = label.name ?? label.text;
-  return (label.remotes ?? []).map((remote) => `remote:${remote}/${name}`);
+  return label.upstream === undefined ? [] : [`remote:${label.upstream}`];
 }
 
 /** Show Only Selected Branches and Tags (F-561): only the labels of refs ticked in

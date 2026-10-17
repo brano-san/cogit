@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayDate, smartDate, capsules, dateTooltip, headLabel, refLabelKey, refLabels, relativeDate, shortOid, shortRev, splitBranches, type RefLabel, fileFormat } from "./format";
+import { displayDate, smartDate, capsules, dateTooltip, headLabel, labelParts, refLabelKey, refLabels, relativeDate, shortOid, shortRev, splitBranches, type RefLabel, fileFormat } from "./format";
 import type { Tag } from "./ipc";
 import type { Branch, Head, WorktreeEntry } from "./ipc";
 
@@ -197,8 +197,9 @@ describe("refLabels with the upstream on the same commit", () => {
     ahead: 0,
     behind: 0,
   });
-  const at = (list: Branch[], oid = A, head: Head | null = null) =>
-    refLabels(list, [], head).get(oid) ?? [];
+  const at = (list: Branch[], oid = A, head: Head | null = null, remotes = ["origin", "upstream", "fork"]) =>
+    refLabels(list, [], head, { remotes }).get(oid) ?? [];
+  const texts = (labels: RefLabel[]) => labels.map((l) => l.text);
 
   it("draws a branch and its upstream as one label", () => {
     const labels = at([local("feature/x", A, "origin/feature/x"), remote("origin/feature/x", A)]);
@@ -207,9 +208,59 @@ describe("refLabels with the upstream on the same commit", () => {
     expect(labels[0]).toMatchObject({
       text: "origin=feature/x",
       kind: "local",
-      remotes: ["origin"],
+      prefix: "origin",
+      upstream: "origin/feature/x",
       name: "feature/x",
     });
+  });
+
+  it("names the remote branch in full when the upstream has another name", () => {
+    const labels = at([local("bugfix/qt_without_pq_odbc", A, "origin/master"), remote("origin/master", A)]);
+
+    expect(labels).toHaveLength(1);
+    expect(labels[0]).toMatchObject({
+      text: "origin/master=bugfix/qt_without_pq_odbc",
+      prefix: "origin/master",
+      upstream: "origin/master",
+      name: "bugfix/qt_without_pq_odbc",
+    });
+  });
+
+  it("takes the remote from the configured ones, slashes in it and in the branch", () => {
+    const list = [local("feature/x", A, "team/eu/feature/x"), remote("team/eu/feature/x", A)];
+
+    expect(texts(at(list, A, null, ["team", "team/eu"]))).toEqual(["team/eu=feature/x"]);
+  });
+
+  it("joins only the upstream; the same branch on another remote keeps its own label", () => {
+    const labels = at([
+      remote("upstream/dev", A),
+      local("dev", A, "origin/dev"),
+      remote("origin/dev", A),
+      remote("fork/dev", A),
+    ]);
+
+    expect(texts(labels)).toEqual(["origin=dev", "upstream/dev", "fork/dev"]);
+  });
+
+  it("does not join a remote branch that is not the upstream", () => {
+    expect(texts(at([local("main", A, "origin/main"), remote("upstream/main", A)]))).toEqual([
+      "main",
+      "upstream/main",
+    ]);
+  });
+
+  it("does not join an upstream that is gone", () => {
+    expect(texts(at([local("dev", A, "origin/dev")]))).toEqual(["dev"]);
+  });
+
+  it("does not join a local upstream (remote = .)", () => {
+    expect(texts(at([local("topic", A, "main"), local("main", A, null)]))).toEqual(["topic", "main"]);
+  });
+
+  it("leaves a detached HEAD on a remote branch's commit apart from it", () => {
+    const detached: Head = { kind: "detached", oid: A };
+    expect(texts(at([remote("origin/main", A)], A, detached))).toEqual(["origin/main"]);
   });
 
   it("names both refs in the tooltip of the joined label", () => {
@@ -225,18 +276,6 @@ describe("refLabels with the upstream on the same commit", () => {
     expect(at(list, B).map((l) => l.text)).toEqual(["origin/dev"]);
   });
 
-  it("puts every remote with the same branch on that commit into the one label", () => {
-    const labels = at([
-      remote("upstream/dev", A),
-      local("dev", A, "origin/dev"),
-      remote("origin/dev", A),
-      remote("fork/dev", A),
-    ]);
-
-    expect(labels.map((l) => l.text)).toEqual(["origin,fork,upstream=dev"]);
-    expect(labels[0]?.remotes).toEqual(["origin", "fork", "upstream"]);
-  });
-
   it("leaves a branch without an upstream apart from a remote namesake", () => {
     expect(at([local("dev", A, null), remote("origin/dev", A)]).map((l) => l.text)).toEqual([
       "dev",
@@ -244,11 +283,13 @@ describe("refLabels with the upstream on the same commit", () => {
     ]);
   });
 
-  it("leaves an upstream of another name as its own label", () => {
-    expect(at([local("main", A, "origin/master"), remote("origin/master", A)]).map((l) => l.text)).toEqual([
-      "main",
-      "origin/master",
-    ]);
+  it("gives each part of a joined label its own ref for the menu, tooltip and double click", () => {
+    const [label] = at([local("bugfix/q", A, "origin/master"), remote("origin/master", A)]);
+    const parts = labelParts(label!);
+
+    expect(parts.remote).toEqual({ text: "origin/master", kind: "remote" });
+    expect(parts.local).toMatchObject({ text: "bugfix/q", kind: "local", name: "bugfix/q" });
+    expect(labelParts({ text: "dev", kind: "local" })).toEqual({ remote: null, local: { text: "dev", kind: "local" } });
   });
 
   it("keeps the checked-out branch drawn as HEAD when it is joined", () => {

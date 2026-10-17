@@ -483,7 +483,7 @@ describe("labelTarget", () => {
   });
 
   it("acts on the local branch of a joined origin=branch label", () => {
-    const joined = { text: "origin=topic", kind: "head", remotes: ["origin"], name: "topic" } as const;
+    const joined = { text: "origin=topic", kind: "head", upstream: "origin/topic", prefix: "origin", name: "topic" } as const;
     expect(labelTarget(joined, branches, tags)?.branch?.kind).toBe("local");
   });
 

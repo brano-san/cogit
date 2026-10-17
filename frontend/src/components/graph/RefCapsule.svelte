@@ -1,20 +1,35 @@
 <script lang="ts">
   import KindIcon from "$components/common/KindIcon.svelte";
-  import type { RefLabel } from "$lib/format";
+  import { labelParts, type RefLabel } from "$lib/format";
 
   interface Props {
     label: RefLabel;
-    /** Right-click: the label's own menu, not the row's (#39). */
-    onmenu?: (event: MouseEvent) => void;
-    /** Double click: the label's own Check Out, not its commit's (item 40). */
-    onactivate?: () => void;
+    /** Right-click: the menu of the ref under the pointer, not the row's (#39); in a joined
+        label each part is a ref of its own. */
+    onmenu?: (event: MouseEvent, ref: RefLabel) => void;
+    /** Double click: that ref's own Check Out, not its commit's (item 40). */
+    onactivate?: (ref: RefLabel) => void;
   }
 
   let { label, onmenu, onactivate }: Props = $props();
 
+  const parts = $derived(labelParts(label));
   const tooltip = $derived(label.title ?? label.text);
-  const prefix = $derived(label.remotes?.join(",") ?? "");
-  const text = $derived(label.remotes ? (label.name ?? "") : label.text);
+  /** The joined label's tooltip without its upstream line: the local part's. */
+  const localTip = $derived(tooltip.split("\n").filter((line) => line !== label.upstream).join("\n"));
+  const text = $derived(label.upstream !== undefined ? (label.name ?? "") : label.text);
+
+  function menu(ref: RefLabel) {
+    return (event: MouseEvent) => onmenu?.(event, ref);
+  }
+
+  function activate(ref: RefLabel) {
+    return (event: MouseEvent) => {
+      if (!onactivate) return;
+      event.stopPropagation();
+      onactivate(ref);
+    };
+  }
 </script>
 
 {#snippet held()}
@@ -23,27 +38,37 @@
   {/if}
 {/snippet}
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<span
-  class="capsule {label.kind}"
-  class:joined={label.remotes}
-  class:holds={label.worktree}
-  title={tooltip}
-  oncontextmenu={onmenu}
-  ondblclick={(event) => {
-    if (!onactivate) return;
-    event.stopPropagation();
-    onactivate();
-  }}
->
-  {#if label.remotes}
-    <span class="prefix">{prefix}</span><span class="eq">=</span><span class="branch"
-      >{@render held()}{text}</span
+{#if parts.remote}
+  {@const remote = parts.remote}
+  <!-- The HEAD colour stays on the local part: the prefix and `=` are in remote colours. -->
+  <span class="capsule {label.kind} joined" class:holds={label.worktree}>
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <span class="prefix" title={remote.text} oncontextmenu={menu(remote)} ondblclick={activate(remote)}
+      >{label.prefix}</span
+    ><!-- svelte-ignore a11y_no_static_element_interactions --><span
+      class="eq"
+      title={localTip}
+      oncontextmenu={menu(parts.local)}
+      ondblclick={activate(parts.local)}>=</span
+    ><!-- svelte-ignore a11y_no_static_element_interactions --><span
+      class="branch"
+      title={localTip}
+      oncontextmenu={menu(parts.local)}
+      ondblclick={activate(parts.local)}>{@render held()}{text}</span
     >
-  {:else}
+  </span>
+{:else}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <span
+    class="capsule {label.kind}"
+    class:holds={label.worktree}
+    title={tooltip}
+    oncontextmenu={menu(label)}
+    ondblclick={activate(label)}
+  >
     {@render held()}{text}
-  {/if}
-</span>
+  </span>
+{/if}
 
 <style>
   .capsule {

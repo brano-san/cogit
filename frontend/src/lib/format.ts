@@ -1,4 +1,5 @@
 import type { Branch, FileDiff, Head, LineEnding, StashEntry, Tag, WorktreeEntry } from "./ipc";
+import { splitUpstream } from "./push-to";
 
 const SHORT_OID = 7;
 
@@ -38,9 +39,12 @@ export type RefKind = "head" | "local" | "remote" | "tag" | "stash";
 export interface RefLabel {
   text: string;
   kind: RefKind;
-  /** Remotes whose branch of the same name is on this commit too, upstream first (#49). */
-  remotes?: string[];
-  /** The branch name drawn after `remotes` and `=`. */
+  /** The upstream on the same commit, joined into this label (#49): `origin/master`. */
+  upstream?: string;
+  /** What is drawn before `=`: the remote alone when the upstream has the local branch's
+      name (`origin=master`), else the upstream in full (`origin/master=bugfix/x`). */
+  prefix?: string;
+  /** The branch name drawn after `prefix` and `=`. */
   name?: string;
   /** The tooltip, when it says more than `text`. */
   title?: string;
@@ -64,20 +68,37 @@ const REF_ORDER: Record<RefKind, number> = { head: 0, local: 1, remote: 2, tag: 
 export interface RefExtras {
   stashes?: readonly StashEntry[];
   worktrees?: readonly WorktreeEntry[];
+  /** The configured remotes, to tell `team/eu` from a branch `eu/x` of `team`. Without
+      them the remote is what comes before the first `/`. */
+  remotes?: readonly string[];
 }
 
-const withoutRemote = (name: string) => name.slice(name.indexOf("/") + 1);
-const remoteOf = (name: string) => name.slice(0, Math.max(name.indexOf("/"), 0));
-
-/** Remote branches drawn inside the local label: its upstream, when it names the same
-    branch on the same commit, and that branch on every other remote at that commit. */
-function twins(local: Branch, remotes: ReadonlyMap<string, Branch>): Branch[] {
+/** The upstream drawn inside the local label: the remote-tracking branch configured as
+    upstream (a local or a gone upstream is not in `remotes`), on the same commit. */
+function joinedUpstream(local: Branch, remotes: ReadonlyMap<string, Branch>): Branch | undefined {
   const upstream = local.upstream === null ? undefined : remotes.get(local.upstream);
-  if (!upstream || upstream.oid !== local.oid || withoutRemote(upstream.name) !== local.name) return [];
-  const others = [...remotes.values()]
-    .filter((r) => r !== upstream && r.oid === local.oid && withoutRemote(r.name) === local.name)
-    .sort((a, b) => a.name.localeCompare(b.name));
-  return [upstream, ...others];
+  return upstream?.oid === local.oid ? upstream : undefined;
+}
+
+function prefixOf(upstream: string, local: string, configured: readonly string[] | undefined): string {
+  const cut = upstream.indexOf("/");
+  const split = configured
+    ? splitUpstream(upstream, configured)
+    : cut < 0
+      ? null
+      : { remote: upstream.slice(0, cut), branch: upstream.slice(cut + 1) };
+  return split?.branch === local ? split.remote : upstream;
+}
+
+/** The two refs of a joined label, each as a label of its own: what the menu, the tooltip
+    and the double click of that part act on. `remote` is null for any other label. */
+export function labelParts(label: RefLabel): { remote: RefLabel | null; local: RefLabel } {
+  if (label.upstream === undefined) return { remote: null, local: label };
+  const { upstream: _upstream, prefix: _prefix, ...local } = label;
+  return {
+    remote: { text: label.upstream, kind: "remote" },
+    local: { ...local, text: label.name ?? label.text },
+  };
 }
 
 export function shortRef(name: string): string {
@@ -109,14 +130,13 @@ export function refLabels(
   for (const branch of branches) {
     if (branch.kind !== "local") continue;
     const kind: RefKind = branch.name === headBranch ? "head" : "local";
-    const found = twins(branch, remotes);
-    for (const twin of found) joined.add(twin.name);
-    const names = found.map((twin) => remoteOf(twin.name));
-    const label: RefLabel =
-      found.length === 0
-        ? { text: shortRef(branch.name), kind }
-        : { text: `${names.join(",")}=${branch.name}`, kind, remotes: names, name: branch.name };
-    const lines = found.length === 0 ? [] : [branch.name, ...found.map((twin) => twin.name)];
+    const upstream = joinedUpstream(branch, remotes);
+    if (upstream) joined.add(upstream.name);
+    const prefix = upstream && prefixOf(upstream.name, branch.name, extras.remotes);
+    const label: RefLabel = !upstream
+      ? { text: shortRef(branch.name), kind }
+      : { text: `${prefix}=${branch.name}`, kind, upstream: upstream.name, prefix, name: branch.name };
+    const lines = upstream ? [branch.name, upstream.name] : [];
     const worktree = held.get(branch.name);
     if (worktree) {
       label.worktree = worktree;

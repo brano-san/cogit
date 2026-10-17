@@ -68,8 +68,8 @@
 {#each refs.shown as label (refLabelKey(label))}
   <RefCapsule
     {label}
-    onmenu={onrefmenu && ((event) => onrefmenu(label, event))}
-    onactivate={onrefactivate && (() => onrefactivate(label))}
+    onmenu={onrefmenu && ((event, ref) => onrefmenu(ref, event))}
+    onactivate={onrefactivate && ((ref) => onrefactivate(ref))}
   />
 {/each}
 {#if refs.hidden.length > 0}

@@ -64,6 +64,7 @@
   import { compareView } from "$stores/compare-view.svelte";
   import { graph } from "$stores/graph.svelte";
   import { unpushed } from "$stores/unpushed.svelte";
+  import { network } from "$stores/network.svelte";
   import {
     GRAPH_MODE_DEFAULTS,
     branchTips,
@@ -396,7 +397,12 @@
       repository.current?.branches ?? [],
       repository.current?.tags ?? [],
       repository.current?.head,
-      { stashes: stashes.entries, worktrees: worktrees.entries },
+      {
+        stashes: stashes.entries,
+        worktrees: worktrees.entries,
+        // Not read yet: the first `/` until they are, rather than `origin/main=main`.
+        remotes: network.remotes.length > 0 ? network.remotes : undefined,
+      },
     ),
   );
   const stashOids = $derived(new Set(stashes.entries.map((entry) => entry.oid)));
