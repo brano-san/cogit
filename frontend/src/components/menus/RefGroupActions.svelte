@@ -236,6 +236,7 @@
     }
     const name = await prompt.ask({
       title: `Add Branch at ${shortOid(oid)}`,
+      refName: true,
       label: "Name",
       confirm: "Add Branch",
       validate: (value) => branchNameProblem(value, repository.localBranches.map((entry) => entry.name)),
@@ -291,6 +292,7 @@
   async function rename(id: RepoId, remote: string) {
     const to = await prompt.ask({
       title: `Rename ${remote}`,
+      refName: true,
       label: "New name",
       value: remote,
       confirm: "Rename",

@@ -1,7 +1,7 @@
 <script lang="ts">
   import Dialog from "$components/common/Dialog.svelte";
   import Select from "$components/common/Select.svelte";
-  import { promptProblem } from "$lib/names";
+  import { promptProblem, refNameField } from "$lib/names";
 
   /** One line of input or one choice from a list — the two things `ask` cannot do. */
   interface Props {
@@ -13,6 +13,8 @@
     confirm?: string;
     /** Returns why the value is unusable, or null when it will do. */
     validate?: (value: string) => string | null;
+    /** A branch, tag or remote name: a space typed is an underscore. */
+    refName?: boolean;
     onaccept: (value: string) => void;
     onclose: () => void;
   }
@@ -24,6 +26,7 @@
     choices,
     confirm = "OK",
     validate,
+    refName = false,
     onaccept,
     onclose,
   }: Props = $props();
@@ -55,7 +58,7 @@
         onchange={(next) => (text = next)}
       />
     {:else}
-      <input bind:this={field} type="text" bind:value={text} />
+      <input bind:this={field} type="text" bind:value={text} use:refNameField={refName} />
     {/if}
   </label>
 

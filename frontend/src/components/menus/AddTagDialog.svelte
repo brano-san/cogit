@@ -1,5 +1,6 @@
 <script lang="ts">
   import { shortOid } from "$lib/format";
+  import { refNameField } from "$lib/names";
   import Dialog from "$components/common/Dialog.svelte";
   import { tagNameHint } from "$lib/tag-dialog";
 
@@ -70,6 +71,7 @@
         bind:this={field}
         type="text"
         bind:value={name}
+        use:refNameField
         oninput={() => (touched = true)}
         placeholder="v1.0"
         aria-invalid={touched && problem !== null}

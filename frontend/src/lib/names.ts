@@ -41,3 +41,27 @@ export function promptProblem(
 export function optional(): string | null {
   return null;
 }
+
+/** A ref name has no spaces: a space typed or pasted into one is an underscore. Same
+    length, so the caret stays; null when there is nothing to change. */
+export function typedRefName(value: string, start: number, end: number): { value: string; start: number; end: number } | null {
+  return value.includes(" ") ? { value: value.replaceAll(" ", "_"), start, end } : null;
+}
+
+/** On a branch, tag or remote name field. Capture runs before `bind:value` reads it. */
+export function refNameField(field: HTMLInputElement, on = true) {
+  const typed = () => {
+    if (!on) return;
+    const next = typedRefName(field.value, field.selectionStart ?? 0, field.selectionEnd ?? 0);
+    if (!next) return;
+    field.value = next.value;
+    field.setSelectionRange(next.start, next.end);
+  };
+  field.addEventListener("input", typed, true);
+  return {
+    update(next = true) {
+      on = next;
+    },
+    destroy: () => field.removeEventListener("input", typed, true),
+  };
+}

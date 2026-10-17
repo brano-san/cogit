@@ -1649,6 +1649,7 @@ ${event.error}`,
     if (!id) return;
     const name = await prompt.ask({
       title: "Recover Commit",
+      refName: true,
       label: "Branch name for the recovered commit",
       value: "recovered",
       confirm: "Create Branch",
@@ -1805,6 +1806,7 @@ ${event.error}`,
       if (action === "createBranch") {
         const name = await prompt.ask({
           title: "Create Branch",
+          refName: true,
           label: "Name for the new branch at this commit",
           confirm: "Create Branch",
           validate: (value) => branchNameProblem(value, repository.localBranches.map((entry) => entry.name)),
@@ -2549,6 +2551,7 @@ ${event.error}`,
     if (!id) return;
     const name = await prompt.ask({
       title: `Start a ${kind}`,
+      refName: true,
       label: "Name",
       confirm: "Start",
       validate: (value) => branchNameProblem(value, repository.localBranches.map((entry) => entry.name)),
@@ -2579,6 +2582,7 @@ ${event.error}`,
     }
     const tag = await prompt.ask({
       title: `Finish ${branch.full}`,
+      refName: true,
       label: "Tag for the release, or empty for none",
       value: branch.name,
       confirm: "Finish",
@@ -4273,6 +4277,7 @@ ${event.error}`,
       choices={prompt.open.choices}
       confirm={prompt.open.confirm}
       validate={prompt.open.validate}
+      refName={prompt.open.refName}
       onaccept={(value) => prompt.accept(value)}
       onclose={() => prompt.cancel()}
     />

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { branchNameProblem, optional, presetId, presetNameProblem, promptProblem, textProblem } from "./names";
+import { branchNameProblem, typedRefName, optional, presetId, presetNameProblem, promptProblem, textProblem } from "./names";
 
 describe("a preset's name", () => {
   it("makes the id from its Latin letters and digits", () => {
@@ -52,5 +52,17 @@ describe("promptProblem", () => {
   it("asks for something when there is no validator", () => {
     expect(promptProblem("  ")).toBe("Enter a value.");
     expect(promptProblem("x")).toBeNull();
+  });
+});
+
+describe("typedRefName", () => {
+  it("types an underscore for a space, the caret where it was", () => {
+    expect(typedRefName("fix login", 9, 9)).toEqual({ value: "fix_login", start: 9, end: 9 });
+    expect(typedRefName("a b", 2, 2)).toEqual({ value: "a_b", start: 2, end: 2 });
+  });
+
+  it("turns every space of a paste, and leaves a name without spaces as it is", () => {
+    expect(typedRefName("new feature x", 13, 13)?.value).toBe("new_feature_x");
+    expect(typedRefName("feature/x", 3, 5)).toBeNull();
   });
 });

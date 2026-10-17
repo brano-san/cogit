@@ -5,6 +5,8 @@ export interface PromptRequest {
   /** A list to pick from instead of a free text field. */
   choices?: string[];
   confirm: string;
+  /** A branch, tag or remote name: a space typed is an underscore. */
+  refName?: boolean;
   /** Why the value will not do, or null. Every caller names its rule (`$lib/names`): a
       default one checked group names, preset names and an optional tag as branch names. */
   validate: (value: string) => string | null;

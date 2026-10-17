@@ -3,6 +3,7 @@
   import Dialog from "$components/common/Dialog.svelte";
   import Radio from "$components/common/Radio.svelte";
   import { shortOid } from "$lib/format";
+  import { refNameField } from "$lib/names";
   import type { Branch } from "$lib/ipc";
   import { branchFacts, pickProblem, type CheckoutChoice, type CheckoutOffer, type CheckoutPick } from "$lib/ref-checkout";
 
@@ -67,6 +68,7 @@
             <input
               type="text"
               bind:value={name}
+              use:refNameField
               aria-label="Local branch name"
               aria-invalid={choice === "create" && problem !== null}
               aria-describedby={choice === "create" && problem ? "checkout-name-problem" : undefined}

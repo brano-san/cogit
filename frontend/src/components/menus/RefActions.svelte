@@ -758,6 +758,7 @@
     if (!oid) return;
     const name = await prompt.ask({
       title: `Add Branch at ${shortOid(oid)}`,
+      refName: true,
       label: "Name",
       confirm: "Add Branch",
       validate: (value) => branchNameProblem(value, repository.localBranches.map((entry) => entry.name)),
@@ -941,6 +942,7 @@
     // A tag is checked by git on the way in; only a branch has the rule here.
     const to = await prompt.ask({
       title: `Rename ${ref.name}`,
+      refName: true,
       label: "New name",
       value: ref.name,
       confirm: "Rename",
