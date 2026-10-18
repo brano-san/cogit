@@ -97,19 +97,32 @@ impl AppState {
             row.missing = true;
             return row;
         };
-        if let Ok(git_engine::Head::Branch { name, .. }) = handle.head() {
+        // A part that cannot be read leaves its default in the row, and says why in the log.
+        let logged = |part: &'static str| {
+            move |err: &git_engine::GitError| {
+                tracing::error!(error = ?err, context = part, root = %open.root.display());
+            }
+        };
+        if let Ok(git_engine::Head::Branch { name, .. }) =
+            handle.head().inspect_err(logged("repository row: head"))
+        {
             row.branch = Some(name);
         }
-        if let Ok(branches) = handle.branches()
+        if let Ok(branches) = handle
+            .branches()
+            .inspect_err(logged("repository row: branches"))
             && let Some(current) = branches.into_iter().find(|b| b.is_head)
         {
             row.ahead = current.ahead;
             row.behind = current.behind;
         }
-        if let Ok(status) = handle.status() {
+        if let Ok(status) = handle
+            .status()
+            .inspect_err(logged("repository row: status"))
+        {
             row.dirty = !status.is_clean();
         }
-        if let Ok(state) = handle.state() {
+        if let Ok(state) = handle.state().inspect_err(logged("repository row: state")) {
             row.state = state;
         }
         row
