@@ -121,9 +121,12 @@ impl RepoHandle {
 
     /// A failed rewrite must not leave the user detached in the middle of a rebase.
     /// The steps land in the journal either way; a failed one is also logged, since the
-    /// user may be left detached. `rebase --abort` fails whenever no rebase was started.
+    /// user may be left detached. `rebase --abort` only for a rebase that was started: with
+    /// none it fails, and its error would stand beside the real one.
     fn recover(&self, branch: &str, original: &str) {
-        let _ = self.run_git(&["rebase", "--abort"]);
+        if matches!(self.state(), Ok(crate::RepoState::Rebasing)) {
+            let _ = self.run_git(&["rebase", "--abort"]);
+        }
         for step in [
             ["checkout", "--force", branch],
             ["reset", "--hard", original],

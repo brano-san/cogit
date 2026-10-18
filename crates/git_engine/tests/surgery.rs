@@ -493,3 +493,28 @@ fn splitting_off_more_files_than_a_command_line_holds_works() {
 
     assert_eq!(tree_of(&f, "HEAD"), tree);
 }
+
+// Putting things back after a failure that came before the rebase ran `rebase --abort`
+// anyway: "No rebase in progress?" was a second error over the real one.
+#[test]
+fn a_split_that_fails_before_the_rebase_aborts_no_rebase() {
+    let f = wide();
+    let target = f.oid("HEAD").unwrap();
+    let log: std::sync::Arc<std::sync::Mutex<Vec<String>>> = std::sync::Arc::default();
+    let sink = std::sync::Arc::clone(&log);
+    let repo = open(&f).with_journal(std::sync::Arc::new(move |out: git_engine::GitOutput| {
+        sink.lock().unwrap().push(out.command);
+    }));
+
+    assert!(
+        repo.split_off(&target, &["a.txt".to_owned()], "", true)
+            .is_err()
+    );
+
+    let commands = log.lock().unwrap().clone();
+    assert!(
+        !commands.iter().any(|line| line.contains("rebase --abort")),
+        "{commands:?}"
+    );
+    assert_eq!(f.oid("HEAD").unwrap(), target);
+}
