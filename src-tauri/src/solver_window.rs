@@ -1,7 +1,6 @@
 //! The Conflict Solver window: one conflicted file, three panes, in a window of its own.
 
 use git_engine::GitError;
-use tauri::Manager as _;
 
 use crate::child_window::{self, Shape};
 
@@ -68,30 +67,34 @@ pub fn reveal_or_open(
     path: &str,
     external_tool: bool,
 ) -> Result<(), GitError> {
-    for (label, window) in app.webview_windows() {
-        let shown = window
-            .url()
-            .is_ok_and(|url| is_window_for(&url, repo, path));
-        if label.starts_with("solver-") && shown {
-            let focused = window.unminimize().and_then(|()| window.set_focus());
-            let asked = if external_tool {
-                window.eval(child_window::menu_script("external-tool"))
-            } else {
-                Ok(())
-            };
-            return focused
-                .and(asked)
-                .map_err(|err| GitError::Internal(format!("cannot focus the solver: {err}")));
-        }
-    }
-    child_window::open(
+    let found = child_window::existing_or_open(
         app,
         "solver",
-        url(repo, path, external_tool),
-        title(path),
-        SHAPE,
+        (repo, path),
+        |open| is_window_for(open, repo, path),
+        || {
+            child_window::open(
+                app,
+                "solver",
+                url(repo, path, external_tool),
+                title(path),
+                SHAPE,
+            )
+        },
     )
-    .map_err(|err| GitError::Internal(format!("cannot open the Conflict Solver: {err}")))
+    .map_err(|err| GitError::Internal(format!("cannot open the Conflict Solver: {err}")))?;
+    let Some(window) = found else {
+        return Ok(());
+    };
+    let focused = window.unminimize().and_then(|()| window.set_focus());
+    let asked = if external_tool {
+        window.eval(child_window::menu_script("external-tool"))
+    } else {
+        Ok(())
+    };
+    focused
+        .and(asked)
+        .map_err(|err| GitError::Internal(format!("cannot focus the solver: {err}")))
 }
 
 #[cfg(test)]

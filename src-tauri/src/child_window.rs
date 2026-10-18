@@ -9,6 +9,7 @@
 
 use std::sync::atomic::{AtomicU32, Ordering};
 
+use tauri::Manager as _;
 use tauri::utils::config::Color;
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 
@@ -87,6 +88,67 @@ pub fn open<R: tauri::Runtime>(
     shape: Shape,
 ) -> tauri::Result<()> {
     open_with_menu(app, kind, url, title, shape, &[])
+}
+
+/// Which window shows which file, by label: one just built has no address yet, and a second
+/// request right after the first opened a second window.
+static SHOWING: parking_lot::Mutex<Vec<(String, u32, String)>> =
+    parking_lot::Mutex::new(Vec::new());
+
+/// The `kind` window already showing `path` of `repo`, for the caller to bring forward;
+/// `None` once `open` has built one. Blocks while the window is built, so never call it on
+/// the main thread.
+pub fn existing_or_open(
+    app: &tauri::AppHandle,
+    kind: &str,
+    (repo, path): (u32, &str),
+    is_for: impl Fn(&tauri::Url) -> bool,
+    open: impl FnOnce() -> tauri::Result<()>,
+) -> tauri::Result<Option<tauri::WebviewWindow>> {
+    let mut showing = SHOWING.lock();
+    showing.retain(|(label, _, _)| app.get_webview_window(label).is_some());
+    let prefix = format!("{kind}-");
+    let known = showing
+        .iter()
+        .find(|(label, r, p)| label.starts_with(&prefix) && *r == repo && p == path)
+        .and_then(|(label, _, _)| app.get_webview_window(label));
+    let found = known.or_else(|| {
+        app.webview_windows()
+            .into_iter()
+            .find_map(|(label, window)| {
+                (label.starts_with(&prefix) && window.url().is_ok_and(|url| is_for(&url)))
+                    .then_some(window)
+            })
+    });
+    if found.is_some() {
+        return Ok(found);
+    }
+    open()?;
+    if let Some(label) = newest_label(app.webview_windows().into_keys(), kind, &showing) {
+        showing.push((label, repo, path.to_owned()));
+    }
+    Ok(None)
+}
+
+/// Labels count up (`kind-N`): the newest one nobody has claimed is the window just built.
+fn newest_label(
+    labels: impl IntoIterator<Item = String>,
+    kind: &str,
+    known: &[(String, u32, String)],
+) -> Option<String> {
+    labels
+        .into_iter()
+        .filter(|label| !known.iter().any(|(taken, _, _)| taken == label))
+        .filter_map(|label| {
+            let number = label
+                .strip_prefix(kind)?
+                .strip_prefix('-')?
+                .parse::<u64>()
+                .ok()?;
+            Some((number, label))
+        })
+        .max()
+        .map(|(_, label)| label)
 }
 
 /// Same as [`open`], with a menu bar of the window's own.
@@ -236,6 +298,20 @@ fn browser_args(windows: &[tauri::utils::config::WindowConfig]) -> Option<String
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Two quick double-clicks on a conflicted file opened two Conflict Solvers: the one
+    // just built had no address yet to be recognized by.
+    #[test]
+    fn the_window_just_built_is_the_newest_label_of_its_kind_not_yet_known() {
+        let labels = ["solver-3", "editor-9", "solver-12", "solver-7", "main"].map(String::from);
+        let known = vec![("solver-12".to_owned(), 1, "a".to_owned())];
+
+        assert_eq!(
+            newest_label(labels.clone(), "solver", &known).as_deref(),
+            Some("solver-7")
+        );
+        assert_eq!(newest_label(labels, "blame", &known), None);
+    }
 
     fn labels_are_unique(taken: &[String]) -> bool {
         let mut seen = std::collections::HashSet::new();
