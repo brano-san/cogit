@@ -79,3 +79,9 @@ export function selectAllKeys(groupKeys: readonly (readonly string[])[], touched
   const at = touched !== null && touched < groupKeys.length ? touched : held >= 0 ? held : 0;
   return [...(groupKeys[at] ?? [])];
 }
+
+/** `before` while every list is the very same one: what reads it runs again only when a
+    list changed, not each time the panel builds its sections anew. */
+export function sameLists<T>(before: readonly T[], next: readonly T[]): readonly T[] {
+  return before.length === next.length && next.every((list, index) => list === before[index]) ? before : next;
+}

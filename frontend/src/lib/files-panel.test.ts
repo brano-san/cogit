@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FileEntry } from "$lib/ipc";
-import { emptyText, filesPanelList, mergedSide, mergeIndex, selectAllKeys, stagedShown, type FilesPanelInput } from "./files-panel";
+import { emptyText, filesPanelList, mergedSide, mergeIndex, selectAllKeys, sameLists, stagedShown, type FilesPanelInput } from "./files-panel";
 
 const base: FilesPanelInput = {
   content: true,
@@ -112,5 +112,23 @@ describe("selectAllKeys", () => {
     expect(selectAllKeys(panes, null, new Set(["1:c"]))).toEqual(["1:a", "1:c"]);
     expect(selectAllKeys(panes, null, new Set())).toEqual(["0:a", "0:b"]);
     expect(selectAllKeys([], null, new Set())).toEqual([]);
+  });
+});
+
+// Each click on a file made the panel build its sections anew: the content search started
+// over and the LFS column read every file again, though no file had changed.
+describe("sameLists", () => {
+  const a: FileEntry[] = [];
+  const b: FileEntry[] = [];
+
+  it("keeps the lists it had while each one is the same", () => {
+    const before = [a, b];
+    expect(sameLists(before, [a, b])).toBe(before);
+  });
+
+  it("takes the new lists once one of them changed", () => {
+    const next = [a, []];
+    expect(sameLists([a, b], next)).toBe(next);
+    expect(sameLists([a], [a, b])).toEqual([a, b]);
   });
 });

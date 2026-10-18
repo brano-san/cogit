@@ -3,7 +3,7 @@
   import { keyLetter } from "$lib/key-letter";
   import { modals } from "$lib/modal-stack";
   import { ON_MAC, primary } from "$lib/platform";
-  import { selectAllKeys } from "$lib/files-panel";
+  import { sameLists, selectAllKeys } from "$lib/files-panel";
   import { registerSelectAll } from "$lib/select-all";
   import { untrack } from "svelte";
   import FilesToolbar from "./FilesToolbar.svelte";
@@ -190,8 +190,12 @@
     contents?.set(query);
   });
 
+  // Its files, not the sections: a click on a row builds them anew with the same files.
+  let lists: readonly (readonly FileEntry[])[] = [];
+  const files = $derived((lists = sameLists(lists, sections.map((section) => section.files))));
+
   $effect(() => {
-    void sections;
+    void files;
     untrack(() => contents?.refresh());
   });
 
@@ -249,7 +253,7 @@
   $effect(() => {
     const repo = repository.current?.repo;
     if (!repo || !columns.includes("lfs")) return;
-    const paths = sections.flatMap((section) => section.files.map((file) => file.path));
+    const paths = files.flatMap((list) => list.map((file) => file.path));
     untrack(() => void remoteOps.readLfsFiles(repo, paths));
   });
 
