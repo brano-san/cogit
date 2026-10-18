@@ -63,12 +63,19 @@ pub enum WatchError {
 
 #[must_use]
 pub fn is_excluded(path: &Path) -> bool {
-    path.components().any(|component| {
-        component
-            .as_os_str()
-            .to_str()
-            .is_some_and(|name| EXCLUDED_DIRS.contains(&name))
-    })
+    // Its own name too: the folder itself reports a change while files are written into it.
+    // Windows and macOS ignore case, so `Build/` is the same folder there.
+    let excluded = |name: &str| {
+        EXCLUDED_DIRS.iter().any(|dir| {
+            if cfg!(any(windows, target_os = "macos")) {
+                dir.eq_ignore_ascii_case(name)
+            } else {
+                *dir == name
+            }
+        })
+    };
+    path.components()
+        .any(|component| component.as_os_str().to_str().is_some_and(excluded))
 }
 
 /// Inside the `.git` folder of a repository nested in the working tree — a submodule cloned
@@ -160,6 +167,14 @@ mod tests {
         assert!(is_excluded(&PathBuf::from("target/debug/build")));
         assert!(is_excluded(&PathBuf::from("frontend/node_modules/svelte")));
         assert!(!is_excluded(&PathBuf::from("src/main.rs")));
+    }
+
+    // Windows ignores case: a `Build/` written during a compile refreshed the panels each pass.
+    #[cfg(windows)]
+    #[test]
+    fn an_output_folder_is_excluded_whatever_its_case_on_windows() {
+        assert!(is_excluded(&PathBuf::from("Build/out.obj")));
+        assert!(is_excluded(&PathBuf::from("app/Node_Modules/x/index.js")));
     }
 
     #[test]
