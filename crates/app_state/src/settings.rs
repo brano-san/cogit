@@ -19,14 +19,19 @@ pub fn path(config_dir: &Path) -> PathBuf {
 /// not keep the application from starting with defaults.
 #[must_use]
 pub fn read_document(config_dir: &Path) -> Value {
-    match stored(config_dir) {
-        Ok(Stored::Document(map)) => Value::Object(map),
-        Ok(Stored::Missing | Stored::Damaged(_)) => Value::Object(Map::new()),
-        Err(err) => {
-            tracing::error!(error = ?err, context = "reading settings.json; defaults for now");
-            Value::Object(Map::new())
-        }
-    }
+    try_read_document(config_dir).unwrap_or_else(|err| {
+        tracing::error!(error = ?err, context = "reading settings.json; defaults for now");
+        Value::Object(Map::new())
+    })
+}
+
+/// As [`read_document`], but a file that exists and cannot be read now is an error: a page
+/// that took it for empty would save its defaults over the user's settings.
+pub fn try_read_document(config_dir: &Path) -> std::io::Result<Value> {
+    Ok(match stored(config_dir)? {
+        Stored::Document(map) => Value::Object(map),
+        Stored::Missing | Stored::Damaged(_) => Value::Object(Map::new()),
+    })
 }
 
 const USER_THEME_FILE: &str = "user-theme.json";

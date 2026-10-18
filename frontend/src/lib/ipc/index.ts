@@ -944,7 +944,7 @@ export async function reportMemory(sample: RendererMemory) {
 
 /** The settings document as JSON text; Rust owns the file (R-81). */
 export async function readSettings(): Promise<string> {
-  return await commands.readSettings();
+  return unwrap(await commands.readSettings());
 }
 
 /** `user-theme.json` as JSON text; `{}` when there is none. */

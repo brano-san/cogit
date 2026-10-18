@@ -500,9 +500,10 @@ export const commands = {
 	listOperations: () => typedError<Operation[], GitError>(__TAURI_INVOKE("list_operations")),
 	/**
 	 *  The settings document as JSON text. Rust owns the file because the menu and the
-	 *  logger read it before there is a window to ask.
+	 *  logger read it before there is a window to ask. An error when it exists and cannot be
+	 *  read: the page must not save its defaults over it.
 	 */
-	readSettings: () => __TAURI_INVOKE<string>("read_settings"),
+	readSettings: () => typedError<string, GitError>(__TAURI_INVOKE("read_settings")),
 	/**
 	 *  `user-theme.json` from the config directory: a partial theme laid over the chosen one.
 	 *  `{}` when there is none or it is damaged; the frontend validates the tokens.

@@ -1,7 +1,7 @@
 // clippy.toml's allow-unwrap-in-tests does not reach helpers beside `#[test]` fns.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use app_state::settings::{read_document, read_user_theme, write_key};
+use app_state::settings::{read_document, read_user_theme, try_read_document, write_key};
 use serde_json::json;
 
 fn dir() -> tempfile::TempDir {
@@ -247,4 +247,23 @@ fn a_malformed_or_non_object_user_theme_is_ignored() {
         std::fs::write(home.path().join("user-theme.json"), text).unwrap();
         assert_eq!(read_user_theme(home.path()), "{}", "{text:?}");
     }
+}
+
+// A file another program held at start read as `{}`: the page could not tell it from a
+// fresh install, and its next save wrote defaults over every preference.
+#[test]
+fn a_file_that_cannot_be_read_is_an_error_not_an_empty_document() {
+    let home = dir();
+    std::fs::create_dir(home.path().join("settings.json")).unwrap();
+
+    assert!(try_read_document(home.path()).is_err());
+    assert_eq!(read_document(home.path()), json!({}));
+}
+
+#[test]
+fn a_missing_or_damaged_file_still_reads_as_empty() {
+    let home = dir();
+    assert_eq!(try_read_document(home.path()).unwrap(), json!({}));
+    std::fs::write(home.path().join("settings.json"), "{ nope").unwrap();
+    assert_eq!(try_read_document(home.path()).unwrap(), json!({}));
 }

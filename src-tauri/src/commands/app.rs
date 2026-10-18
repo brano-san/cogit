@@ -153,15 +153,18 @@ pub async fn open_third_party_licences(frontend: Option<String>) -> Result<(), G
 }
 
 /// The settings document as JSON text. Rust owns the file because the menu and the
-/// logger read it before there is a window to ask.
+/// logger read it before there is a window to ask. An error when it exists and cannot be
+/// read: the page must not save its defaults over it.
 #[tauri::command]
 #[specta::specta]
-pub async fn read_settings(app: tauri::AppHandle) -> String {
+pub async fn read_settings(app: tauri::AppHandle) -> Result<String, GitError> {
     let dir = tauri::Manager::state::<crate::AppContext>(&app)
         .config_dir
         .clone();
-    blocking_or_default("read_settings", move || {
-        app_state::settings::read_document(&dir).to_string()
+    blocking("read_settings", move || {
+        app_state::settings::try_read_document(&dir)
+            .map(|document| document.to_string())
+            .map_err(|err| GitError::Io(format!("cannot read the settings: {err}")))
     })
     .await
 }
