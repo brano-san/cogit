@@ -1231,11 +1231,12 @@ ${event.error}`,
     return true;
   }
 
-  /** The Commit window committed: what this window's own commit reloads, but the message. */
+  /** The Commit window committed: what this window's own commit reloads, but the message.
+      The file list too: here no `worktree.commit` read it back, so it kept the staged files. */
   async function afterCommitElsewhere(id: RepoId) {
     diff.clear();
     await repository.refreshRefs();
-    await afterMutation();
+    await afterWorkingTreeChange();
     void graph.load(id, graph.query);
   }
 
@@ -2536,7 +2537,8 @@ ${event.error}`,
     try {
       await step();
       await repository.refresh();
-      await afterMutation();
+      // A finish merges, and a conflicted merge leaves files the list has to show.
+      await afterWorkingTreeChange();
       await reloadGraph();
     } catch (err) {
       errors.report(err, "Could not run the git-flow step");
