@@ -130,3 +130,21 @@ fn an_empty_file_blames_to_nothing() {
 
     assert!(open(&f).blame("empty.txt", "HEAD").unwrap().is_empty());
 }
+
+// gix-blame follows a rename only when asked to: every line of a moved file was blamed on
+// the move, where `git blame` names the commit that wrote it.
+#[test]
+fn blame_follows_the_file_across_a_rename() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file("a.txt", "one\ntwo\nthree\n").unwrap();
+    f.git(&["add", "--", "a.txt"]).unwrap();
+    let wrote = f.commit_staged(10, "write it").unwrap();
+    f.git(&["mv", "a.txt", "b.txt"]).unwrap();
+    f.commit_staged(11, "move it").unwrap();
+    let repo = git_engine::RepoHandle::open(f.path()).unwrap();
+
+    let lines = repo.blame("b.txt", "HEAD").unwrap();
+
+    assert_eq!(lines.len(), 3);
+    assert!(lines.iter().all(|line| line.oid == wrote), "{lines:#?}");
+}

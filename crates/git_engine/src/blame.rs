@@ -120,7 +120,11 @@ impl RepoHandle {
             .blame_file(
                 path.into(),
                 suspect,
-                gix::repository::blame_file::Options::default(),
+                // Without `rewrites` a moved file is blamed on the move, line by line.
+                gix::repository::blame_file::Options {
+                    rewrites: Some(gix::diff::Rewrites::default()),
+                    ..Default::default()
+                },
             )
             .map_err(|err| GitError::InvalidState(format!("cannot blame {path}: {err}")))?;
 
