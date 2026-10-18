@@ -817,10 +817,7 @@
     settings: () => openSettings(),
     find: () => (finderOpen = true),
     pr: () => void openPullRequest(),
-    scan: () => {
-      scanOpen = true;
-      void scanEverywhere();
-    },
+    scan: () => openScan(),
     journal: () => {
       journalOpen = true;
       void safety.refresh();
@@ -2970,7 +2967,13 @@ ${event.error}`,
     await afterMutation();
   }
 
-  /** The dialog opens already looking: every drive, until a folder is chosen instead. */
+  /** The one way in, from the menu, the palette and the Repositories toolbar alike: the
+      dialog opens already looking, on every drive, until a folder is chosen instead. */
+  function openScan() {
+    scanOpen = true;
+    void scanEverywhere();
+  }
+
   async function scanEverywhere() {
     const watch = measure("scan-drives");
     await scan.run(null, 6);
@@ -3628,10 +3631,7 @@ ${event.error}`,
         >
           <RepositoriesPanel
             {opening}
-            onscan={() => {
-              scanOpen = true;
-              void browseForScan();
-            }}
+            onscan={openScan}
             onopen={pickRepository}
             onselect={(entry) => void selectRepository(entry)}
             oncontext={(row, x, y) => void repoContext(row, x, y)}

@@ -348,7 +348,7 @@
       onclick={onscan}
       disabled={repository.busy}
       title="Search for Repositories…"
-      aria-label="Scan folder for repositories"
+      aria-label="Search for repositories"
     >
       <svg viewBox="0 0 24 24" aria-hidden="true"
         ><circle cx="11" cy="11" r="6" /><path d="m20 20-4.3-4.3" /></svg
