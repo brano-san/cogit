@@ -8,7 +8,6 @@
 use diff_engine::{
     DiffOptions, DiffRow, FileDiff, PatchRequest, PatchShape, PatchSides, build_patch, diff_text,
 };
-use std::process::Command;
 
 const CASES: &[(&str, &str)] = &[
     ("x\n", "x\ny"),
@@ -29,8 +28,8 @@ fn apply(base: &str, patch: &str, reverse: bool) -> Result<String, String> {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(dir.path().join("f"), base).unwrap();
     std::fs::write(dir.path().join("p.diff"), patch).unwrap();
-    let mut git = Command::new("git");
-    git.current_dir(dir.path()).args([
+    let mut git = test_fixtures::git_command_in(dir.path());
+    git.args([
         "-c",
         "core.autocrlf=false",
         "apply",
