@@ -305,11 +305,7 @@ fn a_mutation_longer_than_the_quiet_window_does_not_echo_either() {
     std::fs::write(f.path().join("file0.txt"), "edited by us\n").unwrap();
     state.stage_paths(repo, &["file0.txt".to_owned()]).unwrap();
     // Slower than the window: the commit writes HEAD and the index after it would close.
-    std::fs::write(
-        f.path().join(".git/hooks/pre-commit"),
-        "#!/bin/sh\nsleep 1\n",
-    )
-    .unwrap();
+    slow_pre_commit(&f, 1);
     let mut events = state.subscribe();
     std::thread::sleep(std::time::Duration::from_millis(600));
     while events.try_recv().is_ok() {}
@@ -1579,11 +1575,7 @@ fn a_mutation_stays_quiet_across_a_switch_and_back() {
     let elsewhere = state.open_repository(other.path()).unwrap().repo;
     std::fs::write(f.path().join("file0.txt"), "edited by us\n").unwrap();
     state.stage_paths(repo, &["file0.txt".to_owned()]).unwrap();
-    std::fs::write(
-        f.path().join(".git/hooks/pre-commit"),
-        "#!/bin/sh\nsleep 2\n",
-    )
-    .unwrap();
+    slow_pre_commit(&f, 2);
 
     std::thread::scope(|scope| {
         let committing = scope.spawn(|| {
@@ -1608,4 +1600,15 @@ fn a_mutation_stays_quiet_across_a_switch_and_back() {
         );
         committing.join().unwrap().unwrap();
     });
+}
+
+/// Executable: git on Linux skips a hook without the bit, and the commit ran at full speed.
+fn slow_pre_commit(f: &test_fixtures::Fixture, seconds: u32) {
+    let hook = f.path().join(".git/hooks/pre-commit");
+    std::fs::write(&hook, format!("#!/bin/sh\nsleep {seconds}\n")).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
 }

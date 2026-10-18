@@ -345,10 +345,15 @@ fn every_drive_is_a_root_that_exists() {
 #[test]
 fn the_system_folders_of_a_drive_are_left_out_but_not_a_project_of_that_name() {
     let drive = drive_roots().remove(0);
-    assert!(is_system_folder(&drive.join("Windows")));
-    assert!(is_system_folder(&drive.join("program files")));
+    let (system, cased) = if cfg!(windows) {
+        ("Windows", "program files")
+    } else {
+        ("proc", "USR")
+    };
+    assert!(is_system_folder(&drive.join(system)));
+    assert!(is_system_folder(&drive.join(cased)));
     assert!(!is_system_folder(&drive.join("Work")));
-    assert!(!is_system_folder(&drive.join("src").join("Windows")));
+    assert!(!is_system_folder(&drive.join("src").join(system)));
 }
 
 // `dev`, `bin` and `lib` are the system's on Linux; on Windows `C:\dev` is where the
