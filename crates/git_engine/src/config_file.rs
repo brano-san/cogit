@@ -41,7 +41,8 @@ impl RepoHandle {
 
 /// Asked of git; a config with no entries lists nothing, and then git's rules apply.
 pub fn user_config_path() -> PathBuf {
-    let listing = bare_git(&["config", "--global", "--show-origin", "--list"])
+    // -z: otherwise git C-quotes a name with a non-ASCII letter or a backslash in it.
+    let listing = bare_git(&["config", "--global", "--show-origin", "-z", "--list"])
         .map(|output| output.stdout)
         .unwrap_or_default();
     origin_file(&listing).unwrap_or_else(|| {
@@ -50,11 +51,11 @@ pub fn user_config_path() -> PathBuf {
 }
 
 #[must_use]
+/// From a `--show-origin -z --list`: the origin, NUL, the entry, NUL, and so on.
 pub fn origin_file(listing: &str) -> Option<PathBuf> {
     listing
-        .lines()
-        .find_map(|line| line.strip_prefix("file:"))
-        .and_then(|rest| rest.split('\t').next())
+        .split('\0')
+        .find_map(|field| field.strip_prefix("file:"))
         .filter(|path| !path.is_empty())
         .map(PathBuf::from)
 }

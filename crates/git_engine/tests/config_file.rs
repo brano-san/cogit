@@ -185,12 +185,23 @@ fn a_config_that_does_not_exist_yet_reads_as_empty() {
 
 #[test]
 fn the_origin_of_the_first_entry_is_the_file_git_reads() {
-    let listing = "file:C:/Users/ada/.gitconfig\tuser.name=Ada\nfile:C:/Users/ada/.gitconfig\tuser.email=a@b\n";
+    let listing = "file:C:/Users/ada/.gitconfig\0user.name\nAda\0file:C:/Users/ada/.gitconfig\0user.email\na@b\0";
     assert_eq!(
         origin_file(listing),
         Some(PathBuf::from("C:/Users/ada/.gitconfig"))
     );
     assert_eq!(origin_file(""), None);
+}
+
+// Without -z git C-quotes the name: a Cyrillic user folder came back as
+// "C:/Users/\320\230..." in quotes, and the User config editor opened no file at all.
+#[test]
+fn the_origin_is_taken_as_git_wrote_it_not_quoted() {
+    let listing = "file:C:/Users/Иван/.gitconfig\0user.name\nИван\0";
+    assert_eq!(
+        origin_file(listing),
+        Some(PathBuf::from("C:/Users/Иван/.gitconfig"))
+    );
 }
 
 fn env(pairs: &[(&str, &str)]) -> HashMap<String, String> {
