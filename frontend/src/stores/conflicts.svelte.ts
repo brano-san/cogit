@@ -139,7 +139,9 @@ class ConflictStore {
     if (cleared !== this.#cleared) return;
     // The user may have opened the next file while Git was answering; that one stays.
     if (this.path === path) this.close();
-    await this.refresh(repo);
+    // The resolution stands: a list that cannot be read now must not keep the caller from
+    // reloading Files and the status after it.
+    await this.refresh(repo).catch((err) => notices.report(err, "Could not read the conflicted files"));
   }
 
   /** The merge window saved `path`; the main window may be showing another file by now,

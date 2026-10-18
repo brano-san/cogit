@@ -365,3 +365,16 @@ describe("a resolution that fails", () => {
     expect(conflicts.path).toBeNull();
   });
 });
+
+// The resolution was written, but the list read after it failed (a moment of index.lock):
+// the rejection skipped the caller's reload of Files and the status, and said nothing.
+describe("a list read failing after a resolution went through", () => {
+  it("still settles, and says why the list is not current", async () => {
+    await opened("a.txt");
+    vi.mocked(ipc.conflictedPaths).mockRejectedValueOnce(new Error("index.lock exists"));
+    report.mockClear();
+
+    await expect(conflicts.take(1 as never, "ours")).resolves.toBeUndefined();
+    expect(report).toHaveBeenCalledOnce();
+  });
+});
