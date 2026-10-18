@@ -66,15 +66,16 @@ pub async fn scan_for_repositories(
     on_found: tauri::ipc::Channel<ScanChunk>,
 ) -> Result<u32, GitError> {
     let app_state = state.state.clone();
-    let roots = path.map_or_else(git_engine::discover::drive_roots, |path| {
-        vec![PathBuf::from(path)]
-    });
     let depth = max_depth.clamp(1, 12) as usize;
     let run = state.state.start_read();
     let cancel = run.token();
     let _ = on_found.send(ScanChunk::Started { id: run.id() });
 
     let found = blocking("scan_for_repositories", move || {
+        // Here, not before `Started`: asking a drive letter that went offline can stall.
+        let roots = path.map_or_else(git_engine::discover::drive_roots, |path| {
+            vec![PathBuf::from(path)]
+        });
         let mut found = 0_u32;
         let mut listening = true;
         for root in &roots {

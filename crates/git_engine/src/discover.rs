@@ -26,25 +26,23 @@ const SKIP: &[&str] = &[
 ];
 
 /// Top-level folders of a drive that hold the system and installed programs, never a
-/// checkout: a scan of every drive would spend most of its time there.
-const SYSTEM: &[&str] = &[
-    "Windows",
-    "Program Files",
-    "Program Files (x86)",
-    "ProgramData",
-    "Recovery",
-    "PerfLogs",
-    "$WinREAgent",
-    "proc",
-    "sys",
-    "dev",
-    "usr",
-    "bin",
-    "sbin",
-    "lib",
-    "boot",
-    "System",
-];
+/// checkout: a scan of every drive would spend most of its time there. Each platform's
+/// own: `C:dev` is where many keep their projects.
+const SYSTEM: &[&str] = if cfg!(windows) {
+    &[
+        "Windows",
+        "Program Files",
+        "Program Files (x86)",
+        "ProgramData",
+        "Recovery",
+        "PerfLogs",
+        "$WinREAgent",
+    ]
+} else {
+    &[
+        "proc", "sys", "dev", "usr", "bin", "sbin", "lib", "boot", "System",
+    ]
+};
 
 /// Only right under a drive's root: `src/windows` in a project is still walked.
 pub fn is_system_folder(path: &Path) -> bool {
@@ -56,16 +54,56 @@ pub fn is_system_folder(path: &Path) -> bool {
             .is_some_and(|name| SYSTEM.iter().any(|skip| skip.eq_ignore_ascii_case(name)))
 }
 
-/// Every drive to scan: the lettered ones that exist on Windows, `/` elsewhere.
+/// What a drive is, as far as the search of every drive cares.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DriveKind {
+    Fixed,
+    Removable,
+    Remote,
+    Optical,
+    Other,
+}
+
+/// Local disks only: a share is walked over the network, and one mapped to WSL holds
+/// every repository of C: again under `mnt/c`.
+pub fn searched_drive(kind: DriveKind) -> bool {
+    matches!(kind, DriveKind::Fixed | DriveKind::Removable)
+}
+
+/// Every drive to scan: the local lettered ones on Windows, `/` elsewhere.
 pub fn drive_roots() -> Vec<PathBuf> {
     if cfg!(windows) {
         (b'A'..=b'Z')
             .map(|letter| PathBuf::from(format!("{}:\\", char::from(letter))))
-            .filter(|root| root.is_dir())
+            .filter(|root| searched_drive(drive_kind(root)) && root.is_dir())
             .collect()
     } else {
         vec![PathBuf::from("/")]
     }
+}
+
+#[cfg(windows)]
+#[allow(unsafe_code)]
+fn drive_kind(root: &Path) -> DriveKind {
+    use std::os::windows::ffi::OsStrExt;
+    use windows::Win32::Storage::FileSystem::GetDriveTypeW;
+    use windows::core::PCWSTR;
+    let wide: Vec<u16> = root.as_os_str().encode_wide().chain(Some(0)).collect();
+    // SAFETY: `wide` is NUL-terminated UTF-16 and outlives the call, which only reads it.
+    let kind = unsafe { GetDriveTypeW(PCWSTR(wide.as_ptr())) };
+    // DRIVE_REMOVABLE 2, DRIVE_FIXED 3, DRIVE_REMOTE 4, DRIVE_CDROM 5, DRIVE_RAMDISK 6.
+    match kind {
+        2 => DriveKind::Removable,
+        3 | 6 => DriveKind::Fixed,
+        4 => DriveKind::Remote,
+        5 => DriveKind::Optical,
+        _ => DriveKind::Other,
+    }
+}
+
+#[cfg(not(windows))]
+fn drive_kind(_root: &Path) -> DriveKind {
+    DriveKind::Fixed
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]

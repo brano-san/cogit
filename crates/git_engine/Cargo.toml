@@ -29,6 +29,8 @@ specta-typescript.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows-registry.workspace = true
+# `GetDriveTypeW`: the search of every drive keeps to local disks.
+windows.workspace = true
 
 [dev-dependencies]
 test_fixtures.workspace = true

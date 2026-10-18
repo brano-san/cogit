@@ -350,3 +350,28 @@ fn the_system_folders_of_a_drive_are_left_out_but_not_a_project_of_that_name() {
     assert!(!is_system_folder(&drive.join("Work")));
     assert!(!is_system_folder(&drive.join("src").join("Windows")));
 }
+
+// `dev`, `bin` and `lib` are the system's on Linux; on Windows `C:\dev` is where the
+// projects are, and the search of every drive found none of them.
+#[test]
+fn the_system_folders_are_those_of_the_platform() {
+    let drive = drive_roots().remove(0);
+    for name in ["dev", "bin", "lib", "usr"] {
+        assert_eq!(
+            is_system_folder(&drive.join(name)),
+            !cfg!(windows),
+            "{name}"
+        );
+    }
+}
+
+// A mapped share is walked over the network, and a W: mapped to WSL holds every C:
+// repository again under `mnt/c`: the search of every drive keeps to local ones.
+#[test]
+fn only_local_drives_are_searched() {
+    use git_engine::discover::{DriveKind, searched_drive};
+    assert!(searched_drive(DriveKind::Fixed));
+    assert!(searched_drive(DriveKind::Removable));
+    assert!(!searched_drive(DriveKind::Remote));
+    assert!(!searched_drive(DriveKind::Optical));
+}
