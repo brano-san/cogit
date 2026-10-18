@@ -63,6 +63,18 @@ describe("splitMarked", () => {
     });
     expect(split).toEqual({ markedUnstaged: ["both.txt"], markedStaged: [] });
   });
+
+  // With staged files shown in the one list it has no titled lists, so it says `{}`: two
+  // ticked files of ten read as none ticked, and Stage staged all ten.
+  it("takes the selection as it is when the list has no titled lists", () => {
+    const split = splitMarked({
+      marked: ["a.txt"],
+      unstaged: [{ path: "a.txt" }, { path: "b.txt" }],
+      staged: [],
+      bySection: {},
+    });
+    expect(split).toEqual({ markedUnstaged: ["a.txt"], markedStaged: [] });
+  });
 });
 
 describe("Stage", () => {

@@ -410,7 +410,8 @@ export function splitMarked(input: SelectionInput): {
 } {
   const unstaged = new Set(input.unstaged.map((file) => file.path));
   const staged = new Set(input.staged.map((file) => file.path));
-  const section = input.bySection;
+  // One list without titles says `{}`: its ticks are the selection itself.
+  const section = input.bySection && Object.keys(input.bySection).length > 0 ? input.bySection : null;
   const ticked = (title: string) => (section ? (section[title] ?? []) : input.marked);
   return {
     markedUnstaged: ticked("Unstaged").filter((path) => unstaged.has(path)),
