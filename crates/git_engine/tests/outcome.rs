@@ -135,6 +135,15 @@ fn an_environment_before_git_is_not_taken_for_the_subcommand() {
     );
 }
 
+// A repository under `O'Brien` titled a refused commit "Brien/.git/x' git … failed".
+#[test]
+fn an_environment_value_with_an_apostrophe_is_skipped_whole() {
+    assert_eq!(
+        operation_label(r"GIT_INDEX_FILE='C:/Users/O'\''Brien/.git/x' git commit -m wip"),
+        "Commit"
+    );
+}
+
 // Rebase from the menu runs with --autostash: git exits 0 when putting the stash back
 // conflicts, with no `warning:` prefix, so the conflicted files came with no notice at all.
 #[test]

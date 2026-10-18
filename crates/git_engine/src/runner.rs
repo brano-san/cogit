@@ -296,7 +296,11 @@ impl RepoHandle {
         input: Option<&[u8]>,
     ) -> Result<GitOutput> {
         let index = index.to_string_lossy();
-        let command = format!("GIT_INDEX_FILE='{index}' {}", redact_command(args));
+        let command = format!(
+            "GIT_INDEX_FILE={} {}",
+            shell_word(&index),
+            redact_command(args)
+        );
         let env = [("GIT_INDEX_FILE", index.as_ref()), LITERAL[0]];
         self.spawn_as(command, args, false, &env, input)
     }

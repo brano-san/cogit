@@ -191,7 +191,8 @@ fn subcommand_of(command_line: &str) -> (Option<String>, Vec<String>) {
     (None, Vec::new())
 }
 
-/// `GIT_INDEX_FILE='…' git commit` → `git commit`; the quoted value may hold spaces.
+/// `GIT_INDEX_FILE='…' git commit` → `git commit`; the value is one sh word, which may
+/// hold spaces and an apostrophe written `'\''`.
 fn after_environment(line: &str) -> &str {
     let Some((name, value)) = line.split_once('=') else {
         return line;
@@ -199,11 +200,19 @@ fn after_environment(line: &str) -> &str {
     if name.is_empty() || !name.chars().all(|c| c.is_ascii_uppercase() || c == '_') {
         return line;
     }
-    let rest = match value.strip_prefix('\'') {
-        Some(quoted) => quoted.split_once('\'').map_or("", |(_, rest)| rest),
-        None => value.split_once(' ').map_or("", |(_, rest)| rest),
-    };
-    rest.trim_start()
+    let mut quoted = false;
+    let mut chars = value.char_indices();
+    while let Some((at, c)) = chars.next() {
+        match c {
+            '\'' => quoted = !quoted,
+            '\\' if !quoted => {
+                chars.next();
+            }
+            ' ' if !quoted => return value[at..].trim_start(),
+            _ => {}
+        }
+    }
+    ""
 }
 
 /// `cherry-pick` reads as `Cherry-pick`, not `Cherry-Pick`: it is one word to a user.
