@@ -1,3 +1,4 @@
+import { untrack } from "svelte";
 import { authorsOf, keyOf, mergeRows, type Commitish } from "$lib/avatars";
 import { avatarWindow, avatarsFor, setAvatars, type Author, type AvatarRow } from "$lib/ipc";
 
@@ -15,7 +16,9 @@ class AvatarStore {
 
   /** Follows the setting, which is the only thing that turns the cache directory on. */
   async apply(wanted: boolean): Promise<void> {
-    if (wanted === this.enabled) return;
+    // Untracked: called from an effect, a failure turning it back off re-ran the effect,
+    // which asked again, for ever.
+    if (wanted === untrack(() => this.enabled)) return;
     this.enabled = wanted;
     try {
       await setAvatars(wanted);
