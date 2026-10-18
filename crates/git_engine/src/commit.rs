@@ -252,6 +252,7 @@ impl RepoHandle {
     pub fn commit_signature(&self, rev: &str) -> Result<SignatureCheck> {
         let text = self.read_git(&[
             "log",
+            "--no-show-signature",
             "-1",
             "--no-walk",
             "--format=%G?%x00%GS%x00%GK%x00%GG",

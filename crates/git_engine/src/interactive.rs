@@ -114,6 +114,7 @@ impl RepoHandle {
         // What git lists itself: no merge commits, parents before children.
         let listing = self.read_git(&[
             "log",
+            "--no-show-signature",
             "--reverse",
             "--no-merges",
             "--topo-order",

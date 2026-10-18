@@ -53,6 +53,7 @@ impl RepoHandle {
             "-c",
             "core.quotepath=off",
             "log",
+            "--no-show-signature",
             "-M",
             "-z",
             "--name-status",

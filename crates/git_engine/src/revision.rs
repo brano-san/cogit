@@ -42,6 +42,7 @@ impl RepoHandle {
         let shown = self
             .probe(&[
                 "show",
+                "--no-show-signature",
                 "-s",
                 "--format=%h%x00%ad%x00%s",
                 "--date=unix",

@@ -220,6 +220,7 @@ impl RepoHandle {
             "-c",
             "core.quotepath=off",
             "log",
+            "--no-show-signature",
             "-L",
             &range,
             &count,
