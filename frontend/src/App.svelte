@@ -621,7 +621,11 @@
   ) {
     void diff.afterWrite(paths, rereadDiff);
     const id = repository.current?.repo;
+    const epoch = repository.epoch;
     const conflicted = state && id ? repository.applyState(id, state) : await repository.refreshStatus();
+    // Another repository took the panels during a slow status read: the reads below would
+    // start after its own and, being newer, put this one's stashes and remotes in its place.
+    if (repository.epoch !== epoch) return;
     // One store that cannot read must not cancel the others, nor the diff and the graph
     // after them.
     const settled = await Promise.allSettled([
