@@ -331,9 +331,10 @@ pub fn build_patch(
     Ok(format!("{header}--- {from}\n+++ {to}\n{body}"))
 }
 
-/// The diff shows a missing final newline as an empty last row on the side that has the
-/// newline, with the open line itself as context. The patch needs it as git sees it: the
-/// open line deleted and inserted again with the other ending, selected with the empty row.
+/// The diff shows a missing final newline as an empty row past the end of the side that
+/// has the newline. The patch needs it as git sees it. With the open line as context, that
+/// line is deleted and inserted again with the other ending, selected with the empty row.
+/// With the open line changed anyway, its own row carries its ending and the empty row goes.
 fn unfold_open_end(request: &PatchRequest, old: &[Line<'_>], new: &[Line<'_>]) -> PatchRequest {
     let mut request = request.clone();
     let open = |side: &[Line<'_>]| side.last().is_some_and(|line| line.ending.is_empty());
@@ -341,20 +342,20 @@ fn unfold_open_end(request: &PatchRequest, old: &[Line<'_>], new: &[Line<'_>]) -
     let Some(hunk) = request.hunks.last_mut() else {
         return request;
     };
-    let (on_old, number) = match hunk.rows.last() {
-        Some(DiffRow::Insert { new, text, .. })
-            if text.is_empty() && *new == new_len + 1 && open(old) =>
-        {
-            (false, *new)
-        }
-        Some(DiffRow::Delete { old, text, .. })
-            if text.is_empty() && *old == old_len + 1 && open(new) =>
-        {
-            (true, *old)
-        }
-        _ => return request,
+    // Not always the last row: the insertions of the same change come after it.
+    let phantom = hunk.rows.iter().position(|row| match row {
+        DiffRow::Insert { new, text, .. } => text.is_empty() && *new == new_len + 1 && open(old),
+        DiffRow::Delete { old, text, .. } => text.is_empty() && *old == old_len + 1 && open(new),
+        DiffRow::Context { .. } => false,
+    });
+    let Some(index) = phantom else {
+        return request;
     };
-    hunk.rows.pop();
+    let (on_old, number) = match hunk.rows.remove(index) {
+        DiffRow::Delete { old, .. } => (true, old),
+        DiffRow::Insert { new, .. } => (false, new),
+        DiffRow::Context { .. } => unreachable!(),
+    };
     let selected = if on_old {
         hunk.old_lines = hunk.old_lines.saturating_sub(1);
         request.selected_deletes.contains(&number)

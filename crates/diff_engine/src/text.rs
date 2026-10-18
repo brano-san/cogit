@@ -135,7 +135,8 @@ pub fn diff_text(old: &str, new: &str, options: &DiffOptions) -> FileDiff {
         new: lacks_final_newline(&new_text),
     };
 
-    if !old_text.is_empty() && !new_text.is_empty() && open.old != open.new {
+    let phantom = !old_text.is_empty() && !new_text.is_empty() && open.old != open.new;
+    if phantom {
         if !open.old {
             old_lines.push("");
         } else if !open.new {
@@ -143,8 +144,30 @@ pub fn diff_text(old: &str, new: &str, options: &DiffOptions) -> FileDiff {
         }
     }
 
-    let old_keys: Vec<Cow<'_, str>> = keys(&old_lines, options);
-    let new_keys: Vec<Cow<'_, str>> = keys(&new_lines, options);
+    let mut old_keys: Vec<Cow<'_, str>> = keys(&old_lines, options);
+    let mut new_keys: Vec<Cow<'_, str>> = keys(&new_lines, options);
+    // A key never holds a newline (lines are split on it), so these match no real line.
+    // The empty row standing for a newline only one side has is no blank line of the
+    // other: matched with one, it named a line the file does not have and staging failed.
+    if phantom {
+        let side = if open.old {
+            &mut new_keys
+        } else {
+            &mut old_keys
+        };
+        if let Some(last) = side.last_mut() {
+            *last = Cow::Borrowed("\n");
+        }
+    }
+    // Both sides open: as git compares them, a last line without its newline is not the
+    // same line with one on the other side, or staging kept a newline the file lacks.
+    if open.old && open.new {
+        for side in [&mut old_keys, &mut new_keys] {
+            if let Some(last) = side.last_mut() {
+                *last = Cow::Owned(format!("{last}\n"));
+            }
+        }
+    }
 
     let mut interner = Interner::new(old_keys.len() + new_keys.len());
     let before: Vec<Token> = old_keys

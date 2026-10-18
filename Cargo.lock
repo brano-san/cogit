@@ -1144,6 +1144,7 @@ dependencies = [
  "similar 3.2.0",
  "specta",
  "specta-typescript",
+ "tempfile",
  "test_fixtures",
  "tree-sitter",
  "tree-sitter-cpp",
