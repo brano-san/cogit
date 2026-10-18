@@ -13,7 +13,7 @@
   import { tokenColor } from "$lib/theme-colors";
   import { themeStore } from "$stores/theme.svelte";
   import { LAYERS, nodeStroke, opaqueInk, segmentStroke, type RowPaint } from "$lib/graph-style";
-  import { canvasBox, drawsNow, type CanvasBox } from "$lib/canvas-frame";
+  import { canvasBox, drawsNow, subpixelOffset, type CanvasBox } from "$lib/canvas-frame";
   import { settings } from "$stores/settings.svelte";
   import type { GraphRow } from "$lib/ipc";
 
@@ -92,8 +92,14 @@
     canvas.style.height = `${box.cssHeight}px`;
     drawnBox = box;
     const ratio = dpr > 0 ? dpr : 1;
-    context.setTransform(ratio, 0, 0, ratio, 0, 0);
-    context.clearRect(0, 0, box.cssWidth, box.cssHeight);
+    // Off the device-pixel grid the compositor resamples the bitmap and blurs every line: the
+    // canvas moves back onto the grid and the drawing forward by as much, level with the rows.
+    const host = canvas.parentElement?.getBoundingClientRect();
+    const off = host ? subpixelOffset(host.left, host.top, ratio) : { x: 0, y: 0 };
+    canvas.style.transform = off.x || off.y ? `translate(${-off.x / ratio}px, ${-off.y / ratio}px)` : "";
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.setTransform(ratio, 0, 0, ratio, off.x, off.y);
     context.imageSmoothingEnabled = true;
     context.lineCap = "round";
     context.lineJoin = "round";
@@ -121,13 +127,21 @@
     // Grey first, branch colours over it, the main line on top: where lines cross, the one
     // the eye follows wins.
     for (let layer = 0; layer < LAYERS; layer++) {
+      // One path per look: a line's segments meet at every row edge, and stroked one by one
+      // their round caps were painted twice there, a tick across the line on every row.
+      const strokes = new Map<string, { style: string; width: number; path: Path2D }>();
       for (const row of rows) {
         for (const [index, segment] of row.layout.segments.entries()) {
           const look = segmentStroke(segment, index, row.paint, options);
           if (look.layer !== layer) continue;
-          context.strokeStyle = ink(look.token, look.alpha);
-          context.lineWidth = look.width;
-          context.beginPath();
+          const style = ink(look.token, look.alpha);
+          const key = `${style} ${look.width}`;
+          let stroke = strokes.get(key);
+          if (!stroke) {
+            stroke = { style, width: look.width, path: new Path2D() };
+            strokes.set(key, stroke);
+          }
+          const { path } = stroke;
           const curve = segment.arrow
             ? null
             : segmentCurve(segment, row.listRow, scrollTop, {
@@ -137,23 +151,27 @@
           // Across the Working Tree row to where the line in HEAD's row starts.
           if (curve && headerRow > 0 && row.listRow === headRow && segment.span !== "bottom") {
             const x = laneX(segment.from);
-            context.moveTo(x, headerRow * GRAPH.rowHeight - scrollTop);
-            context.lineTo(x, Math.min(curve.y1, curve.y2));
+            path.moveTo(x, headerRow * GRAPH.rowHeight - scrollTop);
+            path.lineTo(x, Math.min(curve.y1, curve.y2));
           }
           if (segment.arrow) {
             const stub = arrowStub(segment, row.listRow, scrollTop);
-            context.moveTo(stub.x1, stub.y1);
-            context.lineTo(stub.x2, stub.y2);
-            context.moveTo(stub.left.x, stub.left.y);
-            context.lineTo(stub.x2, stub.y2);
-            context.lineTo(stub.right.x, stub.right.y);
+            path.moveTo(stub.x1, stub.y1);
+            path.lineTo(stub.x2, stub.y2);
+            path.moveTo(stub.left.x, stub.left.y);
+            path.lineTo(stub.x2, stub.y2);
+            path.lineTo(stub.right.x, stub.right.y);
           } else if (curve) {
-            context.moveTo(curve.x1, curve.y1);
-            if (curve.x1 === curve.x2) context.lineTo(curve.x2, curve.y2);
-            else context.bezierCurveTo(curve.cx1, curve.cy1, curve.cx2, curve.cy2, curve.x2, curve.y2);
+            path.moveTo(curve.x1, curve.y1);
+            if (curve.x1 === curve.x2) path.lineTo(curve.x2, curve.y2);
+            else path.bezierCurveTo(curve.cx1, curve.cy1, curve.cx2, curve.cy2, curve.x2, curve.y2);
           }
-          context.stroke();
         }
+      }
+      for (const { style, width, path } of strokes.values()) {
+        context.strokeStyle = style;
+        context.lineWidth = width;
+        context.stroke(path);
       }
     }
 

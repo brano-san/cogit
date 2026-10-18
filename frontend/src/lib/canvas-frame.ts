@@ -29,3 +29,14 @@ export function canvasBox(width: number, height: number, dpr: number): CanvasBox
 export function drawsNow(drawn: CanvasBox | null, next: CanvasBox): boolean {
   return drawn === null || drawn.pixelWidth !== next.pixelWidth || drawn.pixelHeight !== next.pixelHeight;
 }
+
+/** How far past the device-pixel grid a box at (`left`, `top`) CSS px starts, in device
+    pixels. A canvas off the grid is resampled by the compositor, and every line blurs. */
+export function subpixelOffset(left: number, top: number, dpr: number): { x: number; y: number } {
+  const ratio = dpr > 0 ? dpr : 1;
+  const past = (css: number) => {
+    const device = css * ratio;
+    return Math.abs(device - Math.round(device)) < 1e-6 ? 0 : device - Math.floor(device);
+  };
+  return { x: past(left), y: past(top) };
+}
