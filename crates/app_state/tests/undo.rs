@@ -1567,3 +1567,45 @@ fn a_rollback_refuses_to_overwrite_an_untracked_file() {
         assert_eq!(text(&f, "s.json"), "PRECIOUS\n");
     }
 }
+
+// The quiet window lived in the watcher: switching to another repository and back during a
+// long mutation started a new watcher that knew nothing of it, and the panels reloaded on
+// every write of the git process still running.
+#[test]
+fn a_mutation_stays_quiet_across_a_switch_and_back() {
+    let f = test_fixtures::linear(1).unwrap();
+    let other = test_fixtures::linear(1).unwrap();
+    let (state, repo) = open(&f);
+    let elsewhere = state.open_repository(other.path()).unwrap().repo;
+    std::fs::write(f.path().join("file0.txt"), "edited by us\n").unwrap();
+    state.stage_paths(repo, &["file0.txt".to_owned()]).unwrap();
+    std::fs::write(
+        f.path().join(".git/hooks/pre-commit"),
+        "#!/bin/sh\nsleep 2\n",
+    )
+    .unwrap();
+
+    std::thread::scope(|scope| {
+        let committing = scope.spawn(|| {
+            state.commit(
+                repo,
+                &git_engine::CommitRequest {
+                    message: "slow hook".to_owned(),
+                    amend: false,
+                    no_verify: false,
+                    signoff: false,
+                    only: Vec::new(),
+                },
+            )
+        });
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        state.show_repository(Some(elsewhere));
+        state.show_repository(Some(repo));
+
+        assert!(
+            state.watcher_is_quiet(repo),
+            "the watcher started again must know the commit is still running"
+        );
+        committing.join().unwrap().unwrap();
+    });
+}

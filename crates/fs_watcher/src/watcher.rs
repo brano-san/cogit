@@ -15,10 +15,42 @@ use std::time::{Duration, Instant};
 /// outlive it (doc/12-risks.md, R-25).
 pub const DEFAULT_QUIET: Duration = Duration::from_millis(DEBOUNCE_MS * 4);
 
-pub struct RepoWatcher {
-    paused: Arc<AtomicBool>,
+/// The quiet window of one repository. Kept by whoever watches it rather than by one
+/// watcher: switched away from and back to during a long mutation, the repository gets a
+/// new watcher, which must still know a git process of ours is writing.
+#[derive(Debug, Clone, Default)]
+pub struct Silence {
     quiet_until: Arc<Mutex<Option<Instant>>>,
     held: Arc<AtomicUsize>,
+}
+
+impl Silence {
+    /// Only ever extends: a second mutation must not cut the first one's window short.
+    pub fn quiet_for(&self, duration: Duration) {
+        extend(&self.quiet_until, duration);
+    }
+
+    /// Quiet for as long as the guard lives, then for the debounce that trails the last
+    /// write (R-445). A timer alone closed in the middle of a long git process.
+    #[must_use]
+    pub fn hold(&self) -> QuietHold {
+        self.held.fetch_add(1, Ordering::SeqCst);
+        QuietHold {
+            held: Arc::clone(&self.held),
+            quiet_until: Arc::clone(&self.quiet_until),
+        }
+    }
+
+    /// Whether a quiet window is open right now.
+    #[must_use]
+    pub fn is_quiet(&self) -> bool {
+        quiet(&self.held, &self.quiet_until)
+    }
+}
+
+pub struct RepoWatcher {
+    paused: Arc<AtomicBool>,
+    silence: Silence,
     /// Cleared when the watched folder is removed or moved: notify drops its watch then and
     /// says nothing more.
     alive: Arc<AtomicBool>,
@@ -37,29 +69,43 @@ impl RepoWatcher {
         common_dir: &Path,
         on_change: impl Fn(RepoChanged) + Send + 'static,
     ) -> Result<Self, WatchError> {
-        Self::start_with(root, git_dir, common_dir, on_change, |watcher, root| {
-            watch(watcher, root, RecursiveMode::Recursive)
-        })
+        Self::start_silenced(root, git_dir, common_dir, Silence::default(), on_change)
+    }
+
+    /// `start` sharing a quiet window its owner keeps (see [`Silence`]).
+    pub fn start_silenced(
+        root: &Path,
+        git_dir: &Path,
+        common_dir: &Path,
+        silence: Silence,
+        on_change: impl Fn(RepoChanged) + Send + 'static,
+    ) -> Result<Self, WatchError> {
+        Self::start_with(
+            root,
+            git_dir,
+            common_dir,
+            silence,
+            on_change,
+            |watcher, root| watch(watcher, root, RecursiveMode::Recursive),
+        )
     }
 
     fn start_with(
         root: &Path,
         git_dir: &Path,
         common_dir: &Path,
+        silence: Silence,
         on_change: impl Fn(RepoChanged) + Send + 'static,
         watch_root: impl FnOnce(&mut RecommendedWatcher, &Path) -> Result<(), WatchError>,
     ) -> Result<Self, WatchError> {
         let paused = Arc::new(AtomicBool::new(false));
-        let quiet_until = Arc::new(Mutex::new(None));
-        let held = Arc::new(AtomicUsize::new(0));
         let alive = Arc::new(AtomicBool::new(true));
         let route = Route {
             root: root.to_path_buf(),
             git_dir: git_dir.to_path_buf(),
             common_dir: common_dir.to_path_buf(),
             paused: Arc::clone(&paused),
-            quiet_until: Arc::clone(&quiet_until),
-            held: Arc::clone(&held),
+            silence: silence.clone(),
             alive: Arc::clone(&alive),
         };
 
@@ -132,8 +178,7 @@ impl RepoWatcher {
 
         Ok(Self {
             paused,
-            quiet_until,
-            held,
+            silence,
             alive,
             degraded,
             _watcher: debouncer,
@@ -146,20 +191,13 @@ impl RepoWatcher {
         self.degraded.as_deref()
     }
 
-    /// Only ever extends: a second mutation must not cut the first one's window short.
     pub fn quiet_for(&self, duration: Duration) {
-        extend(&self.quiet_until, duration);
+        self.silence.quiet_for(duration);
     }
 
-    /// Quiet for as long as the guard lives, then for the debounce that trails the last
-    /// write (R-445). A timer alone closed in the middle of a long git process.
     #[must_use]
     pub fn hold(&self) -> QuietHold {
-        self.held.fetch_add(1, Ordering::SeqCst);
-        QuietHold {
-            held: Arc::clone(&self.held),
-            quiet_until: Arc::clone(&self.quiet_until),
-        }
+        self.silence.hold()
     }
 
     /// `false` once the folder was removed or moved away; the repository has to be watched anew.
@@ -171,7 +209,7 @@ impl RepoWatcher {
     /// Whether a quiet window is open right now.
     #[must_use]
     pub fn is_quiet(&self) -> bool {
-        quiet(&self.held, &self.quiet_until)
+        self.silence.is_quiet()
     }
 
     pub fn pause(&self) {
@@ -279,14 +317,13 @@ struct Route {
     git_dir: PathBuf,
     common_dir: PathBuf,
     paused: Arc<AtomicBool>,
-    quiet_until: Arc<Mutex<Option<Instant>>>,
-    held: Arc<AtomicUsize>,
+    silence: Silence,
     alive: Arc<AtomicBool>,
 }
 
 impl Route {
     fn is_quiet(&self) -> bool {
-        quiet(&self.held, &self.quiet_until)
+        self.silence.is_quiet()
     }
 
     /// One debounce window, one event per kind.
@@ -445,8 +482,7 @@ mod tests {
             common_dir: root.join(".git"),
             root,
             paused: Arc::new(AtomicBool::new(false)),
-            quiet_until: Arc::new(Mutex::new(None)),
-            held: Arc::new(AtomicUsize::new(0)),
+            silence: Silence::default(),
             alive: Arc::new(AtomicBool::new(true)),
         }
     }
@@ -557,6 +593,7 @@ mod tests {
             root,
             &git_dir,
             &git_dir,
+            Silence::default(),
             move |change| {
                 let _ = tx.send(change.kind);
             },
@@ -638,7 +675,7 @@ mod tests {
         assert!(seen.is_empty());
 
         route.paused.store(false, Ordering::Relaxed);
-        extend(&route.quiet_until, Duration::from_secs(60));
+        route.silence.quiet_for(Duration::from_secs(60));
         route.absorb(Err(notify::Error::generic("lost")), &mut seen);
         assert!(seen.is_empty());
     }
@@ -649,7 +686,7 @@ mod tests {
         let mut seen = Vec::new();
         route.absorb(event(EventKind::Any, route.root.join("a.rs")), &mut seen);
 
-        extend(&route.quiet_until, Duration::from_secs(60));
+        route.silence.quiet_for(Duration::from_secs(60));
         route.absorb(event(EventKind::Any, route.git_dir.join("HEAD")), &mut seen);
 
         let kinds: Vec<ChangeKind> = seen.iter().map(|(kind, _)| *kind).collect();
@@ -666,8 +703,7 @@ mod tests {
             git_dir: common.join("worktrees/wt"),
             common_dir: common.clone(),
             paused: Arc::new(AtomicBool::new(false)),
-            quiet_until: Arc::new(Mutex::new(None)),
-            held: Arc::new(AtomicUsize::new(0)),
+            silence: Silence::default(),
             alive: Arc::new(AtomicBool::new(true)),
         };
 

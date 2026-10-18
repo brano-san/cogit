@@ -142,13 +142,20 @@ impl AppState {
         }
         let events = self.events.clone();
         let rows = Arc::clone(&self.cached_rows);
-        match fs_watcher::RepoWatcher::start(root, git_dir, common_dir, move |change| {
-            rows.write().forget(repo);
-            let _ = events.send(AppEvent::RepoChanged {
-                repo,
-                kind: change.kind,
-            });
-        }) {
+        let silence = self.silence_of(repo);
+        match fs_watcher::RepoWatcher::start_silenced(
+            root,
+            git_dir,
+            common_dir,
+            silence,
+            move |change| {
+                rows.write().forget(repo);
+                let _ = events.send(AppEvent::RepoChanged {
+                    repo,
+                    kind: change.kind,
+                });
+            },
+        ) {
             Ok(watcher) => {
                 // Checked again under the lock: a second open of the same repository, a
                 // close or a switch may have finished while this watcher was starting.
@@ -183,16 +190,20 @@ impl AppState {
     #[must_use = "hold the guard until the mutation is done"]
     pub(crate) fn quiet(&self, repo: RepoId) -> Quiet<'_> {
         self.silence(repo);
-        let held = self
-            .watchers
-            .read()
-            .get(&repo)
-            .map(fs_watcher::RepoWatcher::hold);
         Quiet {
             state: self,
             repo,
-            _held: held,
+            _held: Some(self.silence_of(repo).hold()),
         }
+    }
+
+    /// Held by the state, not by a watcher: one started during the mutation shares it.
+    fn silence_of(&self, repo: RepoId) -> fs_watcher::Silence {
+        self.silences.lock().entry(repo).or_default().clone()
+    }
+
+    pub(crate) fn forget_silence(&self, repo: RepoId) {
+        self.silences.lock().remove(&repo);
     }
 
     /// For a talk with a remote, minutes long, that writes at its end: a hold would keep
@@ -210,9 +221,7 @@ impl AppState {
     fn silence(&self, repo: RepoId) {
         // The watcher will not report these writes, so the row has to be dropped here.
         self.forget_row(repo);
-        if let Some(watcher) = self.watchers.read().get(&repo) {
-            watcher.quiet_for(fs_watcher::DEFAULT_QUIET);
-        }
+        self.silence_of(repo).quiet_for(fs_watcher::DEFAULT_QUIET);
     }
 
     /// Test seam: whether the watcher of `repo` is inside a quiet window right now.

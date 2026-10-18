@@ -240,6 +240,7 @@ impl AppState {
 
         // A watcher an open was starting sees the repository gone and drops itself.
         let watcher = self.watchers.write().remove(&repo);
+        self.forget_silence(repo);
         watch.done("unhook-watcher");
         // Outside the lock, and said out loud: this is the join that used to hang.
         drop(watcher);
