@@ -479,7 +479,7 @@ impl RepoHandle {
         else {
             return Ok(None);
         };
-        Ok(entry.mode().is_blob().then(|| entry.object_id()))
+        Ok(entry.mode().is_blob_or_symlink().then(|| entry.object_id()))
     }
 
     fn size_in_index(&self, path: &str) -> Result<Option<u64>> {
@@ -606,7 +606,7 @@ impl RepoHandle {
         else {
             return Ok(None);
         };
-        if !entry.mode().is_blob() {
+        if !entry.mode().is_blob_or_symlink() {
             return Ok(None);
         }
 

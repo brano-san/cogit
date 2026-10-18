@@ -208,3 +208,36 @@ fn an_assume_unchanged_file_is_compared_as_git_compares_it() {
 
     assert_eq!(old, new);
 }
+
+/// A link written through the index: no `core.symlinks` or privilege needed.
+fn point_link(f: &test_fixtures::Fixture, target: &str) {
+    f.write_file("target.tmp", target).unwrap();
+    let id = f.git(&["hash-object", "-w", "target.tmp"]).unwrap();
+    std::fs::remove_file(f.path().join("target.tmp")).unwrap();
+    f.git(&[
+        "update-index",
+        "--add",
+        "--cacheinfo",
+        &format!("120000,{},link", id.trim()),
+    ])
+    .unwrap();
+}
+
+// A symlink's entry is mode 120000, which `is_blob` leaves out: the diff of a commit that
+// moved a link said it was "absent from both sides".
+#[test]
+fn a_symlink_in_a_commit_has_both_sides() {
+    let f = test_fixtures::linear(1).unwrap();
+    point_link(&f, "old/place");
+    f.commit_staged(10, "add the link").unwrap();
+    point_link(&f, "new/place");
+    let moved = f.commit_staged(11, "move the link").unwrap();
+    let repo = git_engine::RepoHandle::open(f.path()).unwrap();
+
+    let (old, new) = repo
+        .diff_sides(&git_engine::DiffSpec::CommitVsParent { oid: moved }, "link")
+        .unwrap();
+
+    assert_eq!(old.as_deref(), Some(&b"old/place"[..]));
+    assert_eq!(new.as_deref(), Some(&b"new/place"[..]));
+}
