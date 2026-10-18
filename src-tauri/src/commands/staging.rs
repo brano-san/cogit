@@ -133,17 +133,24 @@ pub async fn commit(
     request: CommitRequest,
 ) -> Result<String, GitError> {
     let app_state = state.state.clone();
-    let oid = mutating(
+    // Asked on the blocking thread too: it stats config files and may open the repository.
+    let (oid, wants_maintenance) = mutating(
         &state.state,
         repo,
         OperationKind::Commit,
         "commit",
-        move || app_state.commit(repo, &request),
+        move || {
+            let oid = app_state.commit(repo, &request)?;
+            let wants = app_state
+                .wants_maintenance(repo)
+                .inspect_err(|err| tracing::error!(error = ?err, context = "maintenance check"));
+            Ok((oid, wants.unwrap_or(false)))
+        },
     )
     .await?;
 
     tracing::info!(repo = repo.0, oid = %oid, "commit created");
-    if state.state.wants_maintenance(repo).unwrap_or(false) {
+    if wants_maintenance {
         // The commit's caller does not wait for it; the queue does (R-444).
         let app_state = state.state.clone();
         tauri::async_runtime::spawn(async move {
