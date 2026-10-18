@@ -36,10 +36,34 @@ export function placeTip(
 /** Where a title waits for the app's tooltip, out of the browser's reach. */
 export const STASH = "data-cogit-title";
 
+/** Marks an `aria-label` written from a title, so it follows the title. */
+const NAMED = "data-cogit-named";
+
 interface Attributes {
   getAttribute(name: string): string | null;
   setAttribute(name: string, value: string): void;
   removeAttribute(name: string): void;
+  readonly textContent: string | null;
+}
+
+/** A title was the only name of an icon button; moved aside, a screen reader said "button". */
+function keepName(element: Attributes, title: string | null): void {
+  const ours = element.getAttribute(NAMED) !== null;
+  if (title === null) {
+    if (ours) {
+      element.removeAttribute("aria-label");
+      element.removeAttribute(NAMED);
+    }
+    return;
+  }
+  const named =
+    element.getAttribute("aria-label") !== null ||
+    element.getAttribute("aria-labelledby") !== null ||
+    (element.textContent ?? "").trim() !== "";
+  if (ours || !named) {
+    element.setAttribute("aria-label", title);
+    element.setAttribute(NAMED, "");
+  }
 }
 
 /** Leaves `title=""` in place of the title, not nothing: removing an attribute that is not
@@ -47,10 +71,13 @@ interface Attributes {
     title the change replaced: `""` to `""` is the owner emptying it, not this placeholder. */
 export function stashTitle(element: Attributes, before?: string | null): void {
   const title = element.getAttribute("title");
-  if (title === null || (title === "" && before === "")) element.removeAttribute(STASH);
-  else if (title !== "") {
+  if (title === null || (title === "" && before === "")) {
+    element.removeAttribute(STASH);
+    keepName(element, null);
+  } else if (title !== "") {
     element.setAttribute(STASH, title);
     element.setAttribute("title", "");
+    keepName(element, title);
   }
 }
 

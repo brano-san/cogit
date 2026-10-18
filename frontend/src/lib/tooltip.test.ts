@@ -33,10 +33,11 @@ describe("placeTip", () => {
 });
 
 /** The attributes of one element, as the DOM keeps them. */
-function element(title: string | null) {
+function element(title: string | null, textContent = "") {
   const attrs = new Map<string, string>(title === null ? [] : [["title", title]]);
   return {
     attrs,
+    textContent,
     getAttribute: (name: string) => attrs.get(name) ?? null,
     setAttribute: (name: string, value: string) => void attrs.set(name, value),
     removeAttribute: (name: string) => void attrs.delete(name),
@@ -78,5 +79,30 @@ describe("stashTitle", () => {
     cell.setAttribute("title", "");
     stashTitle(cell, "");
     expect(cell.getAttribute(STASH)).toBeNull();
+  });
+});
+
+// The title was the only name an icon button had: moved aside, a screen reader said "button".
+describe("the name a title gave", () => {
+  it("is kept as the label of an element with no text of its own", () => {
+    const icon = element("More actions");
+    stashTitle(icon);
+    expect(icon.getAttribute("aria-label")).toBe("More actions");
+    icon.setAttribute("title", "Fewer actions");
+    stashTitle(icon);
+    expect(icon.getAttribute("aria-label")).toBe("Fewer actions");
+    icon.removeAttribute("title");
+    stashTitle(icon);
+    expect(icon.getAttribute("aria-label")).toBeNull();
+  });
+
+  it("leaves a label the element has, and one with text of its own", () => {
+    const labelled = element("Search for Repositories…");
+    labelled.setAttribute("aria-label", "Search for repositories");
+    stashTitle(labelled);
+    expect(labelled.getAttribute("aria-label")).toBe("Search for repositories");
+    const worded = element("Show the working tree", "Working Tree");
+    stashTitle(worded);
+    expect(worded.getAttribute("aria-label")).toBeNull();
   });
 });
