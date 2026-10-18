@@ -247,3 +247,22 @@ fn neither_operation_opens_an_editor() {
 
     assert_eq!(repo.state().unwrap(), RepoState::Clean);
 }
+
+// Some 800 oids fill a Windows command line: git never started (os error 206) and
+// nothing was picked.
+#[test]
+fn cherry_picking_more_commits_than_a_command_line_holds_picks_them_all() {
+    let f = test_fixtures::linear(901).unwrap();
+    let all: Vec<String> = f
+        .git(&["rev-list", "--reverse", "main"])
+        .unwrap()
+        .lines()
+        .map(str::to_owned)
+        .collect();
+    f.git(&["switch", "-q", "-c", "replay", &all[0]]).unwrap();
+    let repo = open(&f);
+
+    repo.cherry_pick(&all[1..]).unwrap();
+
+    assert_eq!(repo.commit_details("HEAD").unwrap().summary, "commit 900");
+}

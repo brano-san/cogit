@@ -14,7 +14,13 @@ impl RepoHandle {
             return Err(GitError::InvalidState(format!("no commits to {verb}")));
         }
         let mut args = vec![verb, "--no-edit"];
-        args.extend(commits.iter().map(String::as_str));
-        self.run_git(&args).map(drop)
+        if crate::runner::fits_command_line(commits) {
+            args.extend(commits.iter().map(String::as_str));
+            return self.run_git(&args).map(drop);
+        }
+        // Past a Windows command line git would never start; `--stdin` keeps their order.
+        args.push("--stdin");
+        self.run_git_fed(&args, commits.join("\n").as_bytes())
+            .map(drop)
     }
 }
