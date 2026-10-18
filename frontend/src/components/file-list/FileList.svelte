@@ -95,7 +95,7 @@
     /** Reported upward so Commit What You See knows what is hidden (T6.8). */
     onmask?: (mask: string) => void;
     /** The paths each section shows once filtered, in the order of `sections`. */
-    onshown?: (shown: string[][]) => void;
+    onshown?: (shown: string[][] | null) => void;
     /** The ticked rows, for actions that live outside the list — stashing a selection —
         and each titled section's own, since one path can be a row of two. */
     onmarked?: (paths: string[], bySection: Record<string, string[]>) => void;
@@ -246,6 +246,9 @@
     const shown = sections.map((section) => groups.find((group) => group.section === section)?.paths ?? []);
     untrack(() => onshown?.(shown));
   });
+  // Gone, it shows nothing: the Commit panel stays, and a commit of what it last showed
+  // would leave out what was staged since.
+  $effect(() => () => onshown?.(null));
 
   const layout = $derived(paneLayout(sections.length, groups.length, active.separateIndex));
   const columns = $derived(shownColumns(filesView.columns, active.directories));

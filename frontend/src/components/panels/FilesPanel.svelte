@@ -36,7 +36,7 @@
     onopenwindow: (path: string) => void;
     onmask: (mask: string) => void;
     /** The staged files the working-tree list shows once filtered. */
-    onshownstaged?: (paths: string[]) => void;
+    onshownstaged?: (paths: string[] | null) => void;
     onmarked: (paths: string[], bySection: Record<string, string[]>) => void;
     oncontext: (path: string, event: MouseEvent, section?: string, rows?: readonly FileEntry[]) => void;
     stage: (paths: string[]) => void;
@@ -233,7 +233,7 @@
       selected={diff.path}
       onopen={onopenwindow}
       {onmask}
-      onshown={(shown) => onshownstaged?.(stagedShown(shown, separate, worktree.staged))}
+      onshown={(shown) => onshownstaged?.(shown && stagedShown(shown, separate, worktree.staged))}
       {onmarked}
       {oncontext}
     />
