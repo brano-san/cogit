@@ -4,16 +4,14 @@ import type { FolderKind } from "$lib/ipc/clone";
 
 export interface StartupFacts {
   enabled: boolean;
-  /** The saved session is still being reopened. */
-  restoring: boolean;
-  openCount: number;
-  phase: "closed" | "opening" | "open" | "failed";
+  /** Rows in the Repositories list, closed ones included. */
+  listed: number;
 }
 
-/** Only after Closed → Opening → Open | Failed has settled with nothing open: never before a
-    session is restored, so it cannot flash over the repository about to appear. */
+/** Nothing opens at startup (R-770), so an empty window is the rule; the dialog is for a
+    list with nothing in it to open. */
 export function shouldShowAtStartup(facts: StartupFacts): boolean {
-  return facts.enabled && !facts.restoring && facts.openCount === 0 && (facts.phase === "closed" || facts.phase === "failed");
+  return facts.enabled && facts.listed === 0;
 }
 
 export interface MruRow {

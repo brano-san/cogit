@@ -415,7 +415,7 @@
 
       Wrapped in `untrack` as a whole rather than read by read. `activate()` writes the
       session back, and anything this effect touches that the session feeds — including
-      `session.repositories`, which `repository.restore()` reads for itself — makes the
+      `session.repositories`, which the closed rows are made from — makes the
       effect depend on its own write and re-enter `open_repository` about a hundred times
       a second (R-93). Untracking one getter at a time only moves the problem to the next
       caller down. */
@@ -459,41 +459,16 @@
       void toolbar.load();
       void networkDialog.load();
       void terminalChoices().then((found) => (terminals = found));
-      const wanted = session.active;
-      const remembered = wanted === null ? null : session.selected(wanted);
-      // The one to show opens first, through the phase (Opening…, the 30 s timeout), so a dead
-      // network path among the others cannot keep the window empty and without a status.
-      const early = wanted !== null && session.repositories.includes(wanted) ? wanted : null;
-      const first =
-        early === null
-          ? Promise.resolve()
-          : activate(early, remembered, true).finally(() => repository.markReady());
-      void timed("startup", "restore the session", () => repository.restore(early)).then(async () => {
-        await first;
-        if (early === null || repository.phase.kind === "closed") {
-          const back =
-            repository.openRepos.find((entry) => entry.root === wanted) ?? repository.openRepos[0];
-          try {
-            if (back) await activate(back.root, back.root === wanted ? remembered : null, true);
-          } finally {
-            // Only now is "nothing open" the answer rather than the first frame.
-            repository.markReady();
-          }
-        }
-        // The open has settled (Open or Failed) and the setting is read: now it is known
-        // whether the window would stay empty. Nothing waits on this; it only sets state.
-        await settingsRead.catch(() => {});
-        if (
-          shouldShowAtStartup({
-            enabled: settings.current.startupShowWelcome,
-            restoring: false,
-            openCount: repository.current ? 1 : 0,
-            phase: repository.phase.kind,
-          })
-        ) {
-          showWelcome();
-        }
-      });
+      // The last session's repositories come back closed, as Close Repository leaves them:
+      // nothing is read, watched or locked until a row is opened (R-770).
+      for (const root of session.repositories) repoList.closed(root);
+      repository.markReady();
+      void settingsRead
+        .catch(() => {})
+        .then(() => {
+          const listed = listedRepos(repository.openRepos, repoList.list).length;
+          if (shouldShowAtStartup({ enabled: settings.current.startupShowWelcome, listed })) showWelcome();
+        });
     });
   });
 
@@ -1950,11 +1925,7 @@ ${event.error}`,
 
   /** The root of the repository now on screen, or null when this open lost to a newer
       one or failed. */
-  async function activate(
-    root: string,
-    restoreOid: string | null = null,
-    restoring = false,
-  ): Promise<string | null> {
+  async function activate(root: string): Promise<string | null> {
     const story = `open:${root}`;
     trace(story, "activate: panels cleared");
     forgetPanels();
@@ -1969,17 +1940,12 @@ ${event.error}`,
     trace(story, `activate: repository.current is ${opened ? opened.name : "null"}`);
     if (opened) {
       refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));
-      // A repository restored at launch stays folded; one opened by the user shows its submodules (R-546).
-      if (!restoring && !wasOpen.has(opened.root)) moduleMemory.opened(opened.root);
+      // One opened anew shows its submodules (R-546).
+      if (!wasOpen.has(opened.root)) moduleMemory.opened(opened.root);
       void submodules.own(opened.repo, opened.root);
       void health.check(opened.repo, opened.root, opened.name);
       session.setActive(opened.root);
       session.opened(opened.root);
-      if (restoreOid) {
-        void commit.select(opened.repo, restoreOid);
-        // Waits for the graph to reach it: the list opens at the top otherwise.
-        graph.requestReveal(restoreOid);
-      }
       const graphShown = timed(story, "graph", () => reloadGraph());
       void refs.loadUrls(opened.repo);
       void worktrees.refresh(opened.repo);

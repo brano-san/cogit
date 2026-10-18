@@ -20,21 +20,14 @@ import {
 } from "./welcome";
 
 describe("shouldShowAtStartup", () => {
-  const base = { enabled: true, restoring: false, openCount: 0, phase: "closed" as const };
-
-  it("shows when nothing is open and the setting is on", () => {
-    expect(shouldShowAtStartup(base)).toBe(true);
-    expect(shouldShowAtStartup({ ...base, phase: "failed" })).toBe(true);
+  // Repositories come back closed (R-770): with rows in the list the window is not empty.
+  it("shows only while the Repositories list has nothing in it", () => {
+    expect(shouldShowAtStartup({ enabled: true, listed: 0 })).toBe(true);
+    expect(shouldShowAtStartup({ enabled: true, listed: 3 })).toBe(false);
   });
 
-  it("never shows before the session has settled", () => {
-    expect(shouldShowAtStartup({ ...base, restoring: true })).toBe(false);
-    expect(shouldShowAtStartup({ ...base, phase: "opening" })).toBe(false);
-  });
-
-  it("stays away when a repository is open or the setting is off", () => {
-    expect(shouldShowAtStartup({ ...base, openCount: 1, phase: "open" })).toBe(false);
-    expect(shouldShowAtStartup({ ...base, enabled: false })).toBe(false);
+  it("stays away when the setting is off", () => {
+    expect(shouldShowAtStartup({ enabled: false, listed: 0 })).toBe(false);
   });
 });
 
