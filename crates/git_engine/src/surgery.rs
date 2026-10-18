@@ -85,23 +85,29 @@ impl RepoHandle {
 
     /// Brings just `paths` to their state in `rev`, deleting the ones absent from it.
     fn materialise(&self, rev: &str, paths: &[String]) -> Result<()> {
-        // `-z`: without it a non-ASCII name comes back quoted and escaped.
-        let mut listing = vec!["ls-tree", "-r", "-z", "--name-only", rev, "--"];
-        listing.extend(paths.iter().map(String::as_str));
-        // Parsed, so read in full and unaltered; the names are the user's, not patterns.
-        let present = nul_separated(&self.read_git_literal(&listing)?);
-
-        if !present.is_empty() {
-            let mut args = vec!["checkout", rev, "--"];
-            args.extend(present.iter().map(String::as_str));
-            self.run_git_literal(&args)?;
+        // A few hundred paths outgrow a Windows command line (R-191): `ls-tree` has no
+        // `--pathspec-from-file`, so it goes in batches; the writes read them from stdin.
+        let mut present = Vec::new();
+        for batch in crate::runner::command_line_batches(paths) {
+            // `-z`: without it a non-ASCII name comes back quoted and escaped.
+            let mut listing = vec!["ls-tree", "-r", "-z", "--name-only", rev, "--"];
+            listing.extend(batch.iter().map(String::as_str));
+            // Parsed, so read in full and unaltered; the names are the user's, not patterns.
+            present.extend(nul_separated(&self.read_git_literal(&listing)?));
         }
 
-        let removed: Vec<&String> = paths.iter().filter(|p| !present.contains(p)).collect();
+        if !present.is_empty() {
+            self.run_git_paths(&["checkout", rev], &present)?;
+        }
+
+        let kept: std::collections::HashSet<&String> = present.iter().collect();
+        let removed: Vec<String> = paths
+            .iter()
+            .filter(|p| !kept.contains(p))
+            .cloned()
+            .collect();
         if !removed.is_empty() {
-            let mut args = vec!["rm", "-f", "--ignore-unmatch", "--"];
-            args.extend(removed.iter().map(|p| p.as_str()));
-            self.run_git_literal(&args)?;
+            self.run_git_paths(&["rm", "-f", "--ignore-unmatch"], &removed)?;
         }
         Ok(())
     }

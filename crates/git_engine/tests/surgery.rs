@@ -464,3 +464,32 @@ fn splitting_off_a_commit_of_another_branch_is_refused() {
     assert_eq!(f.oid("main").unwrap(), main_before);
     assert_eq!(f.oid("topic").unwrap(), topic_commit);
 }
+
+// Past ~32K characters Windows refuses to start the process (os error 206): splitting off
+// a few hundred files failed after the checkout of the parent, with no word from git.
+#[test]
+fn splitting_off_more_files_than_a_command_line_holds_works() {
+    let f = test_fixtures::linear(1).unwrap();
+    let dir = "a-directory-with-a-name-long-enough-to-fill-the-command-line-quickly/deeper";
+    let name = |index: usize| format!("{dir}/file-{index:04}.txt");
+    for index in 0..450 {
+        f.write_file(&name(index), "before\n").unwrap();
+    }
+    f.git(&["add", "-A"]).unwrap();
+    f.commit_staged(2, "the first half").unwrap();
+    for index in 0..900 {
+        f.write_file(&name(index), "after\n").unwrap();
+    }
+    f.git(&["add", "-A"]).unwrap();
+    f.commit_staged(3, "change one half, add the other")
+        .unwrap();
+    let target = f.oid("HEAD").unwrap();
+    let tree = tree_of(&f, "HEAD");
+    let paths: Vec<String> = (0..899).map(name).collect();
+
+    open(&f)
+        .split_off(&target, &paths, "split off", false)
+        .unwrap();
+
+    assert_eq!(tree_of(&f, "HEAD"), tree);
+}
