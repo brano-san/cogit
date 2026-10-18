@@ -50,7 +50,9 @@ tauri-plugin-opener = "2.7"
 tauri-plugin-dialog = "2.8"
 tauri-plugin-clipboard-manager = "2.4"
 tauri-plugin-window-state = "2.5"
-tauri-plugin-updater = "2.13"
+# No `zip`: it unpacks the legacy .zip/.tar.gz update bundles, which this app does not ship
+# (installers are signed as they are), and zip 4 carries RUSTSEC-2026 advisories.
+tauri-plugin-updater = { version = "2.13", default-features = false, features = ["rustls-tls", "system-proxy"] }
 tauri-plugin-process = "2.4"
 
 # --- logging ---
