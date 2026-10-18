@@ -66,6 +66,10 @@ impl RepoHandle {
         if name.is_empty() {
             return Ok(Some("Enter a name.".to_owned()));
         }
+        // check-ref-format passes `-l`; `git tag -l <oid>` would then list and succeed.
+        if name.starts_with('-') {
+            return Ok(Some(format!("'{name}' is not a valid tag name.")));
+        }
         let full = format!("refs/tags/{name}");
         let checked = crate::children::output(&mut self.base_git(&["check-ref-format", &full]))
             .map_err(crate::runner::not_started)?;
@@ -122,6 +126,11 @@ fn require(name: &str) -> Result<&str> {
     let trimmed = name.trim();
     if trimmed.is_empty() {
         return Err(GitError::InvalidState("an empty tag name".to_owned()));
+    }
+    if trimmed.starts_with('-') {
+        return Err(GitError::InvalidState(format!(
+            "'{trimmed}' is not a valid tag name"
+        )));
     }
     Ok(trimmed)
 }

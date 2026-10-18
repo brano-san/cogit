@@ -222,7 +222,8 @@ mod tag_names {
     fn a_name_git_rejects_is_reported() {
         let f = test_fixtures::linear(1).unwrap();
         let repo = open(&f);
-        for bad in ["two..dots", "ends.lock", "has space", "trailing/"] {
+        // `-l` passes check-ref-format, and `git tag -l <oid>` then lists nothing and succeeds.
+        for bad in ["two..dots", "ends.lock", "has space", "trailing/", "-l"] {
             let problem = repo.tag_name_problem(bad).unwrap();
             assert!(
                 problem
@@ -248,6 +249,19 @@ mod tag_names {
     fn an_empty_name_is_reported() {
         let f = test_fixtures::linear(1).unwrap();
         assert!(open(&f).tag_name_problem("  ").unwrap().is_some());
+    }
+
+    // The dialog closed as if the tag were made: git took the name for an option.
+    #[test]
+    fn a_name_like_an_option_is_refused_rather_than_run() {
+        let f = test_fixtures::linear(1).unwrap();
+        let made = open(&f).create_tag(&TagRequest {
+            name: "-l".to_owned(),
+            target: None,
+            message: None,
+            force: false,
+        });
+        assert!(made.is_err());
     }
 
     /// A journalled failure pops the Git error window over the dialog that asked.
