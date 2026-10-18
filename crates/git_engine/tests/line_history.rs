@@ -284,3 +284,21 @@ fn the_versions_are_newest_first_across_a_merge() {
     let oids: Vec<&str> = revisions.iter().map(|row| row.oid.as_str()).collect();
     assert_eq!(oids, [&merge, &main, &side], "{revisions:#?}");
 }
+
+// `git log -- run.sh` lists a commit that only makes it executable; the filter compared
+// the blob alone and left it out.
+#[test]
+fn a_commit_that_only_changes_the_mode_is_a_version() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file("run.sh", "echo hi\n").unwrap();
+    f.git(&["add", "--", "run.sh"]).unwrap();
+    let written = f.commit_staged(10, "write the script").unwrap();
+    f.git(&["update-index", "--chmod=+x", "--", "run.sh"])
+        .unwrap();
+    let executable = f.commit_staged(11, "make it executable").unwrap();
+
+    let revisions = open(&f).file_revisions("run.sh", "HEAD", 100).unwrap();
+
+    let oids: Vec<&str> = revisions.iter().map(|row| row.oid.as_str()).collect();
+    assert_eq!(oids, [&executable, &written]);
+}

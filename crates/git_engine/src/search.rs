@@ -393,7 +393,7 @@ impl RepoHandle {
         let Ok(commit) = self.repo.find_commit(*oid) else {
             return false;
         };
-        let current = self.entry_id(&commit, path);
+        let current = self.entry_of(&commit, path);
 
         match commit.parent_ids().next() {
             None => current.is_some(),
@@ -402,20 +402,25 @@ impl RepoHandle {
                     .repo
                     .find_commit(parent.detach())
                     .ok()
-                    .and_then(|parent| self.entry_id(&parent, path));
+                    .and_then(|parent| self.entry_of(&parent, path));
                 current != before
             }
         }
     }
 
-    fn entry_id(&self, commit: &gix::Commit<'_>, path: &str) -> Option<gix::ObjectId> {
+    /// Mode and id: `git log -- path` counts a commit that only makes a file executable.
+    fn entry_of(
+        &self,
+        commit: &gix::Commit<'_>,
+        path: &str,
+    ) -> Option<(gix::object::tree::EntryMode, gix::ObjectId)> {
         commit
             .tree()
             .ok()?
             .lookup_entry_by_path(path)
             .ok()
             .flatten()
-            .map(|entry| entry.id().detach())
+            .map(|entry| (entry.mode(), entry.id().detach()))
     }
 }
 
