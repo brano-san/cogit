@@ -44,9 +44,12 @@ pub fn severity_of(exit_code: Option<i32>, stderr: &str) -> Severity {
 /// leaves the unmerged paths to the user. Exit 128 is a refusal (`fatal:`), never this.
 #[must_use]
 pub fn stops_on_conflicts(command_line: &str, exit_code: Option<i32>) -> bool {
-    if exit_code != Some(1) {
-        return false;
-    }
+    exit_code == Some(1) && may_stop_on_conflicts(command_line)
+}
+
+/// One of the commands [`stops_on_conflicts`] knows, whatever its exit code.
+#[must_use]
+pub fn may_stop_on_conflicts(command_line: &str) -> bool {
     let (subcommand, rest) = subcommand_of(command_line);
     match subcommand.as_deref() {
         Some("stash") => rest

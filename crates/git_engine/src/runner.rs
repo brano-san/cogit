@@ -240,9 +240,15 @@ impl RepoHandle {
         result.into()
     }
 
-    pub(crate) fn journal_entry(&self, mut entry: GitOutput) {
+    pub(crate) fn journal_entry(&self, entry: GitOutput) {
+        self.journal_entry_over(entry, false);
+    }
+
+    /// `conflicted_before`: the index held unmerged entries before the command ran, so
+    /// they are not its stop. `stash apply` refuses over them with the same exit 1.
+    fn journal_entry_over(&self, mut entry: GitOutput, conflicted_before: bool) {
         if let Some(sink) = self.journal() {
-            entry.stopped_on_conflicts = self.stopped_on_conflicts(&entry);
+            entry.stopped_on_conflicts = !conflicted_before && self.stopped_on_conflicts(&entry);
             sink(entry);
         }
     }
@@ -336,6 +342,8 @@ impl RepoHandle {
         let started = std::time::Instant::now();
 
         tracing::info!(command = %command, "running git");
+        let conflicted_before =
+            crate::outcome::may_stop_on_conflicts(&command) && self.has_unmerged_paths();
         let mut process = base_command(self.root(), reading);
         for (key, value) in env {
             process.env(key, value);
@@ -351,7 +359,7 @@ impl RepoHandle {
         result.answered =
             !output.status.success() && asked.is_some_and(|asked| asked(&result.stderr));
 
-        self.journal_entry(result.clone());
+        self.journal_entry_over(result.clone(), conflicted_before);
 
         if output.status.success() {
             return Ok(result);

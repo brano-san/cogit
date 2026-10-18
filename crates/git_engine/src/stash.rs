@@ -221,7 +221,11 @@ impl RepoHandle {
     /// output, so a localized git or a reworded message cannot change the answer.
     pub(crate) fn stopped_on_conflicts(&self, entry: &crate::GitOutput) -> bool {
         crate::outcome::stops_on_conflicts(&entry.command, entry.exit_code)
-            && self.unmerged_paths().is_ok_and(|paths| !paths.is_empty())
+            && self.has_unmerged_paths()
+    }
+
+    pub(crate) fn has_unmerged_paths(&self) -> bool {
+        self.unmerged_paths().is_ok_and(|paths| !paths.is_empty())
     }
 
     /// Read by `gix`, which costs no process: the common case has none.

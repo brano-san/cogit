@@ -93,6 +93,49 @@ fn a_command_refused_because_conflicts_already_exist_is_not() {
     assert!(!last(&log).stopped_on_conflicts);
 }
 
+// `stash apply` refuses with exit 1, the same code as a stop, while an earlier apply's
+// conflicts are unresolved: nothing was applied, yet the window said it stopped on conflicts.
+#[test]
+fn a_stash_apply_refused_over_earlier_conflicts_is_not() {
+    let f = test_fixtures::linear(2).unwrap();
+    std::fs::write(
+        f.path().join("file0.txt"),
+        "stashed
+",
+    )
+    .unwrap();
+    f.git(&["stash", "push"]).unwrap();
+    std::fs::write(
+        f.path().join("file1.txt"),
+        "second
+",
+    )
+    .unwrap();
+    f.git(&["stash", "push"]).unwrap();
+    f.commit_file(
+        12,
+        "file0.txt",
+        "committed
+",
+    )
+    .unwrap();
+    let (repo, log) = journaled(&f);
+    assert!(
+        repo.stash_apply_index(&oid_at(&repo, 1), false, false)
+            .is_err()
+    );
+    assert!(last(&log).stopped_on_conflicts);
+
+    assert!(
+        repo.stash_apply_index(&oid_at(&repo, 0), false, false)
+            .is_err()
+    );
+
+    let entry = last(&log);
+    assert_eq!(entry.exit_code, Some(1), "{entry:?}");
+    assert!(!entry.stopped_on_conflicts);
+}
+
 #[test]
 fn a_command_that_succeeds_is_not() {
     let f = two_sides();
