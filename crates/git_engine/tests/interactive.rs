@@ -447,3 +447,26 @@ fn a_new_author_under_a_merge_is_refused_before_anything_moves() {
     assert_eq!(repo.state().unwrap(), git_engine::RepoState::Clean);
     assert_eq!(f.oid("HEAD").unwrap(), head);
 }
+
+// `%s` joins the first paragraph into one line: a message with no blank line under its
+// subject never matched it, so an untouched Squash row replaced the combined message.
+#[test]
+fn a_subject_with_no_blank_line_under_it_is_still_left_alone() {
+    let f = test_fixtures::linear(2).unwrap();
+    f.write_file("fix.txt", "fixed\n").unwrap();
+    f.git(&["add", "fix.txt"]).unwrap();
+    f.git(&["commit", "-q", "-m", "Fix bug\nMore details"])
+        .unwrap();
+    let base = f.oid("HEAD~2").unwrap();
+    let repo = open(&f);
+    let mut plan = repo.rebase_todo(&base).unwrap();
+    plan[1].action = TodoAction::Squash;
+
+    repo.interactive_rebase(&base, &plan).unwrap();
+
+    let combined = message(&f, "HEAD");
+    assert!(
+        combined.contains("commit 1") && combined.contains("More details"),
+        "{combined}"
+    );
+}

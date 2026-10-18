@@ -100,7 +100,7 @@ pub(crate) fn decode_message(
     (text.into_owned(), Some(encoding.name().to_owned()))
 }
 
-fn split_message(text: &str) -> (String, String) {
+pub(crate) fn split_message(text: &str) -> (String, String) {
     let text = text.trim_start_matches('\n');
     let (head, body) = text.split_once("\n\n").unwrap_or((text, ""));
     let summary = head.lines().map(str::trim).collect::<Vec<_>>().join(" ");

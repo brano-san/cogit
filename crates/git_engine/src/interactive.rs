@@ -232,7 +232,8 @@ impl RepoHandle {
                     return Ok(entry.clone());
                 }
                 let current = self.full_message(&entry.oid)?;
-                let (subject, body) = current.split_once('\n').unwrap_or((current.as_str(), ""));
+                // As `%s` made the row's subject: the first paragraph on one line.
+                let (subject, body) = crate::commit::split_message(&current);
                 let message = if asked.trim() == subject.trim() {
                     None
                 } else if entry.action == TodoAction::Reword
