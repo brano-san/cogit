@@ -277,8 +277,10 @@ class DiffStore {
   /** The file open in the editor is read again first: a clean editor follows the disk. */
   async #rediff(): Promise<void> {
     await diffEdit.diskChanged();
+    const before = this.#generation;
     await this.reload();
-    if (this.gone) return;
+    // Another file was opened meanwhile, or the reload never started: not this pass's to clear.
+    if (this.gone || this.#generation !== before + 1) return;
     if (this.error !== null || this.diff === null || this.diff.kind === "unchanged") {
       this.clear();
     }

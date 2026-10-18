@@ -108,6 +108,36 @@ describe("diff store", () => {
     expect(diff.path).toBe("b.txt");
   });
 
+  // A watcher pass re-read the file whose first diff was still on its way; another file
+  // clicked meanwhile won, and the stale pass, finding no diff, cleared the panel under it.
+  it("leaves alone a file clicked while it re-read the one before", async () => {
+    const later = () => {
+      let settle!: (value: unknown) => void;
+      const promise = new Promise((resolve) => (settle = resolve));
+      return { promise, settle };
+    };
+    const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+    const first = later();
+    const again = later();
+    const other = later();
+    commands.diffFile.mockReturnValueOnce(first.promise).mockReturnValueOnce(again.promise).mockReturnValueOnce(other.promise);
+
+    void diff.load(REPO, SPEC, "a.txt");
+    await tick();
+    const pass = diff.refreshFromDisk();
+    await tick();
+    const click = diff.load(REPO, SPEC, "b.txt");
+    await tick();
+    again.settle(textDiff());
+    await pass;
+    other.settle(textDiff());
+    await click;
+    first.settle(textDiff());
+
+    expect(diff.path).toBe("b.txt");
+    expect(diff.diff).not.toBeNull();
+  });
+
   it("clears the panel once the file no longer differs", async () => {
     await diff.load(REPO, SPEC, "gone.txt");
     commands.diffFile.mockResolvedValue({ status: "ok", data: { kind: "unchanged" } });
