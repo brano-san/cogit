@@ -1,3 +1,4 @@
+import { untrack } from "svelte";
 import { backendView } from "$lib/file-view";
 import { stagesEverything } from "$lib/stage-all";
 import { filesView } from "$stores/files-view.svelte";
@@ -40,7 +41,8 @@ class WorktreeStore {
     this.loading = true;
 
     try {
-      const files = await worktreeFiles(repo, backendView(filesView.current));
+      // Untracked: an effect that loads would otherwise run again on every Files switch.
+      const files = await worktreeFiles(repo, untrack(() => backendView(filesView.current)));
       if (generation !== this.#generation) return null;
       this.staged = files.staged;
       this.unstaged = files.unstaged;
