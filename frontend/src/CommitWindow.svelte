@@ -269,7 +269,8 @@
       // Staged or committed: the main window learns it only from here (R-25).
       void repoWritten(request.repo);
     }
-    writeDraft(null);
+    // Amend committed the last commit's message; the stored draft is the next one's.
+    if (!amend) writeDraft(null);
     message = messageAfterCommit(template);
     if (pushAfter && !(await push(request.repo))) return;
     void closeThisWindow();
