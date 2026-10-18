@@ -170,3 +170,20 @@ fn init_new_submodules_is_off_unless_the_repository_says_so() {
 
     assert!(open(&f).wants_new_submodules());
 }
+
+// git prints every key lowercased and matches the pattern case by case: no camelCase key
+// (`push.followTags`, `commit.gpgSign`...) ever had a scope to show.
+#[test]
+fn a_camel_case_setting_says_where_it_comes_from() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["config", "push.followTags", "true"]).unwrap();
+    let repo = git_engine::RepoHandle::open(f.path()).unwrap();
+
+    let settings = repo.repo_settings();
+
+    let follow = settings
+        .iter()
+        .find(|setting| setting.key == "push.followTags")
+        .unwrap();
+    assert_eq!(follow.scope.as_deref(), Some("local"));
+}

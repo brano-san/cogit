@@ -102,7 +102,8 @@ impl RepoHandle {
             "^({})$",
             REPO_SETTING_KEYS
                 .iter()
-                .map(|key| key.replace('.', "\\."))
+                // git matches the pattern against the key it prints, lowercased.
+                .map(|key| key.to_ascii_lowercase().replace('.', "\\."))
                 .collect::<Vec<_>>()
                 .join("|")
         );
