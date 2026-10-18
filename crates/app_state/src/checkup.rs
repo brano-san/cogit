@@ -35,7 +35,8 @@ impl AppState {
         repo: RepoId,
         paths: &[String],
     ) -> Result<Vec<git_engine::LfsFileState>, GitError> {
-        self.handle(repo)?.lfs_file_states(paths)
+        // Read on every refresh of the Files list: without git-lfs it would fail each time.
+        self.unjournaled_handle(repo)?.lfs_file_states(paths)
     }
 
     pub fn commit_signature(

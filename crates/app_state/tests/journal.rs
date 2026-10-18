@@ -257,3 +257,21 @@ fn asking_for_an_entry_that_has_rotated_out_is_not_an_error() {
     let state = AppState::new();
     assert!(state.command_outcome(999_999).is_none());
 }
+
+// Read for the LFS column on every refresh: without git-lfs each one put "'lfs' is not a
+// git command" in the Errors window. A failure there is not news.
+#[test]
+fn the_lfs_column_read_files_nothing_even_when_it_fails() {
+    let f = test_fixtures::linear(1).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let before = state.command_log().len();
+
+    assert!(
+        state
+            .lfs_file_states(repo, &["../outside".to_owned()])
+            .is_err()
+    );
+
+    assert_eq!(state.command_log().len(), before);
+}
