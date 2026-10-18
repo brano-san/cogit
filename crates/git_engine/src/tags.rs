@@ -22,10 +22,15 @@ impl RepoHandle {
     fn write_tag(&self, request: &TagRequest, verbatim: bool) -> Result<()> {
         let name = require(&request.name)?;
 
-        let mut args = vec!["tag"];
-        if verbatim {
-            args.push("--cleanup=verbatim");
-        }
+        // Typed, it is cleaned as `commit -m` is: `tag`'s default would strip `#` lines.
+        let mut args = vec![
+            "tag",
+            if verbatim {
+                "--cleanup=verbatim"
+            } else {
+                "--cleanup=whitespace"
+            },
+        ];
         if request.force {
             args.push("--force");
         }

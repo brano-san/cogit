@@ -207,3 +207,22 @@ fn renaming_an_annotated_tag_keeps_its_message_to_the_letter() {
     let message = repo.tag_message("v2").unwrap().unwrap();
     assert!(message.contains("#42 fixed"), "{message:?}");
 }
+
+// `tag -m` strips `#` lines by default, unlike `commit -m`: "#123 release notes" was
+// stored as nothing at all.
+#[test]
+fn a_typed_message_keeps_a_line_that_starts_with_a_hash() {
+    let f = test_fixtures::linear(2).unwrap();
+    let repo = open(&f);
+
+    repo.create_tag(&TagRequest {
+        name: "v3.0".to_owned(),
+        target: None,
+        message: Some("#123 release notes\nsecond line".to_owned()),
+        force: false,
+    })
+    .unwrap();
+
+    let message = repo.tag_message("v3.0").unwrap().unwrap();
+    assert!(message.starts_with("#123 release notes"), "{message:?}");
+}
