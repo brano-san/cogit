@@ -1,4 +1,4 @@
-use crate::line_history::{LogHeader, path_of};
+use crate::line_history::{LogHeader, new_side, path_of};
 use crate::{CommitQuery, GitError, GraphView, RepoHandle, Result};
 use serde::Serialize;
 use std::collections::HashSet;
@@ -235,19 +235,23 @@ impl RepoHandle {
 
 fn parse_investigation(stdout: &str) -> Vec<InvestigationStep> {
     let mut steps: Vec<InvestigationStep> = Vec::new();
+    let mut in_hunk = false;
 
     for line in stdout.lines() {
         if let Some(header) = line.strip_prefix(STEP) {
             if let Some(step) = header_to_step(header) {
                 steps.push(step);
             }
+            in_hunk = false;
             continue;
         }
         let Some(step) = steps.last_mut() else {
             continue;
         };
-        if step.path.is_empty()
+        in_hunk |= line.starts_with("@@");
+        if !in_hunk
             && let Some(path) = path_of(line)
+            && (step.path.is_empty() || new_side(line))
         {
             step.path = path;
         }

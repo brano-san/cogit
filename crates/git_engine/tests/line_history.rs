@@ -302,3 +302,27 @@ fn a_commit_that_only_changes_the_mode_is_a_version() {
     let oids: Vec<&str> = revisions.iter().map(|row| row.oid.as_str()).collect();
     assert_eq!(oids, [&executable, &written]);
 }
+
+// `git log -L` prints `--- a/a.txt` before `+++ b/b.txt` for a commit that moves and edits
+// the file: the version was recorded at the old path, where that commit has no such file.
+#[test]
+fn a_version_that_moved_and_edited_the_file_is_at_its_new_path() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file("a.txt", "one\ntwo\nthree\nfour\nfive\nsix\n")
+        .unwrap();
+    f.git(&["add", "--", "a.txt"]).unwrap();
+    f.commit_staged(10, "write it").unwrap();
+    f.git(&["mv", "a.txt", "b.txt"]).unwrap();
+    f.write_file("b.txt", "one\nTWO\nthree\nfour\nfive\nsix\n")
+        .unwrap();
+    f.git(&["add", "--", "b.txt"]).unwrap();
+    let moved = f.commit_staged(11, "move and edit it").unwrap();
+
+    let versions = open(&f).line_history("b.txt", "HEAD", 2, 50).unwrap();
+
+    let at_move = versions
+        .iter()
+        .find(|version| version.oid == moved)
+        .unwrap();
+    assert_eq!(at_move.path, "b.txt", "{versions:#?}");
+}

@@ -115,8 +115,8 @@ fn parse_versions(stdout: &str) -> Vec<LineVersion> {
             continue;
         }
         if !current.in_hunk {
-            if current.version.path.is_empty()
-                && let Some(path) = path_of(line)
+            if let Some(path) = path_of(line)
+                && (current.version.path.is_empty() || new_side(line))
             {
                 current.version.path = path;
             }
@@ -201,6 +201,11 @@ fn hunk_start(line: &str) -> Option<u32> {
 }
 
 /// `+++ b/…` names the file at this commit; `--- a/…` when the commit deleted it.
+/// `--- a/old` comes first: a commit that moved the file and edited it is at `+++ b/new`.
+pub(crate) fn new_side(line: &str) -> bool {
+    line.starts_with("+++ ") && line != "+++ /dev/null"
+}
+
 pub(crate) fn path_of(line: &str) -> Option<String> {
     for (prefix, marker) in [("+++ ", "b/"), ("--- ", "a/")] {
         if let Some(rest) = line.strip_prefix(prefix) {
