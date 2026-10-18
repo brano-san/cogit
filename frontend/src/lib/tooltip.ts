@@ -43,10 +43,11 @@ interface Attributes {
 }
 
 /** Leaves `title=""` in place of the title, not nothing: removing an attribute that is not
-    there records no mutation, so the owner's later removal would go unseen. */
-export function stashTitle(element: Attributes): void {
+    there records no mutation, so the owner's later removal would go unseen. `before` is the
+    title the change replaced: `""` to `""` is the owner emptying it, not this placeholder. */
+export function stashTitle(element: Attributes, before?: string | null): void {
   const title = element.getAttribute("title");
-  if (title === null) element.removeAttribute(STASH);
+  if (title === null || (title === "" && before === "")) element.removeAttribute(STASH);
   else if (title !== "") {
     element.setAttribute(STASH, title);
     element.setAttribute("title", "");
@@ -64,11 +65,17 @@ export function watchTitles(root: Document): () => void {
   };
   const observer = new MutationObserver((records) => {
     for (const record of records) {
-      if (record.type === "attributes") stashTitle(record.target as Element);
+      if (record.type === "attributes") stashTitle(record.target as Element, record.oldValue);
       else record.addedNodes.forEach(sweep);
     }
   });
-  observer.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ["title"] });
+  observer.observe(root, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeOldValue: true,
+    attributeFilter: ["title"],
+  });
   sweep(root.documentElement);
   return () => observer.disconnect();
 }

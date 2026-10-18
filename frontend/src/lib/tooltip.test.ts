@@ -66,8 +66,17 @@ describe("stashTitle", () => {
 
   it("leaves its own empty title alone, so it does not loop on its own write", () => {
     const button = element("Tip");
-    stashTitle(button);
-    stashTitle(button);
+    stashTitle(button, "Tip");
     expect(button.getAttribute(STASH)).toBe("Tip");
+  });
+
+  // A row's `title=""` (the Working Tree, an empty cell) looked like the placeholder, and the
+  // commit before it kept its tooltip there.
+  it("forgets a title its owner empties", () => {
+    const cell = element("Also touched: a.ts");
+    stashTitle(cell);
+    cell.setAttribute("title", "");
+    stashTitle(cell, "");
+    expect(cell.getAttribute(STASH)).toBeNull();
   });
 });
