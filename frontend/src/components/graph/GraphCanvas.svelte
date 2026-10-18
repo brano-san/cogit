@@ -8,6 +8,7 @@
     nodeSquare,
     segmentCurve,
     textX,
+    throughWorkingTree,
     transition,
   } from "$lib/graph-geometry";
   import { tokenColor } from "$lib/theme-colors";
@@ -151,7 +152,7 @@
           // Across the Working Tree row to where the line in HEAD's row starts.
           if (curve && headerRow > 0 && row.listRow === headRow && segment.span !== "bottom") {
             const x = laneX(segment.from);
-            path.moveTo(x, headerRow * GRAPH.rowHeight - scrollTop);
+            path.moveTo(x, throughWorkingTree(headerRow, scrollTop, segmentsAt.get(headerRow - 1), segment.from));
             path.lineTo(x, Math.min(curve.y1, curve.y2));
           }
           if (segment.arrow) {

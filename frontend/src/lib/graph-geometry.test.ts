@@ -36,6 +36,7 @@ import {
   toCommitRow,
   toListRow,
   workingTreeLane,
+  throughWorkingTree,
 } from "./graph-geometry";
 
 describe("visibleRange", () => {
@@ -720,5 +721,22 @@ describe("the gap around a local commit", () => {
   it("is there, and stays clear of the next lane at the narrowest width", () => {
     expect(GRAPH.localGap).toBeGreaterThan(0);
     expect(GRAPH.ringRadius + GRAPH.ringStroke / 2 + GRAPH.localGap).toBeLessThan(LANE_WIDTH.min / 2);
+  });
+});
+
+// The Working Tree row above HEAD further down: HEAD's lines are drawn on across it. A turn
+// from the commit above ends at that row's centre, and the line drawn from its top beside
+// the turn's last half made two lines there.
+describe("a line drawn on across the Working Tree row", () => {
+  const row = 5;
+  const top = row * GRAPH.rowHeight;
+
+  it("starts at the row's top", () => {
+    expect(throughWorkingTree(row, 0, [{ from: 0, to: 0, span: "through" }], 0)).toBe(top);
+  });
+
+  it("starts at its centre where a turn from the row above comes into the same column", () => {
+    const above = [{ from: 1, to: 0, span: "bottom" as const }];
+    expect(throughWorkingTree(row, 0, above, 0)).toBe(top + GRAPH.rowHeight / 2);
   });
 });

@@ -239,6 +239,18 @@ export function segmentCurve(
   return { x1, y1, cx1: x1, cy1: middle, cx2: x2, cy2: middle, x2, y2 };
 }
 
+/** Where HEAD's line in `lane` starts across the Working Tree row at `headerRow`: its top,
+    or its centre where the commit above turns into that column, its turn ending there. */
+export function throughWorkingTree(
+  headerRow: number,
+  scrollTop: number,
+  above: readonly Drawn[] | undefined,
+  lane: number,
+): number {
+  const top = headerRow * GRAPH.rowHeight - scrollTop;
+  return turnsDown(above, lane) ? top + GRAPH.rowHeight / 2 : top;
+}
+
 /** The curve as an SVG path, for `Path2D` and for snapshots. */
 export function svgPath(curve: Curve): string {
   const n = (value: number) => String(Math.round(value * 100) / 100);
