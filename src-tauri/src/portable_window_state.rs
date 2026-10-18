@@ -100,7 +100,10 @@ pub fn read(path: &Path) -> HashMap<String, Saved> {
 
 pub fn write(path: &Path, states: &HashMap<String, Saved>) -> std::io::Result<()> {
     let text = serde_json::to_vec_pretty(states).map_err(std::io::Error::other)?;
-    std::fs::write(path, text)
+    // Through a neighbour and a rename: a write cut short reads back as no state at all.
+    let temporary = path.with_extension("json.writing");
+    std::fs::write(&temporary, text)?;
+    std::fs::rename(&temporary, path)
 }
 
 fn save(path: &Path, states: &HashMap<String, Saved>) {
