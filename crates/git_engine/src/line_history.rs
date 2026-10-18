@@ -1,4 +1,4 @@
-use crate::{CommitQuery, CommitRow, GitError, RepoHandle, Result};
+use crate::{CommitQuery, CommitRow, GitError, GraphView, RepoHandle, Result};
 use serde::Serialize;
 
 /// One version of a line: the commit that left it looking like this.
@@ -64,6 +64,11 @@ impl RepoHandle {
         let query = CommitQuery {
             path: Some(path.to_owned()),
             visible_refs: Some(vec![rev.to_owned()]),
+            // Newest first, and streamed: the graph's order reads the whole walk first.
+            view: GraphView {
+                date_order: true,
+                ..GraphView::default()
+            },
             ..CommitQuery::default()
         };
         let mut rows = Vec::new();

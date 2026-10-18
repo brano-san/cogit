@@ -1,5 +1,5 @@
 use crate::line_history::{LogHeader, path_of};
-use crate::{CommitQuery, GitError, RepoHandle, Result};
+use crate::{CommitQuery, GitError, GraphView, RepoHandle, Result};
 use serde::Serialize;
 use std::collections::HashSet;
 
@@ -63,8 +63,14 @@ impl RepoHandle {
         let mut commits = by_prefix.len();
         found.extend(by_prefix);
         if commits < limit {
+            // Newest first, and streamed: the graph's order reads the whole walk before
+            // the first row, and the limit stopped nothing.
             let search = CommitQuery {
                 message: Some(needle.clone()),
+                view: GraphView {
+                    date_order: true,
+                    ..GraphView::default()
+                },
                 ..CommitQuery::default()
             };
             self.search_commits(&search, 50, |chunk| {

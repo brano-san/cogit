@@ -262,3 +262,25 @@ fn the_path_of_each_version_is_the_file_itself_whatever_its_name() {
         );
     }
 }
+
+// The graph's own order (R-766) reached the versions too: a side branch older than the main
+// line came before it, and the list was no longer newest first.
+#[test]
+fn the_versions_are_newest_first_across_a_merge() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["switch", "-c", "side"]).unwrap();
+    f.write_file("dir/side.txt", "side\n").unwrap();
+    f.git(&["add", "--", "dir/side.txt"]).unwrap();
+    let side = f.commit_staged(10, "on the side").unwrap();
+    f.git(&["switch", "main"]).unwrap();
+    f.write_file("dir/main.txt", "main\n").unwrap();
+    f.git(&["add", "--", "dir/main.txt"]).unwrap();
+    let main = f.commit_staged(20, "on main").unwrap();
+    f.git(&["merge", "--no-ff", "--no-commit", "side"]).unwrap();
+    let merge = f.commit_staged(30, "merge the side").unwrap();
+
+    let revisions = open(&f).file_revisions("dir", "HEAD", 100).unwrap();
+
+    let oids: Vec<&str> = revisions.iter().map(|row| row.oid.as_str()).collect();
+    assert_eq!(oids, [&merge, &main, &side], "{revisions:#?}");
+}
