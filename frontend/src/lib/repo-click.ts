@@ -44,6 +44,8 @@ export type CloseStep =
 /** Ctrl+W is Close Repository of the row the panels show: a worktree or a submodule goes
     back to the repository it belongs to, a listed repository closes. */
 export function closeStep(state: RepoClickState): CloseStep {
+  // An open under way: the repository still "shown" is the one being left.
+  if (state.opening !== null) return { kind: "none" };
   if (state.worktreeOwner !== null) return { kind: "worktree", owner: state.worktreeOwner };
   if (state.moduleOwner !== null) return { kind: "module" };
   return state.shown === null ? { kind: "none" } : { kind: "repository", repo: state.shown };

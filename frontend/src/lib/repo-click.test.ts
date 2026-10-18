@@ -82,4 +82,9 @@ describe("closeStep", () => {
     expect(closeStep(state())).toEqual({ kind: "repository", repo: id(1) });
     expect(closeStep(state({ shown: null }))).toEqual({ kind: "none" });
   });
+
+  // While B opens, the repository shown is still A: Ctrl+W closed A, and dropped B's open.
+  it("does nothing while another repository is opening", () => {
+    expect(closeStep(state({ opening: "E:/w/beta" }))).toEqual({ kind: "none" });
+  });
 });
