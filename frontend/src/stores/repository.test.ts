@@ -231,6 +231,25 @@ describe("repository store, as a state machine", () => {
     expect(repository.error).toBeNull();
   });
 
+  // F5 after the "taking longer" notice re-read the repository being left, and that read
+  // took the ticket: the slow open's answer was dropped and it never showed.
+  it("keeps waiting for an open that timed out when asked to refresh", async () => {
+    commands.openRepository.mockResolvedValueOnce({ status: "ok", data: summary("C:/repos/one") });
+    await repository.open("C:/repos/one");
+    vi.useFakeTimers();
+    const answer = pending<unknown>();
+    commands.openRepository.mockReturnValue(answer.promise);
+    commands.rereadRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
+
+    const open = repository.open("C:/repos/slow");
+    await vi.advanceTimersByTimeAsync(repository.openTimeoutMs + 1);
+    await repository.refresh();
+    answer.settle({ status: "ok", data: summary("C:/repos/slow") });
+
+    expect(await open).toBe(true);
+    expect(repository.current?.root).toBe("C:/repos/slow");
+  });
+
   it("closing goes back to closed, with nothing left behind", async () => {
     commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
     await repository.open("C:/repos/one");

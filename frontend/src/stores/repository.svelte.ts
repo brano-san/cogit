@@ -259,9 +259,12 @@ class RepositoryStore {
   /** An open in flight already brings fresh contents, and `current` during it is the
       repository being left: re-reading that one would cancel the open. */
   async refresh(): Promise<void> {
-    if (this.phase.kind === "opening") {
+    // An open past its timeout is still on its way: its `failed` phase carries the
+    // repository being left, and re-reading that one took the ticket from the open.
+    const phase = this.phase;
+    if (phase.kind === "opening" || (phase.kind === "failed" && this.#timedOut !== null)) {
       // A re-read of the repository on screen, begun before this change: one more after it.
-      if (this.phase.repo?.root === this.phase.root) this.#again = true;
+      if (phase.repo?.root === phase.root) this.#again = true;
       return;
     }
     const current = this.current;
