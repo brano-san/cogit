@@ -51,8 +51,12 @@ impl Saved {
         self.width > 0 && self.height > 0
     }
 
-    /// The geometry of the normal (not maximized, not minimized) window.
+    /// The geometry of the normal (not maximized, not minimized) window. A "move" to where
+    /// it already is (a maximized window back from the taskbar) is none.
     fn moved(&mut self, x: i32, y: i32) {
+        if (x, y) == (self.x, self.y) {
+            return;
+        }
         self.prev_x = self.x;
         self.prev_y = self.y;
         self.x = x;
@@ -166,6 +170,8 @@ pub fn install(window: &WebviewWindow, path: PathBuf) {
             // The session of Windows ends with `destroy()`, which sends no close request; the
             // window can no longer be asked anything here, so what the events kept is written.
             WindowEvent::Destroyed => save(&path, &states),
+            // Minimized, tao has dropped its maximized flag: what the events kept stands.
+            WindowEvent::CloseRequested { .. } if minimized => save(&path, &states),
             WindowEvent::CloseRequested { .. } => {
                 state.mode(maximized, fullscreen);
                 if normal {
@@ -234,6 +240,21 @@ mod tests {
         saved.moved(100, 100);
         saved.moved(-8, -8); // the move that maximizes
         saved.maximized = true;
+        assert_eq!(saved.restore_position(), (100, 100));
+    }
+
+    // Restored from the taskbar, a maximized window reports a move to the corner it is
+    // already at: taken for a move, it pushed the position before maximizing out of `prev_*`.
+    #[test]
+    fn a_maximized_window_restored_from_the_taskbar_keeps_its_place_before() {
+        let mut saved = Saved::default();
+        saved.resized(800, 600);
+        saved.moved(100, 100);
+        saved.moved(-8, -8);
+        saved.maximized = true;
+
+        saved.moved(-8, -8);
+
         assert_eq!(saved.restore_position(), (100, 100));
     }
 
