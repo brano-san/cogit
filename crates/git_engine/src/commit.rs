@@ -253,6 +253,7 @@ impl RepoHandle {
         let text = self.read_git(&[
             "log",
             "--no-show-signature",
+            "--encoding=UTF-8",
             "-1",
             "--no-walk",
             "--format=%G?%x00%GS%x00%GK%x00%GG",

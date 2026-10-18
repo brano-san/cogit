@@ -47,6 +47,7 @@ impl RepoHandle {
             "core.quotepath=off",
             "log",
             "--no-show-signature",
+            "--encoding=UTF-8",
             &range,
             &count,
             "--no-color",

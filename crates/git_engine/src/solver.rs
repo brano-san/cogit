@@ -83,7 +83,14 @@ impl RepoHandle {
 
     fn subject_of(&self, oid: &str) -> Option<String> {
         let line = self
-            .read_git(&["log", "--no-show-signature", "-1", "--format=%s", oid])
+            .read_git(&[
+                "log",
+                "--no-show-signature",
+                "--encoding=UTF-8",
+                "-1",
+                "--format=%s",
+                oid,
+            ])
             .ok()?;
         let line = line.trim();
         (!line.is_empty()).then(|| line.to_owned())

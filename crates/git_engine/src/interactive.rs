@@ -115,6 +115,7 @@ impl RepoHandle {
         let listing = self.read_git(&[
             "log",
             "--no-show-signature",
+            "--encoding=UTF-8",
             "--reverse",
             "--no-merges",
             "--topo-order",

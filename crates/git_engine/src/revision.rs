@@ -43,6 +43,7 @@ impl RepoHandle {
             .probe(&[
                 "show",
                 "--no-show-signature",
+                "--encoding=UTF-8",
                 "-s",
                 "--format=%h%x00%ad%x00%s",
                 "--date=unix",
