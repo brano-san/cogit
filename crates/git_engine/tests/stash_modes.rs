@@ -33,6 +33,29 @@ fn keeping_the_working_tree_stashes_the_changes_and_leaves_the_files_alone() {
     );
 }
 
+// The quick + Keep Working Tree passes no name: `stash store --message ""` listed the
+// stash with none at all, where `stash push` names it "WIP on <branch>: …".
+#[test]
+fn a_kept_stash_without_a_name_gets_the_one_stash_push_gives() {
+    let f = test_fixtures::linear(2).unwrap();
+    std::fs::write(
+        f.path().join("file0.txt"),
+        "work in progress
+",
+    )
+    .unwrap();
+    let repo = open(&f);
+
+    repo.stash_keeping_worktree("").unwrap();
+
+    let stashes = repo.stashes().unwrap();
+    assert!(
+        stashes[0].message.starts_with("WIP on main: "),
+        "{:?}",
+        stashes[0]
+    );
+}
+
 #[test]
 fn the_kept_stash_holds_the_change() {
     let f = test_fixtures::linear(2).unwrap();

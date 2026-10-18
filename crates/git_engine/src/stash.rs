@@ -283,7 +283,17 @@ impl RepoHandle {
                 "there is nothing to stash".to_owned(),
             ));
         }
-        self.run_git(&["stash", "store", "--message", message, oid])
+        // Unnamed, it is listed as `stash push` lists one: by the subject `create` wrote.
+        let message = if message.is_empty() {
+            self.find_commit(oid)?
+                .message()
+                .map_err(|err| GitError::Internal(format!("cannot read {oid}: {err}")))?
+                .summary()
+                .to_string()
+        } else {
+            message.to_owned()
+        };
+        self.run_git(&["stash", "store", "--message", &message, oid])
             .map(drop)
     }
 
