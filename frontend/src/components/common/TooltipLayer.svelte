@@ -1,12 +1,11 @@
 <script lang="ts">
-  import { placeTip, TIP_DELAY_MS, type Placement } from "$lib/tooltip";
+  import { placeTip, STASH, TIP_DELAY_MS, watchTitles, type Placement } from "$lib/tooltip";
 
   /** The one tooltip of the window. It answers every `title` and every `data-tip` (what
-      `Tooltip` sets), so all of them look alike and wait the same time (R-181). Every title on
-      the way up from the pointer is moved aside while it is there — the element's own and its
-      titled ancestors' (a tag inside a titled row) — or the browser shows the nearest one left
-      as a second, native tooltip. The nearest ancestor's text joins the bubble as context. */
-  const STASH = "data-cogit-title";
+      `Tooltip` sets), so all of them look alike and wait the same time (R-181). Every title is
+      moved aside the moment it is in the page (`watchTitles`), so the browser never has one
+      to draw a second, native tooltip from. The nearest titled ancestor's text joins the
+      bubble as context (a row around its tag). */
   const SELECTOR = `[title], [data-tip], [${STASH}]`;
 
   interface Shown {
@@ -22,33 +21,16 @@
   let placed = $state.raw<Placement | null>(null);
   let bubble: HTMLElement | undefined = $state();
   let current: Element | null = null;
-  /** Every element whose title is moved aside now, `current` first. */
+  /** The element pointed at and its titled ancestors, `current` first. */
   let held: Element[] = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
-  /** A title Svelte rewrites while the pointer is there (a live status) goes aside again, and
-      one it removes (a button's reason to be off, once it is on) stays gone. */
+  /** A title rewritten while the bubble is up (a live status) shows its new text. */
   const watcher =
     typeof MutationObserver === "undefined"
       ? null
-      : new MutationObserver((records) => {
-          for (const target of new Set(records.map((record) => record.target))) {
-            if (!(target instanceof Element) || !held.includes(target)) continue;
-            target.removeAttribute(STASH);
-            stash(target);
-          }
+      : new MutationObserver(() => {
           if (shown) show();
         });
-
-  /** Leaves `title=""` in place of the title, not nothing: no native tooltip either way, but
-      removing an attribute that is not there records no mutation, so the owner's removal
-      would go unseen and the stale title come back. */
-  function stash(element: Element) {
-    const title = element.getAttribute("title");
-    if (title === null || element.hasAttribute(STASH)) return;
-    element.setAttribute(STASH, title);
-    element.setAttribute("title", "");
-    watcher?.takeRecords();
-  }
 
   function anchorOf(node: EventTarget | null): Element | null {
     return node instanceof Element ? node.closest(SELECTOR) : null;
@@ -61,55 +43,31 @@
     current = element;
     for (let node: Element | null = element; node; node = node.parentElement?.closest(SELECTOR) ?? null) {
       held.push(node);
-      stash(node);
-      watcher?.observe(node, { attributes: true, attributeFilter: ["title"] });
+      watcher?.observe(node, { attributes: true, attributeFilter: [STASH, "data-tip"] });
     }
     timer = setTimeout(show, TIP_DELAY_MS);
   }
 
-  /** The bubble goes (a click, a scroll, Esc), but the titles stay aside while the pointer
-      is still on the element: put back under it, the browser showed its own native tooltip
-      for the very element just clicked. They come back when the pointer leaves. */
   function hide() {
     clearTimeout(timer);
     shown = null;
     placed = null;
-    if (import.meta.env.DEV) queueMicrotask(checkNoNative);
-  }
-
-  /** Dev builds: a title left on the way up from the pointer is a second, native tooltip. */
-  function checkNoNative() {
-    for (let node: Element | null = current; node; node = node.parentElement) {
-      if (node.getAttribute("title")) console.warn("tooltip: a native title is live under the pointer", node);
-      if (node.hasAttribute("data-tip") && node.getAttribute("title"))
-        console.warn("tooltip: an element has both data-tip and title", node);
-    }
   }
 
   function disarm() {
     hide();
-    const element = current;
     current = null;
     watcher?.disconnect();
-    const restore = held;
     held = [];
-    if (!element) return;
-    for (const node of restore) {
-      const stashed = node.getAttribute(STASH);
-      node.removeAttribute(STASH);
-      if (stashed !== null && node.getAttribute("title") === "") node.setAttribute("title", stashed);
-    }
   }
 
   function textOf(element: Element | undefined): string {
-    return (element?.getAttribute("data-tip") ?? element?.getAttribute(STASH) ?? "").trim();
+    return (element?.getAttribute("data-tip") ?? element?.getAttribute(STASH) ?? element?.getAttribute("title") ?? "").trim();
   }
 
   function show() {
     const element = current;
     if (!element?.isConnected) return;
-    for (const node of held) stash(node);
-    if (import.meta.env.DEV) checkNoNative();
     const text = textOf(element);
     const around = held.slice(1).map(textOf).find((each) => each !== "") ?? null;
     if (text === "" && around === null) {
@@ -138,7 +96,13 @@
     );
   });
 
-  $effect(() => () => disarm());
+  $effect(() => {
+    const stop = watchTitles(document);
+    return () => {
+      stop();
+      disarm();
+    };
+  });
 </script>
 
 <svelte:document

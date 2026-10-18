@@ -174,12 +174,12 @@ export const SCENARIOS = [
     sets: ["dirty"],
     async prep(ctx) {
       await workingTree(ctx);
-      if ((await ctx.attr({ sel: `button[title="Show Directories"]` }, "aria-pressed")) === "true") {
-        await ctx.prep.click({ sel: `button[title="Show Flat List"]` });
+      if ((await ctx.attr({ sel: `button[aria-label="Show Directories"]` }, "aria-pressed")) === "true") {
+        await ctx.prep.click({ sel: `button[aria-label="Show Flat List"]` });
       }
     },
-    measure: (ctx) => ctx.measure.click({ sel: `button[title="Show Directories"]` }),
-    reset: (ctx) => ctx.prep.click({ sel: `button[title="Show Flat List"]` }),
+    measure: (ctx) => ctx.measure.click({ sel: `button[aria-label="Show Directories"]` }),
+    reset: (ctx) => ctx.prep.click({ sel: `button[aria-label="Show Flat List"]` }),
   },
   {
     id: "files.content-search",
