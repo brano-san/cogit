@@ -75,14 +75,17 @@ class WorktreeStore {
       failed read, so a read failing after a good write does not undo the write's success. */
   async mutate(repo: RepoId, run: () => Promise<unknown>): Promise<WorkingState | null> {
     const cleared = this.#cleared;
+    const readBack = () => (cleared === this.#cleared ? this.load(repo) : Promise.resolve(null));
     try {
       await run();
     } catch (err) {
-      // Thrown even after the panels moved on: the caller must not take a refusal for a
-      // commit. Only the read-back below is skipped for another repository.
+      // Read back all the same: git can change the index and then exit non-zero (`add`
+      // with an ignored path). Thrown even after the panels moved on: the caller must not
+      // take a refusal for a commit.
+      await readBack();
       throw toCogitError(err);
     }
-    return cleared === this.#cleared ? this.load(repo) : null;
+    return readBack();
   }
 
   async commit(

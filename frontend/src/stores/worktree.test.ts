@@ -61,7 +61,16 @@ describe("a write and the read after it", () => {
     await expect(worktree.stage(REPO, ["a.txt"])).rejects.toThrow("index.lock exists");
 
     expect(worktree.error).toBeNull();
-    expect(ipc.worktreeFiles).not.toHaveBeenCalled();
+  });
+
+  // `git add` with an ignored path among them stages the rest and exits 1; the watcher is
+  // quiet for our own write, so the list kept showing them unstaged.
+  it("reads the list back after a refused write too", async () => {
+    ipc.stagePaths.mockRejectedValueOnce(new Error("The following paths are ignored"));
+
+    await expect(worktree.stage(REPO, ["a.txt"])).rejects.toThrow("ignored");
+
+    expect(ipc.worktreeFiles).toHaveBeenCalledTimes(1);
   });
 
   it("does not call a commit failed when only the read after it failed", async () => {
