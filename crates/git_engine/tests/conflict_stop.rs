@@ -131,9 +131,11 @@ fn a_stash_apply_refused_over_earlier_conflicts_is_not() {
             .is_err()
     );
 
+    // Git 2.51 refuses with exit 1, the CI runner's with 128 ("could not write index"):
+    // either way nothing was applied.
     let entry = last(&log);
-    assert_eq!(entry.exit_code, Some(1), "{entry:?}");
-    assert!(!entry.stopped_on_conflicts);
+    assert_ne!(entry.exit_code, Some(0), "{entry:?}");
+    assert!(!entry.stopped_on_conflicts, "{entry:?}");
 }
 
 #[test]
