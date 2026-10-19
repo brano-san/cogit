@@ -51,22 +51,17 @@ jobs:
             echo "prerelease=$pre"; echo "bundles_windows=$bundles"
           } >> "$GITHUB_OUTPUT"
 
-  # Same job as in ci.yml (needs cannot cross workflows): no release with a known advisory.
-  deny:
+  # CI itself (deny, lint, every test) on the tagged commit: nothing is built while it is red.
+  # Its run on master is no proof: the next push there cancels it.
+  ci:
     needs: meta
-    runs-on: ubuntu-22.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: refs/tags/${{ needs.meta.outputs.tag }}
-      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
-        with:
-          command: check
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: refs/tags/${{ needs.meta.outputs.tag }}
 
   build:
     name: Build (${{ matrix.name }})
-    needs: [meta, deny]
+    needs: [meta, ci]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     # A job marked experimental may fail without blocking the release: its files are simply
