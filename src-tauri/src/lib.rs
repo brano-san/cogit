@@ -152,6 +152,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::commit_details,
             commands::commit_files,
             commands::diff_file,
+            commands::file_content,
             commands::diff_edited,
             commands::worktree_files,
             commands::working_state,

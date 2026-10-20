@@ -74,6 +74,8 @@ export const commands = {
 	commitDetails: (repo: RepoId, rev: string) => typedError<CommitDetails, GitError>(__TAURI_INVOKE("commit_details", { repo, rev })),
 	commitFiles: (repo: RepoId, rev: string) => typedError<FileEntry_Serialize[], GitError>(__TAURI_INVOKE("commit_files", { repo, rev })),
 	diffFile: (repo: RepoId, spec: DiffSpec, path: string, options: DiffOptions) => typedError<FileDiff, GitError>(__TAURI_INVOKE("diff_file", { repo, spec, path, options })),
+	/**  An unchanged or ignored file shown whole in the Diff panel; `limit` is Show anyway's. */
+	fileContent: (repo: RepoId, spec: DiffSpec, path: string, limit: number | null) => typedError<FileContent, GitError>(__TAURI_INVOKE("file_content", { repo, spec, path, limit })),
 	/**  The working file being edited, diffed as its save would write it (F-722). */
 	diffEdited: (repo: RepoId, spec: DiffSpec, path: string, text: string, shape: Shape, options: DiffOptions) => typedError<FileDiff, GitError>(__TAURI_INVOKE("diff_edited", { repo, spec, path, text, shape, options })),
 	worktreeFiles: (repo: RepoId, view: WorktreeView) => typedError<WorktreeFiles_Serialize, GitError>(__TAURI_INVOKE("worktree_files", { repo, view })),
@@ -1193,6 +1195,11 @@ export type FetchOptions = {
 export type FileChange = "added" | "modified" | "deleted" | "renamed" | "copied" | 
 /**  A type change, or a status this reader does not know yet. */
 "other";
+
+/**  What `file_content` read. */
+export type FileContent = { kind: "text"; text: string } | { kind: "binary"; size: number } | { kind: "tooLarge"; size: number; limit: number } | 
+/**  Not on that side: deleted, or never there. */
+{ kind: "missing" };
 
 export type FileDiff = { kind: "text"; hunks: Hunk[]; eol: EolInfo; lossyEncoding: boolean; 
 /**  Language hint for Lezer. Highlighting itself is a frontend concern (INV-01). */

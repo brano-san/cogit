@@ -56,6 +56,23 @@ pub async fn commit_tree_files(
     .await
 }
 
+/// An unchanged or ignored file shown whole in the Diff panel; `limit` is Show anyway's.
+#[tauri::command]
+#[specta::specta]
+pub async fn file_content(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    spec: DiffSpec,
+    path: String,
+    limit: Option<u32>,
+) -> Result<app_state::FileContent, GitError> {
+    let app_state = state.state.clone();
+    blocking("file_content", move || {
+        app_state.file_content(repo, &spec, &path, limit.map(u64::from))
+    })
+    .await
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn diff_file(

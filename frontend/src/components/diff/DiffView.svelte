@@ -1,5 +1,6 @@
 <script lang="ts">
   import EmptyState from "$components/common/EmptyState.svelte";
+  import FileContentView from "$components/diff/FileContentView.svelte";
   import { errors } from "$stores/errors.svelte";
   import { diffKey } from "$lib/diff-keys";
   import { modals } from "$lib/modal-stack";
@@ -104,6 +105,8 @@
     /** What the panes hold, above each; from the diff's spec when the host knows no better
         (the compare window knows the parent commit's id). */
     captions?: SideCaptions;
+    /** The file itself, not a diff: an unchanged or ignored file has nothing to compare. */
+    whole?: boolean;
   }
 
   let {
@@ -119,6 +122,7 @@
     showPath = true,
     captions,
     edit = null,
+    whole = false,
   }: Props = $props();
 
   /** Converted lines are not the file's bytes: a patch built from them would not apply. */
@@ -1029,7 +1033,9 @@
     <DiffFindBar bind:this={findBar} {find} reveal={revealHit} />
   {/if}
 
-  {#if diff.kind === "unchanged"}
+  {#if (whole || diff.kind === "unchanged") && diffStore.repo !== null && diffStore.shownSpec}
+    <FileContentView repo={diffStore.repo} spec={diffStore.shownSpec} {path} />
+  {:else if diff.kind === "unchanged"}
     <EmptyState title="No change in this file." />
   {:else if diff.kind === "modeOnly"}
     <EmptyState

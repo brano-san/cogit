@@ -113,6 +113,7 @@ export type {
   EolInfo,
   BinaryCause,
   BlobSide,
+  FileContent,
   FileDiff,
   FileEntry,
   FileStatus,
@@ -397,6 +398,11 @@ export const DEFAULT_DIFF_OPTIONS: DiffOptions = {
   wordDiff: true,
   detectMoves: true,
 };
+
+/** An unchanged or ignored file, whole; `limit` raises the text limit (Show anyway). */
+export async function fileContent(repo: RepoId, spec: DiffSpec, path: string, limit: number | null) {
+  return unwrap(await commands.fileContent(repo, spec, path, limit));
+}
 
 export async function diffFile(
   repo: RepoId,

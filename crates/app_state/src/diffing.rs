@@ -2,6 +2,27 @@
 
 use crate::{AppState, DiffBatch, Recovery, RepoId};
 
+/// What `file_content` read.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum FileContent {
+    Text {
+        text: String,
+    },
+    Binary {
+        #[specta(type = specta_typescript::Number)]
+        size: u64,
+    },
+    TooLarge {
+        #[specta(type = specta_typescript::Number)]
+        size: u64,
+        #[specta(type = specta_typescript::Number)]
+        limit: u64,
+    },
+    /// Not on that side: deleted, or never there.
+    Missing,
+}
+
 impl AppState {
     pub fn diff_file(
         &self,
@@ -82,6 +103,44 @@ impl AppState {
             spec,
             (old_path, path),
         ))
+    }
+
+    /// The side of `path` the spec shows, whole and read-only: an unchanged or ignored file in
+    /// the Diff panel. Decoded as its diff would be; past `limit` (the text limit unless Show
+    /// anyway raised it, never past the image cap) only its size is read.
+    pub fn file_content(
+        &self,
+        repo: RepoId,
+        spec: &git_engine::DiffSpec,
+        path: &str,
+        limit: Option<u64>,
+    ) -> Result<FileContent, git_engine::GitError> {
+        let handle = self.handle(repo)?;
+        let limit = limit
+            .unwrap_or(diff_engine::MAX_TEXT_BYTES)
+            .min(diff_engine::MAX_IMAGE_BYTES);
+        let Some(size) = handle.side_sizes_from(spec, path, path)?.1 else {
+            return Ok(FileContent::Missing);
+        };
+        if size >= limit {
+            return Ok(FileContent::TooLarge { size, limit });
+        }
+        let Some(bytes) = handle.diff_sides_from(spec, path, path)?.1 else {
+            return Ok(FileContent::Missing);
+        };
+        let mut attributes = handle.diff_attributes();
+        let bytes = convert(&handle, &mut attributes, path, None, Some(&bytes))
+            .map_or(bytes, |(_, _, decoded)| decoded);
+        let declared = matches!(
+            content(attributes.content(path)),
+            diff_engine::Content::Binary(_)
+        );
+        if declared || diff_engine::invalid_character(&bytes).is_some() {
+            return Ok(FileContent::Binary { size });
+        }
+        Ok(FileContent::Text {
+            text: String::from_utf8_lossy(&bytes).into_owned(),
+        })
     }
 
     /// Every file of a commit in one call. Blocking: reads are sequential, only the diffing
