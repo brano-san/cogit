@@ -40,6 +40,9 @@ export type AppCommandId =
   | "commit-message"
   | "undo"
   | "output"
+  | "zoom-in"
+  | "zoom-out"
+  | "zoom-reset"
   | "copy-path"
   | "copy-branch"
   | "copy-sha"
@@ -157,6 +160,9 @@ export function appCommands(facts: AppCommandFacts, run: AppCommandActions): Pal
       run: run.undo,
     },
     { id: "output", title: "Toggle Output Panel", run: run.output },
+    { id: "zoom-in", title: "Zoom In", run: run["zoom-in"] },
+    { id: "zoom-out", title: "Zoom Out", run: run["zoom-out"] },
+    { id: "zoom-reset", title: "Actual Size", run: run["zoom-reset"] },
     {
       id: "copy-path",
       title: "Copy the File Path",

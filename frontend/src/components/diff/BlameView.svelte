@@ -82,7 +82,7 @@
     height: 100%;
     padding: 0 var(--sp-4);
     color: var(--text-secondary);
-    font-size: 10px;
+    font-size: var(--fs-small);
     border-right: 1px solid var(--divider);
   }
 
@@ -105,7 +105,7 @@
     padding-right: var(--sp-3);
     color: var(--text-secondary);
     font-family: var(--font-mono);
-    font-size: 10px;
+    font-size: var(--fs-small);
     text-align: right;
     user-select: none;
   }

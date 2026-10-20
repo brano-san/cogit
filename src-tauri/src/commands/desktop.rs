@@ -26,6 +26,18 @@ pub async fn set_native_theme(app: tauri::AppHandle, dark: bool) {
     crate::native_theme::apply(&app, dark);
 }
 
+/// The desktop's UI font and which of `families` are installed (`fc-list` on Linux).
+#[tauri::command]
+#[specta::specta]
+pub async fn system_font(
+    families: Vec<String>,
+) -> Result<crate::system_font::SystemFont, GitError> {
+    blocking("system_font", move || {
+        Ok(crate::system_font::read(&families))
+    })
+    .await
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn open_path(path: String) -> Result<(), GitError> {

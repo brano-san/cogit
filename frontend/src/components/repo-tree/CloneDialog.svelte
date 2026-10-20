@@ -335,7 +335,7 @@
     border: 1px solid var(--text-secondary);
     border-radius: 50%;
     color: var(--text-secondary);
-    font-size: 10px;
+    font-size: var(--fs-small);
     font-style: italic;
     font-weight: 700;
     cursor: help;

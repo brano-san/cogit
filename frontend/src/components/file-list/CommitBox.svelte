@@ -199,7 +199,7 @@
     flex: none;
     margin: var(--sp-3) 0 0;
     color: var(--status-modify);
-    font-size: 10px;
+    font-size: var(--fs-small);
   }
 
   /* One row while it fits; narrower, the options wrap as whole units under the counter
@@ -226,7 +226,7 @@
 
   .count {
     flex: none;
-    font-size: 11px;
+    font-size: var(--fs-header);
     color: var(--text-secondary);
     white-space: nowrap;
   }

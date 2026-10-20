@@ -182,14 +182,14 @@
     border-radius: var(--r-sm);
     background: var(--state-selected);
     color: var(--text-secondary);
-    font-size: 10px;
+    font-size: var(--fs-small);
   }
 
   .path {
     flex: 1 1 auto;
     min-width: 0;
     color: var(--text-secondary);
-    font-size: 11px;
+    font-size: var(--fs-header);
   }
 
   .message {

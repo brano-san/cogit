@@ -414,6 +414,8 @@ export const commands = {
 	desktopInfo: () => typedError<DesktopInfo, GitError>(__TAURI_INVOKE("desktop_info")),
 	/**  The frontend's theme is dark or light; GTK dialogs follow it (Linux), a no-op elsewhere. */
 	setNativeTheme: (dark: boolean) => __TAURI_INVOKE<void>("set_native_theme", { dark }),
+	/**  The desktop's UI font and which of `families` are installed (`fc-list` on Linux). */
+	systemFont: (families: string[]) => typedError<SystemFont, GitError>(__TAURI_INVOKE("system_font", { families })),
 	openPath: (path: string) => typedError<null, GitError>(__TAURI_INVOKE("open_path", { path })),
 	/**
 	 *  A link in the browser. Not the opener plugin's `openUrl` from the page: it starts the
@@ -2545,6 +2547,18 @@ export type SubtreeOp = { kind: "add"; prefix: string; repository: string; refer
 { kind: "split"; prefix: string; branch: string; rejoin: boolean } | 
 /**  The folder's contents replaced by `reference`'s tree, staged for the next commit. */
 { kind: "reset"; prefix: string; reference: string } | { kind: "push"; prefix: string; repository: string; reference: string };
+
+export type SystemFont = {
+	/**  The desktop's UI family: `gtk-font-name` on Linux, Segoe UI on Windows. */
+	family: string | null,
+	/**  Its size in CSS pixels. */
+	sizePx: number | null,
+	/**
+	 *  Of the families the page asked about, those installed here; `None` where the platform
+	 *  is not asked (Windows, macOS ship the families their stacks name).
+	 */
+	installed: string[] | null,
+};
 
 export type Tag = {
 	name: string,

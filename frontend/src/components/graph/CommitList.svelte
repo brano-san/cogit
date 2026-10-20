@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { scaled } from "$lib/ui-metrics";
+  import { uiMetricsStore } from "$stores/ui-metrics.svelte";
   import { untrack } from "svelte";
   import EmptyState from "$components/common/EmptyState.svelte";
   import SkeletonRows from "$components/common/SkeletonRows.svelte";
@@ -169,7 +171,7 @@
     longLinkRows = LONG_LINK_ROWS,
   }: Props = $props();
 
-  const rowHeight = $derived(DENSITY_ROW_HEIGHT[density]);
+  const rowHeight = $derived(scaled(DENSITY_ROW_HEIGHT[density], uiMetricsStore.fontPx));
   const cells = $derived(rightCells(columns, overlap.enabled));
 
   $effect(() => {
@@ -582,7 +584,8 @@
   }
 
   function onscroll() {
-    if (scroller) scrollTop = readScroll();
+    // Whole pixels: a fractional translateY blurs the rows' text; the canvas reads the same value.
+    if (scroller) scrollTop = Math.round(readScroll());
   }
 
   /** The request already acted on. Without it every arriving chunk would re-centre and
@@ -994,7 +997,7 @@
     border: 1px solid;
     border-radius: var(--r-md);
     font-family: var(--font-mono);
-    font-size: 10px;
+    font-size: var(--fs-small);
     line-height: 14px;
   }
 
@@ -1021,7 +1024,7 @@
   .row.virtual .node {
     flex: 0 0 12px;
     color: var(--status-modify);
-    font-size: 9px;
+    font-size: var(--fs-tiny);
     text-align: center;
   }
 

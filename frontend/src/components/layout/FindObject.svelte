@@ -144,8 +144,8 @@
   .finder {
     position: absolute;
     top: 12%;
-    left: 50%;
-    transform: translateX(-50%);
+    inset-inline: 0;
+    margin-inline: auto;
     z-index: 21;
     display: flex;
     flex-direction: column;
@@ -208,7 +208,7 @@
     flex: 0 1 auto;
     min-width: 0;
     color: var(--text-secondary);
-    font-size: 10px;
+    font-size: var(--fs-small);
   }
 
   .note {

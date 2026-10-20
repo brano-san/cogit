@@ -150,7 +150,7 @@
     color: var(--text-on-accent);
     background: var(--status-add);
     border-radius: var(--r-sm);
-    font-size: 10px;
+    font-size: var(--fs-small);
     text-transform: uppercase;
   }
 

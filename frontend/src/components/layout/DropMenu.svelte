@@ -88,7 +88,7 @@
 
   .mark {
     color: var(--status-modify);
-    font-size: 10px;
+    font-size: var(--fs-small);
     text-transform: uppercase;
   }
 </style>

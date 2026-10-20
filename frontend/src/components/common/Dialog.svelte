@@ -182,10 +182,12 @@
 
   .dialog {
     --dialog-inset: var(--sp-5);
+    /* Centred by layout, not translate(-50%): half-pixel offsets blur the text. */
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
+    inset: 0;
+    margin: auto;
+    width: fit-content;
+    height: fit-content;
     display: flex;
     flex-direction: column;
     max-width: 90vw;

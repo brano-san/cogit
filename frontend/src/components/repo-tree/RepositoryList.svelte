@@ -513,14 +513,14 @@
   .row.module .where {
     flex-grow: 1;
     color: var(--text-secondary);
-    font-size: 11px;
+    font-size: var(--fs-header);
   }
 
   /* Whole and before the text that gives way: a long branch or subject cut it off (R-544). */
   .row.module .hint {
     flex: none;
     color: var(--text-secondary);
-    font-size: 10px;
+    font-size: var(--fs-small);
   }
 
   /* Closed reads as dimmed, text and icon alike, with no word for it (R-351). */
@@ -535,13 +535,13 @@
   .backend {
     flex: none;
     color: var(--text-secondary);
-    font-size: 10px;
+    font-size: var(--fs-small);
   }
 
   .pin {
     flex: none;
     color: var(--text-secondary);
-    font-size: 11px;
+    font-size: var(--fs-header);
   }
 
   .row.holds-worktree {
@@ -672,7 +672,7 @@
   .gone {
     flex: 0 0 auto;
     color: var(--status-delete);
-    font-size: 10px;
+    font-size: var(--fs-small);
     letter-spacing: 0.04em;
   }
 
@@ -692,7 +692,7 @@
   .op {
     flex: 0 0 auto;
     color: var(--status-modify);
-    font-size: 10px;
+    font-size: var(--fs-small);
   }
 
   /* A corner each, so any two show at once: pull (or `?`) top left, push top right, the
@@ -786,7 +786,7 @@
   .branch {
     flex-grow: 1;
     color: var(--text-secondary);
-    font-size: 10px;
+    font-size: var(--fs-small);
   }
 
 </style>

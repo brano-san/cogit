@@ -956,7 +956,7 @@
     background: var(--bg-elevated);
     border-top: 1px solid var(--border);
     color: var(--fg-secondary);
-    font-size: 11px;
+    font-size: var(--fs-header);
     user-select: none;
   }
 </style>

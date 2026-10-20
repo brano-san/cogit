@@ -28,6 +28,12 @@ export type GraphSort = "topological" | "date";
 
 export interface Settings {
   theme: Theme;
+  /** The UI font in CSS px; 0 follows the desktop's (`gtk-font-name`, Segoe UI 9pt). Rows scale with it. */
+  uiFontSize: number;
+  /** The diff and editor font in CSS px; its rows stay 18 px, so at most 14. */
+  diffFontSize: number;
+  /** The webview's zoom: Ctrl+= / Ctrl+- / Ctrl+0. */
+  uiZoom: number;
   dateFormat: DateMode;
   algorithm: Algorithm;
   contextLines: number;
@@ -127,6 +133,9 @@ export const INTERNAL_SETTINGS: readonly (keyof Settings)[] = ["settingsVersion"
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: "dark",
+  uiFontSize: 0,
+  diffFontSize: 12.5,
+  uiZoom: 1,
   dateFormat: "smart",
   algorithm: "histogram",
   contextLines: 3,
@@ -199,6 +208,9 @@ const ENUMS: Partial<Record<keyof Settings, readonly string[]>> = {
 };
 
 const RANGES: Partial<Record<keyof Settings, [number, number]>> = {
+  uiFontSize: [0, 20],
+  diffFontSize: [10, 14],
+  uiZoom: [0.5, 2],
   contextLines: [0, 50],
   diffSplit: [0.2, 0.8],
   laneWidth: [LANE_WIDTH.min, LANE_WIDTH.max],

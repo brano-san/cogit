@@ -169,6 +169,23 @@ export const CATEGORIES: Category[] = [
         fields: [
           { key: "theme", label: "Theme", keywords: ["dark", "light", "grey", "gray"] },
           {
+            key: "uiFontSize",
+            label: "Interface font size",
+            hint: "System takes the desktop's font size. Rows in every list grow with it.",
+            keywords: ["font", "text", "size", "small", "large", "readability"],
+          },
+          {
+            key: "diffFontSize",
+            label: "Diff font size",
+            keywords: ["font", "code", "editor", "size", "monospace"],
+          },
+          {
+            key: "uiZoom",
+            label: "Zoom",
+            hint: "Also View ▸ Zoom In (Ctrl+=), Zoom Out (Ctrl+-), Actual Size (Ctrl+0).",
+            keywords: ["zoom", "scale", "magnify", "size"],
+          },
+          {
             key: "graphStripes",
             label: "Alternate row background",
             hint: "In every list: Graph, Files, Repositories, Branches, Worktrees.",

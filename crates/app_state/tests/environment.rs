@@ -113,3 +113,45 @@ fn this_windows_reports_a_numeric_build() {
     let build = os.build.expect("the registry holds CurrentBuildNumber");
     assert!(build.parse::<u32>().is_ok(), "{build}");
 }
+
+// Cogit drew its own stack at 13px while SmartGit took the desktop's font: the system font
+// is what the UI starts from.
+#[test]
+fn a_gtk_font_name_becomes_a_css_family_and_size() {
+    use app_state::environment::css_font;
+    assert_eq!(
+        css_font("Ubuntu 11"),
+        Some(("Ubuntu".to_owned(), 11.0 * 4.0 / 3.0))
+    );
+    assert_eq!(
+        css_font("Noto Sans Medium 10"),
+        Some(("Noto Sans".to_owned(), 10.0 * 4.0 / 3.0))
+    );
+    assert_eq!(
+        css_font("Cantarell, Sans Bold Italic 12"),
+        Some(("Cantarell".to_owned(), 16.0))
+    );
+    assert_eq!(
+        css_font("DejaVu Sans 14px"),
+        Some(("DejaVu Sans".to_owned(), 14.0))
+    );
+}
+
+#[test]
+fn a_gtk_font_name_without_a_family_or_a_size_says_nothing() {
+    use app_state::environment::css_font;
+    assert_eq!(css_font("12"), None);
+    assert_eq!(css_font("Ubuntu"), None);
+    assert_eq!(css_font(""), None);
+}
+
+#[test]
+fn only_installed_families_stay_in_the_fallback_stack() {
+    use app_state::environment::installed_families;
+    let listed = "DejaVu Sans\nNoto Sans,Noto Sans Regular\nUbuntu Mono\n";
+    let wanted = ["Inter", "Noto Sans", "DejaVu Sans", "Cantarell"].map(String::from);
+    assert_eq!(
+        installed_families(listed, &wanted),
+        ["Noto Sans", "DejaVu Sans"]
+    );
+}

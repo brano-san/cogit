@@ -96,7 +96,7 @@
     flex: 0 0 auto;
     min-width: 64px;
     color: var(--text-secondary);
-    font-size: 11px;
+    font-size: var(--fs-header);
     text-align: right;
   }
 </style>

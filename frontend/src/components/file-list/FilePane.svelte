@@ -27,7 +27,8 @@
   import { desktop } from "$stores/desktop.svelte";
   import { remoteOps } from "$stores/remote-ops.svelte";
   import type { ViewRow } from "$lib/file-view";
-  import { LIST_ROW_HEIGHT, striped } from "$lib/graph-geometry";
+  import { striped } from "$lib/graph-geometry";
+  import { uiMetricsStore } from "$stores/ui-metrics.svelte";
   import { repository } from "$stores/repository.svelte";
   import { filesView } from "$stores/files-view.svelte";
   import { TypeAhead, findTyped, listKey, pageRows, pressOf, typedChar } from "$lib/list-keys";
@@ -142,7 +143,7 @@
       void goTo(to, false);
       return;
     }
-    const action = listKey(press, at, files.length, pageRows(pane, LIST_ROW_HEIGHT));
+    const action = listKey(press, at, files.length, pageRows(pane, uiMetricsStore.listRow));
     if (action?.kind === "fold" && nested) {
       const folder = folderRow?.dataset.folder ?? (from === null ? null : directoryOf(from));
       if (folder === null || folder === undefined) return;
@@ -186,7 +187,7 @@
           <div
             class="folder"
             class:striped={striped(at, stripes)}
-            style:top="{at * LIST_ROW_HEIGHT}px"
+            style:top="{at * uiMetricsStore.listRow}px"
             role="button"
             aria-expanded={group.open}
             tabindex="0"
@@ -213,7 +214,7 @@
             class:striped={striped(at, stripes)}
             class:selected={selected === file.path}
             class:marked={marked.has(file.path)}
-            style:top="{at * LIST_ROW_HEIGHT}px"
+            style:top="{at * uiMetricsStore.listRow}px"
             data-path={file.path}
             onclick={(event) => {
               cursor = file.path;
@@ -317,7 +318,7 @@
     display: flex;
     align-items: center;
     gap: var(--tree-gap);
-    /* The step the rows are placed at (LIST_ROW_HEIGHT): shorter left a dead gap between. */
+    /* The step the rows are placed at (`uiMetricsStore.listRow`): shorter left a dead gap between. */
     height: var(--h-row);
     padding: 0 var(--sp-5);
     font-size: var(--fs-dense);
@@ -395,7 +396,7 @@
 
   .folder {
     color: var(--text-secondary);
-    font-size: 11px;
+    font-size: var(--fs-header);
   }
 
   .folder .count {
@@ -419,7 +420,7 @@
     border: 0;
     color: var(--text-secondary);
     font: inherit;
-    font-size: 10px;
+    font-size: var(--fs-small);
     text-transform: uppercase;
     letter-spacing: 0.04em;
     cursor: default;
@@ -438,7 +439,7 @@
     flex: 0 1 auto;
     min-width: 0;
     color: var(--fg-secondary);
-    font-size: 11px;
+    font-size: var(--fs-header);
   }
 
   .state.danger {
@@ -455,18 +456,18 @@
   /* Not `.renamed`: that is also the status class of the row, which then took this style. */
   .from {
     color: var(--status-ref);
-    font-size: 10px;
+    font-size: var(--fs-small);
   }
 
   .mode {
     flex: 0 0 auto;
     color: var(--status-modify);
     font-family: var(--font-mono);
-    font-size: 10px;
+    font-size: var(--fs-small);
   }
 
   .dir {
     color: var(--text-secondary);
-    font-size: 11px;
+    font-size: var(--fs-header);
   }
 </style>

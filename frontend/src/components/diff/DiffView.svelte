@@ -1269,7 +1269,7 @@
 
   .eol {
     color: var(--fg-secondary);
-    font-size: 11px;
+    font-size: var(--fs-header);
   }
 
   /* A change that needs a word of explanation, not a control: the tooltip says what it is. */
@@ -1278,14 +1278,14 @@
     background: var(--badge-warning-bg);
     color: var(--badge-warning-fg);
     border-radius: var(--r-sm);
-    font-size: 11px;
+    font-size: var(--fs-header);
     line-height: 16px;
     cursor: default;
   }
 
   .warn {
     color: var(--status-warning);
-    font-size: 11px;
+    font-size: var(--fs-header);
   }
 
   /* Unified: one scroller. Sideways the code moves by `--shift`, under the scrollbar below
@@ -1413,7 +1413,7 @@
     padding-right: var(--sp-3);
     color: var(--diff-line-number);
     font-family: var(--font-mono);
-    font-size: 10px;
+    font-size: var(--fs-small);
     text-align: right;
     font-variant-numeric: tabular-nums;
   }

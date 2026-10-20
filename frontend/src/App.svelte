@@ -121,6 +121,8 @@
   import { effective, withShortcuts } from "$lib/keymap";
   import { binName, ON_MAC, ON_WINDOWS, OS, primary } from "$lib/platform";
   import { pageCommand } from "$lib/page-accelerators";
+  import { zoomStep } from "$lib/ui-metrics";
+  import { uiMetricsStore } from "$stores/ui-metrics.svelte";
   import { menuCommandRuns, modals } from "$lib/modal-stack";
   import { commitBox } from "$stores/commit-box.svelte";
   import { commitFileMenu, shownRow, worktreeFileMenu } from "$lib/file-menu";
@@ -435,6 +437,7 @@
     untrack(() => {
       startTracing();
       trace("startup", "the window is running");
+      uiMetricsStore.logRendered();
       // Nothing in a Git client is a web page (R-127), nor has the browser's find bar.
       suppressNativeMenu(document);
       suppressBrowserFind(window);
@@ -741,6 +744,9 @@
     "commit-message": () => void commitBox.focus(),
     undo: () => undo(),
     output: () => output.toggle(),
+    "zoom-in": () => void settings.set("uiZoom", zoomStep(settings.current.uiZoom, 1)),
+    "zoom-out": () => void settings.set("uiZoom", zoomStep(settings.current.uiZoom, -1)),
+    "zoom-reset": () => void settings.set("uiZoom", zoomStep(settings.current.uiZoom, 0)),
     "copy-path": () => void copyText(diff.path ?? ""),
     "copy-branch": () => void copyText(tracked?.name ?? ""),
     "copy-sha": () => void copyText(commit.oid ?? ""),
@@ -4490,12 +4496,20 @@ ${event.error}`,
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--surface-base);
-    opacity: 0.85;
     border: 2px dashed var(--status-ref);
     color: var(--text-primary);
     font-size: var(--fs-ui);
     pointer-events: none;
+  }
+
+  /* The see-through surface under the hint, so its text stays fully opaque. */
+  .drop-hint::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: var(--surface-base);
+    opacity: 0.85;
   }
 
   .workspace {

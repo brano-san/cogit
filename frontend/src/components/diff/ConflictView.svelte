@@ -137,7 +137,7 @@
 
   .warn {
     color: var(--status-delete);
-    font-size: 10px;
+    font-size: var(--fs-small);
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }

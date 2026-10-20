@@ -114,6 +114,7 @@ export type {
   BinaryCause,
   BlobSide,
   FileContent,
+  SystemFont,
   FileDiff,
   FileEntry,
   FileStatus,
@@ -398,6 +399,11 @@ export const DEFAULT_DIFF_OPTIONS: DiffOptions = {
   wordDiff: true,
   detectMoves: true,
 };
+
+/** The desktop's UI font and the `families` installed (Linux). */
+export async function systemFont(families: string[]) {
+  return unwrap(await commands.systemFont(families));
+}
 
 /** An unchanged or ignored file, whole; `limit` raises the text limit (Show anyway). */
 export async function fileContent(repo: RepoId, spec: DiffSpec, path: string, limit: number | null) {

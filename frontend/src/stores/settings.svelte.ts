@@ -8,6 +8,7 @@ import { defaultKeymap, setKeymap } from "$lib/ipc";
 import { DEFAULT_SETTINGS, merge, type Settings } from "$lib/settings";
 import { errors } from "$stores/errors.svelte";
 import { themeStore } from "$stores/theme.svelte";
+import { uiMetricsStore } from "$stores/ui-metrics.svelte";
 
 const KEY = "settings";
 const KEYMAP_KEY = "keymap";
@@ -107,6 +108,7 @@ class SettingsStore {
   #apply(): void {
     setLaneWidth(this.current.laneWidth);
     themeStore.apply(this.current.theme);
+    uiMetricsStore.apply(this.current);
   }
 }
 

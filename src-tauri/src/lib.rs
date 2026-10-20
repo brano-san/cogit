@@ -26,6 +26,7 @@ mod session_end;
 mod shell_open;
 mod shutdown;
 mod solver_window;
+mod system_font;
 mod taskbar;
 #[cfg(windows)]
 mod webview2;
@@ -319,6 +320,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::open_in_terminal,
             commands::desktop::desktop_info,
             commands::desktop::set_native_theme,
+            commands::desktop::system_font,
             commands::desktop::open_path,
             commands::desktop::open_url,
             commands::desktop::reveal_path,
@@ -577,6 +579,7 @@ pub fn run() -> anyhow::Result<()> {
                 // a fight the window loses (doc/12-risks.md, R-118).
                 window_place::settle(&window);
                 window.show()?;
+                system_font::init(&window);
             }
             Ok(())
             })();
