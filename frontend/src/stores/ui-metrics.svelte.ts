@@ -61,23 +61,24 @@ class UiMetricsStore {
     }
   }
 
-  /** Writes what the text renders at to `cogit.log`, once rows are on screen (or after 20 s
-      with what there is), next to the backend's scale and desktop font lines (R-775). */
+  /** Writes what the text renders at to `cogit.log`, next to the backend's scale and desktop
+      font lines (R-775): the scale at once, each sample row the first time it is on screen.
+      Repositories open closed at startup (F-733), so the rows come when the user opens one. */
   logRendered(): void {
     if (typeof document === "undefined") return;
+    trace("metrics", `devicePixelRatio=${window.devicePixelRatio} fontPx=${this.current.fontPx} listRow=${this.current.listRow}`);
+    const waiting = new Map(Object.entries(SAMPLES));
     let tries = 0;
     const look = () => {
-      const found = Object.entries(SAMPLES).map(([name, selector]) => [name, document.querySelector(selector)] as const);
-      if (found.some(([, el]) => !el) && ++tries < 20) return void setTimeout(look, 1000);
-      trace("metrics", `devicePixelRatio=${window.devicePixelRatio} fontPx=${this.current.fontPx} listRow=${this.current.listRow}`);
-      for (const [name, el] of found) {
-        if (!el) {
-          trace("metrics", `${name}: not on screen`);
-          continue;
-        }
+      for (const [name, selector] of waiting) {
+        const el = document.querySelector(selector);
+        if (!el) continue;
+        waiting.delete(name);
         const css = getComputedStyle(el);
         trace("metrics", `${name}: ${css.fontSize}/${css.lineHeight} ${css.color} ${css.fontFamily} height=${el.getBoundingClientRect().height}`);
       }
+      // ponytail: polls once a second for 10 minutes; a row opened later goes unlogged.
+      if (waiting.size > 0 && ++tries < 600) setTimeout(look, 1000);
     };
     look();
   }
