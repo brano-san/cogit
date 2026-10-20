@@ -243,6 +243,18 @@ describe("a git command and the notification window", () => {
     expect(notices.current).toBeUndefined();
   });
 
+  // Ctrl+K held with no repository open asked once per key repeat (R-772).
+  it("shows one notice for the same result told twice", () => {
+    notices.inform("Commit…", "No repository is open");
+    notices.inform("Commit…", "No repository is open");
+
+    expect(notices.all).toHaveLength(1);
+    notices.dismiss();
+    notices.inform("Commit…", "No repository is open");
+    expect(notices.all).toHaveLength(1);
+    notices.dismissAll();
+  });
+
   it("keeps a result behind every error and warning", async () => {
     await warn(goneWorktree);
     notices.inform("Worktree repaired", "done");

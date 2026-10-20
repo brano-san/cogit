@@ -3514,7 +3514,11 @@ ${event.error}`,
       if (runFileCommand(id)) return;
       if (runRefCommand(id)) return;
       const command = palette.find((entry) => entry.id === id);
-      if (command && !command.unavailable) runCommand(command, false);
+      if (!command) return;
+      // A command that cannot run says why instead of doing nothing (Ctrl+K with no
+      // repository open, R-772).
+      if (command.unavailable) return notices.inform(command.title, command.unavailable);
+      runCommand(command, false);
     });
     return () => void pending.then((unlisten) => unlisten());
   });

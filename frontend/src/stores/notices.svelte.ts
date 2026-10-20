@@ -65,6 +65,8 @@ class NoticeStore {
   /** How an operation ended, behind every error and warning; shown when nothing else is. */
   inform(title: string, body: string): void {
     untrack(() => {
+      // A key held down asks again on every repeat: one notice is enough.
+      if (this.#results.some((held) => held.title === title && held.body === body)) return;
       this.#seq += 1;
       const notice: Notice = {
         key: `info:${this.#seq}`,
