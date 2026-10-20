@@ -20,6 +20,7 @@ vi.mock("$lib/ipc", () => {
     hasToken: vi.fn(async () => false),
     storeToken: vi.fn(async () => {}),
     forgetToken: vi.fn(async () => {}),
+    listCredentials: vi.fn(async () => ({ persistent: true, known: [] })),
   };
 });
 
@@ -30,6 +31,7 @@ vi.mock("$stores/confirm.svelte", () => ({ confirmation: { ask } }));
 
 const ipc = await import("$lib/ipc");
 const { network } = await import("./network.svelte");
+const { signIn } = await import("./sign-in.svelte");
 
 const A = 1 as never;
 const B = 2 as never;
@@ -83,7 +85,7 @@ describe("a pull with local changes in the way", () => {
     ask.mockResolvedValueOnce(true);
 
     expect(await network.pull(A, "origin", false)).toBe("pulled");
-    expect(ipc.pullRemote).toHaveBeenLastCalledWith(A, "origin", false, true, expect.any(Function));
+    expect(ipc.pullRemote).toHaveBeenLastCalledWith(A, "origin", false, true, expect.any(Function), null);
   });
 
   it("pulls nothing more on a no", async () => {
@@ -155,5 +157,21 @@ describe("a token the keychain refuses", () => {
 
     expect(report).toHaveBeenCalledWith(refused, "Could not forget the token");
     expect(network.tokenStored).toBe(true);
+  });
+});
+
+describe("a remote that wants a sign-in", () => {
+  it("asks in the Sign in dialog and fetches again with what was typed", async () => {
+    const refusal = { detail: { kind: "command", data: { stderr: "", stdout: "", authRequired: { host: "h", username: null } } } };
+    vi.mocked(ipc.fetchRemote).mockRejectedValueOnce(refusal).mockResolvedValueOnce(null);
+    const typed = { host: "h", username: "ann", secret: "pw", remember: true };
+
+    const done = network.fetch(A, "origin");
+    await vi.waitFor(() => expect(signIn.open?.host).toBe("h"));
+    signIn.answer(typed);
+    await done;
+
+    expect(ipc.fetchRemote).toHaveBeenLastCalledWith(A, "origin", expect.any(Function), typed);
+    expect(network.failures).toBe(0);
   });
 });

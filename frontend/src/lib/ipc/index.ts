@@ -969,6 +969,23 @@ export async function setMenuState(disabled: string[], checked: string[]) {
 }
 
 /** The three below take the remote URL: which host a token belongs to is the backend's rule. */
+/** Hosts and usernames with a stored sign-in; never a secret (F-082). */
+export async function listCredentials() {
+  return unwrap(await commands.listCredentials());
+}
+
+export async function storeCredential(credential: SignIn) {
+  return unwrap(await commands.storeCredential(credential));
+}
+
+export async function forgetCredential(host: string) {
+  return unwrap(await commands.forgetCredential(host));
+}
+
+export async function forgetAllCredentials() {
+  return unwrap(await commands.forgetAllCredentials());
+}
+
 export async function hasToken(url: string) {
   return unwrap(await commands.hasToken(url));
 }

@@ -276,7 +276,7 @@
         if (!choice.dryRun && remember) await saveNetworkDefaults(id, mergeDefaults(request.defaults, { push: choice }));
         if (!choice.noVerify) await announceHooks(id, "push");
         if (choice.dryRun) {
-          output.show(await network.run(id, "Pushing (dry run)", (onLine) => pushDryRun(id, options, onLine)));
+          output.show(await network.run(id, "Pushing (dry run)", (onLine, credential) => pushDryRun(id, options, onLine, credential)));
           return;
         }
         await pushFlow(networkApi, flowUi, id, options);

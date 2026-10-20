@@ -80,6 +80,7 @@
   import { parentFolder, runClone } from "$lib/clone";
   import { cloneRepository, type CloneRequest } from "$lib/ipc/clone";
   import PromptDialog from "$components/layout/PromptDialog.svelte";
+  import SignInDialog from "$components/layout/SignInDialog.svelte";
   import StashDialogs from "$components/layout/StashDialogs.svelte";
   import GitMissingDialog from "$components/layout/GitMissingDialog.svelte";
   import { GitMissingStore } from "$stores/git-missing.svelte";
@@ -3129,12 +3130,13 @@ ${event.error}`,
 
   /** Repository ▸ Clone…'s Finish: the clone runs in the footer, then opens as Open would. */
   async function startClone(request: CloneRequest) {
-    const login = cloneWizard.login;
+    // The check's sign-in, unless the clone's own refusal asked for another one.
+    const checked = cloneWizard.credential;
     cloneWizard.close();
     welcome.close();
     await runClone(request, {
       run: (operation) => network.run(null, "Cloning", operation),
-      clone: (wanted, onLine) => cloneRepository(wanted, onLine, login),
+      clone: (wanted, onLine, credential) => cloneRepository(wanted, onLine, credential ?? checked),
       open: async (root) => {
         opening = true;
         try {
@@ -4247,6 +4249,8 @@ ${event.error}`,
       onclose={() => (repoSettingsOpen = false)}
     />
   {/if}
+
+  <SignInDialog />
 
   {#if prompt.open}
     <PromptDialog

@@ -82,6 +82,7 @@
   import { resetChoice } from "$lib/reset-modes";
   import { baseBefore, fullMessage, modifyPlan, rewordPlan, squashPlan } from "$lib/rewrite-plans";
   import { tagPushRemote, tagRequest } from "$lib/tag-dialog";
+  import { signedIn } from "$stores/sign-in.svelte";
   import { successToast } from "$stores/success-toast.svelte";
   import { branchRevision, headPushSource } from "$lib/toolbar";
   import { branchNameProblem, textProblem } from "$lib/names";
@@ -787,7 +788,7 @@
     // A refused push keeps the local tag: it was made, only publishing it failed.
     const ref = `refs/tags/${request.name}`;
     const pushed = await attempt(`Added tag '${request.name}', could not push it to '${remote}'`, () =>
-      network.run(id, "Pushing", (onLine) => pushTo(id, remote, `${ref}:${ref}`, false, onLine)),
+      network.run(id, "Pushing", (onLine, credential) => pushTo(id, remote, `${ref}:${ref}`, false, onLine, credential)),
     );
     if (pushed) successToast.show(`Pushed tag '${request.name}' to ${remote}`);
   }
@@ -838,7 +839,7 @@
 
   async function push(id: RepoId, remote: string, refspec: string, track = false) {
     await attempt("Could not push", () =>
-      network.run(id, "Pushing", (onLine) => pushTo(id, remote, refspec, track, onLine)),
+      network.run(id, "Pushing", (onLine, credential) => pushTo(id, remote, refspec, track, onLine, credential)),
     );
   }
 
@@ -907,7 +908,7 @@
       if (!go) return;
       await attempt("Could not delete the remote branch", async () => {
         // Someone else deleted it first: what was asked for is done (R-480).
-        if ((await deleteRemoteBranch(id, remote, ref.name)) === "alreadyGone") {
+        if ((await signedIn((credential) => deleteRemoteBranch(id, remote, ref.name, credential))) === "alreadyGone") {
           notices.inform("Branch already deleted", `${ref.name} was no longer on ${remote}.`);
         }
       });
@@ -949,9 +950,11 @@
     if (forceDeclined) done = false;
     if (!done || !checked || !copy) return;
     await attempt(`Could not delete the ${what} from ${copy.remote}`, () =>
-      ref.kind === "tag"
-        ? deleteRemoteTag(id, copy.remote, copy.name)
-        : deleteRemoteBranch(id, copy.remote, copy.name),
+      signedIn((credential) =>
+        ref.kind === "tag"
+          ? deleteRemoteTag(id, copy.remote, copy.name, credential)
+          : deleteRemoteBranch(id, copy.remote, copy.name, credential),
+      ),
     );
   }
 

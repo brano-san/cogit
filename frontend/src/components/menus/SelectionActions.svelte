@@ -217,8 +217,8 @@
     if (!id || !branches) return;
     const pushes = branchPushes(branches, remote, network.remotes, track);
     await attempt("Could not push", () =>
-      network.run(id, "Pushing", async (onLine) => {
-        for (const each of pushes) await pushTo(id, remote, each.refspec, each.track, onLine);
+      network.run(id, "Pushing", async (onLine, credential) => {
+        for (const each of pushes) await pushTo(id, remote, each.refspec, each.track, onLine, credential);
       }),
     );
     await afterRefChange(id);

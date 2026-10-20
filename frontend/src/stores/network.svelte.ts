@@ -11,11 +11,13 @@ import {
   type PullOutcome,
   type Pushed,
   type RepoId,
+  type SignIn,
 } from "$lib/ipc";
 import { STASH_AND_PULL } from "$lib/network-flow";
 import { pullDoneText, pushDoneText } from "$lib/toolbar";
 import { confirmation } from "$stores/confirm.svelte";
 import { notices } from "$stores/notices.svelte";
+import { signedIn } from "$stores/sign-in.svelte";
 import { successToast } from "$stores/success-toast.svelte";
 
 /** `repo` is `null` for a clone: the repository does not exist until it ends. */
@@ -97,7 +99,7 @@ class NetworkStore {
   }
 
   async fetch(repo: RepoId, remote: string): Promise<void> {
-    await this.run(repo, "Fetching", (onLine) => fetchRemote(repo, remote, onLine));
+    await this.run(repo, "Fetching", (onLine, credential) => fetchRemote(repo, remote, onLine, credential));
     successToast.show("Fetch succeeded");
   }
 
@@ -105,7 +107,9 @@ class NetworkStore {
       changes in the way of moving the branch are asked about, as the Pull dialog does. */
   async pull(repo: RepoId, remote: string, ffOnly: boolean): Promise<PullOutcome> {
     const run = (autostash: boolean) =>
-      this.run(repo, "Pulling", (onLine) => pullRemote(repo, remote, ffOnly, autostash, onLine));
+      this.run(repo, "Pulling", (onLine, credential) =>
+        pullRemote(repo, remote, ffOnly, autostash, onLine, credential),
+      );
     let outcome = await run(false);
     if (outcome === "stashNeeded" && (await confirmation.ask(STASH_AND_PULL))) outcome = await run(true);
     if (outcome !== "stashNeeded") successToast.show(pullDoneText(outcome));
@@ -115,7 +119,9 @@ class NetworkStore {
   /** `Pushed` on a detached HEAD: what went, empty when nothing could and nothing ran,
       and then no toast — the caller asks where HEAD goes (F-710). */
   async push(repo: RepoId, remote: string, force: boolean): Promise<Pushed | null> {
-    const pushed = await this.run(repo, "Pushing", (onLine) => pushRemote(repo, remote, force, onLine));
+    const pushed = await this.run(repo, "Pushing", (onLine, credential) =>
+      pushRemote(repo, remote, force, onLine, credential),
+    );
     const text = pushDoneText(pushed);
     if (text !== null) successToast.show(text);
     return pushed;
@@ -131,7 +137,7 @@ class NetworkStore {
   async run<T>(
     repo: RepoId | null,
     label: string,
-    operation: (onLine: (line: string) => void) => Promise<T>,
+    operation: (onLine: (line: string) => void, credential: SignIn | null) => Promise<T>,
   ): Promise<T> {
     const id = ++this.#started;
     this.#running = [...this.#running, { id, repo, label, progress: null }];
@@ -141,7 +147,8 @@ class NetworkStore {
       this.#running = this.#running.map((entry) => (entry.id === id ? { ...entry, progress: line } : entry));
     };
     try {
-      return await operation(onLine);
+      // A refusal asks in the Sign in dialog and runs it again (F-082).
+      return await signedIn((credential) => operation(onLine, credential));
     } catch (err) {
       this.#failures += 1;
       throw err;

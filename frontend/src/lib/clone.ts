@@ -1,4 +1,4 @@
-import type { CloneDestination, CloneRequest, RemoteBranches } from "$lib/ipc/clone";
+import type { CloneDestination, CloneRequest, RemoteBranches, SignIn } from "$lib/ipc/clone";
 
 /** Repository ▸ Clone…, three pages (F-575). */
 export const CLONE_PAGES = ["repository", "selection", "directory"] as const;
@@ -174,26 +174,18 @@ export function cloneRequest(choices: CloneChoices): CloneRequest {
 
 export interface CloneRun {
   /** The clone as a network operation: `network.run` with no repository behind it. */
-  run: (operation: (onLine: (line: string) => void) => Promise<string>) => Promise<string>;
-  clone: (request: CloneRequest, onLine: (line: string) => void) => Promise<string>;
+  run: (operation: (onLine: (line: string) => void, credential: SignIn | null) => Promise<string>) => Promise<string>;
+  clone: (request: CloneRequest, onLine: (line: string) => void, credential: SignIn | null) => Promise<string>;
   /** Opens the new repository and puts it in the list, as Open does. */
   open: (root: string) => Promise<unknown>;
   report: (err: unknown, title: string) => void;
 }
 
 /** The root it opened, or `null` when the clone failed or was cancelled. */
-/** Git's words when the server wanted credentials that nothing on this machine supplied. */
-const AUTH_FAILURE =
-  /authentication failed|could not read (username|password)|cannot prompt because|terminal prompts disabled|invalid username or password|access denied|\b(401|403)\b|unauthorized/i;
-
-export function authFailure(output: string): boolean {
-  return AUTH_FAILURE.test(output);
-}
-
 export async function runClone(request: CloneRequest, deps: CloneRun): Promise<string | null> {
   let root: string;
   try {
-    root = await deps.run((onLine) => deps.clone(request, onLine));
+    root = await deps.run((onLine, credential) => deps.clone(request, onLine, credential));
   } catch (err) {
     deps.report(err, "Could not clone the repository");
     return null;

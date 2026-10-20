@@ -78,7 +78,7 @@
           />
           <button type="button" class="btn" onclick={() => void browseSource()}>Browse…</button>
         </span>
-        <span class="hint">Next checks that the repository can be reached. Your credential helper may ask you to sign in.</span>
+        <span class="hint">Next checks that the repository can be reached, and asks you to sign in if it wants that.</span>
       </label>
       {#if failure !== null}
         <div class="failure" role="alert">
@@ -86,28 +86,6 @@
           Change the URL, or continue without the check to sign in during the clone.
           <pre class="mono">{failure}</pre>
         </div>
-      {/if}
-      {#if wizard.needsLogin}
-        <label class="field">
-          <span>Username</span>
-          <input
-            type="text"
-            spellcheck="false"
-            autocomplete="username"
-            value={wizard.username}
-            oninput={(event) => (wizard.username = event.currentTarget.value)}
-          />
-        </label>
-        <label class="field">
-          <span>Password or token</span>
-          <input
-            type="password"
-            autocomplete="current-password"
-            value={wizard.password}
-            oninput={(event) => (wizard.password = event.currentTarget.value)}
-          />
-          <span class="hint">Next tries again with these. They are used for this clone only and never stored.</span>
-        </label>
       {/if}
     {:else if wizard.page === "selection"}
       <Checkbox checked={wizard.submodules} label="Include submodules" onchange={(on) => (wizard.submodules = on)} />

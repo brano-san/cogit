@@ -82,10 +82,10 @@ export const networkDialog = new NetworkDialogStore();
 /** Each command runs as a network operation: the footer names it and shows its progress. */
 export const networkApi: NetworkApi = {
   pullWith: (repo, remote, options) =>
-    network.run(repo, "Pulling", (onLine) => ipc.pullWith(repo, remote, options, onLine)),
+    network.run(repo, "Pulling", (onLine, credential) => ipc.pullWith(repo, remote, options, onLine, credential)),
   fetchWith: (repo, remote, options) =>
-    network.run(repo, "Fetching", (onLine) => ipc.fetchWith(repo, remote, options, onLine)),
-  pushWith: (repo, options) => network.run(repo, "Pushing", (onLine) => ipc.pushWith(repo, options, onLine)),
-  pushNotes: (repo, remote) => network.run(repo, "Pushing notes", (onLine) => ipc.pushNotes(repo, remote, onLine)),
+    network.run(repo, "Fetching", (onLine, credential) => ipc.fetchWith(repo, remote, options, onLine, credential)),
+  pushWith: (repo, options) => network.run(repo, "Pushing", (onLine, credential) => ipc.pushWith(repo, options, onLine, credential)),
+  pushNotes: (repo, remote) => network.run(repo, "Pushing notes", (onLine, credential) => ipc.pushNotes(repo, remote, onLine, credential)),
   mergeNotes: (repo, remote, namespace) => ipc.mergeNotes(repo, remote, namespace),
 };

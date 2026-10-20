@@ -1,6 +1,5 @@
 import {
   DEFAULT_LIMIT,
-  authFailure,
   branchOptions,
   cloneRequest,
   destinationToAsk,
@@ -22,6 +21,7 @@ import {
   type RemoteBranches,
 } from "$lib/ipc/clone";
 import { pathFromUrl } from "$lib/remote-dialogs";
+import { signedIn } from "$stores/sign-in.svelte";
 
 export type CloneCheck =
   | { state: "idle" }
@@ -46,8 +46,8 @@ export class CloneWizard {
   parent = $state("");
   name = $state("");
   seen = $state.raw<Destination | null>(null);
-  username = $state("");
-  password = $state("");
+  /** What the check signed in with, for the clone itself: without Remember it is kept nowhere else. */
+  credential: SignIn | null = null;
 
   /** What the clipboard put in: not typed, so closing does not ask about it. */
   #prefilled = "";
@@ -69,8 +69,7 @@ export class CloneWizard {
     this.parent = parent;
     this.name = "";
     this.seen = null;
-    this.username = "";
-    this.password = "";
+    this.credential = null;
     this.#prefilled = "";
     this.#nameTyped = false;
     this.open = true;
@@ -83,7 +82,7 @@ export class CloneWizard {
   close(): void {
     this.#session += 1;
     this.open = false;
-    this.password = "";
+    this.credential = null;
   }
 
   setSource(text: string): void {
@@ -138,21 +137,6 @@ export class CloneWizard {
     return this.check.state === "failed" && this.check.source === this.source.trim() ? this.check.error : null;
   }
 
-  /** The check failed for want of credentials: the wizard asks for them itself. */
-  get needsLogin(): boolean {
-    const error = this.failed;
-    if (error === null && this.login === null) return false;
-    if (error === null) return true;
-    const output = error.detail.kind === "command" ? `${error.detail.data.stderr}\n${error.detail.data.stdout}` : "";
-    return authFailure(`${output}\n${error.message}`);
-  }
-
-  get login(): SignIn | null {
-    return this.username.trim() !== "" && this.password !== ""
-      ? { host: this.source.trim(), username: this.username.trim(), secret: this.password, remember: false }
-      : null;
-  }
-
   get dirty(): boolean {
     return this.page !== "repository" || this.source.trim() !== this.#prefilled.trim();
   }
@@ -204,8 +188,13 @@ export class CloneWizard {
     this.check = { state: "checking", source };
     const stale = () => session !== this.#session || this.source.trim() !== source;
     try {
-      const listing = await remoteBranches(source, this.login);
+      // A refusal opens the Sign in dialog and checks again with what was typed (F-082).
+      const { listing, credential } = await signedIn(async (credential) => ({
+        listing: await remoteBranches(source, credential),
+        credential,
+      }));
       if (stale()) return;
+      this.credential = credential;
       this.check = { state: "passed", source, listing };
       this.branch = initialBranch(listing);
       this.page = "selection";

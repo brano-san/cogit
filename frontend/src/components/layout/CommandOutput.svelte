@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { NO_PROMPT_ADVICE, credentialTrouble } from "$lib/credentials";
+  import { NO_PROMPT_ADVICE } from "$lib/credentials";
   import VirtualList from "$components/common/VirtualList.svelte";
   import { CopyFeedback } from "$lib/copy-feedback.svelte";
   import { splitLinks } from "$lib/links";
@@ -49,7 +49,7 @@
 
   const lines = $derived(logLines(entry.stdout, entry.stderr));
   /** Above the raw output, never instead of it: what to do when no credentials could be asked for. */
-  const noPrompt = $derived(credentialTrouble(`${entry.stderr}\n${entry.stdout}`) === "noPrompt");
+  const noPrompt = $derived(entry.credentialTrouble === "noPrompt");
   const failed = $derived(accent === undefined ? entry.severity === "failure" : !accent);
   const heading = $derived(
     given ??

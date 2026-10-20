@@ -23,6 +23,19 @@ vi.mock("$lib/ipc", () => ({
   toCogitError: (err: unknown) => err,
 }));
 
+const signIns = vi.hoisted(() => ({ answer: null as unknown, asked: [] as unknown[] }));
+
+vi.mock("$stores/sign-in.svelte", async () => {
+  const { signedIn } = await import("$lib/sign-in");
+  return {
+    signedIn: (operation: (credential: import("$lib/ipc/bindings").SignIn | null) => Promise<unknown>) =>
+      signedIn(operation, async (request) => {
+        signIns.asked.push(request);
+        return signIns.answer as never;
+      }),
+  };
+});
+
 const ipc = await import("$lib/ipc/clone");
 const { CloneWizard } = await import("./clone.svelte");
 
@@ -76,31 +89,29 @@ describe("the first page", () => {
     expect(wizard.dirty).toBe(true);
   });
 
-  it("asks for credentials when the server refused, and checks again with them", async () => {
+  it("signs in through the shared dialog when the server refused, and keeps that sign-in for the clone", async () => {
+    const typed = { host: "host", username: "ann", secret: "tok", remember: false };
+    signIns.answer = typed;
+    signIns.asked = [];
     backend.failure = {
-      message: "failed",
-      detail: { kind: "command", data: { stderr: "fatal: Cannot prompt because user interactivity has been disabled.", stdout: "" } },
+      detail: { kind: "command", data: { stderr: "", stdout: "", authRequired: { host: "host", username: null } } },
     };
+    vi.mocked(ipc.remoteBranches).mockImplementationOnce(async () => {
+      const refusal = backend.failure;
+      backend.failure = null;
+      throw refusal;
+    });
     const wizard = new CloneWizard();
     await wizard.start("D:\\src");
     wizard.setSource("https://host/private.git");
     await wizard.next();
-    expect(wizard.needsLogin).toBe(true);
 
-    backend.failure = null;
-    wizard.username = "ann";
-    wizard.password = "tok";
-    await wizard.next();
-
-    expect(ipc.remoteBranches).toHaveBeenLastCalledWith("https://host/private.git", {
-      host: "https://host/private.git",
-      username: "ann",
-      secret: "tok",
-      remember: false,
-    });
+    expect(signIns.asked).toEqual([{ host: "host", username: null, error: null }]);
+    expect(ipc.remoteBranches).toHaveBeenLastCalledWith("https://host/private.git", typed);
     expect(wizard.page).toBe("selection");
+    expect(wizard.credential).toEqual(typed);
     wizard.close();
-    expect(wizard.login).toBeNull();
+    expect(wizard.credential).toBeNull();
   });
 
   it("stays on a failed check and offers to go on without it", async () => {

@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  authFailure,
   branchOptions,
   cloneRequest,
   destinationToAsk,
@@ -192,14 +191,14 @@ describe("running the clone", () => {
   it("opens what it cloned", async () => {
     const open = vi.fn(async () => {});
     const deps = {
-      run: (operation: (onLine: (line: string) => void) => Promise<string>) => operation(() => {}),
+      run: (operation: (onLine: (line: string) => void, credential: null) => Promise<string>) => operation(() => {}, null),
       clone: vi.fn(async () => "D:\\src\\app"),
       open,
       report: vi.fn(),
     };
 
     expect(await runClone(request, deps)).toBe("D:\\src\\app");
-    expect(deps.clone).toHaveBeenCalledWith(request, expect.any(Function));
+    expect(deps.clone).toHaveBeenCalledWith(request, expect.any(Function), null);
     expect(open).toHaveBeenCalledWith("D:\\src\\app");
     expect(deps.report).not.toHaveBeenCalled();
   });
@@ -207,7 +206,7 @@ describe("running the clone", () => {
   it("reports a failure, a cancel included, and opens nothing", async () => {
     const failure = new Error("fatal: repository not found");
     const deps = {
-      run: (operation: (onLine: (line: string) => void) => Promise<string>) => operation(() => {}),
+      run: (operation: (onLine: (line: string) => void, credential: null) => Promise<string>) => operation(() => {}, null),
       clone: vi.fn(async () => Promise.reject(failure)),
       open: vi.fn(async () => {}),
       report: vi.fn(),
@@ -216,20 +215,5 @@ describe("running the clone", () => {
     expect(await runClone(request, deps)).toBeNull();
     expect(deps.report).toHaveBeenCalledWith(failure, "Could not clone the repository");
     expect(deps.open).not.toHaveBeenCalled();
-  });
-});
-
-describe("authFailure", () => {
-  it("tells a refused sign-in from other failures", () => {
-    for (const text of [
-      "fatal: Cannot prompt because user interactivity has been disabled.",
-      "fatal: could not read Username for 'https://host': terminal prompts disabled",
-      "remote: Invalid username or password.\nfatal: Authentication failed for 'https://host/a.git/'",
-      "fatal: unable to access 'https://host/a.git/': The requested URL returned error: 403",
-    ]) {
-      expect(authFailure(text)).toBe(true);
-    }
-    expect(authFailure("fatal: repository 'https://host/a.git/' not found")).toBe(false);
-    expect(authFailure("fatal: unable to access 'https://host/': Could not resolve host: host")).toBe(false);
   });
 });

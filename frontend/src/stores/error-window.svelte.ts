@@ -9,7 +9,6 @@ import {
   type ErrorEntry,
 } from "$lib/ipc";
 import { entryOf, pushEntry } from "$lib/error-window";
-import { credentialTrouble } from "$lib/credentials";
 import { untrack } from "svelte";
 
 /** A warning younger than this is not cleared by a conflict list that is still the one read
@@ -83,7 +82,7 @@ class ErrorWindowStore {
     this.#loading.add(run.id);
     const record = await commandOutcome(run.id).catch(() => null);
     this.#loading.delete(run.id);
-    if (record && credentialTrouble(`${record.stderr}\n${record.stdout}`) === "canceled") {
+    if (record?.credentialTrouble === "canceled") {
       this.onSignInCanceled?.(record.operation || run.operation, run.repo);
       return;
     }

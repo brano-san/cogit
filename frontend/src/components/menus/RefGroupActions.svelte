@@ -197,7 +197,7 @@
         return setDepth(id, remote);
       case "unshallow":
         await attempt(`Could not fetch the full history of ${remote}`, () =>
-          network.run(id, "Fetching", (onLine) => fetchDepth(id, remote, 0, onLine)),
+          network.run(id, "Fetching", (onLine, credential) => fetchDepth(id, remote, 0, onLine, credential)),
         );
         return afterFetch(id);
       case "properties":
@@ -265,8 +265,8 @@
   async function fetchMoreFrom(id: RepoId, remote: string) {
     let changed = true;
     const done = await attempt(`Could not fetch more from ${remote}`, () =>
-      network.run(id, "Fetching", async (onLine) => {
-        changed = await fetchMore(id, remote, onLine);
+      network.run(id, "Fetching", async (onLine, credential) => {
+        changed = await fetchMore(id, remote, onLine, credential);
       }),
     );
     if (done && !changed) {
@@ -284,7 +284,7 @@
     });
     if (depth === null) return;
     await attempt(`Could not fetch ${remote} at that depth`, () =>
-      network.run(id, "Fetching", (onLine) => fetchDepth(id, remote, Number(depth.trim()), onLine)),
+      network.run(id, "Fetching", (onLine, credential) => fetchDepth(id, remote, Number(depth.trim()), onLine, credential)),
     );
     await afterFetch(id);
   }

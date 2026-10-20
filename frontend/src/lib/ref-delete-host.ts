@@ -2,12 +2,13 @@ import { deleteRefs, type RepoId } from "$lib/ipc";
 import type { DeleteHost } from "$lib/ref-delete-run";
 import { confirmation } from "$stores/confirm.svelte";
 import { errors } from "$stores/errors.svelte";
+import { signedIn } from "$stores/sign-in.svelte";
 
 /** The app's side of `runDeletion` for the repository `id`: its errors window and its
     force question. */
 export function appDeleteHost(id: RepoId): DeleteHost {
   return {
-    remove: (request) => deleteRefs(id, request),
+    remove: (request) => signedIn((credential) => deleteRefs(id, request, credential)),
     fail: (error, title) => errors.report(error, title),
     askForce: (kept) =>
       confirmation.ask({
