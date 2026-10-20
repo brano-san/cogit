@@ -21,10 +21,11 @@
 <style>
   .success {
     position: fixed;
-    left: 50%;
-    top: 50%;
     z-index: 60;
-    transform: translate(-50%, -50%);
+    inset: 0;
+    margin: auto;
+    width: fit-content;
+    height: fit-content;
     display: flex;
     align-items: center;
     gap: var(--sp-3);

@@ -175,7 +175,7 @@
   .path {
     flex: 0 1000 auto;
     min-width: 0;
-    opacity: 0.8;
+    color: var(--text-secondary);
   }
 
   .where + .path::before,
@@ -215,7 +215,6 @@
   .row.missing .path {
     color: var(--text-secondary);
     text-decoration: line-through;
-    opacity: 0.75;
   }
 
   .actions {
@@ -248,7 +247,7 @@
     border-radius: 999px;
     background: var(--badge-remote-bg);
     color: var(--badge-remote-fg);
-    font-size: 10px;
+    font-size: var(--fs-small);
     line-height: 15px;
     cursor: default;
     user-select: none;
@@ -276,7 +275,7 @@
     color: var(--text-primary);
     border: 1px solid var(--field-border);
     border-radius: var(--r-sm);
-    font-size: 10px;
+    font-size: var(--fs-small);
     cursor: default;
   }
 

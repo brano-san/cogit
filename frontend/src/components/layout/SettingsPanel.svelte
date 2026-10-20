@@ -21,6 +21,8 @@
   import { NO_FILTER_FOLDS, shownFolds, toggle, toggleFilterFold, type TreeNode } from "$lib/tree";
   import { protectedNames, staleChoices } from "$lib/push-dialog";
   import { needsRestart, THEMES, type Settings } from "$lib/settings";
+  import { diffFontChoices, uiFontChoices, zoomChoices } from "$lib/ui-metrics";
+  import { uiMetricsStore } from "$stores/ui-metrics.svelte";
   import { isSetting, type Field } from "$lib/preferences";
   import { createGitChecker, describeCheck, type GitCheck } from "$lib/git-check";
   import { ON_WINDOWS } from "$lib/platform";
@@ -107,11 +109,6 @@
   ] as const;
 
   const LOG_LEVELS = ["error", "warn", "info", "debug", "trace"] as const;
-  const WEB_MENUS = [
-    ["auto", "Automatic"],
-    ["on", "Always"],
-    ["off", "Never"],
-  ] as const;
 
   const AVATARS = [
     ["gravatar", "Show them, from Gravatar"],
@@ -347,6 +344,17 @@
                   options={THEMES}
                   label={field.label}
                   onchange={(next) => set("theme", next)}
+                />
+              </div>
+            {:else if field.key === "uiFontSize" || field.key === "diffFontSize" || field.key === "uiZoom"}
+              {@const key = field.key}
+              <div class="row">
+                {@render caption(field)}
+                <Select
+                  value={String(draft[key])}
+                  options={key === "uiFontSize" ? uiFontChoices(uiMetricsStore.desktopPx) : key === "diffFontSize" ? diffFontChoices() : zoomChoices()}
+                  label={field.label}
+                  onchange={(next) => set(key, Number(next))}
                 />
               </div>
             {:else if field.key === "dateFormat"}
@@ -615,16 +623,6 @@
                   options={terminals.map((choice) => [choice.id, choice.label] as const)}
                   label={field.label}
                   onchange={(next) => set("terminal", next)}
-                />
-              </div>
-            {:else if field.key === "uiWebMenus"}
-              <div class="row">
-                {@render caption(field)}
-                <Select
-                  value={draft.uiWebMenus}
-                  options={WEB_MENUS}
-                  label={field.label}
-                  onchange={(next) => set("uiWebMenus", next)}
                 />
               </div>
             {:else if field.key === "logLevel"}
@@ -988,7 +986,7 @@
   .hint {
     margin: 0 0 var(--sp-4) var(--sp-7);
     color: var(--text-secondary);
-    font-size: 11px;
+    font-size: var(--fs-header);
   }
 
   .hint.wide {
@@ -1054,7 +1052,7 @@
   .note {
     flex: 1 1 auto;
     color: var(--text-secondary);
-    font-size: 11px;
+    font-size: var(--fs-header);
   }
 
   /* A nested option that its parent has switched off says so rather than looking live. */

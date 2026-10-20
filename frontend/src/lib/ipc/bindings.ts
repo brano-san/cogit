@@ -74,6 +74,8 @@ export const commands = {
 	commitDetails: (repo: RepoId, rev: string) => typedError<CommitDetails, GitError>(__TAURI_INVOKE("commit_details", { repo, rev })),
 	commitFiles: (repo: RepoId, rev: string) => typedError<FileEntry_Serialize[], GitError>(__TAURI_INVOKE("commit_files", { repo, rev })),
 	diffFile: (repo: RepoId, spec: DiffSpec, path: string, options: DiffOptions) => typedError<FileDiff, GitError>(__TAURI_INVOKE("diff_file", { repo, spec, path, options })),
+	/**  An unchanged or ignored file shown whole in the Diff panel; `limit` is Show anyway's. */
+	fileContent: (repo: RepoId, spec: DiffSpec, path: string, limit: number | null) => typedError<FileContent, GitError>(__TAURI_INVOKE("file_content", { repo, spec, path, limit })),
 	/**  The working file being edited, diffed as its save would write it (F-722). */
 	diffEdited: (repo: RepoId, spec: DiffSpec, path: string, text: string, shape: Shape, options: DiffOptions) => typedError<FileDiff, GitError>(__TAURI_INVOKE("diff_edited", { repo, spec, path, text, shape, options })),
 	worktreeFiles: (repo: RepoId, view: WorktreeView) => typedError<WorktreeFiles_Serialize, GitError>(__TAURI_INVOKE("worktree_files", { repo, view })),
@@ -526,6 +528,8 @@ export const commands = {
 	desktopInfo: () => typedError<DesktopInfo, GitError>(__TAURI_INVOKE("desktop_info")),
 	/**  The frontend's theme is dark or light; GTK dialogs follow it (Linux), a no-op elsewhere. */
 	setNativeTheme: (dark: boolean) => __TAURI_INVOKE<void>("set_native_theme", { dark }),
+	/**  The desktop's UI font and which of `families` are installed (`fc-list` on Linux). */
+	systemFont: (families: string[]) => typedError<SystemFont, GitError>(__TAURI_INVOKE("system_font", { families })),
 	openPath: (path: string) => typedError<null, GitError>(__TAURI_INVOKE("open_path", { path })),
 	/**
 	 *  A link in the browser. Not the opener plugin's `openUrl` from the page: it starts the
@@ -713,12 +717,11 @@ export const commands = {
 	bypassLog: (repo: RepoId) => typedError<Bypass[], GitError>(__TAURI_INVOKE("bypass_log", { repo })),
 	/**  Not `async`: menu APIs must run on the main thread on Windows. */
 	popupContextMenu: (items: ContextItem[], x: number | null, y: number | null) => typedError<null, GitError>(__TAURI_INVOKE("popup_context_menu", { items, x, y })),
-	/**  The bar the calling window draws itself, from the tables the native bar is built from. */
-	menuModel: () => __TAURI_INVOKE<MenuNode[]>("menu_model"),
-	/**  A click in the page's own menu: the path a native menu event takes. */
+	/**
+	 *  A menu command the page runs itself (an off-the-bar shortcut): the path a native menu
+	 *  event takes.
+	 */
 	menuCommand: (id: string) => __TAURI_INVOKE<void>("menu_command", { id }),
-	/**  Who draws the titlebar and the menus of this build: the page asks once at start. */
-	windowChrome: () => __TAURI_INVOKE<WindowChrome>("window_chrome"),
 	/**
 	 *  Off the main thread: building a window inside the WebView2 callback of a synchronous
 	 *  command deadlocks every window (R-201). The parameters ride in the URL so the window
@@ -1336,6 +1339,11 @@ export type FileChange = "added" | "modified" | "deleted" | "renamed" | "copied"
 /**  A type change, or a status this reader does not know yet. */
 "other";
 
+/**  What `file_content` read. */
+export type FileContent = { kind: "text"; text: string } | { kind: "binary"; size: number } | { kind: "tooLarge"; size: number; limit: number } | 
+/**  Not on that side: deleted, or never there. */
+{ kind: "missing" };
+
 export type FileDiff = { kind: "text"; hunks: Hunk[]; eol: EolInfo; lossyEncoding: boolean; 
 /**  Language hint for Lezer. Highlighting itself is a frontend concern (INV-01). */
 language: string | null; 
@@ -1772,6 +1780,8 @@ export type KeyBinding = {
 	section: string,
 	/**  What the menu ships with; the user's override lives in settings, not here. */
 	defaultAccelerator: string | null,
+	/**  On the menu bar, so the native menu takes its key; false for an `OFF_THE_BAR` command. */
+	onBar: boolean,
 };
 
 /**  A host Cogit holds a sign-in for. Never the secret: that stays in the keyring. */
@@ -1836,22 +1846,6 @@ export type MaintenanceTask = "gc" | "commitGraph" | "clearGcLock";
  *  runs the same code path the palette would.
  */
 export type MenuCommand = string;
-
-/**
- *  One row of a menu, at any depth. Ids are the palette command ids; a click travels back
- *  through `menu_command`, the path a native menu event takes.
- */
-export type MenuNode = {
-	id: string,
-	label: string,
-	separator: boolean,
-	/**  As the keymap writes it (`CmdOrCtrl+Shift+P`); the page formats it for display. */
-	accelerator: string | null,
-	enabled: boolean,
-	/**  `Some` for a toggle, with its tick. */
-	checked: boolean | null,
-	children: MenuNode[],
-};
 
 export type MergeOptions = {
 	source: string,
@@ -2713,6 +2707,18 @@ export type SubtreeOp = { kind: "add"; prefix: string; repository: string; refer
 /**  The folder's contents replaced by `reference`'s tree, staged for the next commit. */
 { kind: "reset"; prefix: string; reference: string } | { kind: "push"; prefix: string; repository: string; reference: string };
 
+export type SystemFont = {
+	/**  The desktop's UI family: `gtk-font-name` on Linux, Segoe UI on Windows. */
+	family: string | null,
+	/**  Its size in CSS pixels. */
+	sizePx: number | null,
+	/**
+	 *  Of the families the page asked about, those installed here; `None` where the platform
+	 *  is not asked (Windows, macOS ship the families their stacks name).
+	 */
+	installed: string[] | null,
+};
+
 export type Tag = {
 	name: string,
 	fullName: string,
@@ -2833,13 +2839,6 @@ export type WebviewLogLine = {
 };
 
 export type Whitespace = "none" | "trailing" | "all";
-
-export type WindowChrome = {
-	/**  Menu bar, drop-down and context menus are drawn by the page. */
-	webMenus: boolean,
-	/**  The window has no native decorations; the page draws the titlebar. */
-	customTitlebar: boolean,
-};
 
 /**  The counters and the conflicted paths, from one read of the status (R-316). */
 export type WorkingState = {

@@ -6,6 +6,9 @@
   import { emptyText, filesPanelList, mergedSide, mergeIndex, stagedShown } from "$lib/files-panel";
   import type { FileView } from "$lib/file-view";
   import type { FileEntry } from "$lib/ipc";
+  import { effective, shortcutOf } from "$lib/keymap";
+  import { ON_MAC } from "$lib/platform";
+  import { settings } from "$stores/settings.svelte";
   import { commit } from "$stores/commit.svelte";
   import { commitTree } from "$stores/commit-tree.svelte";
   import { compareView } from "$stores/compare-view.svelte";
@@ -34,6 +37,8 @@
     /** A file of the comparison (Compare with HEAD / with Selected Commit). */
     onopencompare: (path: string) => void;
     onopenwindow: (path: string) => void;
+    /** Double-click or Enter on a Working Tree row: Unstaged or Staged, whatever Diff shows. */
+    onopenrow: (path: string, side: "worktree" | "index") => void;
     onmask: (mask: string) => void;
     /** The staged files the working-tree list shows once filtered. */
     onshownstaged?: (paths: string[] | null) => void;
@@ -60,6 +65,7 @@
     onopenstash,
     onopencompare,
     onopenwindow,
+    onopenrow,
     onmask,
     onshownstaged,
     onmarked,
@@ -72,6 +78,10 @@
     remove,
     oncount,
   }: Props = $props();
+
+  const keys = $derived(effective(settings.bindings, settings.keymap));
+  /** Ctrl+T / Ctrl+Shift+T act on the ticked files, or on all of them like these buttons. */
+  const shortcut = (command: string) => shortcutOf(command, keys, ON_MAC);
 
   const fractions = $derived(layout.fractions);
   const contents = new ContentSearch(() => repository.current?.repo ?? null);
@@ -196,7 +206,7 @@
               selected: diff.pathFor({ kind: "workTreeVsIndex" }),
               onselect: onopenworktree,
               actions: [
-                { label: "Stage", title: "Stage", run: stage },
+                { label: "Stage", title: "Stage", shortcut: shortcut("stage"), run: stage },
                 { label: "+x", title: "Stage only the mode change", run: stagemode, blocked: rowBlocked("mode"), skips: true },
                 { label: "Discard", title: "Discard changes", run: discard, blocked: rowBlocked("discard") },
                 { label: "Ignore", title: "Add to .gitignore", run: ignore, blocked: rowBlocked("ignore") },
@@ -215,7 +225,7 @@
               hideWhenEmpty: true,
               selected: diff.pathFor({ kind: "indexVsHead" }),
               onselect: onopenstaged,
-              actions: [{ label: "Unstage", title: "Unstage", run: unstage }],
+              actions: [{ label: "Unstage", title: "Unstage", shortcut: shortcut("unstage"), run: unstage }],
             },
           ]
         : [
@@ -231,7 +241,7 @@
         "The working tree is clean.",
       )}
       selected={diff.path}
-      onopen={onopenwindow}
+      onopen={(path, side) => onopenrow(path, separate ? (side === "index" ? "index" : "worktree") : mergedSide(path, worktree.unstaged))}
       {onmask}
       onshown={(shown) => onshownstaged?.(shown && stagedShown(shown, separate, worktree.staged))}
       {onmarked}

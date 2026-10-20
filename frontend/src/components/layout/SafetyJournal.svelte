@@ -73,12 +73,12 @@
   .note {
     flex: 0 0 auto;
     color: var(--text-secondary);
-    font-size: 11px;
+    font-size: var(--fs-header);
   }
 
   .hint {
     flex: 1 1 auto;
     color: var(--text-secondary);
-    font-size: 11px;
+    font-size: var(--fs-header);
   }
 </style>

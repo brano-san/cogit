@@ -53,15 +53,15 @@ describe("theme files", () => {
     expect(IDS.map((id) => THEME_FILES[id].family)).toEqual(["light", "light", "dark", "dark", "dark"]);
   });
 
-  // The text of the main surfaces: WCAG AA for body text.
-  it.each(IDS)("%s: primary text reads at 4.5:1 on the editor, panel and chrome", (id) => {
+  // The text of the main surfaces: WCAG AAA for body text (R-775).
+  it.each(IDS)("%s: primary text reads at 7:1 on the editor, panel and chrome", (id) => {
     const { tokens } = THEME_FILES[id];
-    for (const surface of ["bg.editor", "bg.panel", "bg.app", "bg.selected"]) {
-      expect(contrast(tokens["fg.primary"]!, tokens[surface]!), `${id} fg.primary on ${surface}`).toBeGreaterThanOrEqual(4.5);
+    for (const surface of ["bg.editor", "bg.panel", "bg.app", "bg.elevated", "bg.input", "bg.hover"]) {
+      expect(contrast(tokens["fg.primary"]!, tokens[surface]!), `${id} fg.primary on ${surface}`).toBeGreaterThanOrEqual(7);
     }
   });
 
-  it.each(IDS)("%s: muted text 4.5:1 on app, panel and editor; primary and secondary on every surface; line numbers 3:1", (id) => {
+  it.each(IDS)("%s: muted, primary and secondary text 4.5:1 on every surface; line numbers 3:1", (id) => {
     const { tokens } = THEME_FILES[id];
     const all = ["bg.app", "bg.panel", "bg.editor", "bg.elevated", "bg.input", "bg.hover", "bg.selected", "bg.selectedInactive"];
     const bad: string[] = [];
@@ -69,11 +69,10 @@ describe("theme files", () => {
       const ratio = contrast(tokens[fg]!, tokens[bg]!);
       if (ratio < min) bad.push(`${fg} on ${bg}: ${ratio.toFixed(2)} < ${min}`);
     };
-    for (const bg of ["bg.editor", "bg.panel", "bg.app"]) check("fg.muted", bg, 4.5);
     // Graphite keeps SmartGit's selection (#485394, #515259) with its #a0a0a0 dates on it (R-768).
     const selection = id === "graphite" ? ["bg.selected", "bg.selectedInactive"] : [];
-    for (const fg of ["fg.primary", "fg.secondary"])
-      for (const bg of all) check(fg, bg, fg === "fg.secondary" && selection.includes(bg) ? 2.7 : 4.5);
+    for (const fg of ["fg.primary", "fg.secondary", "fg.muted"])
+      for (const bg of all) check(fg, bg, fg !== "fg.primary" && selection.includes(bg) ? 2.4 : 4.5);
     check("diff.lineNumber", "bg.editor", 3);
     expect(bad).toEqual([]);
   });

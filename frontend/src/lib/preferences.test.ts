@@ -112,7 +112,7 @@ describe("firstMatch", () => {
 
 describe("firstPage", () => {
   it("opens a heading on its first page", () => {
-    expect(firstPage("advanced", ids)).toBe("window");
+    expect(firstPage("advanced", ids)).toBe("updates");
     expect(firstPage("tools", ids)).toBe("cli");
   });
 
@@ -127,11 +127,11 @@ describe("firstPage", () => {
 });
 
 describe("restartFields", () => {
-  // Read only by the backend at startup (`read_log_level`, `window_chrome::stored`). The git
+  // Read only by the backend at startup (`read_log_level`). The git
   // path is not: `use_git` switches it while Cogit runs.
   it("marks every setting read only at startup, on the page that holds it", () => {
     const marked = ids.flatMap((id) => restartFields(id).map((key) => `${id}:${key}`));
-    expect(marked.sort()).toEqual(["cli:logLevel", "window:uiWebMenus"]);
+    expect(marked.sort()).toEqual(["cli:logLevel"]);
   });
 
   it("leaves a page with none unmarked", () => {

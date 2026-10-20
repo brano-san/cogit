@@ -4,7 +4,6 @@ import { Channel } from "@tauri-apps/api/core";
 import { commands, events } from "./bindings";
 import type { WorktreeBranch } from "./bindings";
 import { counted } from "$lib/listener-count";
-import { webMenus } from "$stores/web-menus.svelte";
 import { GIT_NOT_FOUND_HINT } from "$lib/git-missing";
 import type {
   SignIn,
@@ -120,6 +119,8 @@ export type {
   EolInfo,
   BinaryCause,
   BlobSide,
+  FileContent,
+  SystemFont,
   FileDiff,
   FileEntry,
   FileStatus,
@@ -404,6 +405,16 @@ export const DEFAULT_DIFF_OPTIONS: DiffOptions = {
   wordDiff: true,
   detectMoves: true,
 };
+
+/** The desktop's UI font and the `families` installed (Linux). */
+export async function systemFont(families: string[]) {
+  return unwrap(await commands.systemFont(families));
+}
+
+/** An unchanged or ignored file, whole; `limit` raises the text limit (Show anyway). */
+export async function fileContent(repo: RepoId, spec: DiffSpec, path: string, limit: number | null) {
+  return unwrap(await commands.fileContent(repo, spec, path, limit));
+}
 
 export async function diffFile(
   repo: RepoId,
@@ -911,6 +922,11 @@ export function unwrap<T>(result: { status: "ok"; data: T } | { status: "error";
   return result.data;
 }
 
+/** Runs a menu command by id the way a native menu event does (`dispatch_menu_command`). */
+export async function runMenuCommand(id: string) {
+  return await commands.menuCommand(id);
+}
+
 /** Fires when a native menu item is chosen; the payload is a palette command id. */
 export async function onMenuCommand(handler: (id: string) => void) {
   return await counted(events.menuCommand.listen((event) => handler(event.payload)));
@@ -1186,14 +1202,9 @@ export async function onOperationChanged(handler: (event: OperationChanged) => v
   return await counted(events.operationChanged.listen((event) => handler(event.payload)));
 }
 
-/** The page draws the menu when `uiWebMenus` says so (Linux by default) and opens it at
-    once; the chosen id comes back as a `menu-command` either way. Otherwise the platform
-    does, and the call returns when it is shown. */
+/** The platform's own menu; the call returns when it is shown, and the chosen id comes back
+    as a `menu-command`. */
 export async function popupContextMenu(items: ContextItem[], x: number, y: number) {
-  if (webMenus.chrome.webMenus) {
-    webMenus.openContext(items, x, y);
-    return null;
-  }
   return unwrap(await commands.popupContextMenu(items, x, y));
 }
 

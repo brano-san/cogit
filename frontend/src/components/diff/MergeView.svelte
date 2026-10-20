@@ -174,7 +174,7 @@
 
   .auto {
     color: var(--status-modify);
-    font-size: 11px;
+    font-size: var(--fs-header);
   }
 
   .nav {

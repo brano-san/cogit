@@ -5,13 +5,12 @@
   import DiffEditPane from "$components/diff/DiffEditPane.svelte";
   import UnsavedDialog from "$components/common/UnsavedDialog.svelte";
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
-  import { closeGuard, installChildWindow } from "$lib/child-window";
+  import { closeGuard, installChildWindow, onDiskChange } from "$lib/child-window";
   import { closeThisWindow } from "$lib/ipc";
   import { followSettings } from "$lib/settings-sync";
   import { diffEdit } from "$stores/diff-edit.svelte";
   import { settings } from "$stores/settings.svelte";
   import { unsavedPrompt } from "$stores/unsaved-prompt.svelte";
-  import { webMenus } from "$stores/web-menus.svelte";
 
   /** Edit (F-722): one working-tree file in the built-in editor, alone, in its own window.
       Saving writes the file in its own shape; the main window reads its lists again from
@@ -31,11 +30,14 @@
     }),
   );
 
+  // Changed on disk: a clean editor follows, a dirty one offers Reload / Keep Mine.
+  $effect(() => (valid ? onDiskChange(repo, () => void diffEdit.diskChanged()) : undefined));
+
   const name = path.slice(path.lastIndexOf("/") + 1);
   const title = $derived(`${name}${diffEdit.dirty ? " *" : ""} — Edit — Cogit`);
   $effect(() => {
     document.title = title;
-    void win.setTitle(title).then(() => webMenus.refreshTitle()).catch(() => {});
+    void win.setTitle(title).catch(() => {});
   });
 
   // The ✕, Esc, Ctrl+W and Close all come here: unsaved edits are saved or dropped on purpose.

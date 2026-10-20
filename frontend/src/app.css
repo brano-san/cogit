@@ -22,6 +22,8 @@
   --fs-ui: 13px;
   --fs-dense: 12px;
   --fs-header: 11px;
+  --fs-small: 10.5px;
+  --fs-tiny: 10px;
   --fs-code: 12.5px;
   --fs-status: 11.5px;
 
@@ -43,7 +45,6 @@
   --h-row: 24px;
   --h-row-dense: 22px;
   --h-toolbar: 46px;
-  --h-menubar: 28px;
   --h-statusbar: 24px;
   --h-panel-hdr: 28px;
   --h-input: 26px;
@@ -136,7 +137,6 @@ body {
   font-family: var(--font-ui);
   font-size: var(--fs-ui);
   line-height: var(--lh-ui);
-  -webkit-font-smoothing: antialiased;
   /* A Git client is not a web page: text selection is opt-in, per element. */
   user-select: none;
   cursor: default;

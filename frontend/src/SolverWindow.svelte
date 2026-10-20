@@ -25,7 +25,7 @@
     type MergeToolFinished,
     type SolverData,
   } from "$lib/ipc";
-  import { closeGuard, installChildWindow, onMenuAction } from "$lib/child-window";
+  import { closeGuard, installChildWindow, onDiskChange, onMenuAction } from "$lib/child-window";
   import { failureText } from "$lib/merge-params";
   import { modals } from "$lib/modal-stack";
   import { ON_MAC, primary } from "$lib/platform";
@@ -79,6 +79,8 @@
   let theirsEl = $state<HTMLDivElement>();
   let saveFailed = $state<string | null>(null);
   let note = $state<string | null>(null);
+  /** The index entries of the conflict changed outside this window: resolved, or merged again. */
+  let outdated = $state(false);
   let toolRunning = $state(false);
   let saving = $state(false);
   /** The close question on screen, and how it is answered. */
@@ -117,6 +119,7 @@
     try {
       data = await solverData(request.repo, request.path);
       loadFailed = null;
+      outdated = false;
     } catch (err) {
       loadFailed = failureText(err);
     }
@@ -130,6 +133,23 @@
       else if (request.tool && data) void runExternal();
     });
   });
+
+  // Another tool or git touched the conflict: what this window shows is no longer what the
+  // index holds. Our own save writes the working tree, not the stages, so it does not count.
+  $effect(() =>
+    request
+      ? onDiskChange(request.repo, () => {
+          const shown = data;
+          if (!shown || outdated || saving) return;
+          void solverData(request.repo, request.path).then(
+            (now) => {
+              if (data === shown && JSON.stringify(now.stages) !== JSON.stringify(shown.stages)) outdated = true;
+            },
+            () => (outdated = true),
+          );
+        })
+      : undefined,
+  );
 
   $effect(() => {
     document.title = request ? `Cogit — Conflict Solver — ${request.path}` : "Cogit — Conflict Solver";
@@ -610,6 +630,12 @@
         {/if}
       </div>
     {/if}
+    {#if outdated}
+      <div class="banner" role="status">
+        <span>The conflict changed outside this window.</span>
+        <button type="button" class="btn sm" onclick={() => void load()}>Reload</button>
+      </div>
+    {/if}
     {#if note}
       <div class="banner" role="status">{note}</div>
     {/if}
@@ -930,7 +956,7 @@
     background: var(--bg-elevated);
     border-top: 1px solid var(--border);
     color: var(--fg-secondary);
-    font-size: 11px;
+    font-size: var(--fs-header);
     user-select: none;
   }
 </style>

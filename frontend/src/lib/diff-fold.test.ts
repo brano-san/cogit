@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { DiffRow, Hunk } from "./ipc/bindings";
 import {
-  openingRow,
+  revealLead,
+  revealTop,
   changeSteps,
   foldContext,
   foldDiff,
@@ -378,14 +379,23 @@ describe("the whole file", () => {
   });
 });
 
-describe("openingRow", () => {
-  it("opens a diff at its first change, as Next Change puts it", () => {
-    expect(openingRow([40, 90], 3)).toBe(37);
-    expect(changeSteps([40, 90], 37, 60, 3)).toEqual(stepsAround(0));
+describe("revealLead and revealTop", () => {
+  // A change at line ~1500 opened at ~1450: the view must put it at a fixed place.
+  it("keeps a third of the view above the change, never fewer than the lead", () => {
+    expect(revealLead(540, 18, 3)).toBe(10);
+    expect(revealLead(60, 18, 3)).toBe(3);
+    expect(revealLead(0, 18, 3)).toBe(3);
   });
 
-  it("stays at the top when the first change is there, or there is none", () => {
-    expect(openingRow([1], 3)).toBe(0);
-    expect(openingRow([], 3)).toBe(0);
+  it("puts the row that many rows below the top, and stays at the top near the start", () => {
+    expect(revealTop(1499, 10, 18)).toBe(1489 * 18);
+    expect(revealTop(2, 10, 18)).toBe(0);
+    expect(revealTop(0, 3, 18)).toBe(0);
+  });
+
+  it("lands where Next Change counts the view as on that change", () => {
+    const lead = revealLead(540, 18, 3);
+    const top = revealTop(40, lead, 18) / 18;
+    expect(changeSteps([40, 90], top, top + 29, lead)).toEqual(stepsAround(0));
   });
 });

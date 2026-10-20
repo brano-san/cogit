@@ -117,8 +117,8 @@
   .palette {
     position: absolute;
     top: 12%;
-    left: 50%;
-    transform: translateX(-50%);
+    inset-inline: 0;
+    margin-inline: auto;
     z-index: 21;
     display: flex;
     flex-direction: column;
@@ -175,7 +175,7 @@
   .why {
     flex: 0 0 auto;
     color: var(--text-secondary);
-    font-size: 10px;
+    font-size: var(--fs-small);
   }
 
   .why {

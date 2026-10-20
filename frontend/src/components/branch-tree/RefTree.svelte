@@ -385,8 +385,7 @@
   .status {
     flex: none;
     color: var(--text-secondary);
-    font-size: 10px;
-    opacity: 0.8;
+    font-size: var(--fs-small);
   }
 
   .track {
@@ -410,7 +409,7 @@
     flex-grow: 1;
     text-align: right;
     color: var(--text-secondary);
-    font-size: 10px;
+    font-size: var(--fs-small);
     text-transform: none;
     letter-spacing: 0;
   }

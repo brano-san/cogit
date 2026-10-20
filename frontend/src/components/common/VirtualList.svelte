@@ -1,5 +1,6 @@
 <script lang="ts" generics="T">
-  import { LIST_ROW_HEIGHT, visibleRange } from "$lib/graph-geometry";
+  import { visibleRange } from "$lib/graph-geometry";
+  import { uiMetricsStore } from "$stores/ui-metrics.svelte";
   import type { Snippet } from "svelte";
 
   interface Props {
@@ -17,11 +18,13 @@
   let {
     items,
     row,
-    rowHeight = LIST_ROW_HEIGHT,
+    rowHeight: fixedRowHeight,
     buffer = 10,
     label,
     reveal = null,
   }: Props = $props();
+  /** A caller's own height, else the list row of the UI font. */
+  const rowHeight = $derived(fixedRowHeight ?? uiMetricsStore.listRow);
 
   let scroller: HTMLDivElement | undefined = $state();
   let scrollTop = $state(0);

@@ -10,12 +10,11 @@
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import ImageDiff from "$components/diff/ImageDiff.svelte";
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
-  import { webMenus } from "$stores/web-menus.svelte";
   import Notifications from "$components/layout/Notifications.svelte";
   import { errors } from "$stores/errors.svelte";
   import { runMutation, type MutationContext } from "$lib/mutation";
   import { announceTreeChange } from "$lib/tree-sync";
-  import { installChildWindow } from "$lib/child-window";
+  import { installChildWindow, onDiskChange } from "$lib/child-window";
   import { compareLabel, diffWindowTitle, parseCompare, sideCaptions } from "$lib/compare-params";
   import { firstParent, handOverModule, loadCompare } from "$lib/compare-window";
   import { closeThisWindow } from "$lib/ipc";
@@ -24,6 +23,9 @@
   import { settings } from "$stores/settings.svelte";
 
   const request = parseCompare(window.location.search);
+
+  // The diff follows the disk; an editor with unsaved edits offers Reload / Keep Mine.
+  $effect(() => (request ? onDiskChange(request.repo, () => void diff.refreshFromDisk()) : undefined));
 
   // No browser menu (R-127), and Esc / Ctrl+W close the window.
   $effect(() => installChildWindow(window));
@@ -57,7 +59,7 @@
   $effect(() => {
     document.title = title;
     // The native title bar is not the page's `<title>`; outside the app (a browser) there is none.
-    void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow().setTitle(title)).then(() => webMenus.refreshTitle()).catch(() => {});
+    void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow().setTitle(title)).catch(() => {});
   });
 
   /** Stage, Unstage and Discard here end like the Diff panel's: through `runMutation`, a

@@ -26,6 +26,20 @@ fn main() {
     ) {
         std::process::exit(code);
     }
+    // WSLg's Weston offers no server-side decorations, so on Wayland GTK draws a light
+    // Adwaita header bar; as an X11 client the window gets WSLg's own Windows-style frame,
+    // as SmartGit does. A backend the user chose stays; native Linux is left to its DE.
+    #[cfg(target_os = "linux")]
+    if std::env::var_os("GDK_BACKEND").is_none()
+        && (std::env::var_os("WSL_DISTRO_NAME").is_some()
+            || std::path::Path::new("/proc/sys/fs/binfmt_misc/WSLInterop").exists())
+    {
+        // SAFETY: single-threaded here; Tauri and its threads start in `run` below.
+        #[allow(unsafe_code)]
+        unsafe {
+            std::env::set_var("GDK_BACKEND", "x11")
+        };
+    }
     // WebKitGTK workarounds for GPU drivers it trips over, before any thread starts and never
     // over the user's own value. Proprietary NVIDIA on Wayland: explicit sync drops the
     // connection (Error 71); without it DMA-BUF stays zero-copy, 2–4x faster than turning

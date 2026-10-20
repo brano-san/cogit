@@ -54,6 +54,7 @@ pub use credentials::{
     CredentialList, KeyringStore, KnownCredential, MemoryStore, SecretError, SecretStore, SignIn,
     credential_host, host_input, host_of, platform_store,
 };
+pub use diffing::FileContent;
 pub use graph_cache::{GraphProgress, GraphWindow, PROGRESS_EVERY, throttled};
 pub use journal::{CommandNotice, CommandRow, command_log_text, command_rows, is_warning, record};
 pub use network::NetworkRun;

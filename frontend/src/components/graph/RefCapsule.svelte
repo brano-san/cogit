@@ -81,7 +81,7 @@
     border: 1px solid;
     border-radius: var(--r-md);
     font-family: var(--font-mono);
-    font-size: 10px;
+    font-size: var(--fs-small);
     line-height: 14px;
   }
 

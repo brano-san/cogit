@@ -332,7 +332,7 @@
     flex: none;
     padding: var(--sp-3) var(--sp-4) var(--sp-2);
     color: var(--text-muted);
-    font-size: 11px;
+    font-size: var(--fs-header);
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }

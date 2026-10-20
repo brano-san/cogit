@@ -313,6 +313,14 @@ export function changes(model: BlockModel): Change[] {
   return out;
 }
 
+/** Where a change starts in each list: side by side each pane has its own row (compact, an
+    insertion is one point on the left and its lines on the right; aligned, the same row).
+    Rows count every display row above it: filler, fold and strip rows included. */
+export function changeRows(model: BlockModel, change: Change): { left: number; right: number; unified: number } {
+  const b = model.blocks[change.from]!;
+  return { left: b.leftRow, right: b.rightRow, unified: b.unifiedRow };
+}
+
 /** Where a change starts in the list a jump scrolls: the left pane's rows side by side (an
     empty left side is the point the change sits at), the unified rows otherwise. */
 export function changeRow(model: BlockModel, change: Change, unified: boolean): number {

@@ -173,7 +173,7 @@
   .section {
     flex: 0 0 86px;
     color: var(--text-secondary);
-    font-size: 10px;
+    font-size: var(--fs-small);
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }

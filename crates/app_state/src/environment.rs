@@ -146,3 +146,74 @@ fn gather() -> OsInfo {
         arch: std::env::consts::ARCH.to_owned(),
     }
 }
+
+/// Pango style words that follow the family in `gtk-font-name`.
+const PANGO_STYLES: &[&str] = &[
+    "normal",
+    "roman",
+    "oblique",
+    "italic",
+    "small-caps",
+    "thin",
+    "ultra-light",
+    "extra-light",
+    "light",
+    "semi-light",
+    "demi-light",
+    "book",
+    "regular",
+    "medium",
+    "semi-bold",
+    "demi-bold",
+    "bold",
+    "ultra-bold",
+    "extra-bold",
+    "heavy",
+    "black",
+    "ultra-heavy",
+    "ultra-condensed",
+    "extra-condensed",
+    "condensed",
+    "semi-condensed",
+    "semi-expanded",
+    "expanded",
+    "extra-expanded",
+    "ultra-expanded",
+];
+
+/// `gtk-font-name` (a Pango description: families, styles, size in points or `px`) as the
+/// first family and a size in CSS pixels, 96 to the inch.
+#[must_use]
+pub fn css_font(pango: &str) -> Option<(String, f64)> {
+    let mut words: Vec<&str> = pango.split_whitespace().collect();
+    let size = words.pop()?;
+    let px = match size.strip_suffix("px") {
+        Some(px) => px.parse::<f64>().ok()?,
+        None => size.parse::<f64>().ok()? * 4.0 / 3.0,
+    };
+    while words
+        .last()
+        .is_some_and(|word| PANGO_STYLES.contains(&word.to_ascii_lowercase().as_str()))
+    {
+        words.pop();
+    }
+    let families = words.join(" ");
+    let family = families.split(',').next()?.trim();
+    (!family.is_empty() && px > 0.0).then(|| (family.to_owned(), px))
+}
+
+/// The `wanted` families `fc-list --format '%{family}\n'` lists, in `wanted`'s order. A line
+/// holds a font's family names, comma-separated.
+#[must_use]
+pub fn installed_families(listed: &str, wanted: &[String]) -> Vec<String> {
+    let have: std::collections::HashSet<&str> = listed
+        .lines()
+        .flat_map(|line| line.split(','))
+        .map(str::trim)
+        .collect();
+    wanted
+        .iter()
+        .filter(|family| have.contains(family.as_str()))
+        .cloned()
+        .collect()
+}

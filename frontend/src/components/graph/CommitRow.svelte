@@ -172,7 +172,7 @@
     border: 1px solid;
     border-radius: var(--r-md);
     font-family: var(--font-mono);
-    font-size: 10px;
+    font-size: var(--fs-small);
     line-height: 14px;
   }
 
@@ -229,7 +229,7 @@
     flex: 0 0 auto;
     overflow: hidden;
     color: var(--text-secondary);
-    font-size: 11px;
+    font-size: var(--fs-header);
   }
 
   /* Over the arrow of a cut link, under the canvas that draws it (R-330). */

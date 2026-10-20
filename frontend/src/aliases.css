@@ -26,8 +26,8 @@
   --splitter-track: var(--border);
   --splitter-active: var(--accent);
   --field-border: var(--border-strong);
-  --titlebar-bg: var(--bg-app);
-  --titlebar-border: var(--border-strong);
+  --chrome-bg: var(--bg-app);
+  --chrome-border: var(--border-strong);
 
   /* ---- text ---- */
   --text-primary: var(--fg-primary);

@@ -4,6 +4,9 @@
   import MergeView from "$components/diff/MergeView.svelte";
   import DiffView from "$components/diff/DiffView.svelte";
   import { editOffer } from "$lib/diff-edit";
+  import { showsWholeFile, statusFor } from "$lib/file-content";
+  import { commit } from "$stores/commit.svelte";
+  import { worktree } from "$stores/worktree.svelte";
   import { diffEdit } from "$stores/diff-edit.svelte";
   import { untrack } from "svelte";
   import ImageDiff from "$components/diff/ImageDiff.svelte";
@@ -44,7 +47,13 @@
     active,
   }: Props = $props();
 
-  const offer = $derived(diff.diff && diff.shownSpec ? editOffer(diff.shownSpec, diff.diff) : null);
+  /** Unchanged, ignored: the file itself, read-only; Edit opens it in its own window. */
+  const whole = $derived(
+    showsWholeFile(
+      statusFor(diff.shownSpec, diff.shownPath, { unstaged: worktree.unstaged, staged: worktree.staged, commit: commit.files }),
+    ),
+  );
+  const offer = $derived(diff.diff && diff.shownSpec && !whole ? editOffer(diff.shownSpec, diff.diff) : null);
 
   // Another file asks before it is shown (`diff.load`); a diff gone for other reasons (another
   // repository, the panel cleared) takes the editor with it, its edits saved or dropped.
@@ -116,6 +125,7 @@
 {:else if diff.diff && diff.shownPath}
   <DiffView
     edit={offer}
+    {whole}
     diff={diff.diff}
     path={diff.shownPath}
     stageable={diff.stageable}

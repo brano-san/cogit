@@ -159,8 +159,8 @@
     height: var(--h-statusbar);
     flex: 0 0 var(--h-statusbar);
     padding: 0 var(--sp-5);
-    background: var(--titlebar-bg);
-    border-top: 1px solid var(--titlebar-border);
+    background: var(--chrome-bg);
+    border-top: 1px solid var(--chrome-border);
     font-size: var(--fs-status);
     color: var(--text-primary);
     white-space: nowrap;

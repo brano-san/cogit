@@ -20,32 +20,10 @@ pub const MAIN: &str = "main";
 /// instead of the webview's default white.
 const BACKGROUND: Color = Color(0x0f, 0x11, 0x15, 0xff);
 
-/// The main window's, from `tauri.conf.json`. Without one the title bar follows Windows,
-/// and a light system put a white bar over the dark page.
-const THEME: tauri::Theme = tauri::Theme::Dark;
-
 /// Labels must be unique for the lifetime of the process. Counting the open windows is
 /// not enough: close one of two and the next window is handed a label that is still in
 /// use by the other, and the build fails.
 static NEXT: AtomicU32 = AtomicU32::new(1);
-
-/// The menu each open window was built with, by label, for the bar the page draws.
-static MENUS: std::sync::Mutex<Vec<(String, &'static [Submenu])>> =
-    std::sync::Mutex::new(Vec::new());
-
-/// The menu of the window at `label`; empty for one without a bar.
-#[must_use]
-pub fn menu_of(label: &str) -> &'static [Submenu] {
-    MENUS
-        .lock()
-        .ok()
-        .and_then(|held| {
-            held.iter()
-                .find(|(name, _)| name == label)
-                .map(|(_, menu)| *menu)
-        })
-        .unwrap_or(&[])
-}
 
 #[must_use]
 pub fn is_main(label: &str) -> bool {
@@ -169,15 +147,11 @@ pub fn open_with_menu<R: tauri::Runtime>(
         .title(title)
         .menu(bar)
         .visible(false)
-        .theme(Some(THEME))
+        .theme(Some(crate::native_theme::current()))
         .background_color(BACKGROUND)
         .inner_size(shape.width, shape.height)
         .min_inner_size(shape.min_width, shape.min_height)
         .center();
-    let chrome = crate::window_chrome::of(app);
-    if chrome.custom_titlebar {
-        builder = builder.decorations(false);
-    }
     // WebView2 refuses a second environment on the same profile with other arguments.
     if let Some(args) = browser_args(&app.config().app.windows) {
         builder = builder.additional_browser_args(&args);
@@ -193,8 +167,6 @@ pub fn open_with_menu<R: tauri::Runtime>(
     }
     if menu.is_empty() {
         window.remove_menu()?;
-    } else if let Ok(mut held) = MENUS.lock() {
-        held.push((window.label().to_owned(), menu));
     }
     #[cfg(windows)]
     {
@@ -205,10 +177,6 @@ pub fn open_with_menu<R: tauri::Runtime>(
         );
     }
     window.show()?;
-    // After `show`, which makes every widget of the window visible again.
-    if chrome.web_menus && !menu.is_empty() {
-        crate::window_chrome::hide_native_menu(&window);
-    }
     Ok(())
 }
 
@@ -417,13 +385,15 @@ mod tests {
     }
 
     #[test]
-    fn a_child_window_takes_the_main_windows_title_bar_theme() {
+    // Without a theme the title bar followed Windows, and a light system put a white bar over
+    // the dark page: the first window opens in the theme the page starts in.
+    fn the_main_window_opens_in_the_theme_a_child_starts_with() {
         let windows = windows_of(include_str!("../tauri.conf.json"));
         let main = windows
             .iter()
             .find(|window| is_main(&window.label))
             .unwrap();
-        assert_eq!(main.theme, Some(THEME));
+        assert_eq!(main.theme, Some(crate::native_theme::current()));
     }
 
     #[test]

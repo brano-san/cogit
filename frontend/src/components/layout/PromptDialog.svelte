@@ -82,7 +82,7 @@
 
   .problem {
     color: var(--status-delete);
-    font-size: 11px;
+    font-size: var(--fs-header);
   }
 
   .grow {

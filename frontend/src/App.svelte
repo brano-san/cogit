@@ -47,6 +47,7 @@
   import { suppressBrowserFind } from "$lib/browser-find";
   import { suppressBrowserNavigation } from "$lib/browser-navigation";
   import { findModuleRow, isModulePath, onOpenModule } from "$lib/module-open";
+  import { editRoute, openRoute, type FileRoute } from "$lib/file-edit";
   import { onPushHead } from "$lib/push-head";
   import { onTreeChange } from "$lib/tree-sync";
   import { emptyStateVisible, footerRepository, panelView } from "$lib/repo-phase";
@@ -61,7 +62,6 @@
   import CloneDialog from "$components/repo-tree/CloneDialog.svelte";
   import WelcomeDialog from "$components/layout/WelcomeDialog.svelte";
   import { welcome } from "$stores/welcome.svelte";
-  import { webMenus } from "$stores/web-menus.svelte";
   import {
     filterRows,
     folderPlan,
@@ -121,7 +121,10 @@
   import { undoRewriteQuestion } from "$lib/undo-rewrite";
   import { isAncestor, undoRewrite, undoRewriteInfo } from "$lib/ipc/ref-ops";
   import { effective, withShortcuts } from "$lib/keymap";
-  import { binName, ON_MAC, OS, primary } from "$lib/platform";
+  import { binName, ON_MAC, ON_WINDOWS, OS, primary } from "$lib/platform";
+  import { pageCommand } from "$lib/page-accelerators";
+  import { zoomStep } from "$lib/ui-metrics";
+  import { uiMetricsStore } from "$stores/ui-metrics.svelte";
   import { menuCommandRuns, modals } from "$lib/modal-stack";
   import { commitBox } from "$stores/commit-box.svelte";
   import { commitFileMenu, shownRow, worktreeFileMenu } from "$lib/file-menu";
@@ -202,6 +205,7 @@
     reportTiming,
     commitTemplate,
     openCommitWindow,
+    runMenuCommand,
     stageMode,
     openSolverWindow,
     openCompareWindow,
@@ -435,6 +439,7 @@
     untrack(() => {
       startTracing();
       trace("startup", "the window is running");
+      uiMetricsStore.logRendered();
       // Nothing in a Git client is a web page (R-127), nor has the browser's find bar.
       suppressNativeMenu(document);
       suppressBrowserFind(window);
@@ -741,6 +746,9 @@
     "commit-message": () => void commitBox.focus(),
     undo: () => undo(),
     output: () => output.toggle(),
+    "zoom-in": () => void settings.set("uiZoom", zoomStep(settings.current.uiZoom, 1)),
+    "zoom-out": () => void settings.set("uiZoom", zoomStep(settings.current.uiZoom, -1)),
+    "zoom-reset": () => void settings.set("uiZoom", zoomStep(settings.current.uiZoom, 0)),
     "copy-path": () => void copyText(diff.path ?? ""),
     "copy-branch": () => void copyText(tracked?.name ?? ""),
     "copy-sha": () => void copyText(commit.oid ?? ""),
@@ -927,6 +935,17 @@
     // A dialog, the palette and Find Object close on their own Esc; nothing behind a modal
     // answers a key (11 §1).
     if (modals.any) return;
+
+    // A menu key the native menu does not hold here (Ctrl+K, F5 off Windows): the same path a
+    // menu click takes. A field or panel that took the key first keeps it.
+    const command = event.defaultPrevented
+      ? null
+      : pageCommand(event, settings.bindings, menuKeys, { windows: ON_WINDOWS, mac: ON_MAC });
+    if (command !== null) {
+      event.preventDefault();
+      void runMenuCommand(command).catch((err) => errors.report(err, "Could not run the shortcut"));
+      return;
+    }
 
     // F6 walks the panels. Ctrl+Tab is left to the window: the menu agent owns the
     // accelerators, and browsers and hosts both claim that pair (issue 15). A diff with the
@@ -1800,6 +1819,51 @@ ${event.error}`,
     await afterRefChange(id);
   }
 
+  /** A working tree row's file: from Unstaged first, as the Files list shows it. An
+      unchanged submodule is listed as a plain file; Repositories knows it. */
+  function rowFile(path: string) {
+    const row = worktree.unstaged.find((file) => file.path === path) ?? worktree.staged.find((file) => file.path === path);
+    const known = submodules.children.get(submodules.open ?? "") ?? [];
+    const module = isModulePath(path, [worktree.unstaged, worktree.staged]) || known.some((each) => each.path === path);
+    return { status: row?.status ?? "modified", mode: module ? ("submodule" as const) : (row?.mode ?? "plain") };
+  }
+
+  function rowPlace(path: string) {
+    return {
+      unstaged: worktree.unstaged.some((file) => file.path === path),
+      headExists: repository.current?.head?.kind !== "unborn",
+    };
+  }
+
+  function refusal(route: FileRoute): string | null {
+    return route.kind === "refused" ? route.reason : null;
+  }
+
+  /** Where a row's Edit, double-click or Enter goes (`editRoute`, `openRoute`). */
+  function follow(path: string, route: FileRoute) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    switch (route.kind) {
+      case "editor":
+        return void openEditorWindow(id, path).catch((err) => errors.report(err, "Could not open the editor"));
+      case "compare":
+        return void openCompareWindow(compareUrl(id, path, route.spec), diffWindowTitle(path)).catch((err) =>
+          errors.report(err, "Could not open the file window"),
+        );
+      case "solver":
+        return openSolverAt(path);
+      case "module":
+        return void openModuleAt(path);
+      case "refused":
+        return;
+    }
+  }
+
+  /** Double-click or Enter on a Working Tree row: the side of the list it is in. */
+  function openRow(path: string, side: "worktree" | "index") {
+    follow(path, openRoute(rowFile(path), side));
+  }
+
   /** Double-click opens the file in its own window, which survives a webview reload. A
       submodule has no lines to compare: it opens, as its row in Repositories does (R-537). */
   function openInWindow(path: string, spec = diff.spec) {
@@ -2287,6 +2351,7 @@ ${event.error}`,
       staged: paths.some((each) => worktree.staged.some((file) => file.path === each)),
       unstaged: paths.some((each) => worktree.unstaged.some((file) => file.path === each)),
       fileManager: info.fileManager,
+      editBlocked: refusal(editRoute(rowFile(path), rowPlace(path))),
     });
     await popupContextMenu(items, x, y).catch(() => {});
   }
@@ -2304,7 +2369,7 @@ ${event.error}`,
     openVersion: (path, rev) => void withRepo((id) => fileMenus.openReadOnly(id, rev, path), "Could not open the file"),
     reveal: (path) => void onDesktop((root) => fileMenus.revealOnDesktop(`${root}/${path}`), "Could not reveal the file"),
     showChanges: (path) => openInWindow(path, fileSpec(path)),
-    edit: (path) => void withRepo((id) => openEditorWindow(id, path), "Could not open the editor"),
+    edit: (path) => follow(path, editRoute(rowFile(path), rowPlace(path))),
     compareWithWorkTree: (path, rev) => openInWindow(path, { kind: "commitVsWorkTree", oid: rev }),
     log: (path) => filterGraph({ ...graph.query, path }),
     blame: (path) => void blameOne(path),
@@ -3476,11 +3541,7 @@ ${event.error}`,
     );
   });
 
-  // The bar the page draws reads the same state the native one is given.
-  const sendMenuState = menuStatePusher((disabled, checked) => {
-    webMenus.pushState(disabled, checked);
-    return setMenuState(disabled, checked);
-  });
+  const sendMenuState = menuStatePusher((disabled, checked) => setMenuState(disabled, checked));
 
   /** A rebuilt bar starts with every tick cleared, so this runs again after a keymap save;
       and after a menu command, since muda flips a clicked tick on its own. */
@@ -3880,6 +3941,7 @@ ${event.error}`,
               onopenstash={openStashDiff}
               onopencompare={openCompareDiff}
               onopenwindow={openInWindow}
+              onopenrow={openRow}
               onmask={(mask) => (fileMask = mask)}
               onshownstaged={(paths) => (shownStaged = paths)}
               onmarked={(paths, bySection) => {
@@ -4435,12 +4497,20 @@ ${event.error}`,
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--surface-base);
-    opacity: 0.85;
     border: 2px dashed var(--status-ref);
     color: var(--text-primary);
     font-size: var(--fs-ui);
     pointer-events: none;
+  }
+
+  /* The see-through surface under the hint, so its text stays fully opaque. */
+  .drop-hint::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: var(--surface-base);
+    opacity: 0.85;
   }
 
   .workspace {

@@ -126,7 +126,7 @@
   .when {
     flex: 0 0 auto;
     color: var(--text-secondary);
-    font-size: 10px;
+    font-size: var(--fs-small);
   }
 
   .what {
@@ -149,7 +149,7 @@
   .meta {
     flex: 0 0 auto;
     color: var(--text-secondary);
-    font-size: 10px;
+    font-size: var(--fs-small);
   }
 
   .entry.failed .what {

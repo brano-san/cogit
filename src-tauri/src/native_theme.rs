@@ -1,26 +1,30 @@
-//! What still draws itself natively follows the Cogit theme, not the system's.
+//! What still draws itself natively follows the Cogit theme, not the system's: the menu bar,
+//! drop-down and context menus, the title bar on Windows, GTK dialogs on Linux.
 //!
 //! Under WSLg there is no desktop environment, so GTK always takes light Adwaita; the file
-//! chooser of the dialog plugin and system notifications would be white in a dark theme
-//! (doc/06-design-system.md, "Native theme"). `gtk-theme-name` is left alone.
+//! chooser and the menus would be white in a dark theme (doc/06-design-system.md, "Native
+//! theme"). `gtk-theme-name` is left alone.
 
-use tauri::{AppHandle, Runtime};
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use tauri::{AppHandle, Runtime, Theme};
+
+/// The theme of the last `apply`; dark until the page says otherwise, as `tauri.conf.json`.
+static DARK: AtomicBool = AtomicBool::new(true);
 
 /// Dark for the dark themes, light for the light ones. `dark` comes from the theme's family.
+/// Every open window follows at once (`gtk-application-prefer-dark-theme` on Linux).
 pub fn apply<R: Runtime>(app: &AppHandle<R>, dark: bool) {
-    #[cfg(target_os = "linux")]
-    {
-        use gtk::prelude::GtkSettingsExt;
-        // GTK is single-threaded: the settings object is only touched on the main thread.
-        let queued = app.run_on_main_thread(move || {
-            if let Some(settings) = gtk::Settings::default() {
-                settings.set_gtk_application_prefer_dark_theme(dark);
-            }
-        });
-        if let Err(err) = queued {
-            tracing::warn!(%err, "could not queue the native theme change");
-        }
+    DARK.store(dark, Ordering::Relaxed);
+    app.set_theme(Some(current()));
+}
+
+/// For a window being built: it opens in the theme the others already have.
+#[must_use]
+pub fn current() -> Theme {
+    if DARK.load(Ordering::Relaxed) {
+        Theme::Dark
+    } else {
+        Theme::Light
     }
-    #[cfg(not(target_os = "linux"))]
-    let _ = (app, dark);
 }

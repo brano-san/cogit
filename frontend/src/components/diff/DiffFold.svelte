@@ -115,7 +115,7 @@
   }
 
   .arrow {
-    font-size: 9px;
+    font-size: var(--fs-tiny);
   }
 
   .where {
@@ -141,7 +141,7 @@
     color: var(--fg-secondary);
     border: 1px solid var(--border-strong);
     border-radius: var(--r-sm);
-    font-size: 9px;
+    font-size: var(--fs-tiny);
     line-height: 12px;
     cursor: default;
   }

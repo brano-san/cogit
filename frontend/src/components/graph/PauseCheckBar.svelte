@@ -100,7 +100,7 @@
   .verdict {
     flex: 0 0 auto;
     color: var(--text-secondary);
-    font-size: 11px;
+    font-size: var(--fs-header);
   }
 
   .check.failed .verdict {
@@ -111,6 +111,6 @@
     margin: 0;
     padding: 0 var(--sp-5) var(--sp-3);
     color: var(--status-modify);
-    font-size: 11px;
+    font-size: var(--fs-header);
   }
 </style>
