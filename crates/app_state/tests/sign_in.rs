@@ -7,7 +7,7 @@ use git_engine::{GitError, NetworkStop};
 use std::io::{BufRead as _, BufReader, Read as _, Write as _};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 const USER: &str = "ann";
 const PASSWORD: &str = "pw";
@@ -66,7 +66,7 @@ fn answer(mut socket: TcpStream, root: &Path, wanted: &str) {
     let method = parts.next().unwrap_or("GET");
     let target = parts.next().unwrap_or("/");
     let (path, query) = target.split_once('?').unwrap_or((target, ""));
-    let mut cgi = Command::new("git")
+    let mut cgi = test_fixtures::git_command_in(root)
         .arg("http-backend")
         .env("GIT_PROJECT_ROOT", root)
         .env("GIT_HTTP_EXPORT_ALL", "1")
