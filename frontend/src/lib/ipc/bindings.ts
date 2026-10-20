@@ -673,15 +673,6 @@ export const commands = {
 	/**  Kept once a command has succeeded with it. */
 	remember: boolean,
 } | null, onProgress: Channel<string>) => typedError<string, GitError>(__TAURI_INVOKE("clone_repository", { request, credential, onProgress })),
-	/**
-	 *  Reports only whether a token exists. Reading one back would put it in the webview,
-	 *  where every dependency could see it.
-	 */
-	hasToken: (url: string) => typedError<boolean, GitError>(__TAURI_INVOKE("has_token", { url })),
-	/**  Whose token a remote's is: the one rule, so the page names the host it will store under. */
-	tokenHost: (url: string) => typedError<string | null, GitError>(__TAURI_INVOKE("token_host", { url })),
-	storeToken: (url: string, token: string) => typedError<null, GitError>(__TAURI_INVOKE("store_token", { url, token })),
-	forgetToken: (url: string) => typedError<null, GitError>(__TAURI_INVOKE("forget_token", { url })),
 	/**  Hosts and usernames Cogit holds a sign-in for; never a secret (F-082). */
 	listCredentials: () => typedError<CredentialList, GitError>(__TAURI_INVOKE("list_credentials")),
 	/**  Preferences ▸ Authentication ▸ Add…: kept without asking the server. */

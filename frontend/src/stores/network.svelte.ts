@@ -1,13 +1,9 @@
 import {
   fetchRemote,
-  forgetToken,
-  hasToken,
   listRemotes,
   pullRemote,
   pushRemote,
   remoteUrl,
-  tokenHost as tokenHostOf,
-  storeToken,
   type PullOutcome,
   type Pushed,
   type RepoId,
@@ -16,7 +12,6 @@ import {
 import { STASH_AND_PULL } from "$lib/network-flow";
 import { pullDoneText, pushDoneText } from "$lib/toolbar";
 import { confirmation } from "$stores/confirm.svelte";
-import { notices } from "$stores/notices.svelte";
 import { signedIn } from "$stores/sign-in.svelte";
 import { successToast } from "$stores/success-toast.svelte";
 
@@ -26,7 +21,6 @@ type Running = { id: number; repo: RepoId | null; label: string; progress: strin
 class NetworkStore {
   remotes = $state.raw<string[]>([]);
   url = $state<string | null>(null);
-  tokenStored = $state(false);
   /** Every operation on the network now, newest last. Each keeps its own line: the first
       to finish must not blank the status of one still running. */
   #running = $state.raw<Running[]>([]);
@@ -47,9 +41,6 @@ class NetworkStore {
     return this.#running.at(-1)?.repo ?? null;
   }
 
-  /** Whose token the primary remote's is; only the backend knows that rule. */
-  tokenHost = $state<string | null>(null);
-
   get primary(): string | null {
     return this.remotes.includes("origin") ? "origin" : (this.remotes[0] ?? null);
   }
@@ -65,37 +56,7 @@ class NetworkStore {
     this.remotes = remotes;
     const url = this.primary ? await remoteUrl(repo, this.primary) : null;
     if (generation !== this.#generation) return;
-    const host = url === null ? null : await tokenHostOf(url);
-    if (generation !== this.#generation) return;
     this.url = url;
-    this.tokenHost = host;
-    const stored = url !== null && host !== null && (await hasToken(url));
-    if (generation === this.#generation) this.tokenStored = stored;
-  }
-
-  /** A keychain that refuses is reported; the page keeps saying what is stored. */
-  async storeToken(token: string): Promise<void> {
-    const url = this.url;
-    if (url === null || this.tokenHost === null) return;
-    try {
-      await storeToken(url, token);
-    } catch (err) {
-      notices.report(err, "Could not store the token");
-      return;
-    }
-    this.tokenStored = true;
-  }
-
-  async forgetToken(): Promise<void> {
-    const url = this.url;
-    if (url === null || this.tokenHost === null) return;
-    try {
-      await forgetToken(url);
-    } catch (err) {
-      notices.report(err, "Could not forget the token");
-      return;
-    }
-    this.tokenStored = false;
   }
 
   async fetch(repo: RepoId, remote: string): Promise<void> {
@@ -162,8 +123,6 @@ class NetworkStore {
     this.#generation += 1;
     this.remotes = [];
     this.url = null;
-    this.tokenHost = null;
-    this.tokenStored = false;
     this.#running = this.#running.filter((entry) => entry.repo === null);
   }
 }

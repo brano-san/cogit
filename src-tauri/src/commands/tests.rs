@@ -270,13 +270,18 @@ fn the_repository_list_is_read_off_the_async_workers() {
 #[test]
 fn the_keyring_is_reached_off_the_async_workers() {
     let all = all_commands();
-    let inline: Vec<&str> = ["has_token", "store_token", "forget_token"]
-        .into_iter()
-        .filter(|name| {
-            !all.iter()
-                .any(|command| command.name == *name && command.body.contains("blocking("))
-        })
-        .collect();
+    let inline: Vec<&str> = [
+        "list_credentials",
+        "store_credential",
+        "forget_credential",
+        "forget_all_credentials",
+    ]
+    .into_iter()
+    .filter(|name| {
+        !all.iter()
+            .any(|command| command.name == *name && command.body.contains("blocking("))
+    })
+    .collect();
     assert!(
         inline.is_empty(),
         "these reach the keyring inline: {inline:?}"

@@ -106,7 +106,7 @@ export const CATEGORIES: Category[] = [
     id: "auth",
     title: "Authentication",
     parent: "commands",
-    groups: [{ title: "Hosting tokens", fields: [] }],
+    groups: [{ title: "Sign-ins", fields: [] }],
   },
   heading("ui", "User Interface"),
   {

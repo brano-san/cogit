@@ -16,8 +16,6 @@ vi.mock("$lib/ipc", () => {
     ),
     listRemotes: vi.fn(later("remotes")),
     remoteUrl: vi.fn(later("url")),
-    hasToken: vi.fn(async () => false),
-    tokenHost: vi.fn(async () => null),
     flowStatus: vi.fn(later("flow")),
     conflictedPaths: vi.fn(later("conflicts")),
     listWorktrees: vi.fn(later("worktrees")),

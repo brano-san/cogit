@@ -16,10 +16,6 @@ vi.mock("$lib/ipc", () => {
       later("pull")(repo, remote, ffOnly, onLine),
     ),
     pushRemote: vi.fn(later("push")),
-    tokenHost: vi.fn(async (url: string) => (url.startsWith("https://") ? "github.com" : null)),
-    hasToken: vi.fn(async () => false),
-    storeToken: vi.fn(async () => {}),
-    forgetToken: vi.fn(async () => {}),
     listCredentials: vi.fn(async () => ({ persistent: true, known: [] })),
   };
 });
@@ -127,36 +123,6 @@ describe("leaving the repository", () => {
     finish("D:/src/app");
     expect(await cloning).toBe("D:/src/app");
     expect(network.running).toBeNull();
-  });
-});
-
-// Store and Forget in Preferences ▸ Authentication did nothing when the keychain refused:
-// the rejection reached nobody, and the page went on saying what it said before.
-describe("a token the keychain refuses", () => {
-  beforeEach(() => {
-    network.url = "https://github.com/owner/repo.git";
-    network.tokenHost = "github.com";
-  });
-
-  it("is reported when stored, and not counted as stored", async () => {
-    const refused = new Error("access to the keychain was denied");
-    vi.mocked(ipc.storeToken).mockRejectedValueOnce(refused);
-
-    await network.storeToken("secret");
-
-    expect(report).toHaveBeenCalledWith(refused, "Could not store the token");
-    expect(network.tokenStored).toBe(false);
-  });
-
-  it("is reported when forgotten, and still counted as stored", async () => {
-    await network.storeToken("secret");
-    const refused = new Error("the collection is locked");
-    vi.mocked(ipc.forgetToken).mockRejectedValueOnce(refused);
-
-    await network.forgetToken();
-
-    expect(report).toHaveBeenCalledWith(refused, "Could not forget the token");
-    expect(network.tokenStored).toBe(true);
   });
 });
 

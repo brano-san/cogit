@@ -986,22 +986,6 @@ export async function forgetAllCredentials() {
   return unwrap(await commands.forgetAllCredentials());
 }
 
-export async function hasToken(url: string) {
-  return unwrap(await commands.hasToken(url));
-}
-
-export async function tokenHost(url: string) {
-  return unwrap(await commands.tokenHost(url));
-}
-
-export async function storeToken(url: string, token: string) {
-  return unwrap(await commands.storeToken(url, token));
-}
-
-export async function forgetToken(url: string) {
-  return unwrap(await commands.forgetToken(url));
-}
-
 export async function listHooks(repo: RepoId) {
   return unwrap(await commands.listHooks(repo));
 }

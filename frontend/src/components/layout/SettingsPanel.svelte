@@ -25,6 +25,7 @@
   import { createGitChecker, describeCheck, type GitCheck } from "$lib/git-check";
   import { ON_WINDOWS } from "$lib/platform";
   import { probeGit } from "$lib/ipc";
+  import { credentials } from "$stores/credentials.svelte";
   import type { Keymap } from "$lib/keymap";
   import type { KeyBinding } from "$lib/ipc";
   import KeymapEditor from "$components/layout/KeymapEditor.svelte";
@@ -42,11 +43,6 @@
     terminals: readonly { id: string; label: string }[];
     keymap: Keymap;
     bindings: readonly KeyBinding[];
-    /** The host of the current remote, or null when it is SSH or there is none. */
-    tokenHost: string | null;
-    tokenStored: boolean;
-    onstoretoken: (token: string) => void;
-    onforgettoken: () => void;
     /** Applies and saves the whole draft, keymap included, each time a field changes (R-122). */
     onapply: (next: Settings, keymap: Keymap) => void;
     /** Puts everything back to how it was when the dialog opened, and closes. */
@@ -71,10 +67,6 @@
     terminals,
     keymap,
     bindings,
-    tokenHost,
-    tokenStored,
-    onstoretoken,
-    onforgettoken,
     onapply,
     onrevert,
     onusegit,
@@ -134,7 +126,6 @@
   let draft = $state<Settings>({ ...value });
   // svelte-ignore state_referenced_locally
   let draftKeys = $state<Keymap>({ ...keymap });
-  let token = $state("");
   let search = $state("");
   // svelte-ignore state_referenced_locally
   let active = $state(start ?? "git");
@@ -159,6 +150,11 @@
     })),
   );
   const current = $derived(CATEGORIES.find((category) => category.id === active));
+
+  // Read when the page is shown: a sign-in remembered from a refusal lands while Cogit runs.
+  $effect(() => {
+    if (current?.id === "auth") void untrack(() => credentials.refresh());
+  });
   /** A page with a `*` setting explains the mark here; no page has both a note and one. */
   const note = $derived(current?.note ?? (restartFields(active).length > 0 ? "* Requires restart" : ""));
 
@@ -667,27 +663,41 @@
         {/each}
 
         {#if current.id === "auth"}
-          {#if tokenHost === null}
-            <p class="hint wide">
-              A token is kept for an https:// remote only. This repository has none (it uses SSH, plain
-              http or no remote), so no token is needed and none is ever sent.
-            </p>
-          {:else if tokenStored}
-            <p class="hint wide">The token is sent over https:// only, and only to {tokenHost}.</p>
-            <div class="row">
-              <span>{tokenHost}</span>
-              <span class="stored">A token is stored.</span>
-              <button class="btn" type="button" onclick={onforgettoken}>Forget</button>
-            </div>
-          {:else}
-            <label class="row">
-              <span>{tokenHost}</span>
-              <input type="password" class="text" bind:value={token} placeholder="Access token" />
-              <button class="btn" type="button" disabled={token === ""} onclick={() => onstoretoken(token)}>
-                Store
-              </button>
-            </label>
+          <p class="lead" id="sign-ins-title">
+            Hosts Cogit signs in to over https:// when Git has no credential helper that answers. Each goes only to its own
+            host; the password or token stays in the system keychain.
+          </p>
+          {#if !credentials.persistent}
+            <p class="hint wide">No system keychain on this computer: sign-ins are kept until Cogit exits.</p>
           {/if}
+          {#if credentials.known.length === 0}
+            <p class="hint wide">Nothing stored yet. Cogit asks when a remote wants a sign-in, or add one here.</p>
+          {:else}
+            <ul class="suppressed" aria-labelledby="sign-ins-title">
+              <li class="head"><span class="grow">Host</span><span class="user">User</span><span class="action"></span></li>
+              {#each credentials.known as known (known.host)}
+                <li>
+                  <span class="grow truncate mono" title={known.host}>{known.host}</span>
+                  <span class="user truncate" title={known.username ?? "Access token"}>{known.username ?? "(token)"}</span>
+                  <button
+                    type="button"
+                    class="btn action"
+                    aria-label={`Remove the sign-in for ${known.host}`}
+                    onclick={() => void credentials.remove(known.host)}>Remove</button
+                  >
+                </li>
+              {/each}
+            </ul>
+          {/if}
+          <div class="reset-all">
+            <button type="button" class="btn" onclick={() => void credentials.add()}>Add…</button>
+            <button
+              type="button"
+              class="btn"
+              disabled={credentials.known.length === 0}
+              onclick={() => void credentials.removeAll()}>Remove All</button
+            >
+          </div>
         {/if}
 
         {#if current.id === "advanced"}
@@ -773,6 +783,24 @@
   .reset-all {
     display: flex;
     justify-content: flex-end;
+  }
+
+  .suppressed .head {
+    color: var(--text-secondary);
+  }
+
+  .suppressed .user {
+    flex: 0 0 160px;
+    min-width: 0;
+  }
+
+  .suppressed .action {
+    flex: 0 0 auto;
+    min-width: 72px;
+  }
+
+  .reset-all {
+    gap: var(--sp-3);
   }
 
   .suppressed .scope {
@@ -1015,10 +1043,6 @@
     margin-left: var(--sp-2);
     color: var(--text-secondary);
     cursor: help;
-  }
-
-  .stored {
-    color: var(--status-add);
   }
 
   .ask {

@@ -345,32 +345,6 @@ impl AppState {
         }
     }
 
-    /// The host a remote's token is kept under, for the Authentication page to name.
-    #[must_use]
-    pub fn token_host(&self, url: &str) -> Option<String> {
-        credential_host(url)
-    }
-
-    /// Only ever answers whether a token exists: the value must not reach the webview.
-    /// All three take the remote URL: the rule for whose token it is stays here.
-    #[must_use]
-    pub fn has_token(&self, url: &str) -> bool {
-        self.stored_credential(url).is_some()
-    }
-
-    pub fn store_token(&self, url: &str, token: &str) -> Result<(), SecretError> {
-        self.store_credential(&SignIn {
-            host: credential_host(url).ok_or(SecretError::NoHost)?,
-            username: None,
-            secret: token.to_owned(),
-            remember: true,
-        })
-    }
-
-    pub fn forget_token(&self, url: &str) -> Result<(), SecretError> {
-        self.forget_credential(&credential_host(url).ok_or(SecretError::NoHost)?)
-    }
-
     /// Replaces the credential store; tests hand in a `MemoryStore`.
     #[must_use]
     pub fn with_secrets(mut self, secrets: Box<dyn SecretStore>) -> Self {

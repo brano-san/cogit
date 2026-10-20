@@ -1,4 +1,4 @@
-//! Remotes and the network: fetch, pull, push with progress, remote URLs and stored tokens (M1).
+//! Remotes and the network: fetch, pull, push with progress, remote URLs and stored sign-ins (M1, F-082).
 
 use super::blocking;
 use app_state::{OperationKind, RepoId};
@@ -176,60 +176,6 @@ pub async fn remote_url(
 ) -> Result<Option<String>, GitError> {
     let app_state = state.state.clone();
     blocking("remote_url", move || app_state.remote_url(repo, &name)).await
-}
-
-/// Reports only whether a token exists. Reading one back would put it in the webview,
-/// where every dependency could see it.
-#[tauri::command]
-#[specta::specta]
-pub async fn has_token(
-    state: tauri::State<'_, crate::AppContext>,
-    url: String,
-) -> Result<bool, GitError> {
-    let app_state = state.state.clone();
-    blocking("has_token", move || Ok(app_state.has_token(&url))).await
-}
-
-/// Whose token a remote's is: the one rule, so the page names the host it will store under.
-#[tauri::command]
-#[specta::specta]
-pub async fn token_host(
-    state: tauri::State<'_, crate::AppContext>,
-    url: String,
-) -> Result<Option<String>, GitError> {
-    let app_state = state.state.clone();
-    blocking("token_host", move || Ok(app_state.token_host(&url))).await
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn store_token(
-    state: tauri::State<'_, crate::AppContext>,
-    url: String,
-    token: String,
-) -> Result<(), GitError> {
-    let app_state = state.state.clone();
-    blocking("store_token", move || {
-        app_state
-            .store_token(&url, &token)
-            .map_err(|err| GitError::InvalidState(err.to_string()))
-    })
-    .await
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn forget_token(
-    state: tauri::State<'_, crate::AppContext>,
-    url: String,
-) -> Result<(), GitError> {
-    let app_state = state.state.clone();
-    blocking("forget_token", move || {
-        app_state
-            .forget_token(&url)
-            .map_err(|err| GitError::InvalidState(err.to_string()))
-    })
-    .await
 }
 
 /// Hosts and usernames Cogit holds a sign-in for; never a secret (F-082).

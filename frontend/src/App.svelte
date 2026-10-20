@@ -4146,10 +4146,6 @@ ${event.error}`,
       {terminals}
       keymap={settings.keymap}
       bindings={settings.bindings}
-      tokenHost={network.tokenHost}
-      tokenStored={network.tokenStored}
-      onstoretoken={(token) => void network.storeToken(token)}
-      onforgettoken={() => void network.forgetToken()}
       onapply={(next, keys) => void applySettings(next, keys)}
       onrevert={() => void revertSettings()}
       onusegit={(path) => void switchGit(path)}

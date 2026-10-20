@@ -148,7 +148,7 @@ fn the_edges_of_a_url_have_one_answer() {
 // Save through the door the Authentication page uses, read through the one network runs
 // use: both must land on the same key, whatever the URL looks like.
 #[test]
-fn a_token_saved_for_a_url_is_the_one_a_network_run_reads() {
+fn a_sign_in_saved_for_a_url_is_the_one_a_network_run_reads() {
     let state = AppState::new().with_secrets(Box::new(MemoryStore::default()));
     for url in [
         "https://github.com/o/r.git",
@@ -158,32 +158,39 @@ fn a_token_saved_for_a_url_is_the_one_a_network_run_reads() {
         "https://git.пример.рф/r.git",
         "https://[::1]:8443/r.git",
     ] {
-        state.store_token(url, "tok").unwrap();
-        assert!(state.has_token(url), "{url}");
+        state.store_credential(&sign_in(url, None, "tok")).unwrap();
         assert_eq!(
             state.stored_credential(url).map(|c| c.secret).as_deref(),
             Some("tok"),
             "{url}"
         );
-        state.forget_token(url).unwrap();
+        state.forget_credential(url).unwrap();
         assert_eq!(state.stored_credential(url), None, "{url}");
     }
 }
 
 #[test]
-fn a_token_is_neither_saved_for_nor_read_by_a_url_that_is_not_https() {
+fn a_sign_in_never_goes_over_plain_http_or_ssh() {
     let state = AppState::new().with_secrets(Box::new(MemoryStore::default()));
+    state
+        .store_credential(&sign_in("github.com", None, "x"))
+        .unwrap();
     for url in [
         "http://github.com/o/r.git",
         "git@github.com:o/r.git",
         "/srv/r.git",
     ] {
-        assert!(state.store_token(url, "x").is_err(), "{url}");
-        assert!(!state.has_token(url), "{url}");
         assert_eq!(state.stored_credential(url), None, "{url}");
     }
-    // The userinfo trick must not reach the token of another host.
-    state.store_token("https://h/x", "h-token").unwrap();
+    assert!(
+        state
+            .store_credential(&sign_in("/srv/r.git", None, "x"))
+            .is_err()
+    );
+    // The userinfo trick must not reach the sign-in of another host.
+    state
+        .store_credential(&sign_in("https://h/x", None, "h-token"))
+        .unwrap();
     assert_eq!(
         state
             .stored_credential("https://h?a@evil/x")
