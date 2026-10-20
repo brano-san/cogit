@@ -14,7 +14,7 @@
   import { errors } from "$stores/errors.svelte";
   import { runMutation, type MutationContext } from "$lib/mutation";
   import { announceTreeChange } from "$lib/tree-sync";
-  import { installChildWindow } from "$lib/child-window";
+  import { installChildWindow, onDiskChange } from "$lib/child-window";
   import { compareLabel, diffWindowTitle, parseCompare, sideCaptions } from "$lib/compare-params";
   import { firstParent, handOverModule, loadCompare } from "$lib/compare-window";
   import { closeThisWindow } from "$lib/ipc";
@@ -23,6 +23,9 @@
   import { settings } from "$stores/settings.svelte";
 
   const request = parseCompare(window.location.search);
+
+  // The diff follows the disk; an editor with unsaved edits offers Reload / Keep Mine.
+  $effect(() => (request ? onDiskChange(request.repo, () => void diff.refreshFromDisk()) : undefined));
 
   // No browser menu (R-127), and Esc / Ctrl+W close the window.
   $effect(() => installChildWindow(window));

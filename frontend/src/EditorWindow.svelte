@@ -5,7 +5,7 @@
   import DiffEditPane from "$components/diff/DiffEditPane.svelte";
   import UnsavedDialog from "$components/common/UnsavedDialog.svelte";
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
-  import { closeGuard, installChildWindow } from "$lib/child-window";
+  import { closeGuard, installChildWindow, onDiskChange } from "$lib/child-window";
   import { closeThisWindow } from "$lib/ipc";
   import { followSettings } from "$lib/settings-sync";
   import { diffEdit } from "$stores/diff-edit.svelte";
@@ -29,6 +29,9 @@
       if (valid) void diffEdit.start(repo as never, { kind: "workTreeVsIndex" }, path);
     }),
   );
+
+  // Changed on disk: a clean editor follows, a dirty one offers Reload / Keep Mine.
+  $effect(() => (valid ? onDiskChange(repo, () => void diffEdit.diskChanged()) : undefined));
 
   const name = path.slice(path.lastIndexOf("/") + 1);
   const title = $derived(`${name}${diffEdit.dirty ? " *" : ""} — Edit — Cogit`);

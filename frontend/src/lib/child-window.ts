@@ -1,4 +1,4 @@
-import { closeThisWindow } from "$lib/ipc";
+import { closeThisWindow, onRepoChanged } from "$lib/ipc";
 import { suppressBrowserFind } from "$lib/browser-find";
 import { suppressBrowserNavigation } from "$lib/browser-navigation";
 import { suppressNativeMenu } from "$lib/native-menu";
@@ -100,4 +100,14 @@ export function installChildWindow(win: Window): () => void {
     stopSelectAll();
     win.removeEventListener("keydown", onWindowKey);
   };
+}
+
+/** The watcher saw the working tree or the index of `repo` change: `changed` re-reads what
+    the window shows. The main window's watcher is the only one; its events reach every
+    window. Returns the undo. */
+export function onDiskChange(repo: number, changed: () => void): () => void {
+  const pending = onRepoChanged((change) => {
+    if (change.repo === repo && (change.kind === "workingTree" || change.kind === "index")) changed();
+  });
+  return () => void pending.then((stop) => stop()).catch(() => {});
 }

@@ -37,6 +37,8 @@
     /** A file of the comparison (Compare with HEAD / with Selected Commit). */
     onopencompare: (path: string) => void;
     onopenwindow: (path: string) => void;
+    /** Double-click or Enter on a Working Tree row: Unstaged or Staged, whatever Diff shows. */
+    onopenrow: (path: string, side: "worktree" | "index") => void;
     onmask: (mask: string) => void;
     /** The staged files the working-tree list shows once filtered. */
     onshownstaged?: (paths: string[] | null) => void;
@@ -63,6 +65,7 @@
     onopenstash,
     onopencompare,
     onopenwindow,
+    onopenrow,
     onmask,
     onshownstaged,
     onmarked,
@@ -238,7 +241,7 @@
         "The working tree is clean.",
       )}
       selected={diff.path}
-      onopen={onopenwindow}
+      onopen={(path, side) => onopenrow(path, separate ? (side === "index" ? "index" : "worktree") : mergedSide(path, worktree.unstaged))}
       {onmask}
       onshown={(shown) => onshownstaged?.(shown && stagedShown(shown, separate, worktree.staged))}
       {onmarked}

@@ -47,6 +47,7 @@
   import { suppressBrowserFind } from "$lib/browser-find";
   import { suppressBrowserNavigation } from "$lib/browser-navigation";
   import { findModuleRow, isModulePath, onOpenModule } from "$lib/module-open";
+  import { editRoute, openRoute, type FileRoute } from "$lib/file-edit";
   import { onPushHead } from "$lib/push-head";
   import { onTreeChange } from "$lib/tree-sync";
   import { emptyStateVisible, footerRepository, panelView } from "$lib/repo-phase";
@@ -1810,6 +1811,51 @@ ${event.error}`,
     await afterRefChange(id);
   }
 
+  /** A working tree row's file: from Unstaged first, as the Files list shows it. An
+      unchanged submodule is listed as a plain file; Repositories knows it. */
+  function rowFile(path: string) {
+    const row = worktree.unstaged.find((file) => file.path === path) ?? worktree.staged.find((file) => file.path === path);
+    const known = submodules.children.get(submodules.open ?? "") ?? [];
+    const module = isModulePath(path, [worktree.unstaged, worktree.staged]) || known.some((each) => each.path === path);
+    return { status: row?.status ?? "modified", mode: module ? ("submodule" as const) : (row?.mode ?? "plain") };
+  }
+
+  function rowPlace(path: string) {
+    return {
+      unstaged: worktree.unstaged.some((file) => file.path === path),
+      headExists: repository.current?.head?.kind !== "unborn",
+    };
+  }
+
+  function refusal(route: FileRoute): string | null {
+    return route.kind === "refused" ? route.reason : null;
+  }
+
+  /** Where a row's Edit, double-click or Enter goes (`editRoute`, `openRoute`). */
+  function follow(path: string, route: FileRoute) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    switch (route.kind) {
+      case "editor":
+        return void openEditorWindow(id, path).catch((err) => errors.report(err, "Could not open the editor"));
+      case "compare":
+        return void openCompareWindow(compareUrl(id, path, route.spec), diffWindowTitle(path)).catch((err) =>
+          errors.report(err, "Could not open the file window"),
+        );
+      case "solver":
+        return openSolverAt(path);
+      case "module":
+        return void openModuleAt(path);
+      case "refused":
+        return;
+    }
+  }
+
+  /** Double-click or Enter on a Working Tree row: the side of the list it is in. */
+  function openRow(path: string, side: "worktree" | "index") {
+    follow(path, openRoute(rowFile(path), side));
+  }
+
   /** Double-click opens the file in its own window, which survives a webview reload. A
       submodule has no lines to compare: it opens, as its row in Repositories does (R-537). */
   function openInWindow(path: string, spec = diff.spec) {
@@ -2297,6 +2343,7 @@ ${event.error}`,
       staged: paths.some((each) => worktree.staged.some((file) => file.path === each)),
       unstaged: paths.some((each) => worktree.unstaged.some((file) => file.path === each)),
       fileManager: info.fileManager,
+      editBlocked: refusal(editRoute(rowFile(path), rowPlace(path))),
     });
     await popupContextMenu(items, x, y).catch(() => {});
   }
@@ -2314,7 +2361,7 @@ ${event.error}`,
     openVersion: (path, rev) => void withRepo((id) => fileMenus.openReadOnly(id, rev, path), "Could not open the file"),
     reveal: (path) => void onDesktop((root) => fileMenus.revealOnDesktop(`${root}/${path}`), "Could not reveal the file"),
     showChanges: (path) => openInWindow(path, fileSpec(path)),
-    edit: (path) => void withRepo((id) => openEditorWindow(id, path), "Could not open the editor"),
+    edit: (path) => follow(path, editRoute(rowFile(path), rowPlace(path))),
     compareWithWorkTree: (path, rev) => openInWindow(path, { kind: "commitVsWorkTree", oid: rev }),
     log: (path) => filterGraph({ ...graph.query, path }),
     blame: (path) => void blameOne(path),
@@ -3885,6 +3932,7 @@ ${event.error}`,
               onopenstash={openStashDiff}
               onopencompare={openCompareDiff}
               onopenwindow={openInWindow}
+              onopenrow={openRow}
               onmask={(mask) => (fileMask = mask)}
               onshownstaged={(paths) => (shownStaged = paths)}
               onmarked={(paths, bySection) => {

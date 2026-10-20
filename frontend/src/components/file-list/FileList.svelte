@@ -90,7 +90,8 @@
     onsplitreset?: () => void;
     onselect?: (path: string) => void;
     /** Double-click: open the file in its own window (T2.5). */
-    onopen?: (path: string) => void;
+    /** Double-click or Enter, with the side of the list the row is in. */
+    onopen?: (path: string, side: StateSide) => void;
     /** Right-click, with the title of the list the row is in (Staged means the index) and
         the rows it shows, the ones the list adds itself among them. */
     oncontext?: (path: string, event: MouseEvent, section?: string, rows?: readonly FileEntry[]) => void;
@@ -455,7 +456,7 @@
                 marked={marks.bySection.get(group.index) ?? NO_MARKS}
                 onclick={(path, event) => clicked(group, path, event)}
                 onmark={(path) => mark(group, path)}
-                {onopen}
+                onopen={onopen && ((path) => onopen(path, sideOf(group.section)))}
                 oncontext={oncontext && ((path, event) => rightClicked(group, path, event))}
               />
             </div>
@@ -478,7 +479,7 @@
                   marked={marks.bySection.get(group.index) ?? NO_MARKS}
                   onclick={(path, event) => clicked(group, path, event)}
                   onmark={(path) => mark(group, path)}
-                  {onopen}
+                  onopen={onopen && ((path) => onopen(path, sideOf(group.section)))}
                   oncontext={oncontext && ((path, event) => rightClicked(group, path, event))}
                 />
               </div>
