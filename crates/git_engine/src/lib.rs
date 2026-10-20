@@ -106,7 +106,8 @@ pub use config_file::{
 };
 pub use conflicts::{ConflictSide, ConflictSides, ConflictStages, ConflictText, EntryKind};
 pub use credentials::{
-    Credential, CredentialTrouble, basic_header, credential_config, credential_trouble, wants_auth,
+    Credential, CredentialTrouble, basic_header, credential_config, credential_trouble,
+    refused_url, wants_auth,
 };
 pub use detached::{PullOutcome, Pushed};
 pub use error::{AuthRequired, GitCommandError, GitError};

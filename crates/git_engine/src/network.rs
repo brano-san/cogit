@@ -132,14 +132,21 @@ impl RepoHandle {
     }
 
     /// Every remote, as `git fetch --all` takes them (`remote.<name>.skipFetchAll` skips
-    /// one). `credential_remote`: whose URL the credential is asked for.
+    /// one), each with the credential of its own host.
     pub fn fetch_all(
         &self,
-        credential_remote: &str,
-        credential: impl FnOnce(&str) -> Option<crate::Credential>,
+        credential: impl Fn(&str) -> Option<crate::Credential>,
         on_line: impl FnMut(&str),
     ) -> Result<()> {
-        let auth = self.auth_env(credential_remote, gix::remote::Direction::Fetch, credential);
+        let mut pairs: Vec<(String, String)> = Vec::new();
+        for remote in self.remotes()? {
+            let pair = self.auth_pair(&remote, gix::remote::Direction::Fetch, &credential);
+            // One header per host: two remotes on one host would send it twice.
+            if let Some(pair) = pair.filter(|(key, _)| pairs.iter().all(|(k, _)| k != key)) {
+                pairs.push(pair);
+            }
+        }
+        let auth = config_env(&pairs);
         self.run_streaming(&["fetch", "--progress", "--prune", "--all"], &auth, on_line)
     }
 
@@ -282,17 +289,22 @@ impl RepoHandle {
         direction: gix::remote::Direction,
         credential: impl FnOnce(&str) -> Option<crate::Credential>,
     ) -> Vec<(String, String)> {
-        let Some(url) = self.url_of(remote, direction) else {
-            return Vec::new();
-        };
-        let Some(credential) = credential(&url) else {
-            return Vec::new();
-        };
         config_env(
-            &crate::credentials::credential_config(&url, &credential)
+            &self
+                .auth_pair(remote, direction, credential)
                 .into_iter()
                 .collect::<Vec<_>>(),
         )
+    }
+
+    fn auth_pair(
+        &self,
+        remote: &str,
+        direction: gix::remote::Direction,
+        credential: impl FnOnce(&str) -> Option<crate::Credential>,
+    ) -> Option<(String, String)> {
+        let url = self.url_of(remote, direction)?;
+        crate::credentials::credential_config(&url, &credential(&url)?)
     }
 
     pub(crate) fn run_streaming(

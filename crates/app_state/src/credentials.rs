@@ -300,6 +300,7 @@ impl AppState {
 
     #[must_use]
     pub fn list_credentials(&self) -> CredentialList {
+        self.adopt_open_remotes();
         CredentialList {
             persistent: self.secrets.persistent(),
             known: self.known_hosts.lock().known.clone(),
@@ -347,6 +348,25 @@ impl AppState {
         }
         known.save();
         first
+    }
+
+    /// The keyring cannot list a token stored before F-082: the hosts of the open
+    /// repositories' remotes are looked up, so the page shows it and Remove All reaches it.
+    fn adopt_open_remotes(&self) {
+        let ids: Vec<crate::RepoId> = self.repos.read().keys().copied().collect();
+        for handle in ids.into_iter().filter_map(|id| self.handle(id).ok()) {
+            for remote in handle.remotes().unwrap_or_default() {
+                let Some(url) = handle.remote_url(&remote) else {
+                    continue;
+                };
+                let listed = credential_host(&url).is_some_and(|host| {
+                    self.known_hosts.lock().known.iter().any(|k| k.host == host)
+                });
+                if !listed {
+                    let _ = self.stored_credential(&url);
+                }
+            }
+        }
     }
 
     /// What Cogit holds for the host of `url`. A host found in the keyring but missing from

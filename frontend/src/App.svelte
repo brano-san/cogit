@@ -81,6 +81,7 @@
   import { cloneRepository, type CloneRequest } from "$lib/ipc/clone";
   import PromptDialog from "$components/layout/PromptDialog.svelte";
   import SignInDialog from "$components/layout/SignInDialog.svelte";
+  import { signedIn } from "$stores/sign-in.svelte";
   import StashDialogs from "$components/layout/StashDialogs.svelte";
   import GitMissingDialog from "$components/layout/GitMissingDialog.svelte";
   import { GitMissingStore } from "$stores/git-missing.svelte";
@@ -1594,7 +1595,7 @@ ${event.error}`,
       try {
         const opened = await openSubmodule(owner, key);
         const remote = await trackedRemote(opened.repo);
-        if (remote) await fetchRemote(opened.repo, remote, () => {});
+        if (remote) await signedIn((credential) => fetchRemote(opened.repo, remote, () => {}, credential));
       } catch (err) {
         errors.report(err, `Could not fetch in ${key}`);
       }

@@ -68,11 +68,20 @@ pub fn credential_trouble(output: &str) -> Option<CredentialTrouble> {
         Some(CredentialTrouble::Canceled)
     } else if any(NO_PROMPT) {
         Some(CredentialTrouble::NoPrompt)
-    } else if any(REFUSED) {
+    } else if any(REFUSED) && !text.contains(" denied to ") {
+        // GitHub's "Permission to o/r denied to ann": signed in, just not allowed.
         Some(CredentialTrouble::Refused)
     } else {
         None
     }
+}
+
+/// The URL git names in its refusal, for `fetch --all` and the like that ask several.
+#[must_use]
+pub fn refused_url(output: &str) -> Option<String> {
+    let start = output.find("'http")? + 1;
+    let end = output[start..].find('\'')?;
+    Some(output[start..start + end].to_owned())
 }
 
 const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -213,6 +222,11 @@ mod tests {
                 None,
             ),
             ("fatal: repository 'https://x/o/r.git/' not found", None),
+            // Signed in, but not allowed: another sign-in is not the answer.
+            (
+                "remote: Permission to o/r.git denied to ann.\nfatal: unable to access 'https://github.com/o/r.git/': The requested URL returned error: 403",
+                None,
+            ),
             (
                 "fatal: unable to access 'https://x/': Could not resolve host: x",
                 None,
@@ -221,5 +235,19 @@ mod tests {
         for (text, expected) in cases {
             assert_eq!(credential_trouble(text), expected, "{text}");
         }
+    }
+
+    // `fetch --all` asks every remote: the one that refused is the one git names.
+    #[test]
+    fn the_refused_url_is_the_one_git_quotes() {
+        assert_eq!(
+            refused_url("Fetching upstream\nfatal: could not read Username for 'https://b.example': terminal prompts disabled").as_deref(),
+            Some("https://b.example")
+        );
+        assert_eq!(
+            refused_url("fatal: Authentication failed for 'https://a.example/o/r.git/'").as_deref(),
+            Some("https://a.example/o/r.git/")
+        );
+        assert_eq!(refused_url("fatal: User cancelled dialog."), None);
     }
 }

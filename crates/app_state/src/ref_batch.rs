@@ -109,7 +109,9 @@ impl AppState {
                 // Every remote branch here is on one host: the first refusal is the whole
                 // folder's, and the Sign in dialog runs it again (F-082).
                 Err(GitError::Command(failure))
-                    if failure.auth_required.is_some() && report.deleted.is_empty() =>
+                    if failure.auth_required.is_some()
+                        && report.deleted.is_empty()
+                        && report.failed.is_empty() =>
                 {
                     return Err(GitError::Command(failure));
                 }

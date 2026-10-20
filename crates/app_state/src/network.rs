@@ -96,7 +96,7 @@ impl AppState {
                 return Ok(PullOutcome::FetchedDetached);
             }
             if handle.head_tracks_nothing() {
-                handle.fetch_all(remote, credential, on_line)?;
+                handle.fetch_all(credential, on_line)?;
                 return Ok(PullOutcome::Pulled);
             }
             // Listed before the pull: a submodule the user deinitialised stays that way (#42).
@@ -235,7 +235,8 @@ impl AppState {
         run: impl FnOnce(Credentials<'_>) -> Result<T, GitError>,
     ) -> Result<T, GitError> {
         let typed = sign_in.and_then(|sign_in| Some((host_input(&sign_in.host)?, sign_in)));
-        let asked: RefCell<Option<AuthRequired>> = RefCell::new(None);
+        // Each host asked, with the username sent there.
+        let asked: RefCell<Vec<(String, Option<String>)>> = RefCell::new(Vec::new());
         let used_typed = Cell::new(false);
         let credential = |url: &str| {
             let host = credential_host(url)?;
@@ -246,10 +247,8 @@ impl AppState {
                 }
                 _ => self.stored_credential(url),
             };
-            *asked.borrow_mut() = Some(AuthRequired {
-                host,
-                username: credential.as_ref().and_then(|c| c.username.clone()),
-            });
+            let username = credential.as_ref().and_then(|c| c.username.clone());
+            asked.borrow_mut().push((host, username));
             credential
         };
         match run(&credential) {
@@ -262,17 +261,7 @@ impl AppState {
                 Ok(done)
             }
             Err(GitError::Command(mut failure)) => {
-                let refused = matches!(
-                    git_engine::credential_trouble(&format!(
-                        "{}
-{}",
-                        failure.stderr, failure.stdout
-                    )),
-                    Some(CredentialTrouble::NoPrompt | CredentialTrouble::Refused)
-                );
-                if refused {
-                    failure.auth_required = asked.into_inner();
-                }
+                failure.auth_required = auth_required(&failure, &asked.into_inner());
                 Err(GitError::Command(failure))
             }
             Err(other) => Err(other),
@@ -283,4 +272,29 @@ impl AppState {
     pub(crate) fn stored(&self) -> impl Fn(&str) -> Option<Credential> + '_ {
         |url| self.stored_credential(url)
     }
+}
+
+/// The host git quotes in its refusal (`fetch --all` asks several), else the last one asked;
+/// `None` for a host Cogit cannot sign in to (plain http to another machine, ssh).
+fn auth_required(
+    failure: &git_engine::GitCommandError,
+    asked: &[(String, Option<String>)],
+) -> Option<AuthRequired> {
+    let text = format!("{}\n{}", failure.stderr, failure.stdout);
+    if !matches!(
+        git_engine::credential_trouble(&text),
+        Some(CredentialTrouble::NoPrompt | CredentialTrouble::Refused)
+    ) {
+        return None;
+    }
+    let host = match git_engine::refused_url(&text) {
+        Some(url) => credential_host(&url)?,
+        None => asked.last()?.0.clone(),
+    };
+    let username = asked
+        .iter()
+        .rev()
+        .find(|(asked_host, _)| *asked_host == host)
+        .and_then(|(_, username)| username.clone());
+    Some(AuthRequired { host, username })
 }

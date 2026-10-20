@@ -348,3 +348,27 @@ fn plain_http_gets_a_sign_in_only_on_this_machine() {
     );
     assert_eq!(app_state::host_input("git example"), None);
 }
+
+// A token stored before F-082 is listed when the Authentication page opens, not only after
+// a fetch has read it: otherwise Remove All left it in the keyring and in use.
+#[test]
+fn an_old_token_of_an_open_repository_is_listed_and_removed_with_the_rest() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["remote", "add", "origin", "https://old.example/o/r.git"])
+        .unwrap();
+    let store = Keyring::default();
+    store.set("old.example", "glpat-old").unwrap();
+    let state = AppState::new().with_secrets(Box::new(store));
+    state.open_repository(f.path()).unwrap();
+
+    let known = state.list_credentials().known;
+    assert_eq!(known.len(), 1);
+    assert_eq!(known[0].host, "old.example");
+
+    state.forget_all_credentials().unwrap();
+    assert!(
+        state
+            .stored_credential("https://old.example/o/r.git")
+            .is_none()
+    );
+}
