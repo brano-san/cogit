@@ -36,7 +36,7 @@ async fn a_cancelled_fetch_ends_journalled_and_frees_the_lane() {
     {
         let (state, stop) = (Arc::clone(&state), running.token());
         std::thread::spawn(move || {
-            let _ = done.send(state.fetch(repo, "quiet", &stop, |_| {}));
+            let _ = done.send(state.fetch(repo, "quiet", &stop, None, |_| {}));
         });
     }
     let started = Instant::now();

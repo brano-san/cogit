@@ -55,11 +55,11 @@ impl RepoHandle {
         &self,
         remote: &str,
         name: &str,
-        token: impl Fn(&str) -> Option<String>,
+        credential: impl Fn(&str) -> Option<crate::Credential>,
     ) -> Result<()> {
         let remote = require(remote)?;
         let name = require(name)?;
-        let auth = self.auth_env(remote, gix::remote::Direction::Push, &token);
+        let auth = self.auth_env(remote, gix::remote::Direction::Push, &credential);
         let tag = format!("refs/tags/{name}");
         self.run_streaming(&["push", remote, "--delete", &tag], &auth, |_| {})
     }

@@ -1,5 +1,5 @@
 import { Channel } from "@tauri-apps/api/core";
-import { commands, type RemoteInfo, type RepoId } from "./bindings";
+import { commands, type RemoteInfo, type RepoId, type SignIn } from "./bindings";
 import { unwrap } from "./index";
 
 export type { RemoteInfo } from "./bindings";
@@ -28,10 +28,10 @@ function lines(onLine: (line: string) => void): Channel<string> {
 }
 
 /** `false`: nothing new came. */
-export async function fetchMore(repo: RepoId, remote: string, onLine: (line: string) => void) {
-  return unwrap(await commands.fetchMore(repo, remote, lines(onLine)));
+export async function fetchMore(repo: RepoId, remote: string, onLine: (line: string) => void, credential: SignIn | null = null) {
+  return unwrap(await commands.fetchMore(repo, remote, credential, lines(onLine)));
 }
 
-export async function fetchDepth(repo: RepoId, remote: string, depth: number, onLine: (line: string) => void) {
-  return unwrap(await commands.fetchDepth(repo, remote, depth, lines(onLine)));
+export async function fetchDepth(repo: RepoId, remote: string, depth: number, onLine: (line: string) => void, credential: SignIn | null = null) {
+  return unwrap(await commands.fetchDepth(repo, remote, depth, credential, lines(onLine)));
 }

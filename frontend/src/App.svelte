@@ -3134,7 +3134,7 @@ ${event.error}`,
     welcome.close();
     await runClone(request, {
       run: (operation) => network.run(null, "Cloning", operation),
-      clone: (wanted, onLine) => cloneRepository(wanted, login, onLine),
+      clone: (wanted, onLine) => cloneRepository(wanted, onLine, login),
       open: async (root) => {
         opening = true;
         try {

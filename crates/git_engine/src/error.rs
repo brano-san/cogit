@@ -19,6 +19,17 @@ pub struct GitCommandError {
     pub operation: String,
     /// One line over the output, never instead of it.
     pub summary: String,
+    /// The remote turned down the credentials, or none could be asked for: Cogit asks for
+    /// them and runs the command again. Set by whoever knows which host it was.
+    pub auth_required: Option<AuthRequired>,
+}
+
+/// The host an HTTPS remote wants a sign-in for, and the username last tried there.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthRequired {
+    pub host: String,
+    pub username: Option<String>,
 }
 
 impl GitCommandError {
@@ -34,6 +45,7 @@ impl GitCommandError {
             exit_code: output.exit_code,
             stdout: output.stdout,
             stderr: output.stderr,
+            auth_required: None,
         }
     }
 }

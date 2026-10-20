@@ -39,9 +39,13 @@ pub async fn backend_labels(roots: Vec<String>) -> Vec<String> {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn pull_probe(root: String) -> Result<Option<bool>, GitError> {
+pub async fn pull_probe(
+    state: tauri::State<'_, crate::AppContext>,
+    root: String,
+) -> Result<Option<bool>, GitError> {
+    let app_state = state.state.clone();
     blocking("pull_probe", move || {
-        app_state::repo_rows::pull_probe(&PathBuf::from(root))
+        app_state.pull_probe(&PathBuf::from(root))
     })
     .await
 }

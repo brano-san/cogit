@@ -374,6 +374,10 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::network::token_host,
             commands::network::store_token,
             commands::network::forget_token,
+            commands::network::list_credentials,
+            commands::network::store_credential,
+            commands::network::forget_credential,
+            commands::network::forget_all_credentials,
             commands::hooks::list_hooks,
             commands::hooks::read_hook,
             commands::hooks::write_hook,
@@ -531,6 +535,7 @@ pub fn run() -> anyhow::Result<()> {
 
             let state = Arc::new(AppState::new());
             state.use_preset_dir(config_dir.join("presets"));
+            state.use_credential_list(config_dir.join("credentials.json"));
             app.manage(AppContext {
                 state: Arc::clone(&state),
                 log_path,

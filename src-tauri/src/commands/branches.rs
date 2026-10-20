@@ -144,6 +144,7 @@ pub async fn delete_remote_branch(
     repo: RepoId,
     remote: String,
     branch: String,
+    credential: Option<app_state::SignIn>,
 ) -> Result<RemoteDeletion, GitError> {
     let app_state = state.state.clone();
     super::network::networking(
@@ -151,7 +152,9 @@ pub async fn delete_remote_branch(
         repo,
         OperationKind::Branch,
         "delete_remote_branch",
-        move |stop| app_state.delete_remote_branch(repo, &remote, &branch, &stop),
+        move |stop| {
+            app_state.delete_remote_branch(repo, &remote, &branch, &stop, credential.as_ref())
+        },
     )
     .await
 }
@@ -200,6 +203,7 @@ pub async fn delete_remote_tag(
     repo: RepoId,
     remote: String,
     name: String,
+    credential: Option<app_state::SignIn>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
     super::network::networking(
@@ -207,7 +211,7 @@ pub async fn delete_remote_tag(
         repo,
         OperationKind::Tag,
         "delete_remote_tag",
-        move |stop| app_state.delete_remote_tag(repo, &remote, &name, &stop),
+        move |stop| app_state.delete_remote_tag(repo, &remote, &name, &stop, credential.as_ref()),
     )
     .await
 }
@@ -237,6 +241,7 @@ pub async fn delete_refs(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,
     request: app_state::RefDeletion,
+    credential: Option<app_state::SignIn>,
 ) -> Result<app_state::RefDeletionReport, GitError> {
     let app_state = state.state.clone();
     super::network::networking_if(
@@ -246,7 +251,7 @@ pub async fn delete_refs(
         OperationKind::Branch,
         OperationKind::Branch.title(),
         "delete_refs",
-        move |stop| app_state.delete_refs(repo, &request, &stop),
+        move |stop| app_state.delete_refs(repo, &request, &stop, credential.as_ref()),
     )
     .await
 }

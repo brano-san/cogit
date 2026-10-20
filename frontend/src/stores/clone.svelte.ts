@@ -18,7 +18,7 @@ import {
   cloneDestination,
   remoteBranches,
   type CloneRequest,
-  type Login,
+  type SignIn,
   type RemoteBranches,
 } from "$lib/ipc/clone";
 import { pathFromUrl } from "$lib/remote-dialogs";
@@ -147,9 +147,9 @@ export class CloneWizard {
     return authFailure(`${output}\n${error.message}`);
   }
 
-  get login(): Login | null {
+  get login(): SignIn | null {
     return this.username.trim() !== "" && this.password !== ""
-      ? { username: this.username.trim(), password: this.password }
+      ? { host: this.source.trim(), username: this.username.trim(), secret: this.password, remember: false }
       : null;
   }
 

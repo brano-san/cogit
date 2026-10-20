@@ -39,7 +39,7 @@ fn push_sends_the_branches_ahead_of_their_upstream_and_no_tags() {
     let (f, state, repo) = detached();
 
     let pushed = state
-        .push(repo, "origin", false, &NetworkStop::default(), |_| {})
+        .push(repo, "origin", false, &NetworkStop::default(), None, |_| {})
         .unwrap();
 
     assert_eq!(
@@ -71,12 +71,12 @@ fn push_sends_the_branches_ahead_of_their_upstream_and_no_tags() {
 fn push_with_nothing_pushable_runs_nothing_and_says_so() {
     let (f, state, repo) = detached();
     state
-        .push(repo, "origin", false, &NetworkStop::default(), |_| {})
+        .push(repo, "origin", false, &NetworkStop::default(), None, |_| {})
         .unwrap();
     let before = f.git(&["ls-remote", "origin"]).unwrap();
 
     let again = state
-        .push(repo, "origin", false, &NetworkStop::default(), |_| {})
+        .push(repo, "origin", false, &NetworkStop::default(), None, |_| {})
         .unwrap();
 
     assert_eq!(again, Some(Pushed::default()));
@@ -97,6 +97,7 @@ fn pull_on_a_detached_head_only_fetches() {
             false,
             false,
             &NetworkStop::default(),
+            None,
             |_| {},
         )
         .unwrap();
@@ -118,7 +119,15 @@ fn pull_on_a_branch_still_pulls() {
     f.git(&["switch", "synced"]).unwrap();
 
     let outcome = state
-        .pull(repo, "origin", true, false, &NetworkStop::default(), |_| {})
+        .pull(
+            repo,
+            "origin",
+            true,
+            false,
+            &NetworkStop::default(),
+            None,
+            |_| {},
+        )
         .unwrap();
 
     assert_eq!(outcome, PullOutcome::Pulled);

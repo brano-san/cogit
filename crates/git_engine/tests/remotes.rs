@@ -10,7 +10,7 @@ fn open(f: &test_fixtures::Fixture) -> RepoHandle {
     RepoHandle::open(f.path()).unwrap()
 }
 
-fn no_token(_url: &str) -> Option<String> {
+fn no_token(_url: &str) -> Option<git_engine::Credential> {
     None
 }
 

@@ -185,21 +185,24 @@ pub async fn push_to(
     remote: String,
     refspec: String,
     track: bool,
+    credential: Option<app_state::SignIn>,
     on_progress: tauri::ipc::Channel<String>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    super::network::networking(
-        &state.state,
-        repo,
-        OperationKind::Push,
-        "push_to",
-        move |stop| {
-            super::network::with_progress("push", &remote, &on_progress, |on_line| {
-                app_state.push_to(repo, &remote, &refspec, track, &stop, on_line)
-            })
-        },
-    )
-    .await
+    let work = move |stop: git_engine::NetworkStop| {
+        super::network::with_progress("push", &remote, &on_progress, |line| {
+            app_state.push_to(
+                repo,
+                &remote,
+                &refspec,
+                track,
+                &stop,
+                credential.as_ref(),
+                line,
+            )
+        })
+    };
+    super::network::networking(&state.state, repo, OperationKind::Push, "push_to", work).await
 }
 
 #[tauri::command]

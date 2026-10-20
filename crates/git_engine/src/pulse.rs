@@ -122,17 +122,27 @@ impl RepoHandle {
 
     /// The server's branch tips, as `git ls-remote --heads` lists them; nothing is written.
     pub fn remote_heads(&self, remote: &str) -> Result<Vec<(String, String)>> {
-        self.heads_matching(remote, &[])
+        self.heads_matching(remote, &[], &[])
     }
 
     /// Read whole, not through the journal's record: that one is cut past 20 000 lines and
     /// has its secrets masked (R-280).
-    fn heads_matching(&self, remote: &str, patterns: &[&str]) -> Result<Vec<(String, String)>> {
+    fn heads_matching(
+        &self,
+        remote: &str,
+        patterns: &[&str],
+        auth: &[(String, String)],
+    ) -> Result<Vec<(String, String)>> {
         let mut args = self.background_options();
         args.extend(["ls-remote", "--heads", remote]);
         args.extend(patterns);
         let refusal = askpass_refusal(self.has_own_ssh_command());
-        let out = self.read_git_with(&args, &quiet_env(&refusal))?;
+        let mut env = quiet_env(&refusal);
+        env.extend(
+            auth.iter()
+                .map(|(key, value)| (key.as_str(), value.as_str())),
+        );
+        let out = self.read_git_with(&args, &env)?;
         Ok(out
             .lines()
             .filter_map(|line| {
@@ -144,7 +154,11 @@ impl RepoHandle {
 
     /// Whether the server's tip of HEAD's upstream is missing from HEAD, asked of the
     /// server without a fetch (R-354). `None`: no upstream, or no such branch there.
-    pub fn pull_probe(&self) -> Result<Option<bool>> {
+    /// `credential`: what Cogit has stored for the host, never a question (F-082).
+    pub fn pull_probe(
+        &self,
+        credential: impl FnOnce(&str) -> Option<crate::Credential>,
+    ) -> Result<Option<bool>> {
         let crate::Head::Branch { name, oid } = self.head()? else {
             return Ok(None);
         };
@@ -169,7 +183,11 @@ impl RepoHandle {
         }
         let merge = merge.as_bstr().to_string();
         let Some(tip) = self
-            .heads_matching(&remote, &[&merge])?
+            .heads_matching(
+                &remote,
+                &[&merge],
+                &self.auth_env(&remote, gix::remote::Direction::Fetch, credential),
+            )?
             .into_iter()
             .find_map(|(name, tip)| (name == merge).then_some(tip))
         else {

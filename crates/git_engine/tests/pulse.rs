@@ -213,7 +213,7 @@ fn a_background_check_gives_up_on_a_server_that_stops_sending() {
 
     for err in [
         handle.background_fetch().unwrap_err(),
-        handle.pull_probe().unwrap_err(),
+        handle.pull_probe(|_| None).unwrap_err(),
     ] {
         let text = format!("{err:?}");
         assert!(text.contains("-c http.lowSpeedLimit=1"), "{text}");

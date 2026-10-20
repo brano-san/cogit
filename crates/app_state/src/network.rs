@@ -1,8 +1,12 @@
-//! The commands that talk to a remote. Credentials never appear here: the system `git`
-//! asks its own helper, and the token this looks up is only for the hosting API.
+//! The commands that talk to a remote, signed in as `signed_in` decides (F-082).
 
-use crate::{AppState, RepoId, token_host};
-use git_engine::{NetworkStop, PullOutcome, Pushed};
+use crate::{AppState, RepoId, SignIn, credential_host, host_input};
+use git_engine::{
+    AuthRequired, Credential, CredentialTrouble, GitError, NetworkStop, PullOutcome, Pushed,
+};
+use std::cell::{Cell, RefCell};
+
+pub(crate) type Credentials<'a> = &'a dyn Fn(&str) -> Option<Credential>;
 
 /// A network command running as one queue operation; `cancel_network` finds it until
 /// this is dropped.
@@ -57,16 +61,23 @@ impl AppState {
         repo: RepoId,
         remote: &str,
         stop: &NetworkStop,
+        sign_in: Option<&SignIn>,
         on_line: impl FnMut(&str),
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet_briefly(repo);
-        let handle = self.handle(repo)?.with_stop(stop.clone());
-        handle.fetch(remote, |url| self.token_for(url), on_line)
+        self.signed_in(sign_in, |credential| {
+            let handle = self.handle(repo)?.with_stop(stop.clone());
+            handle.fetch(remote, credential, on_line)
+        })
     }
 
     /// On a branch that tracks nothing there is nothing to merge: Pull fetches every
     /// remote and says nothing more (R-552). On a detached HEAD it only fetches `remote`
     /// and never moves HEAD (F-710).
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "one IPC command's arguments, passed through as they came"
+    )]
     pub fn pull(
         &self,
         repo: RepoId,
@@ -74,43 +85,46 @@ impl AppState {
         ff_only: bool,
         autostash: bool,
         stop: &NetworkStop,
+        sign_in: Option<&SignIn>,
         on_line: impl FnMut(&str),
     ) -> Result<PullOutcome, git_engine::GitError> {
         let _quiet = self.quiet_briefly(repo);
-        let handle = self.handle(repo)?.with_stop(stop.clone());
-        if matches!(handle.head()?, git_engine::Head::Detached { .. }) {
-            handle.fetch(remote, |url| self.token_for(url), on_line)?;
-            return Ok(PullOutcome::FetchedDetached);
-        }
-        if handle.head_tracks_nothing() {
-            handle.fetch_all(remote, |url| self.token_for(url), on_line)?;
-            return Ok(PullOutcome::Pulled);
-        }
-        // Listed before the pull: a submodule the user deinitialised stays that way (#42).
-        let known = handle
-            .wants_new_submodules()
-            .then(|| handle.submodule_paths());
-        let before = handle.head()?;
-        let options = git_engine::PullOptions {
-            ff_only,
-            autostash,
-            ..git_engine::PullOptions::default()
-        };
-        let result = handle.pull_options(remote, options, |url| self.token_for(url), on_line);
-        self.record_move(
-            repo,
-            &handle,
-            before,
-            format!("Pull from {remote}"),
-            &result,
-        );
-        if result?.stash_needed {
-            return Ok(PullOutcome::StashNeeded);
-        }
-        if let Some(known) = known {
-            handle.init_submodules_added_since(&known)?;
-        }
-        Ok(PullOutcome::Pulled)
+        self.signed_in(sign_in, |credential| {
+            let handle = self.handle(repo)?.with_stop(stop.clone());
+            if matches!(handle.head()?, git_engine::Head::Detached { .. }) {
+                handle.fetch(remote, credential, on_line)?;
+                return Ok(PullOutcome::FetchedDetached);
+            }
+            if handle.head_tracks_nothing() {
+                handle.fetch_all(remote, credential, on_line)?;
+                return Ok(PullOutcome::Pulled);
+            }
+            // Listed before the pull: a submodule the user deinitialised stays that way (#42).
+            let known = handle
+                .wants_new_submodules()
+                .then(|| handle.submodule_paths());
+            let before = handle.head()?;
+            let options = git_engine::PullOptions {
+                ff_only,
+                autostash,
+                ..git_engine::PullOptions::default()
+            };
+            let result = handle.pull_options(remote, options, credential, on_line);
+            self.record_move(
+                repo,
+                &handle,
+                before,
+                format!("Pull from {remote}"),
+                &result,
+            );
+            if result?.stash_needed {
+                return Ok(PullOutcome::StashNeeded);
+            }
+            if let Some(known) = known {
+                handle.init_submodules_added_since(&known)?;
+            }
+            Ok(PullOutcome::Pulled)
+        })
     }
 
     /// On a detached HEAD there is no current branch: every branch ahead of where it
@@ -122,17 +136,18 @@ impl AppState {
         remote: &str,
         force: bool,
         stop: &NetworkStop,
+        sign_in: Option<&SignIn>,
         on_line: impl FnMut(&str),
     ) -> Result<Option<Pushed>, git_engine::GitError> {
         let _quiet = self.quiet_briefly(repo);
-        let handle = self.handle(repo)?.with_stop(stop.clone());
-        if matches!(handle.head()?, git_engine::Head::Detached { .. }) {
-            return handle
-                .push_pushable(|url| self.token_for(url), on_line)
-                .map(Some);
-        }
-        handle.push(remote, None, force, |url| self.token_for(url), on_line)?;
-        Ok(None)
+        self.signed_in(sign_in, |credential| {
+            let handle = self.handle(repo)?.with_stop(stop.clone());
+            if matches!(handle.head()?, git_engine::Head::Detached { .. }) {
+                return handle.push_pushable(credential, on_line).map(Some);
+            }
+            handle.push(remote, None, force, credential, on_line)?;
+            Ok(None)
+        })
     }
 
     /// Remote ▸ Fetch More; `false` when nothing new came (R-553).
@@ -141,11 +156,14 @@ impl AppState {
         repo: RepoId,
         remote: &str,
         stop: &NetworkStop,
+        sign_in: Option<&SignIn>,
         on_line: impl FnMut(&str),
     ) -> Result<bool, git_engine::GitError> {
         let _quiet = self.quiet_briefly(repo);
-        let handle = self.handle(repo)?.with_stop(stop.clone());
-        handle.fetch_more(remote, |url| self.token_for(url), on_line)
+        self.signed_in(sign_in, |credential| {
+            let handle = self.handle(repo)?.with_stop(stop.clone());
+            handle.fetch_more(remote, credential, on_line)
+        })
     }
 
     pub fn fetch_depth(
@@ -154,11 +172,14 @@ impl AppState {
         remote: &str,
         depth: u32,
         stop: &NetworkStop,
+        sign_in: Option<&SignIn>,
         on_line: impl FnMut(&str),
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet_briefly(repo);
-        let handle = self.handle(repo)?.with_stop(stop.clone());
-        handle.fetch_depth(remote, depth, |url| self.token_for(url), on_line)
+        self.signed_in(sign_in, |credential| {
+            let handle = self.handle(repo)?.with_stop(stop.clone());
+            handle.fetch_depth(remote, depth, credential, on_line)
+        })
     }
 
     /// Pull ▸ Delete merged branches after Pull (#26). Each deletion is journalled, so
@@ -185,6 +206,10 @@ impl AppState {
 
     /// One refspec to one remote: Push To, Push Up To and pushing a ref that is not HEAD.
     /// `track`: the branch pushed tracks what it becomes there (R-550).
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "one IPC command's arguments, passed through as they came"
+    )]
     pub fn push_to(
         &self,
         repo: RepoId,
@@ -192,19 +217,70 @@ impl AppState {
         refspec: &str,
         track: bool,
         stop: &NetworkStop,
+        sign_in: Option<&SignIn>,
         on_line: impl FnMut(&str),
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet_briefly(repo);
-        let handle = self.handle(repo)?.with_stop(stop.clone());
-        handle.push_refspec(remote, refspec, track, |url| self.token_for(url), on_line)
+        self.signed_in(sign_in, |credential| {
+            let handle = self.handle(repo)?.with_stop(stop.clone());
+            handle.push_refspec(remote, refspec, track, credential, on_line)
+        })
     }
 
-    /// Only for an HTTPS remote: SSH already authenticates through the agent, and handing
-    /// a token to an unknown host would leak it.
-    pub fn token_for(&self, url: &str) -> Option<String> {
-        if !git_engine::wants_auth(url) {
-            return None;
+    /// `sign_in` for its own host, else what is stored; kept on success if Remember. A
+    /// refusal carries `authRequired` (host, username tried) for the Sign in dialog.
+    pub(crate) fn signed_in<T>(
+        &self,
+        sign_in: Option<&SignIn>,
+        run: impl FnOnce(Credentials<'_>) -> Result<T, GitError>,
+    ) -> Result<T, GitError> {
+        let typed = sign_in.and_then(|sign_in| Some((host_input(&sign_in.host)?, sign_in)));
+        let asked: RefCell<Option<AuthRequired>> = RefCell::new(None);
+        let used_typed = Cell::new(false);
+        let credential = |url: &str| {
+            let host = credential_host(url)?;
+            let credential = match &typed {
+                Some((typed_host, sign_in)) if *typed_host == host => {
+                    used_typed.set(true);
+                    Some(sign_in.credential())
+                }
+                _ => self.stored_credential(url),
+            };
+            *asked.borrow_mut() = Some(AuthRequired {
+                host,
+                username: credential.as_ref().and_then(|c| c.username.clone()),
+            });
+            credential
+        };
+        match run(&credential) {
+            Ok(done) => {
+                if let Some((_, sign_in)) = typed.filter(|(_, s)| s.remember && used_typed.get())
+                    && let Err(err) = self.store_credential(sign_in)
+                {
+                    tracing::error!(error = ?err, host = %sign_in.host, context = "remembering a sign-in");
+                }
+                Ok(done)
+            }
+            Err(GitError::Command(mut failure)) => {
+                let refused = matches!(
+                    git_engine::credential_trouble(&format!(
+                        "{}
+{}",
+                        failure.stderr, failure.stdout
+                    )),
+                    Some(CredentialTrouble::NoPrompt | CredentialTrouble::Refused)
+                );
+                if refused {
+                    failure.auth_required = asked.into_inner();
+                }
+                Err(GitError::Command(failure))
+            }
+            Err(other) => Err(other),
         }
-        self.secrets.get(&token_host(url)?)
+    }
+
+    /// Stored credentials only: for what may not ask (a preview, a background probe).
+    pub(crate) fn stored(&self) -> impl Fn(&str) -> Option<Credential> + '_ {
+        |url| self.stored_credential(url)
     }
 }

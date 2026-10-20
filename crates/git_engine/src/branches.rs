@@ -188,7 +188,7 @@ impl RepoHandle {
         &self,
         remote: &str,
         branch: &str,
-        token: impl Fn(&str) -> Option<String>,
+        credential: impl Fn(&str) -> Option<crate::Credential>,
     ) -> Result<RemoteDeletion> {
         let remote = require_name(remote)?;
         let branch = require_name(branch)?;
@@ -199,14 +199,14 @@ impl RepoHandle {
         let on_server = self
             .tracked_name(remote, &tracking)
             .unwrap_or_else(|| format!("refs/heads/{short}"));
-        let auth = self.auth_env(remote, gix::remote::Direction::Fetch, &token);
+        let auth = self.auth_env(remote, gix::remote::Direction::Fetch, &credential);
         let listed = self.run_streaming_read(&["ls-remote", remote, &on_server], &auth, |_| {})?;
         let there = listed.lines().any(|line| {
             line.split_once('\t')
                 .is_some_and(|(_, name)| name == on_server)
         });
         if there {
-            let auth = self.auth_env(remote, gix::remote::Direction::Push, &token);
+            let auth = self.auth_env(remote, gix::remote::Direction::Push, &credential);
             self.run_streaming(&["push", "--delete", remote, &on_server], &auth, |_| {})?;
             return Ok(RemoteDeletion::Deleted);
         }

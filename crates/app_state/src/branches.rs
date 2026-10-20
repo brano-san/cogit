@@ -59,10 +59,13 @@ impl AppState {
         remote: &str,
         branch: &str,
         stop: &git_engine::NetworkStop,
+        sign_in: Option<&crate::SignIn>,
     ) -> Result<git_engine::RemoteDeletion, git_engine::GitError> {
         let _quiet = self.quiet_briefly(repo);
         let handle = self.handle(repo)?.with_stop(stop.clone());
-        handle.delete_remote_branch(remote, branch, |url| self.token_for(url))
+        self.signed_in(sign_in, |credential| {
+            handle.delete_remote_branch(remote, branch, credential)
+        })
     }
 
     pub fn delete_branch(
@@ -121,10 +124,13 @@ impl AppState {
         remote: &str,
         name: &str,
         stop: &git_engine::NetworkStop,
+        sign_in: Option<&crate::SignIn>,
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet_briefly(repo);
         let handle = self.handle(repo)?.with_stop(stop.clone());
-        handle.delete_remote_tag(remote, name, |url| self.token_for(url))
+        self.signed_in(sign_in, |credential| {
+            handle.delete_remote_tag(remote, name, credential)
+        })
     }
 
     pub fn delete_tag(&self, repo: RepoId, name: &str) -> Result<(), git_engine::GitError> {

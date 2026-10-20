@@ -77,6 +77,7 @@ impl AppState {
         repo: RepoId,
         request: &RefDeletion,
         stop: &NetworkStop,
+        sign_in: Option<&crate::SignIn>,
     ) -> Result<RefDeletionReport, GitError> {
         let mut report = RefDeletionReport::default();
         let mut names = request.names.clone();
@@ -98,13 +99,20 @@ impl AppState {
                     .delete_branch(repo, &name, request.force)
                     .map(|done| done == BranchDeletion::NotFullyMerged),
                 RefDeletionKind::RemoteBranch => self
-                    .delete_remote_branch(repo, remote, &name, stop)
+                    .delete_remote_branch(repo, remote, &name, stop, sign_in)
                     .map(|_| false),
                 RefDeletionKind::Tag => self.delete_tag(repo, &name).map(|()| false),
             };
             match outcome {
                 Ok(true) => report.not_fully_merged.push(name),
                 Ok(false) => report.deleted.push(name),
+                // Every remote branch here is on one host: the first refusal is the whole
+                // folder's, and the Sign in dialog runs it again (F-082).
+                Err(GitError::Command(failure))
+                    if failure.auth_required.is_some() && report.deleted.is_empty() =>
+                {
+                    return Err(GitError::Command(failure));
+                }
                 Err(error) => {
                     let canceled = matches!(error, GitError::Cancelled(_));
                     report.failed.push(FailedDeletion { name, error });

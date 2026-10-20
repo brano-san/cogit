@@ -119,26 +119,27 @@ impl RepoHandle {
             .map(|url| url.to_bstring().to_string())
     }
 
-    /// `token` is asked for the URL git will contact and answers with its token, if any.
+    /// `credential` is asked for the URL git will contact and answers with what it is signed
+    /// in with, if anything.
     pub fn fetch(
         &self,
         remote: &str,
-        token: impl FnOnce(&str) -> Option<String>,
+        credential: impl FnOnce(&str) -> Option<crate::Credential>,
         on_line: impl FnMut(&str),
     ) -> Result<()> {
-        let auth = self.auth_env(remote, gix::remote::Direction::Fetch, token);
+        let auth = self.auth_env(remote, gix::remote::Direction::Fetch, credential);
         self.run_streaming(&["fetch", "--progress", "--prune", remote], &auth, on_line)
     }
 
     /// Every remote, as `git fetch --all` takes them (`remote.<name>.skipFetchAll` skips
-    /// one). `token_remote`: whose URL the token is asked for.
+    /// one). `credential_remote`: whose URL the credential is asked for.
     pub fn fetch_all(
         &self,
-        token_remote: &str,
-        token: impl FnOnce(&str) -> Option<String>,
+        credential_remote: &str,
+        credential: impl FnOnce(&str) -> Option<crate::Credential>,
         on_line: impl FnMut(&str),
     ) -> Result<()> {
-        let auth = self.auth_env(token_remote, gix::remote::Direction::Fetch, token);
+        let auth = self.auth_env(credential_remote, gix::remote::Direction::Fetch, credential);
         self.run_streaming(&["fetch", "--progress", "--prune", "--all"], &auth, on_line)
     }
 
@@ -147,12 +148,12 @@ impl RepoHandle {
     pub fn fetch_more(
         &self,
         remote: &str,
-        token: impl FnOnce(&str) -> Option<String>,
+        credential: impl FnOnce(&str) -> Option<crate::Credential>,
         on_line: impl FnMut(&str),
     ) -> Result<bool> {
         let tracking = format!("refs/remotes/{remote}/");
         let before = self.ref_tips(&[&tracking, "refs/tags/"]);
-        let auth = self.auth_env(remote, gix::remote::Direction::Fetch, token);
+        let auth = self.auth_env(remote, gix::remote::Direction::Fetch, credential);
         let heads = format!("+refs/heads/*:{tracking}*");
         let args = ["fetch", "--progress", "--tags", remote, &heads];
         self.run_streaming(&args, &auth, on_line)?;
@@ -166,7 +167,7 @@ impl RepoHandle {
         &self,
         remote: &str,
         depth: u32,
-        token: impl FnOnce(&str) -> Option<String>,
+        credential: impl FnOnce(&str) -> Option<crate::Credential>,
         on_line: impl FnMut(&str),
     ) -> Result<()> {
         if !self.repo.is_shallow() {
@@ -174,7 +175,7 @@ impl RepoHandle {
                 "The repository is not shallow: it has all of its history already.".to_owned(),
             ));
         }
-        let auth = self.auth_env(remote, gix::remote::Direction::Fetch, token);
+        let auth = self.auth_env(remote, gix::remote::Direction::Fetch, credential);
         let depth = if depth == 0 {
             "--unshallow".to_owned()
         } else {
@@ -209,12 +210,12 @@ impl RepoHandle {
         remote: &str,
         refspec: Option<&str>,
         force: bool,
-        token: impl FnOnce(&str) -> Option<String>,
+        credential: impl FnOnce(&str) -> Option<crate::Credential>,
         on_line: impl FnMut(&str),
     ) -> Result<()> {
         let first = refspec.is_none() && self.head_tracks_nothing();
         let refspec = refspec.or(first.then_some("HEAD"));
-        self.push_with(remote, refspec, force, first, token, on_line)
+        self.push_with(remote, refspec, force, first, credential, on_line)
     }
 
     /// One refspec. `track`: the local branch it sends tracks what it becomes on the
@@ -224,10 +225,10 @@ impl RepoHandle {
         remote: &str,
         refspec: &str,
         track: bool,
-        token: impl FnOnce(&str) -> Option<String>,
+        credential: impl FnOnce(&str) -> Option<crate::Credential>,
         on_line: impl FnMut(&str),
     ) -> Result<()> {
-        self.push_with(remote, Some(refspec), false, track, token, on_line)
+        self.push_with(remote, Some(refspec), false, track, credential, on_line)
     }
 
     fn push_with(
@@ -236,10 +237,10 @@ impl RepoHandle {
         refspec: Option<&str>,
         force: bool,
         track: bool,
-        token: impl FnOnce(&str) -> Option<String>,
+        credential: impl FnOnce(&str) -> Option<crate::Credential>,
         on_line: impl FnMut(&str),
     ) -> Result<()> {
-        let auth = self.auth_env(remote, gix::remote::Direction::Push, token);
+        let auth = self.auth_env(remote, gix::remote::Direction::Push, credential);
         let mut args = vec!["push"];
         args.push("--progress");
         if track {
@@ -273,21 +274,25 @@ impl RepoHandle {
         remote.is_none() || merge.is_none()
     }
 
-    /// The token of the URL this direction contacts, not of the push URL for all (R-410),
+    /// The credential of the URL this direction contacts, not of the push URL for all (R-410),
     /// as the environment git reads it from: an argument sits in the process list.
     pub(crate) fn auth_env(
         &self,
         remote: &str,
         direction: gix::remote::Direction,
-        token: impl FnOnce(&str) -> Option<String>,
+        credential: impl FnOnce(&str) -> Option<crate::Credential>,
     ) -> Vec<(String, String)> {
         let Some(url) = self.url_of(remote, direction) else {
             return Vec::new();
         };
-        let Some(token) = token(&url) else {
+        let Some(credential) = credential(&url) else {
             return Vec::new();
         };
-        config_env(&auth_config(&url, &token).into_iter().collect::<Vec<_>>())
+        config_env(
+            &crate::credentials::credential_config(&url, &credential)
+                .into_iter()
+                .collect::<Vec<_>>(),
+        )
     }
 
     pub(crate) fn run_streaming(
@@ -354,7 +359,9 @@ impl RepoHandle {
     }
 
     /// The command with what keeps ssh from asking where nobody can answer (GR-06): a batch
-    /// ssh of Cogit's own, or a refusing askpass for the user's. The arguments are returned
+    /// ssh of Cogit's own, or a refusing askpass for the user's. No HTTPS askpass either:
+    /// one inherited from the terminal Cogit started in (VS Code's) asked there, and the
+    /// command waited for it; a refusal comes back as `authRequired` instead (F-082). The arguments are returned
     /// because they are what the journal shows.
     fn network_command<'a>(
         &self,
@@ -369,6 +376,7 @@ impl RepoHandle {
         all.extend_from_slice(args);
         let mut process = self.base_git(&all);
         process.envs(crate::pulse::askpass_refusal(own_ssh));
+        process.env("GIT_ASKPASS", "");
         process.envs(env.iter().map(|(key, value)| (key, value)));
         (all, process)
     }
@@ -574,76 +582,6 @@ impl Progress {
     }
 }
 
-const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-fn base64(data: &[u8]) -> String {
-    let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
-    for chunk in data.chunks(3) {
-        let b = [
-            chunk[0],
-            chunk.get(1).copied().unwrap_or(0),
-            chunk.get(2).copied().unwrap_or(0),
-        ];
-        let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
-        for (position, index) in [n >> 18, (n >> 12) & 63, (n >> 6) & 63, n & 63]
-            .iter()
-            .enumerate()
-        {
-            if position > chunk.len() {
-                out.push('=');
-            } else {
-                out.push(char::from(ALPHABET[*index as usize]));
-            }
-        }
-    }
-    out
-}
-
-/// `x-access-token` is the username GitHub documents for a personal access token, and
-/// GitLab and Bitbucket ignore the username when the password is a token.
-#[must_use]
-pub fn auth_header(token: &str) -> String {
-    format!(
-        "Authorization: Basic {}",
-        base64(format!("x-access-token:{token}").as_bytes())
-    )
-}
-
-/// SSH carries its own credentials through the agent, so a token there is noise at best.
-#[must_use]
-pub fn wants_auth(url: &str) -> bool {
-    url.starts_with("https://") || url.starts_with("http://")
-}
-
-/// The config entry (key, value) that hands `token` to git for the host of `url` only. Git
-/// passes its config on to the git processes it starts, a submodule's fetch among them, so
-/// a bare `http.extraHeader` went to every host that fetch contacted.
-#[must_use]
-pub fn auth_config(url: &str, token: &str) -> Option<(String, String)> {
-    scoped_header(url, auth_header(token))
-}
-
-fn scoped_header(url: &str, header: String) -> Option<(String, String)> {
-    if !wants_auth(url) {
-        return None;
-    }
-    let (scheme, rest) = url.split_once("://")?;
-    let authority = rest.split(['/', '?', '#']).next()?;
-    let host = authority
-        .rsplit_once('@')
-        .map_or(authority, |(_, host)| host);
-    if host.is_empty() {
-        return None;
-    }
-    Some((format!("http.{scheme}://{host}/.extraHeader"), header))
-}
-
-/// Typed into the Clone wizard.
-pub(crate) fn login_config(url: &str, username: &str, password: &str) -> Option<(String, String)> {
-    let credentials = base64(format!("{username}:{password}").as_bytes());
-    scoped_header(url, format!("Authorization: Basic {credentials}"))
-}
-
 /// Config handed over in the environment (`GIT_CONFIG_COUNT`), so that neither the command
 /// line, the process list nor the journal ever holds it.
 pub(crate) fn config_env(pairs: &[(String, String)]) -> Vec<(String, String)> {
@@ -732,6 +670,22 @@ mod tests {
         assert!(failure.summary.contains("ssh-agent"), "{failure:?}");
     }
 
+    // VS Code's terminal hands Cogit its GIT_ASKPASS: the question went to VS Code and the
+    // fetch waited 300 s for an answer (F-082). Set and empty, git skips core.askPass too.
+    #[test]
+    fn network_commands_run_without_askpass() {
+        let f = test_fixtures::linear(1).unwrap();
+        let repo = RepoHandle::open(f.path()).unwrap();
+
+        let (_, process) = repo.network_command(&["fetch"], &[]);
+
+        let askpass = process
+            .get_envs()
+            .find(|(key, _)| *key == "GIT_ASKPASS")
+            .and_then(|(_, value)| value);
+        assert_eq!(askpass, Some(std::ffi::OsStr::new("")));
+    }
+
     #[test]
     fn config_entries_are_numbered_in_one_count() {
         let env = config_env(&[
@@ -744,14 +698,6 @@ mod tests {
         assert_eq!(get("GIT_CONFIG_KEY_1"), Some("c.d"));
         assert_eq!(get("GIT_CONFIG_VALUE_1"), Some("2"));
         assert!(config_env(&[]).is_empty());
-    }
-
-    #[test]
-    fn a_token_is_scoped_to_the_host_of_its_url() {
-        let (key, value) = auth_config("https://u:p@h.example:8443/o/r.git", "t").unwrap();
-
-        assert_eq!(key, "http.https://h.example:8443/.extraHeader");
-        assert_eq!(value, auth_header("t"));
     }
 
     #[test]

@@ -92,7 +92,12 @@ describe("the first page", () => {
     wizard.password = "tok";
     await wizard.next();
 
-    expect(ipc.remoteBranches).toHaveBeenLastCalledWith("https://host/private.git", { username: "ann", password: "tok" });
+    expect(ipc.remoteBranches).toHaveBeenLastCalledWith("https://host/private.git", {
+      host: "https://host/private.git",
+      username: "ann",
+      secret: "tok",
+      remember: false,
+    });
     expect(wizard.page).toBe("selection");
     wizard.close();
     expect(wizard.login).toBeNull();

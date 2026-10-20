@@ -9,10 +9,12 @@ impl AppState {
     pub fn remote_branches(
         &self,
         source: &str,
-        login: Option<&git_engine::Login>,
+        sign_in: Option<&crate::SignIn>,
     ) -> Result<RemoteBranches, GitError> {
-        let token = self.token_for(source.trim());
-        git_engine::remote_branches(source, token.as_deref(), login, Some(&self.unowned_sink()))
+        self.signed_in(sign_in, |credential| {
+            let credential = credential(source.trim());
+            git_engine::remote_branches(source, credential.as_ref(), Some(&self.unowned_sink()))
+        })
     }
 
     pub async fn enqueue_clone(&self, target: &str) -> OperationPermit<'_> {
@@ -24,13 +26,15 @@ impl AppState {
     pub fn clone_repository(
         &self,
         request: &CloneRequest,
-        login: Option<&git_engine::Login>,
+        sign_in: Option<&crate::SignIn>,
         stop: &NetworkStop,
         on_line: impl FnMut(&str),
     ) -> Result<PathBuf, GitError> {
-        let token = self.token_for(request.source.trim());
         let sink = self.unowned_sink();
-        git_engine::clone_repository(request, token.as_deref(), login, stop, Some(&sink), on_line)
+        self.signed_in(sign_in, |credential| {
+            let credential = credential(request.source.trim());
+            git_engine::clone_repository(request, credential.as_ref(), stop, Some(&sink), on_line)
+        })
     }
 
     pub fn init_repository(&self, path: &std::path::Path) -> Result<PathBuf, GitError> {

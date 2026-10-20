@@ -92,7 +92,10 @@ fn agree(f: &Fixture, expected: Option<bool>) {
     assert_eq!(truth, expected, "the fixture is not what the test thinks");
     let before = refs_of(f);
     assert_eq!(
-        RepoHandle::open(f.path()).unwrap().pull_probe().unwrap(),
+        RepoHandle::open(f.path())
+            .unwrap()
+            .pull_probe(|_| None)
+            .unwrap(),
         truth
     );
     assert_eq!(refs_of(f), before, "the probe wrote something");
@@ -141,7 +144,10 @@ fn a_remote_left_out_of_the_background_check_is_not_asked() {
         .unwrap();
 
     assert_eq!(
-        RepoHandle::open(f.path()).unwrap().pull_probe().unwrap(),
+        RepoHandle::open(f.path())
+            .unwrap()
+            .pull_probe(|_| None)
+            .unwrap(),
         None
     );
 }
@@ -151,7 +157,10 @@ fn a_branch_without_an_upstream_has_no_answer() {
     let f = test_fixtures::linear(2).unwrap();
     assert_eq!(git_says(&f), None);
     assert_eq!(
-        RepoHandle::open(f.path()).unwrap().pull_probe().unwrap(),
+        RepoHandle::open(f.path())
+            .unwrap()
+            .pull_probe(|_| None)
+            .unwrap(),
         None
     );
     assert!(!pulse(f.path()).tracked);
@@ -173,7 +182,10 @@ fn an_upstream_deleted_on_the_server_has_no_answer() {
     .unwrap();
     assert_eq!(git_says(&f), None);
     assert_eq!(
-        RepoHandle::open(f.path()).unwrap().pull_probe().unwrap(),
+        RepoHandle::open(f.path())
+            .unwrap()
+            .pull_probe(|_| None)
+            .unwrap(),
         None
     );
 }
@@ -224,7 +236,10 @@ fn an_upstream_among_twenty_thousand_heads_is_found() {
 
     assert_eq!(git_says(&f), Some(true));
     assert_eq!(
-        RepoHandle::open(f.path()).unwrap().pull_probe().unwrap(),
+        RepoHandle::open(f.path())
+            .unwrap()
+            .pull_probe(|_| None)
+            .unwrap(),
         Some(true)
     );
 }
@@ -238,7 +253,12 @@ fn a_remote_that_is_gone_is_an_error_not_an_answer() {
     f.git(&["config", "branch.main.remote", "origin"]).unwrap();
     f.git(&["config", "branch.main.merge", "refs/heads/main"])
         .unwrap();
-    assert!(RepoHandle::open(f.path()).unwrap().pull_probe().is_err());
+    assert!(
+        RepoHandle::open(f.path())
+            .unwrap()
+            .pull_probe(|_| None)
+            .is_err()
+    );
 }
 
 /// A measurement against the local bare remote, run by hand with `--run-ignored only
@@ -261,7 +281,7 @@ fn the_probe_against_ls_remote_and_fetch_takes() {
         (times[5], times[9])
     };
     let probe = median(Box::new(|| {
-        handle.pull_probe().unwrap();
+        handle.pull_probe(|_| None).unwrap();
     }));
     let ls = median(Box::new(|| {
         f.git(&["ls-remote", "--heads", "origin"]).unwrap();

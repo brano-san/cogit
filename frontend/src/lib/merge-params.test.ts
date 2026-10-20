@@ -16,6 +16,7 @@ describe("failureText", () => {
         stderr: "fatal: Unable to create 'C:/work/app/.git/index.lock': File exists.",
         operation: "Stage",
         summary: "fatal: Unable to create 'C:/work/app/.git/index.lock': File exists.",
+        authRequired: null,
       },
     });
     const text = failureText(err);

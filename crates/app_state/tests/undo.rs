@@ -663,6 +663,7 @@ fn a_pull_can_be_undone() {
             false,
             false,
             &NetworkStop::default(),
+            None,
             |_| {},
         )
         .unwrap();

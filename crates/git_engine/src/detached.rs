@@ -53,7 +53,7 @@ impl RepoHandle {
     /// never forced. Tags are not pushed (F-710).
     pub fn push_pushable(
         &self,
-        token: impl Fn(&str) -> Option<String>,
+        credential: impl Fn(&str) -> Option<crate::Credential>,
         mut on_line: impl FnMut(&str),
     ) -> Result<Pushed> {
         let branches = self.pushable_branches()?;
@@ -65,7 +65,7 @@ impl RepoHandle {
                 .push(&branch.refspec);
         }
         for (remote, refspecs) in by_remote {
-            let auth = self.auth_env(remote, gix::remote::Direction::Push, &token);
+            let auth = self.auth_env(remote, gix::remote::Direction::Push, &credential);
             let mut args = vec!["push", "--progress", remote];
             args.extend(refspecs);
             self.run_streaming(&args, &auth, &mut on_line)?;

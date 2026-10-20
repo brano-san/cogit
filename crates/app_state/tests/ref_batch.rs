@@ -63,6 +63,7 @@ fn a_folder_of_branches_goes_but_the_current_one_stays() {
                 false,
             ),
             &git_engine::NetworkStop::default(),
+            None,
         )
         .unwrap();
 
@@ -89,6 +90,7 @@ fn one_failure_does_not_stop_the_rest_and_keeps_gits_words() {
                 false,
             ),
             &git_engine::NetworkStop::default(),
+            None,
         )
         .unwrap();
 
@@ -115,6 +117,7 @@ fn unmerged_branches_are_listed_and_go_with_force() {
             repo,
             &request(RefDeletionKind::Branch, &["fix/wip"], false),
             &git_engine::NetworkStop::default(),
+            None,
         )
         .unwrap();
     assert_eq!(first.not_fully_merged, names(&["fix/wip"]));
@@ -125,6 +128,7 @@ fn unmerged_branches_are_listed_and_go_with_force() {
             repo,
             &request(RefDeletionKind::Branch, &["fix/wip"], true),
             &git_engine::NetworkStop::default(),
+            None,
         )
         .unwrap();
     assert_eq!(second.deleted, names(&["fix/wip"]));
@@ -142,6 +146,7 @@ fn a_folder_of_tags_goes() {
             repo,
             &request(RefDeletionKind::Tag, &["v/1", "v/2"], false),
             &git_engine::NetworkStop::default(),
+            None,
         )
         .unwrap();
 
@@ -160,7 +165,7 @@ fn cancelling_a_remote_deletion_ends_the_batch() {
     let mut cancelled = request(RefDeletionKind::RemoteBranch, &["a", "b", "c"], false);
     cancelled.remote = Some("origin".to_owned());
 
-    let report = state.delete_refs(repo, &cancelled, &stop).unwrap();
+    let report = state.delete_refs(repo, &cancelled, &stop, None).unwrap();
 
     assert_eq!(report.failed.len(), 1, "{report:?}");
     assert!(matches!(

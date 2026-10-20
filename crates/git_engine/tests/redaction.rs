@@ -49,7 +49,7 @@ fn an_ssh_url_with_a_colon_is_left_alone() {
 
 #[test]
 fn the_auth_header_is_basic_and_carries_the_token() {
-    let header = git_engine::auth_header("s3cr3t");
+    let header = git_engine::basic_header(&token("s3cr3t"));
 
     assert!(header.starts_with("Authorization: Basic "), "{header}");
     assert!(
@@ -62,14 +62,14 @@ fn the_auth_header_is_basic_and_carries_the_token() {
 fn the_auth_header_encodes_the_documented_user_and_token() {
     // base64("x-access-token:abc")
     assert_eq!(
-        git_engine::auth_header("abc"),
+        git_engine::basic_header(&token("abc")),
         "Authorization: Basic eC1hY2Nlc3MtdG9rZW46YWJj"
     );
 }
 
 #[test]
 fn the_auth_header_never_reaches_the_journal_line() {
-    let header = git_engine::auth_header("abc");
+    let header = git_engine::basic_header(&token("abc"));
     let arg = format!("http.extraHeader={header}");
     let line = redact_command(&["-c", &arg, "push"]);
 
@@ -143,4 +143,11 @@ fn an_argument_with_spaces_or_a_quote_is_written_as_sh_reads_it() {
         redact_command(&["commit", "-m", "it's ok", "a b", ""]),
         r"git commit -m 'it'\''s ok' 'a b' ''"
     );
+}
+
+fn token(secret: &str) -> git_engine::Credential {
+    git_engine::Credential {
+        username: None,
+        secret: secret.to_owned(),
+    }
 }

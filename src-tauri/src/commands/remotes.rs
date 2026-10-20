@@ -82,6 +82,7 @@ pub async fn fetch_more(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,
     remote: String,
+    credential: Option<app_state::SignIn>,
     on_progress: tauri::ipc::Channel<String>,
 ) -> Result<bool, GitError> {
     let app_state = state.state.clone();
@@ -92,7 +93,7 @@ pub async fn fetch_more(
         "fetch_more",
         move |stop| {
             super::network::with_progress("fetch", &remote, &on_progress, |on_line| {
-                app_state.fetch_more(repo, &remote, &stop, on_line)
+                app_state.fetch_more(repo, &remote, &stop, credential.as_ref(), on_line)
             })
         },
     )
@@ -106,6 +107,7 @@ pub async fn fetch_depth(
     repo: RepoId,
     remote: String,
     depth: u32,
+    credential: Option<app_state::SignIn>,
     on_progress: tauri::ipc::Channel<String>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
@@ -116,7 +118,7 @@ pub async fn fetch_depth(
         "fetch_depth",
         move |stop| {
             super::network::with_progress("fetch", &remote, &on_progress, |on_line| {
-                app_state.fetch_depth(repo, &remote, depth, &stop, on_line)
+                app_state.fetch_depth(repo, &remote, depth, &stop, credential.as_ref(), on_line)
             })
         },
     )

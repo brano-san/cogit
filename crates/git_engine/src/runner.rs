@@ -55,6 +55,8 @@ pub struct GitOutput {
     /// A refusal the app turned into its own question (`branch -d` of an unmerged branch):
     /// journaled as git said it, but no error notice.
     pub answered: bool,
+    /// How the credential step of a failed run ended, if git said (F-082).
+    pub credential_trouble: Option<crate::CredentialTrouble>,
 }
 
 impl GitOutput {
@@ -97,6 +99,14 @@ impl GitOutput {
             duration_ms,
             stopped_on_conflicts: false,
             answered: false,
+            credential_trouble: if exit_code == Some(0) {
+                None
+            } else {
+                crate::credential_trouble(&format!(
+                    "{full_stderr}
+{full_stdout}"
+                ))
+            },
         }
     }
 

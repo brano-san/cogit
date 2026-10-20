@@ -12,6 +12,7 @@ mod commit;
 mod commit_write;
 mod config_file;
 mod conflicts;
+mod credentials;
 mod detached;
 pub mod discover;
 pub mod editable;
@@ -91,7 +92,7 @@ pub use blobs::{DiffAttributes, DiffContent, DiffSides, DiffSpec, MAX_HASHED_BYT
 pub use branches::{BranchDeletion, CheckoutTarget, RemoteDeletion, windows_forbidden};
 pub use bypass::Bypass;
 pub use cloning::{
-    CloneDestination, CloneRequest, Login, RemoteBranches, clone_destination, clone_repository,
+    CloneDestination, CloneRequest, RemoteBranches, clone_destination, clone_repository,
     remote_branches, repository_url_in,
 };
 pub use commit::{
@@ -104,8 +105,11 @@ pub use config_file::{
     user_config_by_rules, user_config_path,
 };
 pub use conflicts::{ConflictSide, ConflictSides, ConflictStages, ConflictText, EntryKind};
+pub use credentials::{
+    Credential, CredentialTrouble, basic_header, credential_config, credential_trouble, wants_auth,
+};
 pub use detached::{PullOutcome, Pushed};
-pub use error::{GitCommandError, GitError};
+pub use error::{AuthRequired, GitCommandError, GitError};
 pub use file_log::{FileChange, FileRevision};
 pub use file_ops::{IgnoreRule, IndexEditorSides, IndexFlag};
 pub use find::{Found, FoundKind};
@@ -131,7 +135,7 @@ pub use listing::{
 pub use mailmap::Mailmap;
 pub use merging::MergeOptions;
 pub use module_ops::SubmoduleOp;
-pub use network::{NetworkStop, auth_config, auth_header, wants_auth};
+pub use network::NetworkStop;
 pub use network_options::{
     FetchOptions, NetworkDefaults, NotesFetch, PullMethod, PullOptions, Pulled, PushCommit,
     PushOptions, PushOutcome, PushPreview, TagsMode,

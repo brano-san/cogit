@@ -1,5 +1,5 @@
 import { Channel } from "@tauri-apps/api/core";
-import { commands, type RepoId, type ResetMode } from "./bindings";
+import { commands, type RepoId, type ResetMode, type SignIn } from "./bindings";
 import { unwrap } from "./index";
 
 export type { ResetMode, UndoRewrite } from "./bindings";
@@ -54,10 +54,11 @@ export async function pushTo(
   refspec: string,
   track: boolean,
   onLine: (line: string) => void,
+  credential: SignIn | null = null,
 ) {
   const channel = new Channel<string>();
   channel.onmessage = onLine;
-  return unwrap(await commands.pushTo(repo, remote, refspec, track, channel));
+  return unwrap(await commands.pushTo(repo, remote, refspec, track, credential, channel));
 }
 
 export async function setNote(repo: RepoId, rev: string, text: string) {

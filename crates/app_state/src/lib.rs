@@ -51,7 +51,8 @@ mod staging;
 
 pub use avatars::{Author, AvatarRow, Avatars};
 pub use credentials::{
-    KeyringStore, MemoryStore, SecretError, SecretStore, host_of, platform_store, token_host,
+    CredentialList, KeyringStore, KnownCredential, MemoryStore, SecretError, SecretStore, SignIn,
+    credential_host, host_input, host_of, platform_store,
 };
 pub use graph_cache::{GraphProgress, GraphWindow, PROGRESS_EVERY, throttled};
 pub use journal::{CommandNotice, CommandRow, command_log_text, command_rows, is_warning, record};
@@ -212,6 +213,7 @@ pub struct AppState {
     safety: RwLock<Vec<safety::Undoable>>,
     next_entry_id: AtomicU32,
     secrets: Box<dyn SecretStore>,
+    known_hosts: parking_lot::Mutex<credentials::KnownHosts>,
     pictures: RwLock<Option<Avatars>>,
     preset_dir: RwLock<Option<std::path::PathBuf>>,
     /// The newest diff batch asked for per repository. An older answer never displaces
@@ -268,6 +270,7 @@ impl AppState {
             safety: RwLock::new(Vec::new()),
             next_entry_id: AtomicU32::new(1),
             secrets: platform_store(),
+            known_hosts: parking_lot::Mutex::default(),
             pictures: RwLock::new(None),
             preset_dir: RwLock::new(None),
             newest_diff: RwLock::new(HashMap::new()),
@@ -345,24 +348,27 @@ impl AppState {
     /// The host a remote's token is kept under, for the Authentication page to name.
     #[must_use]
     pub fn token_host(&self, url: &str) -> Option<String> {
-        token_host(url)
+        credential_host(url)
     }
 
     /// Only ever answers whether a token exists: the value must not reach the webview.
     /// All three take the remote URL: the rule for whose token it is stays here.
     #[must_use]
     pub fn has_token(&self, url: &str) -> bool {
-        token_host(url).is_some_and(|host| self.secrets.get(&host).is_some())
+        self.stored_credential(url).is_some()
     }
 
     pub fn store_token(&self, url: &str, token: &str) -> Result<(), SecretError> {
-        let host = token_host(url).ok_or(SecretError::NoHost)?;
-        self.secrets.set(&host, token)
+        self.store_credential(&SignIn {
+            host: credential_host(url).ok_or(SecretError::NoHost)?,
+            username: None,
+            secret: token.to_owned(),
+            remember: true,
+        })
     }
 
     pub fn forget_token(&self, url: &str) -> Result<(), SecretError> {
-        let host = token_host(url).ok_or(SecretError::NoHost)?;
-        self.secrets.delete(&host)
+        self.forget_credential(&credential_host(url).ok_or(SecretError::NoHost)?)
     }
 
     /// Replaces the credential store; tests hand in a `MemoryStore`.

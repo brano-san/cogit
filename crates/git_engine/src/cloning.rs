@@ -1,9 +1,9 @@
 //! Repository ▸ Clone… (F-575): what the server has, asked without writing anything, then
 //! the clone itself through the system git.
 
-use crate::network::{NetworkStop, SILENCE, Streamed, auth_config, config_env, login_config};
+use crate::network::{NetworkStop, SILENCE, Streamed, config_env};
 use crate::pulse::{BATCH_SSH, STALL_LIMITS, askpass_refusal};
-use crate::{CommandSink, GitError, GitOutput, Result};
+use crate::{CommandSink, Credential, GitError, GitOutput, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -34,32 +34,16 @@ pub struct CloneRequest {
     pub skip_larger_than: Option<String>,
 }
 
-/// Asked for after git's own credential helper could not answer.
-#[derive(Clone, PartialEq, Eq, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct Login {
-    pub username: String,
-    pub password: String,
-}
-
-impl std::fmt::Debug for Login {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Login")
-            .field("username", &self.username)
-            .finish_non_exhaustive()
-    }
-}
-
-/// Git Credential Manager may open its window: the user asked for this. Only the terminal
-/// prompt stays off, as for every git Cogit starts. A login and a token go in one
-/// environment config: neither reaches the command line.
-fn login_command(source: &str, login: Option<&Login>, token: Option<&str>) -> Command {
+/// Git Credential Manager may open its window: the user asked for this. The terminal
+/// prompt and any askpass stay off, as for every network git Cogit starts (F-082). The
+/// credential goes in the environment config: it never reaches the command line.
+fn login_command(source: &str, credential: Option<&Credential>) -> Command {
     let mut process = outside_any_repository();
     process.env_remove("GCM_INTERACTIVE");
-    let pairs: Vec<(String, String)> = token
-        .and_then(|token| auth_config(source, token))
+    process.env("GIT_ASKPASS", "");
+    let pairs: Vec<(String, String)> = credential
+        .and_then(|credential| crate::credential_config(source, credential))
         .into_iter()
-        .chain(login.and_then(|login| login_config(source, &login.username, &login.password)))
         .collect();
     process.envs(config_env(&pairs));
     process
@@ -94,8 +78,7 @@ pub fn clone_destination(path: &Path) -> CloneDestination {
 /// Nothing is written anywhere; the credential helper may ask, the terminal never does.
 pub fn remote_branches(
     source: &str,
-    token: Option<&str>,
-    login: Option<&Login>,
+    credential: Option<&Credential>,
     journal: Option<&CommandSink>,
 ) -> Result<RemoteBranches> {
     let source = source.trim();
@@ -116,7 +99,7 @@ pub fn remote_branches(
     let command = crate::redact_command(&args);
     let started = std::time::Instant::now();
     tracing::info!(%command, "running git");
-    let mut process = login_command(source, login, token);
+    let mut process = login_command(source, credential);
     process.envs(askpass_refusal(own_ssh));
     process.args(&args);
     let output = crate::children::output(&mut process).map_err(crate::runner::not_started)?;
@@ -157,8 +140,7 @@ fn listing(text: &str) -> RemoteBranches {
 /// removed here as git removes it after its own failures: whole, or emptied if it was empty.
 pub fn clone_repository(
     request: &CloneRequest,
-    token: Option<&str>,
-    login: Option<&Login>,
+    credential: Option<&Credential>,
     stop: &NetworkStop,
     journal: Option<&CommandSink>,
     on_line: impl FnMut(&str),
@@ -192,7 +174,7 @@ pub fn clone_repository(
         args.splice(0..0, ["-c".to_owned(), BATCH_SSH.to_owned()]);
     }
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
-    let mut process = login_command(source, login, token);
+    let mut process = login_command(source, credential);
     process.envs(askpass_refusal(own_ssh));
     process.args(&args);
 
@@ -428,11 +410,11 @@ mod tests {
 
     #[test]
     fn a_login_reaches_git_through_the_environment_only() {
-        let login = Login {
-            username: "ann".to_owned(),
-            password: "s3cret".to_owned(),
+        let login = Credential {
+            username: Some("ann".to_owned()),
+            secret: "s3cret".to_owned(),
         };
-        let process = login_command("https://example.com/team/app.git", Some(&login), None);
+        let process = login_command("https://example.com/team/app.git", Some(&login));
         let envs: Vec<(String, Option<String>)> = process
             .get_envs()
             .map(|(k, v)| {
@@ -448,6 +430,7 @@ mod tests {
                 .and_then(|(_, v)| v.clone())
         };
         assert_eq!(get("GIT_TERMINAL_PROMPT").as_deref(), Some("0"));
+        assert_eq!(get("GIT_ASKPASS").as_deref(), Some(""));
         assert!(
             envs.iter()
                 .any(|(k, v)| k == "GCM_INTERACTIVE" && v.is_none())

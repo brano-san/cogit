@@ -96,6 +96,7 @@ pub async fn fetch(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,
     remote: String,
+    credential: Option<app_state::SignIn>,
     on_progress: tauri::ipc::Channel<String>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
@@ -106,7 +107,7 @@ pub async fn fetch(
         "fetch",
         move |stop| {
             with_progress("fetch", &remote, &on_progress, |on_line| {
-                app_state.fetch(repo, &remote, &stop, on_line)
+                app_state.fetch(repo, &remote, &stop, credential.as_ref(), on_line)
             })
         },
     )
@@ -121,21 +122,24 @@ pub async fn pull(
     remote: String,
     ff_only: bool,
     autostash: bool,
+    credential: Option<app_state::SignIn>,
     on_progress: tauri::ipc::Channel<String>,
 ) -> Result<git_engine::PullOutcome, GitError> {
     let app_state = state.state.clone();
-    networking(
-        &state.state,
-        repo,
-        OperationKind::Pull,
-        "pull",
-        move |stop| {
-            with_progress("pull", &remote, &on_progress, |on_line| {
-                app_state.pull(repo, &remote, ff_only, autostash, &stop, on_line)
-            })
-        },
-    )
-    .await
+    let work = move |stop: NetworkStop| {
+        with_progress("pull", &remote, &on_progress, |line| {
+            app_state.pull(
+                repo,
+                &remote,
+                ff_only,
+                autostash,
+                &stop,
+                credential.as_ref(),
+                line,
+            )
+        })
+    };
+    networking(&state.state, repo, OperationKind::Pull, "pull", work).await
 }
 
 #[tauri::command]
@@ -145,6 +149,7 @@ pub async fn push(
     repo: RepoId,
     remote: String,
     force: bool,
+    credential: Option<app_state::SignIn>,
     on_progress: tauri::ipc::Channel<String>,
 ) -> Result<Option<git_engine::Pushed>, GitError> {
     let app_state = state.state.clone();
@@ -155,7 +160,7 @@ pub async fn push(
         "push",
         move |stop| {
             with_progress("push", &remote, &on_progress, |on_line| {
-                app_state.push(repo, &remote, force, &stop, on_line)
+                app_state.push(repo, &remote, force, &stop, credential.as_ref(), on_line)
             })
         },
     )
@@ -227,6 +232,61 @@ pub async fn forget_token(
     .await
 }
 
+/// Hosts and usernames Cogit holds a sign-in for; never a secret (F-082).
+#[tauri::command]
+#[specta::specta]
+pub async fn list_credentials(
+    state: tauri::State<'_, crate::AppContext>,
+) -> Result<app_state::CredentialList, GitError> {
+    let app_state = state.state.clone();
+    blocking("list_credentials", move || Ok(app_state.list_credentials())).await
+}
+
+/// Preferences ▸ Authentication ▸ Add…: kept without asking the server.
+#[tauri::command]
+#[specta::specta]
+pub async fn store_credential(
+    state: tauri::State<'_, crate::AppContext>,
+    credential: app_state::SignIn,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    blocking("store_credential", move || {
+        app_state
+            .store_credential(&credential)
+            .map_err(|err| GitError::InvalidState(err.to_string()))
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn forget_credential(
+    state: tauri::State<'_, crate::AppContext>,
+    host: String,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    blocking("forget_credential", move || {
+        app_state
+            .forget_credential(&host)
+            .map_err(|err| GitError::InvalidState(err.to_string()))
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn forget_all_credentials(
+    state: tauri::State<'_, crate::AppContext>,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    blocking("forget_all_credentials", move || {
+        app_state
+            .forget_all_credentials()
+            .map_err(|err| GitError::InvalidState(err.to_string()))
+    })
+    .await
+}
+
 /// Fetch Only of the Pull dialog; the answer names notes that diverged.
 #[tauri::command]
 #[specta::specta]
@@ -235,6 +295,7 @@ pub async fn fetch_with(
     repo: RepoId,
     remote: String,
     options: git_engine::FetchOptions,
+    credential: Option<app_state::SignIn>,
     on_progress: tauri::ipc::Channel<String>,
 ) -> Result<git_engine::NotesFetch, GitError> {
     let app_state = state.state.clone();
@@ -245,7 +306,7 @@ pub async fn fetch_with(
         "fetch_with",
         move |stop| {
             with_progress("fetch", &remote, &on_progress, |on_line| {
-                app_state.fetch_with(repo, &remote, options, &stop, on_line)
+                app_state.fetch_with(repo, &remote, options, &stop, credential.as_ref(), on_line)
             })
         },
     )
@@ -259,6 +320,7 @@ pub async fn pull_with(
     repo: RepoId,
     remote: String,
     options: git_engine::PullOptions,
+    credential: Option<app_state::SignIn>,
     on_progress: tauri::ipc::Channel<String>,
 ) -> Result<git_engine::Pulled, GitError> {
     let app_state = state.state.clone();
@@ -269,7 +331,7 @@ pub async fn pull_with(
         "pull_with",
         move |stop| {
             with_progress("pull", &remote, &on_progress, |on_line| {
-                app_state.pull_with(repo, &remote, options, &stop, on_line)
+                app_state.pull_with(repo, &remote, options, &stop, credential.as_ref(), on_line)
             })
         },
     )
@@ -282,6 +344,7 @@ pub async fn push_with(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,
     options: git_engine::PushOptions,
+    credential: Option<app_state::SignIn>,
     on_progress: tauri::ipc::Channel<String>,
 ) -> Result<git_engine::PushOutcome, GitError> {
     let app_state = state.state.clone();
@@ -293,7 +356,7 @@ pub async fn push_with(
         move |stop| {
             let remote = options.remote.clone();
             with_progress("push", &remote, &on_progress, |on_line| {
-                app_state.push_with(repo, &options, &stop, on_line)
+                app_state.push_with(repo, &options, &stop, credential.as_ref(), on_line)
             })
         },
     )
@@ -306,6 +369,7 @@ pub async fn push_dry_run(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,
     options: git_engine::PushOptions,
+    credential: Option<app_state::SignIn>,
     on_progress: tauri::ipc::Channel<String>,
 ) -> Result<git_engine::GitOutput, GitError> {
     let app_state = state.state.clone();
@@ -320,7 +384,7 @@ pub async fn push_dry_run(
         move |stop| {
             let remote = options.remote.clone();
             with_progress("push", &remote, &on_progress, |on_line| {
-                app_state.push_dry_run(repo, &options, &stop, on_line)
+                app_state.push_dry_run(repo, &options, &stop, credential.as_ref(), on_line)
             })
         },
     )
@@ -333,6 +397,7 @@ pub async fn push_notes(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,
     remote: String,
+    credential: Option<app_state::SignIn>,
     on_progress: tauri::ipc::Channel<String>,
 ) -> Result<git_engine::PushOutcome, GitError> {
     let app_state = state.state.clone();
@@ -343,7 +408,7 @@ pub async fn push_notes(
         "push_notes",
         move |stop| {
             with_progress("push", &remote, &on_progress, |on_line| {
-                app_state.push_notes(repo, &remote, &stop, on_line)
+                app_state.push_notes(repo, &remote, &stop, credential.as_ref(), on_line)
             })
         },
     )

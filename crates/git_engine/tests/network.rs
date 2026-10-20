@@ -31,7 +31,7 @@ fn seen(lines: &Lines) -> Vec<String> {
     lines.lock().map(|l| l.clone()).unwrap_or_default()
 }
 
-fn no_token(_url: &str) -> Option<String> {
+fn no_token(_url: &str) -> Option<git_engine::Credential> {
     None
 }
 
@@ -390,14 +390,14 @@ fn a_token_reaches_git_as_a_header_but_not_the_journal() {
         .unwrap();
     let (repo, log) = commands_of(open(&f));
 
-    let _ = repo.fetch("origin", |_| Some("s3cr3t".to_owned()), |_| {});
+    let _ = repo.fetch("origin", |_| Some(token("s3cr3t")), |_| {});
 
     let lines = seen(&log).join("\n");
     assert!(lines.contains("fetch"), "{lines}");
     assert!(!lines.contains("extraHeader"), "{lines}");
     assert!(!lines.contains("s3cr3t"), "{lines}");
     assert!(
-        !lines.contains(&git_engine::auth_header("s3cr3t")),
+        !lines.contains(&git_engine::basic_header(&token("s3cr3t"))),
         "{lines}"
     );
 }
@@ -425,11 +425,11 @@ fn a_token_reaches_the_server_though_it_is_in_no_argument() {
     });
     let (repo, log) = commands_of(open(&f));
 
-    let _ = repo.fetch("origin", |_| Some("s3cr3t".to_owned()), |_| {});
+    let _ = repo.fetch("origin", |_| Some(token("s3cr3t")), |_| {});
 
     let sent = request.join().unwrap();
     assert!(
-        sent.contains(&git_engine::auth_header("s3cr3t")),
+        sent.contains(&git_engine::basic_header(&token("s3cr3t"))),
         "git did not send the token: {sent}"
     );
     assert!(!seen(&log).join("\n").contains("s3cr3t"));
@@ -440,11 +440,12 @@ fn a_token_reaches_the_server_though_it_is_in_no_argument() {
 // the submodule lives on.
 #[test]
 fn a_token_is_sent_only_to_the_host_of_the_remote() {
-    let arg = git_engine::auth_config("https://github.com/o/r.git", "s3cr3t").unwrap();
+    let arg =
+        git_engine::credential_config("https://github.com/o/r.git", &token("s3cr3t")).unwrap();
 
     assert_eq!(
         header_git_sends(&arg, "https://github.com/o/r.git").trim(),
-        git_engine::auth_header("s3cr3t")
+        git_engine::basic_header(&token("s3cr3t"))
     );
     assert_eq!(
         header_git_sends(&arg, "https://git.example.org/team/sub.git").trim(),
@@ -454,8 +455,8 @@ fn a_token_is_sent_only_to_the_host_of_the_remote() {
 
 #[test]
 fn a_remote_that_is_not_http_gets_no_token() {
-    assert!(git_engine::auth_config("git@github.com:o/r.git", "s3cr3t").is_none());
-    assert!(git_engine::auth_config("/srv/git/r.git", "s3cr3t").is_none());
+    assert!(git_engine::credential_config("git@github.com:o/r.git", &token("s3cr3t")).is_none());
+    assert!(git_engine::credential_config("/srv/git/r.git", &token("s3cr3t")).is_none());
 }
 
 #[test]
@@ -470,7 +471,9 @@ fn a_host_scoped_header_is_hidden_in_the_journal_line() {
 }
 
 /// The URL each command asked a token for.
-fn asked_for(run: impl FnOnce(&RepoHandle, &dyn Fn(&str) -> Option<String>)) -> Vec<String> {
+fn asked_for(
+    run: impl FnOnce(&RepoHandle, &dyn Fn(&str) -> Option<git_engine::Credential>),
+) -> Vec<String> {
     let f = test_fixtures::with_remote().unwrap();
     f.git(&[
         "remote",
@@ -789,7 +792,7 @@ fn a_token_reaches_the_deletion_of_a_remote_tag_but_not_the_journal() {
         .unwrap();
     let (repo, log) = commands_of(open(&f));
 
-    let _ = repo.delete_remote_tag("origin", "v1", |_| Some("s3cr3t".to_owned()));
+    let _ = repo.delete_remote_tag("origin", "v1", |_| Some(token("s3cr3t")));
 
     let lines = seen(&log).join("\n");
     assert!(
@@ -848,4 +851,11 @@ fn an_own_ssh_command_gets_a_refusing_askpass_instead_of_a_flag() {
     let last = records.last().unwrap();
     assert!(last.stderr.contains("asked-for=force"), "{last:?}");
     assert!(!last.command.contains("BatchMode"), "{}", last.command);
+}
+
+fn token(secret: &str) -> git_engine::Credential {
+    git_engine::Credential {
+        username: None,
+        secret: secret.to_owned(),
+    }
 }

@@ -1,5 +1,5 @@
 import { Channel } from "@tauri-apps/api/core";
-import { commands, type FetchOptions, type NetworkDefaults, type PullOptions, type PushOptions, type RepoId } from "./bindings";
+import { commands, type FetchOptions, type NetworkDefaults, type PullOptions, type PushOptions, type RepoId, type SignIn } from "./bindings";
 import { unwrap } from "./index";
 
 export type {
@@ -22,20 +22,20 @@ function lines(onLine: (line: string) => void): Channel<string> {
   return channel;
 }
 
-export async function fetchWith(repo: RepoId, remote: string, options: FetchOptions, onLine: (line: string) => void) {
-  return unwrap(await commands.fetchWith(repo, remote, options, lines(onLine)));
+export async function fetchWith(repo: RepoId, remote: string, options: FetchOptions, onLine: (line: string) => void, credential: SignIn | null = null) {
+  return unwrap(await commands.fetchWith(repo, remote, options, credential, lines(onLine)));
 }
 
-export async function pullWith(repo: RepoId, remote: string, options: PullOptions, onLine: (line: string) => void) {
-  return unwrap(await commands.pullWith(repo, remote, options, lines(onLine)));
+export async function pullWith(repo: RepoId, remote: string, options: PullOptions, onLine: (line: string) => void, credential: SignIn | null = null) {
+  return unwrap(await commands.pullWith(repo, remote, options, credential, lines(onLine)));
 }
 
-export async function pushWith(repo: RepoId, options: PushOptions, onLine: (line: string) => void) {
-  return unwrap(await commands.pushWith(repo, options, lines(onLine)));
+export async function pushWith(repo: RepoId, options: PushOptions, onLine: (line: string) => void, credential: SignIn | null = null) {
+  return unwrap(await commands.pushWith(repo, options, credential, lines(onLine)));
 }
 
-export async function pushNotes(repo: RepoId, remote: string, onLine: (line: string) => void) {
-  return unwrap(await commands.pushNotes(repo, remote, lines(onLine)));
+export async function pushNotes(repo: RepoId, remote: string, onLine: (line: string) => void, credential: SignIn | null = null) {
+  return unwrap(await commands.pushNotes(repo, remote, credential, lines(onLine)));
 }
 
 export async function mergeNotes(repo: RepoId, remote: string, namespace: string) {
@@ -46,8 +46,8 @@ export async function pushPreview(repo: RepoId, local: string, remote: string, b
   return unwrap(await commands.pushPreview(repo, local, remote, branch, limit));
 }
 
-export async function pushDryRun(repo: RepoId, options: PushOptions, onLine: (line: string) => void) {
-  return unwrap(await commands.pushDryRun(repo, options, lines(onLine)));
+export async function pushDryRun(repo: RepoId, options: PushOptions, onLine: (line: string) => void, credential: SignIn | null = null) {
+  return unwrap(await commands.pushDryRun(repo, options, credential, lines(onLine)));
 }
 
 export async function pushTagsPreview(repo: RepoId, options: PushOptions) {

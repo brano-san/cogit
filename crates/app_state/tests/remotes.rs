@@ -47,7 +47,7 @@ fn a_new_branch_pushed_from_the_toolbar_tracks_its_remote_branch() {
     let (_f, state, repo) = with_new_branch("audit/2026-09-25");
 
     state
-        .push(repo, "origin", false, &NetworkStop::default(), |_| {})
+        .push(repo, "origin", false, &NetworkStop::default(), None, |_| {})
         .unwrap();
 
     assert!(joined(&state, repo, "audit/2026-09-25"));
@@ -67,6 +67,7 @@ fn a_new_branch_pushed_from_its_menu_is_joined_with_its_remote_branch() {
             refspec,
             true,
             &NetworkStop::default(),
+            None,
             |_| {},
         )
         .unwrap();
@@ -85,6 +86,7 @@ fn a_ref_pushed_without_tracking_leaves_the_branch_as_it_was() {
             "refs/heads/topic:refs/heads/review/topic",
             false,
             &NetworkStop::default(),
+            None,
             |_| {},
         )
         .unwrap();
@@ -123,7 +125,15 @@ fn a_pull_on_a_branch_without_upstream_fetches_every_remote() {
     let undo_before = state.safety_log().len();
 
     state
-        .pull(repo, "origin", true, false, &NetworkStop::default(), |_| {})
+        .pull(
+            repo,
+            "origin",
+            true,
+            false,
+            &NetworkStop::default(),
+            None,
+            |_| {},
+        )
         .unwrap();
 
     assert!(branch(&state, repo, BranchKind::Remote, "origin/main").is_some());

@@ -18,11 +18,15 @@ pub fn pulse(root: &Path) -> git_engine::RepoPulse {
     git_engine::pulse(root)
 }
 
-/// Asks the server, writes nothing; a failure is logged and means "unknown" (R-354).
-pub fn pull_probe(root: &Path) -> Result<Option<bool>, GitError> {
-    let probed = RepoHandle::open_root(root).and_then(|handle| handle.pull_probe());
-    if let Err(err) = &probed {
-        tracing::warn!(root = %root.display(), error = %err, "pull probe failed");
+impl crate::AppState {
+    /// Asks the server, writes nothing; a failure is logged and means "unknown" (R-354).
+    /// Sends what is stored for the host, never asks (F-082).
+    pub fn pull_probe(&self, root: &Path) -> Result<Option<bool>, GitError> {
+        let probed =
+            RepoHandle::open_root(root).and_then(|handle| handle.pull_probe(self.stored()));
+        if let Err(err) = &probed {
+            tracing::warn!(root = %root.display(), error = %err, "pull probe failed");
+        }
+        probed
     }
-    probed
 }

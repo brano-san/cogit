@@ -131,6 +131,8 @@ export const commands = {
 	 *  journaled as git said it, but no error notice.
 	 */
 	answered: boolean,
+	/**  How the credential step of a failed run ended, if git said (F-082). */
+	credentialTrouble: CredentialTrouble | null,
 } | null>("command_outcome", { id }),
 	/**
 	 *  Closes whichever window asked. In Rust rather than through `getCurrentWindow()`, which
@@ -164,7 +166,15 @@ export const commands = {
 	stashDrop: (repo: RepoId, oid: string) => typedError<null, GitError>(__TAURI_INVOKE("stash_drop", { repo, oid })),
 	createTag: (repo: RepoId, request: TagRequest) => typedError<null, GitError>(__TAURI_INVOKE("create_tag", { repo, request })),
 	deleteTag: (repo: RepoId, name: string) => typedError<null, GitError>(__TAURI_INVOKE("delete_tag", { repo, name })),
-	deleteRemoteTag: (repo: RepoId, remote: string, name: string) => typedError<null, GitError>(__TAURI_INVOKE("delete_remote_tag", { repo, remote, name })),
+	deleteRemoteTag: (repo: RepoId, remote: string, name: string, credential: {
+	/**  Used only for URLs of this host: a retry never hands it to another one. */
+	host: string,
+	/**  `None` or blank: `secret` is a token. */
+	username: string | null,
+	secret: string,
+	/**  Kept once a command has succeeded with it. */
+	remember: boolean,
+} | null) => typedError<null, GitError>(__TAURI_INVOKE("delete_remote_tag", { repo, remote, name, credential })),
 	resetTo: (repo: RepoId, rev: string, mode: ResetMode) => typedError<null, GitError>(__TAURI_INVOKE("reset_to", { repo, rev, mode })),
 	undoRewrite: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("undo_rewrite", { repo })),
 	undoRewriteInfo: (repo: RepoId) => typedError<{
@@ -183,18 +193,82 @@ export const commands = {
 	commitNotes: (repo: RepoId, rev: string) => typedError<CommitNote[], GitError>(__TAURI_INVOKE("commit_notes", { repo, rev })),
 	setNote: (repo: RepoId, rev: string, text: string) => typedError<null, GitError>(__TAURI_INVOKE("set_note", { repo, rev, text })),
 	editAuthor: (repo: RepoId, rev: string, name: string, email: string) => typedError<null, GitError>(__TAURI_INVOKE("edit_author", { repo, rev, name, email })),
-	pushTo: (repo: RepoId, remote: string, refspec: string, track: boolean, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("push_to", { repo, remote, refspec, track, onProgress })),
+	pushTo: (repo: RepoId, remote: string, refspec: string, track: boolean, credential: {
+	/**  Used only for URLs of this host: a retry never hands it to another one. */
+	host: string,
+	/**  `None` or blank: `secret` is a token. */
+	username: string | null,
+	secret: string,
+	/**  Kept once a command has succeeded with it. */
+	remember: boolean,
+} | null, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("push_to", { repo, remote, refspec, track, credential, onProgress })),
 	remotes: (repo: RepoId) => typedError<string[], GitError>(__TAURI_INVOKE("remotes", { repo })),
-	fetch: (repo: RepoId, remote: string, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("fetch", { repo, remote, onProgress })),
-	pull: (repo: RepoId, remote: string, ffOnly: boolean, autostash: boolean, onProgress: Channel<string>) => typedError<PullOutcome, GitError>(__TAURI_INVOKE("pull", { repo, remote, ffOnly, autostash, onProgress })),
-	push: (repo: RepoId, remote: string, force: boolean, onProgress: Channel<string>) => typedError<{
+	fetch: (repo: RepoId, remote: string, credential: {
+	/**  Used only for URLs of this host: a retry never hands it to another one. */
+	host: string,
+	/**  `None` or blank: `secret` is a token. */
+	username: string | null,
+	secret: string,
+	/**  Kept once a command has succeeded with it. */
+	remember: boolean,
+} | null, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("fetch", { repo, remote, credential, onProgress })),
+	pull: (repo: RepoId, remote: string, ffOnly: boolean, autostash: boolean, credential: {
+	/**  Used only for URLs of this host: a retry never hands it to another one. */
+	host: string,
+	/**  `None` or blank: `secret` is a token. */
+	username: string | null,
+	secret: string,
+	/**  Kept once a command has succeeded with it. */
+	remember: boolean,
+} | null, onProgress: Channel<string>) => typedError<PullOutcome, GitError>(__TAURI_INVOKE("pull", { repo, remote, ffOnly, autostash, credential, onProgress })),
+	push: (repo: RepoId, remote: string, force: boolean, credential: {
+	/**  Used only for URLs of this host: a retry never hands it to another one. */
+	host: string,
+	/**  `None` or blank: `secret` is a token. */
+	username: string | null,
+	secret: string,
+	/**  Kept once a command has succeeded with it. */
+	remember: boolean,
+} | null, onProgress: Channel<string>) => typedError<{
 	branches: string[],
-} | null, GitError>(__TAURI_INVOKE("push", { repo, remote, force, onProgress })),
+} | null, GitError>(__TAURI_INVOKE("push", { repo, remote, force, credential, onProgress })),
 	/**  Fetch Only of the Pull dialog; the answer names notes that diverged. */
-	fetchWith: (repo: RepoId, remote: string, options: FetchOptions, onProgress: Channel<string>) => typedError<NotesFetch, GitError>(__TAURI_INVOKE("fetch_with", { repo, remote, options, onProgress })),
-	pullWith: (repo: RepoId, remote: string, options: PullOptions, onProgress: Channel<string>) => typedError<Pulled, GitError>(__TAURI_INVOKE("pull_with", { repo, remote, options, onProgress })),
-	pushWith: (repo: RepoId, options: PushOptions, onProgress: Channel<string>) => typedError<PushOutcome, GitError>(__TAURI_INVOKE("push_with", { repo, options, onProgress })),
-	pushNotes: (repo: RepoId, remote: string, onProgress: Channel<string>) => typedError<PushOutcome, GitError>(__TAURI_INVOKE("push_notes", { repo, remote, onProgress })),
+	fetchWith: (repo: RepoId, remote: string, options: FetchOptions, credential: {
+	/**  Used only for URLs of this host: a retry never hands it to another one. */
+	host: string,
+	/**  `None` or blank: `secret` is a token. */
+	username: string | null,
+	secret: string,
+	/**  Kept once a command has succeeded with it. */
+	remember: boolean,
+} | null, onProgress: Channel<string>) => typedError<NotesFetch, GitError>(__TAURI_INVOKE("fetch_with", { repo, remote, options, credential, onProgress })),
+	pullWith: (repo: RepoId, remote: string, options: PullOptions, credential: {
+	/**  Used only for URLs of this host: a retry never hands it to another one. */
+	host: string,
+	/**  `None` or blank: `secret` is a token. */
+	username: string | null,
+	secret: string,
+	/**  Kept once a command has succeeded with it. */
+	remember: boolean,
+} | null, onProgress: Channel<string>) => typedError<Pulled, GitError>(__TAURI_INVOKE("pull_with", { repo, remote, options, credential, onProgress })),
+	pushWith: (repo: RepoId, options: PushOptions, credential: {
+	/**  Used only for URLs of this host: a retry never hands it to another one. */
+	host: string,
+	/**  `None` or blank: `secret` is a token. */
+	username: string | null,
+	secret: string,
+	/**  Kept once a command has succeeded with it. */
+	remember: boolean,
+} | null, onProgress: Channel<string>) => typedError<PushOutcome, GitError>(__TAURI_INVOKE("push_with", { repo, options, credential, onProgress })),
+	pushNotes: (repo: RepoId, remote: string, credential: {
+	/**  Used only for URLs of this host: a retry never hands it to another one. */
+	host: string,
+	/**  `None` or blank: `secret` is a token. */
+	username: string | null,
+	secret: string,
+	/**  Kept once a command has succeeded with it. */
+	remember: boolean,
+} | null, onProgress: Channel<string>) => typedError<PushOutcome, GitError>(__TAURI_INVOKE("push_notes", { repo, remote, credential, onProgress })),
 	mergeNotes: (repo: RepoId, remote: string, namespace: string) => typedError<null, GitError>(__TAURI_INVOKE("merge_notes", { repo, remote, namespace })),
 	/**  The commits Push would send (the list capped at `limit`) and the notes the remote lacks. */
 	pushPreview: (repo: RepoId, local: string, remote: string, branch: string, limit: number) => typedError<PushPreview, GitError>(__TAURI_INVOKE("push_preview", { repo, local, remote, branch, limit })),
@@ -202,7 +276,15 @@ export const commands = {
 	pushTagsPreview: (repo: RepoId, options: PushOptions) => typedError<string[], GitError>(__TAURI_INVOKE("push_tags_preview", { repo, options })),
 	/**  Not queued, as `push_tags_preview`. */
 	pushAtomicSupport: (repo: RepoId, options: PushOptions) => typedError<boolean | null, GitError>(__TAURI_INVOKE("push_atomic_support", { repo, options })),
-	pushDryRun: (repo: RepoId, options: PushOptions, onProgress: Channel<string>) => typedError<GitOutput, GitError>(__TAURI_INVOKE("push_dry_run", { repo, options, onProgress })),
+	pushDryRun: (repo: RepoId, options: PushOptions, credential: {
+	/**  Used only for URLs of this host: a retry never hands it to another one. */
+	host: string,
+	/**  `None` or blank: `secret` is a token. */
+	username: string | null,
+	secret: string,
+	/**  Kept once a command has succeeded with it. */
+	remember: boolean,
+} | null, onProgress: Channel<string>) => typedError<GitOutput, GitError>(__TAURI_INVOKE("push_dry_run", { repo, options, credential, onProgress })),
 	networkDefaults: (repo: RepoId) => typedError<NetworkDefaults, GitError>(__TAURI_INVOKE("network_defaults", { repo })),
 	saveNetworkDefaults: (repo: RepoId, defaults: NetworkDefaults) => typedError<null, GitError>(__TAURI_INVOKE("save_network_defaults", { repo, defaults })),
 	/**
@@ -215,8 +297,24 @@ export const commands = {
 	removeRemote: (repo: RepoId, name: string) => typedError<null, GitError>(__TAURI_INVOKE("remove_remote", { repo, name })),
 	setRemoteProperties: (repo: RepoId, name: string, url: string, backgroundFetch: boolean) => typedError<null, GitError>(__TAURI_INVOKE("set_remote_properties", { repo, name, url, backgroundFetch })),
 	/**  `false`: nothing new came from the remote. */
-	fetchMore: (repo: RepoId, remote: string, onProgress: Channel<string>) => typedError<boolean, GitError>(__TAURI_INVOKE("fetch_more", { repo, remote, onProgress })),
-	fetchDepth: (repo: RepoId, remote: string, depth: number, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("fetch_depth", { repo, remote, depth, onProgress })),
+	fetchMore: (repo: RepoId, remote: string, credential: {
+	/**  Used only for URLs of this host: a retry never hands it to another one. */
+	host: string,
+	/**  `None` or blank: `secret` is a token. */
+	username: string | null,
+	secret: string,
+	/**  Kept once a command has succeeded with it. */
+	remember: boolean,
+} | null, onProgress: Channel<string>) => typedError<boolean, GitError>(__TAURI_INVOKE("fetch_more", { repo, remote, credential, onProgress })),
+	fetchDepth: (repo: RepoId, remote: string, depth: number, credential: {
+	/**  Used only for URLs of this host: a retry never hands it to another one. */
+	host: string,
+	/**  `None` or blank: `secret` is a token. */
+	username: string | null,
+	secret: string,
+	/**  Kept once a command has succeeded with it. */
+	remember: boolean,
+} | null, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("fetch_depth", { repo, remote, depth, credential, onProgress })),
 	merge: (repo: RepoId, options: MergeOptions) => typedError<null, GitError>(__TAURI_INVOKE("merge", { repo, options })),
 	rebase: (repo: RepoId, options: RebaseOptions) => typedError<null, GitError>(__TAURI_INVOKE("rebase", { repo, options })),
 	skipOperation: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("skip_operation", { repo })),
@@ -289,7 +387,15 @@ export const commands = {
 	branchReflog: (repo: RepoId, branch: string) => typedError<ReflogEntry[], GitError>(__TAURI_INVOKE("branch_reflog", { repo, branch })),
 	restoreBranch: (repo: RepoId, branch: string, oid: string) => typedError<null, GitError>(__TAURI_INVOKE("restore_branch", { repo, branch, oid })),
 	setUpstream: (repo: RepoId, branch: string, upstream: string | null) => typedError<null, GitError>(__TAURI_INVOKE("set_upstream", { repo, branch, upstream })),
-	deleteRemoteBranch: (repo: RepoId, remote: string, branch: string) => typedError<RemoteDeletion, GitError>(__TAURI_INVOKE("delete_remote_branch", { repo, remote, branch })),
+	deleteRemoteBranch: (repo: RepoId, remote: string, branch: string, credential: {
+	/**  Used only for URLs of this host: a retry never hands it to another one. */
+	host: string,
+	/**  `None` or blank: `secret` is a token. */
+	username: string | null,
+	secret: string,
+	/**  Kept once a command has succeeded with it. */
+	remember: boolean,
+} | null) => typedError<RemoteDeletion, GitError>(__TAURI_INVOKE("delete_remote_branch", { repo, remote, branch, credential })),
 	/**  Any entry from the journal, not only the newest (T5.7). */
 	undoEntry: (repo: RepoId, id: number) => typedError<SafetyEntry, GitError>(__TAURI_INVOKE("undo_entry", { repo, id })),
 	/**  The three parts of a stash, read without applying it (T5.2). */
@@ -344,7 +450,15 @@ export const commands = {
 	removeWorktree: (repo: RepoId, path: string, force: boolean) => typedError<null, GitError>(__TAURI_INVOKE("remove_worktree", { repo, path, force })),
 	pruneWorktrees: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("prune_worktrees", { repo })),
 	/**  A folder of Branches: one queued step, each ref reported on its own. */
-	deleteRefs: (repo: RepoId, request: RefDeletion) => typedError<RefDeletionReport, GitError>(__TAURI_INVOKE("delete_refs", { repo, request })),
+	deleteRefs: (repo: RepoId, request: RefDeletion, credential: {
+	/**  Used only for URLs of this host: a retry never hands it to another one. */
+	host: string,
+	/**  `None` or blank: `secret` is a token. */
+	username: string | null,
+	secret: string,
+	/**  Kept once a command has succeeded with it. */
+	remember: boolean,
+} | null) => typedError<RefDeletionReport, GitError>(__TAURI_INVOKE("delete_refs", { repo, request, credential })),
 	/**  Whether a folder git failed to delete is still there, for the follow-up after Remove. */
 	worktreeLeftover: (repo: RepoId, path: string) => typedError<boolean, GitError>(__TAURI_INVOKE("worktree_leftover", { repo, path })),
 	deleteWorktreeLeftover: (repo: RepoId, path: string) => typedError<null, GitError>(__TAURI_INVOKE("delete_worktree_leftover", { repo, path })),
@@ -530,11 +644,19 @@ export const commands = {
 	 *  accepts every send.
 	 */
 	scanForRepositories: (path: string | null, maxDepth: number, onFound: Channel<ScanChunk>) => typedError<number, GitError>(__TAURI_INVOKE("scan_for_repositories", { path, maxDepth, onFound })),
-	/**  `git ls-remote` behind the first page's Next: nothing is written, nobody is asked. */
-	remoteBranches: (source: string, login: {
-	username: string,
-	password: string,
-} | null) => typedError<RemoteBranches, GitError>(__TAURI_INVOKE("remote_branches", { source, login })),
+	/**
+	 *  `git ls-remote` behind the first page's Next: nothing is written, nobody is asked;
+	 *  a refusal carries `authRequired` for the Sign in dialog (F-082).
+	 */
+	remoteBranches: (source: string, credential: {
+	/**  Used only for URLs of this host: a retry never hands it to another one. */
+	host: string,
+	/**  `None` or blank: `secret` is a token. */
+	username: string | null,
+	secret: string,
+	/**  Kept once a command has succeeded with it. */
+	remember: boolean,
+} | null) => typedError<RemoteBranches, GitError>(__TAURI_INVOKE("remote_branches", { source, credential })),
 	cloneDestination: (path: string) => typedError<CloneDestination, GitError>(__TAURI_INVOKE("clone_destination", { path })),
 	/**  What a picked folder is, for the Welcome dialog and its list of recent repositories. */
 	folderKind: (path: string) => typedError<FolderKind, GitError>(__TAURI_INVOKE("folder_kind", { path })),
@@ -542,10 +664,15 @@ export const commands = {
 	initRepository: (path: string) => typedError<string, GitError>(__TAURI_INVOKE("init_repository", { path })),
 	/**  Only a repository URL leaves the clipboard: the rest of it stays out of the page. */
 	clipboardRepositoryUrl: () => typedError<string | null, GitError>(__TAURI_INVOKE("clipboard_repository_url")),
-	cloneRepository: (request: CloneRequest, login: {
-	username: string,
-	password: string,
-} | null, onProgress: Channel<string>) => typedError<string, GitError>(__TAURI_INVOKE("clone_repository", { request, login, onProgress })),
+	cloneRepository: (request: CloneRequest, credential: {
+	/**  Used only for URLs of this host: a retry never hands it to another one. */
+	host: string,
+	/**  `None` or blank: `secret` is a token. */
+	username: string | null,
+	secret: string,
+	/**  Kept once a command has succeeded with it. */
+	remember: boolean,
+} | null, onProgress: Channel<string>) => typedError<string, GitError>(__TAURI_INVOKE("clone_repository", { request, credential, onProgress })),
 	/**
 	 *  Reports only whether a token exists. Reading one back would put it in the webview,
 	 *  where every dependency could see it.
@@ -555,6 +682,12 @@ export const commands = {
 	tokenHost: (url: string) => typedError<string | null, GitError>(__TAURI_INVOKE("token_host", { url })),
 	storeToken: (url: string, token: string) => typedError<null, GitError>(__TAURI_INVOKE("store_token", { url, token })),
 	forgetToken: (url: string) => typedError<null, GitError>(__TAURI_INVOKE("forget_token", { url })),
+	/**  Hosts and usernames Cogit holds a sign-in for; never a secret (F-082). */
+	listCredentials: () => typedError<CredentialList, GitError>(__TAURI_INVOKE("list_credentials")),
+	/**  Preferences ▸ Authentication ▸ Add…: kept without asking the server. */
+	storeCredential: (credential: SignIn) => typedError<null, GitError>(__TAURI_INVOKE("store_credential", { credential })),
+	forgetCredential: (host: string) => typedError<null, GitError>(__TAURI_INVOKE("forget_credential", { host })),
+	forgetAllCredentials: () => typedError<null, GitError>(__TAURI_INVOKE("forget_all_credentials")),
 	listHooks: (repo: RepoId) => typedError<HookOverview, GitError>(__TAURI_INVOKE("list_hooks", { repo })),
 	readHook: (repo: RepoId, name: string) => typedError<string, GitError>(__TAURI_INVOKE("read_hook", { repo, name })),
 	writeHook: (repo: RepoId, name: string, body: string) => typedError<null, GitError>(__TAURI_INVOKE("write_hook", { repo, name, body })),
@@ -686,6 +819,12 @@ export type AppInfo = {
 	/**  Entries of the pre-rename app folder that stayed behind, for the main window to tell. */
 	legacyNote: string | null,
 	displays: DisplayInfo[],
+};
+
+/**  The host an HTTPS remote wants a sign-in for, and the username last tried there. */
+export type AuthRequired = {
+	host: string,
+	username: string | null,
 };
 
 export type Author = {
@@ -1053,6 +1192,17 @@ export type ContextItem = {
 	children?: ContextItem[],
 };
 
+export type CredentialList = {
+	/**  `false`: no OS credential store, so a sign-in lasts until Cogit exits. */
+	persistent: boolean,
+	known: KnownCredential[],
+};
+
+/**  How a network command's credential step ended, read off git's own words. */
+export type CredentialTrouble = 
+/**  Git Credential Manager's window was closed. */
+"canceled" | "noPrompt" | "refused";
+
 /**  Where Go Deeper continues: the source's version, file and the picked line in it. */
 export type DeeperTarget = {
 	rev: string,
@@ -1389,6 +1539,11 @@ export type GitCommandError = {
 	operation: string,
 	/**  One line over the output, never instead of it. */
 	summary: string,
+	/**
+	 *  The remote turned down the credentials, or none could be asked for: Cogit asks for
+	 *  them and runs the command again. Set by whoever knows which host it was.
+	 */
+	authRequired: AuthRequired | null,
 };
 
 export type GitError = 
@@ -1440,6 +1595,8 @@ export type GitOutput = {
 	 *  journaled as git said it, but no error notice.
 	 */
 	answered: boolean,
+	/**  How the credential step of a failed run ended, if git said (F-082). */
+	credentialTrouble: CredentialTrouble | null,
 };
 
 /**  What `git --version` said for a program chosen in Preferences. */
@@ -1626,6 +1783,12 @@ export type KeyBinding = {
 	defaultAccelerator: string | null,
 };
 
+/**  A host Cogit holds a sign-in for. Never the secret: that stays in the keyring. */
+export type KnownCredential = {
+	host: string,
+	username: string | null,
+};
+
 /**  A file `.gitattributes` puts in Git LFS; `lock` is the owner from the local lock cache. */
 export type LfsFileState = {
 	path: string,
@@ -1667,12 +1830,6 @@ export type LineVersion = {
 	/**  Where the line stood in that version, from 1. */
 	line: number,
 	text: string,
-};
-
-/**  Asked for after git's own credential helper could not answer. */
-export type Login = {
-	username: string,
-	password: string,
 };
 
 /**  `segments[segment]` is one stub of a cut link; `oid` is the commit at its other end. */
@@ -2358,6 +2515,17 @@ export type Shape = {
 	bom: boolean,
 	eol: Eol,
 	finalNewline: boolean,
+};
+
+/**  What the Sign in dialog sends with a retry, and Preferences ▸ Authentication ▸ Add…. */
+export type SignIn = {
+	/**  Used only for URLs of this host: a retry never hands it to another one. */
+	host: string,
+	/**  `None` or blank: `secret` is a token. */
+	username: string | null,
+	secret: string,
+	/**  Kept once a command has succeeded with it. */
+	remember: boolean,
 };
 
 export type Signature = {

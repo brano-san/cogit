@@ -329,15 +329,15 @@ impl RepoHandle {
         &self,
         remote: &str,
         options: FetchOptions,
-        token: impl Fn(&str) -> Option<String>,
+        credential: impl Fn(&str) -> Option<crate::Credential>,
         mut on_line: impl FnMut(&str),
     ) -> Result<NotesFetch> {
         let notes = if options.notes {
-            self.fetch_notes(remote, &token, &mut on_line)?
+            self.fetch_notes(remote, &credential, &mut on_line)?
         } else {
             NotesFetch::default()
         };
-        let auth = self.auth_for_fetch(remote, &token);
+        let auth = self.auth_for_fetch(remote, &credential);
         self.stream(&auth, &fetch_args(remote, options.tags), &mut on_line)?;
         Ok(notes)
     }
@@ -350,15 +350,15 @@ impl RepoHandle {
         &self,
         remote: &str,
         options: PullOptions,
-        token: impl Fn(&str) -> Option<String>,
+        credential: impl Fn(&str) -> Option<crate::Credential>,
         mut on_line: impl FnMut(&str),
     ) -> Result<Pulled> {
         let notes = if options.fetch.notes {
-            self.fetch_notes(remote, &token, &mut on_line)?
+            self.fetch_notes(remote, &credential, &mut on_line)?
         } else {
             NotesFetch::default()
         };
-        let auth = self.auth_for_fetch(remote, &token);
+        let auth = self.auth_for_fetch(remote, &credential);
         if !options.autostash && self.has_tracked_changes()? {
             self.stream(&auth, &fetch_args(remote, options.fetch.tags), &mut on_line)?;
             let stash_needed = self.head_behind() != Some(0);
@@ -397,10 +397,10 @@ impl RepoHandle {
     pub fn push_options(
         &self,
         options: &PushOptions,
-        token: impl Fn(&str) -> Option<String>,
+        credential: impl Fn(&str) -> Option<crate::Credential>,
         mut on_line: impl FnMut(&str),
     ) -> Result<PushOutcome> {
-        let auth = self.auth_for_push(&options.remote, &token);
+        let auth = self.auth_for_push(&options.remote, &credential);
         let args = push_args(options);
         let args: Vec<&str> = args.iter().map(String::as_str).collect();
         match self.stream(&auth, &args, &mut on_line) {
@@ -423,10 +423,10 @@ impl RepoHandle {
     pub fn push_dry_run(
         &self,
         options: &PushOptions,
-        token: impl Fn(&str) -> Option<String>,
+        credential: impl Fn(&str) -> Option<crate::Credential>,
         mut on_line: impl FnMut(&str),
     ) -> Result<crate::GitOutput> {
-        let auth = self.auth_for_push(&options.remote, &token);
+        let auth = self.auth_for_push(&options.remote, &credential);
         let args = push_dry_run_args(options);
         let args: Vec<&str> = args.iter().map(String::as_str).collect();
         self.run_streaming_recorded(&args, &auth, &mut on_line)
@@ -437,7 +437,7 @@ impl RepoHandle {
     pub fn push_notes(
         &self,
         remote: &str,
-        token: impl Fn(&str) -> Option<String>,
+        credential: impl Fn(&str) -> Option<crate::Credential>,
         mut on_line: impl FnMut(&str),
     ) -> Result<PushOutcome> {
         if self.refs_under(LOCAL_NOTES).is_empty() {
@@ -445,7 +445,7 @@ impl RepoHandle {
                 notes_rejected: None,
             });
         }
-        let auth = self.auth_for_push(remote, &token);
+        let auth = self.auth_for_push(remote, &credential);
         let args = ["push", "--progress", remote, NOTES_REFSPEC];
         match self.stream(&auth, &args, &mut on_line) {
             Ok(()) => self.mirror_notes(remote),
@@ -475,10 +475,10 @@ impl RepoHandle {
     pub fn fetch_notes(
         &self,
         remote: &str,
-        token: &impl Fn(&str) -> Option<String>,
+        credential: &impl Fn(&str) -> Option<crate::Credential>,
         on_line: &mut impl FnMut(&str),
     ) -> Result<NotesFetch> {
-        let auth = self.auth_for_fetch(remote, token);
+        let auth = self.auth_for_fetch(remote, credential);
         let mirror = notes_mirror(remote);
         let spec = format!("+{LOCAL_NOTES}*:{mirror}*");
         self.stream(&auth, &["fetch", "--progress", remote, &spec], on_line)?;
@@ -569,12 +569,12 @@ impl RepoHandle {
     pub fn push_tags_preview(
         &self,
         options: &PushOptions,
-        token: impl FnOnce(&str) -> Option<String>,
+        credential: impl FnOnce(&str) -> Option<crate::Credential>,
     ) -> Result<Vec<String>> {
         if options.tags == TagsMode::None {
             return Ok(Vec::new());
         }
-        let auth = self.auth_env(&options.remote, gix::remote::Direction::Push, token);
+        let auth = self.auth_env(&options.remote, gix::remote::Direction::Push, credential);
         let refusal = crate::pulse::askpass_refusal(self.has_own_ssh_command());
         let mut env = crate::pulse::quiet_env(&refusal);
         env.extend(
@@ -597,9 +597,9 @@ impl RepoHandle {
     pub fn push_atomic_support(
         &self,
         options: &PushOptions,
-        token: impl FnOnce(&str) -> Option<String>,
+        credential: impl FnOnce(&str) -> Option<crate::Credential>,
     ) -> Result<Option<bool>> {
-        let auth = self.auth_env(&options.remote, gix::remote::Direction::Push, token);
+        let auth = self.auth_env(&options.remote, gix::remote::Direction::Push, credential);
         let refusal = crate::pulse::askpass_refusal(self.has_own_ssh_command());
         let mut env = crate::pulse::quiet_env(&refusal);
         env.extend(
@@ -749,17 +749,17 @@ impl RepoHandle {
     fn auth_for_fetch(
         &self,
         remote: &str,
-        token: &impl Fn(&str) -> Option<String>,
+        credential: &impl Fn(&str) -> Option<crate::Credential>,
     ) -> Vec<(String, String)> {
-        self.auth_env(remote, gix::remote::Direction::Fetch, token)
+        self.auth_env(remote, gix::remote::Direction::Fetch, credential)
     }
 
     fn auth_for_push(
         &self,
         remote: &str,
-        token: &impl Fn(&str) -> Option<String>,
+        credential: &impl Fn(&str) -> Option<crate::Credential>,
     ) -> Vec<(String, String)> {
-        self.auth_env(remote, gix::remote::Direction::Push, token)
+        self.auth_env(remote, gix::remote::Direction::Push, credential)
     }
 
     fn stream(

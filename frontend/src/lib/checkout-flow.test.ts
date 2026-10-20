@@ -22,6 +22,7 @@ function refused(stderr: string): CogitError {
       stderr,
       operation: "switch",
       summary: "",
+      authRequired: null,
     },
   });
 }

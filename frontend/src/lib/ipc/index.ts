@@ -7,6 +7,7 @@ import { counted } from "$lib/listener-count";
 import { webMenus } from "$stores/web-menus.svelte";
 import { GIT_NOT_FOUND_HINT } from "$lib/git-missing";
 import type {
+  SignIn,
   Author,
   ErrorAction,
   ErrorEntry,
@@ -55,6 +56,11 @@ import type {
 } from "./bindings";
 
 export type {
+  AuthRequired,
+  CredentialList,
+  CredentialTrouble,
+  KnownCredential,
+  SignIn,
   ErrorAction,
   PullOutcome,
   Pushed,
@@ -488,8 +494,8 @@ export async function setUpstream(repo: RepoId, branch: string, upstream: string
   return unwrap(await commands.setUpstream(repo, branch, upstream));
 }
 
-export async function deleteRemoteBranch(repo: RepoId, remote: string, branch: string) {
-  return unwrap(await commands.deleteRemoteBranch(repo, remote, branch));
+export async function deleteRemoteBranch(repo: RepoId, remote: string, branch: string, credential: SignIn | null = null) {
+  return unwrap(await commands.deleteRemoteBranch(repo, remote, branch, credential));
 }
 
 /** Fires when the watcher sees the repository change on disk; returns an unlisten fn. */
@@ -824,8 +830,8 @@ function progressChannel(onLine: (line: string) => void) {
   return channel;
 }
 
-export async function fetchRemote(repo: RepoId, remote: string, onLine: (line: string) => void) {
-  return unwrap(await commands.fetch(repo, remote, progressChannel(onLine)));
+export async function fetchRemote(repo: RepoId, remote: string, onLine: (line: string) => void, credential: SignIn | null = null) {
+  return unwrap(await commands.fetch(repo, remote, credential, progressChannel(onLine)));
 }
 
 export async function pullRemote(
@@ -834,8 +840,9 @@ export async function pullRemote(
   ffOnly: boolean,
   autostash: boolean,
   onLine: (line: string) => void,
+  credential: SignIn | null = null,
 ) {
-  return unwrap(await commands.pull(repo, remote, ffOnly, autostash, progressChannel(onLine)));
+  return unwrap(await commands.pull(repo, remote, ffOnly, autostash, credential, progressChannel(onLine)));
 }
 
 export async function pushRemote(
@@ -843,8 +850,9 @@ export async function pushRemote(
   remote: string,
   force: boolean,
   onLine: (line: string) => void,
+  credential: SignIn | null = null,
 ) {
-  return unwrap(await commands.push(repo, remote, force, progressChannel(onLine)));
+  return unwrap(await commands.push(repo, remote, force, credential, progressChannel(onLine)));
 }
 
 export async function createTag(repo: RepoId, request: TagRequest) {
@@ -855,8 +863,8 @@ export async function deleteTag(repo: RepoId, name: string) {
   return unwrap(await commands.deleteTag(repo, name));
 }
 
-export async function deleteRemoteTag(repo: RepoId, remote: string, name: string) {
-  return unwrap(await commands.deleteRemoteTag(repo, remote, name));
+export async function deleteRemoteTag(repo: RepoId, remote: string, name: string, credential: SignIn | null = null) {
+  return unwrap(await commands.deleteRemoteTag(repo, remote, name, credential));
 }
 
 export async function listStashes(repo: RepoId) {
@@ -1285,8 +1293,8 @@ export async function rangeDiff(repo: RepoId, before: string, after: string) {
   return unwrap(await commands.rangeDiff(repo, before, after));
 }
 
-export async function deleteRefs(repo: RepoId, request: import("./bindings").RefDeletion) {
-  return unwrap(await commands.deleteRefs(repo, request));
+export async function deleteRefs(repo: RepoId, request: import("./bindings").RefDeletion, credential: SignIn | null = null) {
+  return unwrap(await commands.deleteRefs(repo, request, credential));
 }
 
 export async function worktreeLeftover(repo: RepoId, path: string) {
