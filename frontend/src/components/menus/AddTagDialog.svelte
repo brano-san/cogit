@@ -2,6 +2,7 @@
   import { shortOid } from "$lib/format";
   import { refNameField } from "$lib/names";
   import Dialog from "$components/common/Dialog.svelte";
+  import Select from "$components/common/Select.svelte";
   import { tagNameHint } from "$lib/tag-dialog";
 
   /** #6: name, annotation and the commit the tag lands on, visible before it is made. */
@@ -11,24 +12,30 @@
     taken: readonly string[];
     /** `git check-ref-format` and the taken check, asked once on submit. */
     check: (name: string) => Promise<string | null>;
-    onadd: (name: string, message: string) => Promise<void>;
+    /** `push`: the remote Add Tag & Push sends the tag to; null for Add Tag. */
+    onadd: (name: string, message: string, push: string | null) => Promise<void>;
+    remotes: readonly string[];
+    /** The remote that decides itself (`tagPushRemote`); null asks with "Push to". */
+    pushRemote: string | null;
     onclose: () => void;
   }
 
-  let { oid, subject, taken, check, onadd, onclose }: Props = $props();
+  let { oid, subject, taken, check, onadd, remotes, pushRemote, onclose }: Props = $props();
 
   let name = $state("");
   let message = $state("");
   let touched = $state(false);
   let refused = $state<{ name: string; problem: string } | null>(null);
   let busy = $state(false);
+  // svelte-ignore state_referenced_locally
+  let pushTo = $state(pushRemote ?? remotes[0] ?? "");
   let field: HTMLInputElement | undefined = $state();
 
   const hint = $derived(tagNameHint(name, taken));
   const problem = $derived(refused?.name === name ? refused.problem : hint);
   const kind = $derived(message.trim() === "" ? "lightweight" : "annotated");
 
-  async function submit() {
+  async function submit(push: string | null = null) {
     touched = true;
     if (hint !== null || busy) return;
     busy = true;
@@ -38,7 +45,7 @@
         refused = { name, problem: said };
         return;
       }
-      await onadd(name, message);
+      await onadd(name, message, push);
     } finally {
       busy = false;
     }
@@ -88,11 +95,32 @@
           : "A lightweight tag: only a name pointing at the commit."}
       </span>
     </label>
+
+    {#if pushRemote === null && remotes.length > 1}
+      <div class="field">
+        <span class="caption">Push to</span>
+        <Select
+          value={pushTo}
+          label="Push to"
+          options={remotes.map((remote) => [remote, remote] as const)}
+          onchange={(next) => (pushTo = next)}
+        />
+      </div>
+    {/if}
   </div>
 
   {#snippet footer()}
     <span class="grow"></span>
     <button type="button" class="btn" onclick={onclose}>Cancel</button>
+    <button
+      type="button"
+      class="btn"
+      disabled={hint !== null || busy || pushTo === ""}
+      title={pushTo === "" ? "This repository has no remote to push the tag to." : `Add the tag, then push it to '${pushTo}'`}
+      onclick={() => void submit(pushTo)}
+    >
+      Add Tag &amp; Push
+    </button>
     <button type="button" class="btn primary" disabled={hint !== null || busy} onclick={() => void submit()}>
       {busy ? "Adding…" : "Add Tag"}
     </button>

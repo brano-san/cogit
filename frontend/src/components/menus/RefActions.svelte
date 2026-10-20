@@ -81,7 +81,8 @@
   import { publishedOrAssume } from "$lib/published";
   import { resetChoice } from "$lib/reset-modes";
   import { baseBefore, fullMessage, modifyPlan, rewordPlan, squashPlan } from "$lib/rewrite-plans";
-  import { tagRequest } from "$lib/tag-dialog";
+  import { tagPushRemote, tagRequest } from "$lib/tag-dialog";
+  import { successToast } from "$stores/success-toast.svelte";
   import { branchRevision, headPushSource } from "$lib/toolbar";
   import { branchNameProblem, textProblem } from "$lib/names";
   import { notedCommitsStore } from "$stores/noted-commits.svelte";
@@ -767,18 +768,36 @@
     await attempt("Could not add the branch", () => createBranch(id, name, oid, false));
   }
 
-  async function createTagFrom(name: string, message: string) {
+  async function createTagFrom(name: string, message: string, remote: string | null) {
     const id = repoId();
     const dialog = refDialogs.tag;
     if (!id || !dialog) return;
+    const request = tagRequest(name, message, dialog.oid);
     try {
-      await createTag(id, tagRequest(name, message, dialog.oid));
+      await createTag(id, request);
     } catch (err) {
       errors.report(err, "Could not add the tag");
       return;
     }
     refDialogs.tag = null;
-    await afterRefChange();
+    if (remote === null) {
+      await afterRefChange();
+      return;
+    }
+    // A refused push keeps the local tag: it was made, only publishing it failed.
+    const ref = `refs/tags/${request.name}`;
+    const pushed = await attempt(`Added tag '${request.name}', could not push it to '${remote}'`, () =>
+      network.run(id, "Pushing", (onLine) => pushTo(id, remote, `${ref}:${ref}`, false, onLine)),
+    );
+    if (pushed) successToast.show(`Pushed tag '${request.name}' to ${remote}`);
+  }
+
+  /** The upstream of HEAD's branch, which picks the remote a new tag is pushed to. */
+  function headUpstream(): string | null {
+    const summary = repository.current;
+    const head = summary?.head;
+    if (head?.kind !== "branch") return null;
+    return summary?.branches.find((entry) => entry.kind === "local" && entry.name === head.name)?.upstream ?? null;
   }
 
   async function checkTagName(name: string): Promise<string | null> {
@@ -1058,6 +1077,8 @@
     taken={(repository.current?.tags ?? []).map((tag) => tag.name)}
     check={checkTagName}
     onadd={createTagFrom}
+    remotes={network.remotes}
+    pushRemote={tagPushRemote(network.remotes, headUpstream())}
     onclose={() => (refDialogs.tag = null)}
   />
 {/if}
