@@ -288,9 +288,14 @@ export function changeSteps(starts: readonly number[], top: number, bottom: numb
   return (starts[at] ?? 0) >= top ? stepsAround(at) : { prev: at, next: at + 1 };
 }
 
-/** The first row a diff opens at: its first change where Next Change would put it. */
-export function openingRow(starts: readonly number[], lead: number): number {
-  return Math.max((starts[0] ?? 0) - lead, 0);
+/** The rows a revealed change keeps above it: a third of the view, never fewer than `lead`. */
+export function revealLead(viewportHeight: number, rowHeight: number, lead: number): number {
+  return Math.max(lead, Math.floor(viewportHeight / rowHeight / 3));
+}
+
+/** The scroll offset that puts display row `row` `lead` rows below the top of the view. */
+export function revealTop(row: number, lead: number, rowHeight: number): number {
+  return Math.max(row - lead, 0) * rowHeight;
 }
 
 export function navState(count: number, steps: ChangeSteps): { prev: boolean; next: boolean } {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildBlocks, changeRow, changes, hunkKeys } from "./diff-blocks";
+import { alignModel } from "./diff-aligned";
+import { buildBlocks, changeRow, changeRows, changes, hunkKeys } from "./diff-blocks";
 import type { FoldEntry, Gap } from "./diff-fold";
 import type { DiffRow } from "./ipc";
 import { budget } from "./perf-budget";
@@ -144,5 +145,53 @@ describe("indentation-only change (R-626)", () => {
     expect((on.right[0] as { inline: unknown }).inline).toEqual([[0, 4]]);
     const off = buildBlocks(entries, { indent: false });
     expect((off.right[0] as { inline: unknown }).inline).toEqual([]);
+  });
+});
+
+// The first change at line ~1500 opened at ~1450: each pane has to be scrolled by its own
+// row of the change, filler, fold and inserted rows above it counted.
+describe("changeRows", () => {
+  const at = (entries: FoldEntry[], aligned = false) => {
+    const built = buildBlocks(entries);
+    const model = aligned ? alignModel(built) : built;
+    return changes(model).map((change) => changeRows(model, change));
+  };
+
+  it("puts a change on the first line at row 0 of every list", () => {
+    expect(at(rows(del(1), ins(1), ctx(2, 2)))[0]).toEqual({ left: 0, right: 0, unified: 0 });
+  });
+
+  it("counts lines inserted above on the right and in unified, not on the compact left", () => {
+    const entries: DiffRow[] = [];
+    for (let n = 1; n <= 99; n++) entries.push(ctx(n, n));
+    for (let n = 100; n <= 159; n++) entries.push(ins(n));
+    for (let n = 100; n <= 1499; n++) entries.push(ctx(n, n + 60));
+    entries.push(del(1500), ins(1560), ctx(1501, 1561));
+    const [, last] = at(rows(...entries));
+    expect(last).toEqual({ left: 1499, right: 1559, unified: 1559 });
+    // Aligned: the 60 filler rows on the left put both sides on one row.
+    const [, aligned] = at(rows(...entries), true);
+    expect(aligned?.left).toBe(1559);
+    expect(aligned?.right).toBe(1559);
+  });
+
+  it("counts a fold as one row", () => {
+    const [change] = at([...rows(ctx(1, 1)), gap(2, 1400, 2), ...rows(del(1401), ins(1401), ctx(1402, 1402))]);
+    expect(change).toEqual({ left: 2, right: 2, unified: 2 });
+  });
+
+  it("finds a change on the last line", () => {
+    const entries: DiffRow[] = [];
+    for (let n = 1; n <= 30; n++) entries.push(ctx(n, n));
+    entries.push(del(31));
+    expect(at(rows(...entries))[0]).toEqual({ left: 30, right: 30, unified: 30 });
+  });
+
+  it("agrees with the row a jump used to scroll", () => {
+    const model = buildBlocks(rows(ctx(1, 1), del(2), ins(2), ctx(3, 3), ins(4), ctx(4, 5)));
+    for (const change of changes(model)) {
+      expect(changeRows(model, change).left).toBe(changeRow(model, change, false));
+      expect(changeRows(model, change).unified).toBe(changeRow(model, change, true));
+    }
   });
 });

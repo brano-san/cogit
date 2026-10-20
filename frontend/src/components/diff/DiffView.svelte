@@ -12,10 +12,11 @@
   import { diffEdit } from "$stores/diff-edit.svelte";
   import type { SearchRow } from "$lib/diff-rows";
   import { diffTokens, paneTokens, unifiedTokens } from "$lib/diff-highlight";
-  import { FLASH_MS, changeSteps, foldDiff, missingLines, navState, openingRow, revealRange, stepsAround, type ChangeSteps, type Gap, type LineRange } from "$lib/diff-fold";
+  import { FLASH_MS, changeSteps, foldDiff, missingLines, navState, revealLead, revealRange, revealTop, stepsAround, type ChangeSteps, type Gap, type LineRange } from "$lib/diff-fold";
   import {
     buildBlocks,
     changeRow,
+    changeRows,
     changes,
     hunkKeys,
     type Block,
@@ -162,8 +163,13 @@
   let viewportHeight = $state(0);
   /** Where the arrows and F6 step to (#13): above the first change, Next goes to it. */
   let steps = $state<ChangeSteps>({ prev: -1, next: 0 });
-  /** Set while a jump's own scroll is in flight, so it does not re-derive `steps`. */
-  let jumping = false;
+  /** The change a jump or an opening put on screen, held in rows and put back every frame
+      until the layout settles: an editor that measures its lines a frame late, a whole file
+      that loads after the hunks, or a pane that ends before the change moved it (R-773).
+      Cleared by the user's own wheel, pointer or key, or after `REVEAL_MS`. */
+  let revealing: { index: number; until: number } | null = null;
+  const REVEAL_MS = 1000;
+  const lead = $derived(revealLead(viewportHeight, ROW_HEIGHT, LEAD));
   /** Lines the user opened out of the folds, by old line number (#16). */
   let revealed = $state<LineRange[]>([]);
   /** Every line open: Ctrl+click on a fold, and the whole file, which keeps the strips (R-748). */
@@ -394,9 +400,10 @@
     if (side === "left") lTop = el.scrollTop;
     else rTop = el.scrollTop;
     if (guard.echo(side, el.scrollTop)) return;
+    // A pane clamped by a layout still settling must not drag the other one off the change.
+    if (revealing) return;
     sync(side);
-    if (jumping) jumping = false;
-    else settle();
+    settle();
   }
 
   /** The wheel over the gutter: one delta, both panes (each stops at its own end). */
@@ -519,25 +526,62 @@
   function settle() {
     const top = Math.floor(navTop / ROW_HEIGHT);
     const bottom = Math.floor((navTop + viewportHeight) / ROW_HEIGHT) - 1;
-    steps = changeSteps(starts, top, bottom, LEAD);
+    steps = changeSteps(starts, top, bottom, lead);
+  }
+
+  /** Change `index` `lead` rows below the top of every pane, each at its own row. */
+  function placeChange(index: number) {
+    const change = changeList[index];
+    if (!change) return;
+    const rows = changeRows(model, change);
+    if (mode === "unified") {
+      if (unifiedEl) unifiedEl.scrollTop = revealTop(rows.unified, lead, ROW_HEIGHT);
+      return;
+    }
+    for (const [side, el, row] of [
+      ["left", leftEl, rows.left],
+      ["right", rightEl, rows.right],
+    ] as const) {
+      if (!el) continue;
+      const top = revealTop(row, lead, ROW_HEIGHT);
+      if (guard.write(side, el.scrollTop, top)) el.scrollTop = top;
+    }
+  }
+
+  function reveal(index: number) {
+    const held = { index, until: performance.now() + REVEAL_MS };
+    revealing = held;
+    steps = stepsAround(index);
+    placeChange(index);
+    const again = () => {
+      if (revealing !== held) return;
+      if (performance.now() > held.until) {
+        revealing = null;
+        return;
+      }
+      placeChange(index);
+      requestAnimationFrame(again);
+    };
+    requestAnimationFrame(again);
+  }
+
+  /** The user's own scroll ends a reveal still being held; a key the diff took (a jump, in
+      the window's capture phase) does not. */
+  function release(event: Event) {
+    if (!event.defaultPrevented) revealing = null;
   }
 
   function jump(delta: number) {
     const target = delta < 0 ? steps.prev : steps.next;
-    const el = mode === "unified" ? unifiedEl : leftEl;
-    if (!el || target < 0 || target >= starts.length) return;
-    const before = el.scrollTop;
-    el.scrollTop = Math.max((starts[target] ?? 0) - LEAD, 0) * ROW_HEIGHT;
-    jumping = el.scrollTop !== before;
-    steps = stepsAround(target);
+    if (target < 0 || target >= starts.length) return;
+    reveal(target);
     flashChange(target);
   }
 
   function onunified() {
     if (!unifiedEl) return;
     uTop = unifiedEl.scrollTop;
-    if (jumping) jumping = false;
-    else settle();
+    if (!revealing) settle();
   }
 
   /** Listens in the capture phase, ahead of the main window's own F6: a key the diff takes
@@ -603,7 +647,8 @@
     void leftEl;
     void rightEl;
     untrack(() => {
-      if (mode === "split") sync(editor ? "right" : "left");
+      if (revealing) placeChange(revealing.index);
+      else if (mode === "split") sync(editor ? "right" : "left");
     });
   });
 
@@ -616,6 +661,7 @@
     pendingDiscard = null;
     sideways = 0;
     flash = null;
+    revealing = null;
     for (const el of [unifiedEl, leftEl, rightEl]) if (el) el.scrollTop = 0;
     opening = true;
   });
@@ -628,7 +674,7 @@
     const el = mode === "unified" ? unifiedEl : leftEl;
     if (!opening || !el) return;
     opening = false;
-    el.scrollTop = openingRow(starts, LEAD) * ROW_HEIGHT;
+    if (starts.length > 0) untrack(() => reveal(0));
   });
 
   $effect(() => () => clearTimeout(flashTimer));
@@ -866,7 +912,7 @@
   </div>
 {/snippet}
 
-<div class="diff">
+<div class="diff" onwheelcapture={release} onpointerdowncapture={release} onkeydowncapture={release}>
   <div class="bar">
     {#if showPath}<span class="path mono truncate">{path}{dirty ? " *" : ""}</span>{:else}<span class="grow"></span>{/if}
     {#if diff.kind === "text"}
