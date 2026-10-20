@@ -20,6 +20,7 @@ const binding = (id: string, keys: string | null, section = "Query"): KeyBinding
   label: id,
   section,
   defaultAccelerator: keys,
+  onBar: true,
 });
 
 const DEFAULTS = [

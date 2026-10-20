@@ -227,11 +227,16 @@ const OFF_THE_BAR: &[(&str, &[Entry])] = &[
     ),
 ];
 
-fn keyed(section: &str, entries: &'static [Entry]) -> Vec<&'static Entry> {
-    let mut all = leaves(entries);
+/// The section's items, each with whether the bar shows it: one off the bar has no native
+/// accelerator outside Windows, so the page claims its key there (`pageAccelerator`).
+fn keyed(section: &str, entries: &'static [Entry]) -> Vec<(&'static Entry, bool)> {
+    let mut all: Vec<_> = leaves(entries)
+        .into_iter()
+        .map(|entry| (entry, true))
+        .collect();
     for (owner, extra) in OFF_THE_BAR {
         if *owner == section {
-            all.extend(leaves(extra));
+            all.extend(leaves(extra).into_iter().map(|entry| (entry, false)));
         }
     }
     all
@@ -246,13 +251,15 @@ pub struct KeyBinding {
     pub section: String,
     /// What the menu ships with; the user's override lives in settings, not here.
     pub default_accelerator: Option<String>,
+    /// On the menu bar, so the native menu takes its key; false for an `OFF_THE_BAR` command.
+    pub on_bar: bool,
 }
 
 #[must_use]
 pub fn default_keymap() -> Vec<KeyBinding> {
     let mut rows = Vec::new();
     for (section, entries) in SECTIONS {
-        for entry in keyed(section, entries) {
+        for (entry, on_bar) in keyed(section, entries) {
             let (id, label, accelerator) = match entry {
                 Entry::Item(id, label, keys) | Entry::Check(id, label, keys) => (id, label, keys),
                 Entry::Separator | Entry::Nested(..) => continue,
@@ -262,6 +269,7 @@ pub fn default_keymap() -> Vec<KeyBinding> {
                 label: (*label).to_owned(),
                 section: (*section).to_owned(),
                 default_accelerator: accelerator.map(str::to_owned),
+                on_bar,
             });
         }
     }
@@ -277,7 +285,7 @@ pub fn default_keymap() -> Vec<KeyBinding> {
 pub fn default_keymap_pairs() -> Vec<(&'static str, Option<&'static str>)> {
     let mut rows = Vec::new();
     for (section, entries) in SECTIONS {
-        for entry in keyed(section, entries) {
+        for (entry, _) in keyed(section, entries) {
             if let Entry::Item(id, _, keys) | Entry::Check(id, _, keys) = entry {
                 rows.push((*id, *keys));
             }
@@ -966,6 +974,90 @@ mod edit_tests {
         assert!(
             EDIT.iter()
                 .any(|entry| matches!(entry, Entry::Item("settings", "Preferences…", _)))
+        );
+    }
+}
+
+#[cfg(test)]
+mod accelerator_tests {
+    use super::*;
+
+    /// Every `.ts` and `.svelte` file of the page but tests and the generated bindings.
+    fn page_sources() -> String {
+        fn walk(dir: &std::path::Path, out: &mut String) {
+            for entry in std::fs::read_dir(dir)
+                .expect("frontend/src is readable")
+                .flatten()
+            {
+                let path = entry.path();
+                let name = path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("");
+                if path.is_dir() {
+                    walk(&path, out);
+                } else if (name.ends_with(".ts") || name.ends_with(".svelte"))
+                    && !name.contains(".test.")
+                    && name != "bindings.ts"
+                {
+                    out.push_str(&std::fs::read_to_string(&path).unwrap_or_default());
+                }
+            }
+        }
+        let mut out = String::new();
+        walk(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../frontend/src"),
+            &mut out,
+        );
+        out
+    }
+
+    // Ctrl+K ran nothing under Linux: it lived only in the WebView2 hook. Each key of the
+    // keymap has to reach a command on every platform and the page has to answer the id.
+    #[test]
+    fn every_accelerator_reaches_a_command_the_page_runs() {
+        let page = page_sources();
+        let table = crate::accelerators::table(default_keymap_pairs(), &HashMap::new());
+        let native = ["copy-diagnostics", "reset-window-position"];
+        let mut unhandled = Vec::new();
+        for row in default_keymap() {
+            let Some(keys) = row.default_accelerator.as_deref() else {
+                continue;
+            };
+            // Windows: the hook claims the key and dispatches its id.
+            let chord = crate::accelerators::parse(keys)
+                .unwrap_or_else(|| panic!("{}: {keys} does not parse", row.id));
+            assert_eq!(
+                table.get(&chord),
+                Some(&row.id),
+                "{keys} claims another command"
+            );
+            // Elsewhere: the bar's native item, or the page (`pageCommand`) for one off it.
+            let off_the_bar = OFF_THE_BAR
+                .iter()
+                .flat_map(|(_, entries)| leaves(entries))
+                .any(|entry| matches!(entry, Entry::Item(id, ..) if *id == row.id));
+            assert_eq!(row.on_bar, !off_the_bar, "{}", row.id);
+            if native.contains(&row.id.as_str()) {
+                continue;
+            }
+            let quoted = [
+                format!("\"{}\"", row.id),
+                format!("'{}'", row.id),
+                format!("`{}`", row.id),
+            ];
+            // `panel-${panel}`: a family of ids built from one template.
+            let templated = row
+                .id
+                .match_indices('-')
+                .any(|(at, _)| page.contains(&format!("`{}-${{", &row.id[..at])));
+            if !templated && !quoted.iter().any(|literal| page.contains(literal.as_str())) {
+                unhandled.push(row.id);
+            }
+        }
+        assert!(
+            unhandled.is_empty(),
+            "the page has no handler for {unhandled:?}"
         );
     }
 }

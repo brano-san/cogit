@@ -1623,6 +1623,8 @@ export type KeyBinding = {
 	section: string,
 	/**  What the menu ships with; the user's override lives in settings, not here. */
 	defaultAccelerator: string | null,
+	/**  On the menu bar, so the native menu takes its key; false for an `OFF_THE_BAR` command. */
+	onBar: boolean,
 };
 
 /**  A file `.gitattributes` puts in Git LFS; `lock` is the owner from the local lock cache. */

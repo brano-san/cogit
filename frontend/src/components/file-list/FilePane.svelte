@@ -5,6 +5,7 @@
   export interface PaneAction {
     label: string;
     title: string;
+    shortcut?: string;
     run: (request: ActionRequest) => void;
     /** Why the action does not apply to a row's file (`rowActionBlocked`, `scopeBlocked`):
         the rule of the Files menu, kept for the heading's buttons (R-593). */
@@ -169,6 +170,7 @@
           class:off={reason !== null}
           aria-disabled={reason !== null}
           title={reason ?? `${action.title} — all`}
+          data-tip-hint={reason === null ? action.shortcut : undefined}
           onclick={() => {
             if (reason === null) action.run({ all: paths });
           }}>{action.label} all</button

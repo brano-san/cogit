@@ -902,6 +902,11 @@ export function unwrap<T>(result: { status: "ok"; data: T } | { status: "error";
   return result.data;
 }
 
+/** Runs a menu command by id the way a native menu event does (`dispatch_menu_command`). */
+export async function runMenuCommand(id: string) {
+  return await commands.menuCommand(id);
+}
+
 /** Fires when a native menu item is chosen; the payload is a palette command id. */
 export async function onMenuCommand(handler: (id: string) => void) {
   return await counted(events.menuCommand.listen((event) => handler(event.payload)));

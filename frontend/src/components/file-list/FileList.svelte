@@ -48,6 +48,8 @@
   interface Action {
     label: string;
     title: string;
+    /** The keys of the menu command that does the same, for the tip. */
+    shortcut?: string;
     run: (paths: string[]) => void;
     /** Why it does not apply to one row's file (`rowActionBlocked`). */
     blocked?: (file: FileEntry) => string | null;
@@ -284,6 +286,7 @@
       return {
         label: action.label,
         title: action.title,
+        shortcut: action.shortcut,
         run: (request) => action.run(actionScope(marked(), request)),
         ...(blocked
           ? {

@@ -118,7 +118,8 @@
   import { undoRewriteQuestion } from "$lib/undo-rewrite";
   import { isAncestor, undoRewrite, undoRewriteInfo } from "$lib/ipc/ref-ops";
   import { effective, withShortcuts } from "$lib/keymap";
-  import { binName, ON_MAC, OS, primary } from "$lib/platform";
+  import { binName, ON_MAC, ON_WINDOWS, OS, primary } from "$lib/platform";
+  import { pageCommand } from "$lib/page-accelerators";
   import { menuCommandRuns, modals } from "$lib/modal-stack";
   import { commitBox } from "$stores/commit-box.svelte";
   import { commitFileMenu, shownRow, worktreeFileMenu } from "$lib/file-menu";
@@ -199,6 +200,7 @@
     reportTiming,
     commitTemplate,
     openCommitWindow,
+    runMenuCommand,
     stageMode,
     openSolverWindow,
     openCompareWindow,
@@ -924,6 +926,17 @@
     // A dialog, the palette and Find Object close on their own Esc; nothing behind a modal
     // answers a key (11 §1).
     if (modals.any) return;
+
+    // A menu key the native menu does not hold here (Ctrl+K, F5 off Windows): the same path a
+    // menu click takes. A field or panel that took the key first keeps it.
+    const command = event.defaultPrevented
+      ? null
+      : pageCommand(event, settings.bindings, menuKeys, { windows: ON_WINDOWS, mac: ON_MAC });
+    if (command !== null) {
+      event.preventDefault();
+      void runMenuCommand(command).catch((err) => errors.report(err, "Could not run the shortcut"));
+      return;
+    }
 
     // F6 walks the panels. Ctrl+Tab is left to the window: the menu agent owns the
     // accelerators, and browsers and hosts both claim that pair (issue 15). A diff with the
