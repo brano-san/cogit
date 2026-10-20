@@ -266,15 +266,10 @@ describe("refsShowPseudoRefs", () => {
   });
 });
 
-describe("uiWebMenus", () => {
-  it("follows the platform until chosen, and needs a restart (decorations are fixed at window creation)", () => {
-    expect(DEFAULT_SETTINGS.uiWebMenus).toBe("auto");
-    expect(needsRestart("uiWebMenus")).toBe(true);
-  });
-
-  it("keeps a stored choice and refuses an unknown one", () => {
-    expect(merge({ uiWebMenus: "on" }).uiWebMenus).toBe("on");
-    expect(merge({ uiWebMenus: "off" }).uiWebMenus).toBe("off");
-    expect(merge({ uiWebMenus: "sometimes" } as never).uiWebMenus).toBe("auto");
+// Menus are the platform's again: a settings file from a build that drew them in the page
+// loses the key on the next save.
+describe("a retired setting", () => {
+  it("is dropped, not carried over", () => {
+    expect("uiWebMenus" in merge({ uiWebMenus: "on" } as never)).toBe(false);
   });
 });

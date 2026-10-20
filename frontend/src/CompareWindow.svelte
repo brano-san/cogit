@@ -10,7 +10,6 @@
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import ImageDiff from "$components/diff/ImageDiff.svelte";
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
-  import { webMenus } from "$stores/web-menus.svelte";
   import Notifications from "$components/layout/Notifications.svelte";
   import { errors } from "$stores/errors.svelte";
   import { runMutation, type MutationContext } from "$lib/mutation";
@@ -57,7 +56,7 @@
   $effect(() => {
     document.title = title;
     // The native title bar is not the page's `<title>`; outside the app (a browser) there is none.
-    void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow().setTitle(title)).then(() => webMenus.refreshTitle()).catch(() => {});
+    void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow().setTitle(title)).catch(() => {});
   });
 
   /** Stage, Unstage and Discard here end like the Diff panel's: through `runMutation`, a

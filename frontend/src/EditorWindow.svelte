@@ -11,7 +11,6 @@
   import { diffEdit } from "$stores/diff-edit.svelte";
   import { settings } from "$stores/settings.svelte";
   import { unsavedPrompt } from "$stores/unsaved-prompt.svelte";
-  import { webMenus } from "$stores/web-menus.svelte";
 
   /** Edit (F-722): one working-tree file in the built-in editor, alone, in its own window.
       Saving writes the file in its own shape; the main window reads its lists again from
@@ -35,7 +34,7 @@
   const title = $derived(`${name}${diffEdit.dirty ? " *" : ""} — Edit — Cogit`);
   $effect(() => {
     document.title = title;
-    void win.setTitle(title).then(() => webMenus.refreshTitle()).catch(() => {});
+    void win.setTitle(title).catch(() => {});
   });
 
   // The ✕, Esc, Ctrl+W and Close all come here: unsaved edits are saved or dropped on purpose.

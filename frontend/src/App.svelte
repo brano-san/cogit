@@ -61,7 +61,6 @@
   import CloneDialog from "$components/repo-tree/CloneDialog.svelte";
   import WelcomeDialog from "$components/layout/WelcomeDialog.svelte";
   import { welcome } from "$stores/welcome.svelte";
-  import { webMenus } from "$stores/web-menus.svelte";
   import {
     filterRows,
     folderPlan,
@@ -3473,11 +3472,7 @@ ${event.error}`,
     );
   });
 
-  // The bar the page draws reads the same state the native one is given.
-  const sendMenuState = menuStatePusher((disabled, checked) => {
-    webMenus.pushState(disabled, checked);
-    return setMenuState(disabled, checked);
-  });
+  const sendMenuState = menuStatePusher((disabled, checked) => setMenuState(disabled, checked));
 
   /** A rebuilt bar starts with every tick cleared, so this runs again after a keymap save;
       and after a menu command, since muda flips a clicked tick on its own. */

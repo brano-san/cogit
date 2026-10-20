@@ -19,8 +19,6 @@ const MAIN_THREAD_ONLY: &[&str] = &[
     "clear_command_log",
     "safety_log",
     "popup_context_menu",
-    "window_chrome",
-    "menu_model",
 ];
 
 /// Each command with a flag: does it leave the main thread? An `async fn` does, and so

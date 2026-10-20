@@ -115,11 +115,6 @@
   ] as const;
 
   const LOG_LEVELS = ["error", "warn", "info", "debug", "trace"] as const;
-  const WEB_MENUS = [
-    ["auto", "Automatic"],
-    ["on", "Always"],
-    ["off", "Never"],
-  ] as const;
 
   const AVATARS = [
     ["gravatar", "Show them, from Gravatar"],
@@ -619,16 +614,6 @@
                   options={terminals.map((choice) => [choice.id, choice.label] as const)}
                   label={field.label}
                   onchange={(next) => set("terminal", next)}
-                />
-              </div>
-            {:else if field.key === "uiWebMenus"}
-              <div class="row">
-                {@render caption(field)}
-                <Select
-                  value={draft.uiWebMenus}
-                  options={WEB_MENUS}
-                  label={field.label}
-                  onchange={(next) => set("uiWebMenus", next)}
                 />
               </div>
             {:else if field.key === "logLevel"}

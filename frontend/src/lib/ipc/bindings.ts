@@ -589,12 +589,11 @@ export const commands = {
 	bypassLog: (repo: RepoId) => typedError<Bypass[], GitError>(__TAURI_INVOKE("bypass_log", { repo })),
 	/**  Not `async`: menu APIs must run on the main thread on Windows. */
 	popupContextMenu: (items: ContextItem[], x: number | null, y: number | null) => typedError<null, GitError>(__TAURI_INVOKE("popup_context_menu", { items, x, y })),
-	/**  The bar the calling window draws itself, from the tables the native bar is built from. */
-	menuModel: () => __TAURI_INVOKE<MenuNode[]>("menu_model"),
-	/**  A click in the page's own menu: the path a native menu event takes. */
+	/**
+	 *  A menu command the page runs itself (an off-the-bar shortcut): the path a native menu
+	 *  event takes.
+	 */
 	menuCommand: (id: string) => __TAURI_INVOKE<void>("menu_command", { id }),
-	/**  Who draws the titlebar and the menus of this build: the page asks once at start. */
-	windowChrome: () => __TAURI_INVOKE<WindowChrome>("window_chrome"),
 	/**
 	 *  Off the main thread: building a window inside the WebView2 callback of a synchronous
 	 *  command deadlocks every window (R-201). The parameters ride in the URL so the window
@@ -1689,22 +1688,6 @@ export type MaintenanceTask = "gc" | "commitGraph" | "clearGcLock";
  */
 export type MenuCommand = string;
 
-/**
- *  One row of a menu, at any depth. Ids are the palette command ids; a click travels back
- *  through `menu_command`, the path a native menu event takes.
- */
-export type MenuNode = {
-	id: string,
-	label: string,
-	separator: boolean,
-	/**  As the keymap writes it (`CmdOrCtrl+Shift+P`); the page formats it for display. */
-	accelerator: string | null,
-	enabled: boolean,
-	/**  `Some` for a toggle, with its tick. */
-	checked: boolean | null,
-	children: MenuNode[],
-};
-
 export type MergeOptions = {
 	source: string,
 	noFastForward: boolean,
@@ -2674,13 +2657,6 @@ export type WebviewLogLine = {
 };
 
 export type Whitespace = "none" | "trailing" | "all";
-
-export type WindowChrome = {
-	/**  Menu bar, drop-down and context menus are drawn by the page. */
-	webMenus: boolean,
-	/**  The window has no native decorations; the page draws the titlebar. */
-	customTitlebar: boolean,
-};
 
 /**  The counters and the conflicted paths, from one read of the status (R-316). */
 export type WorkingState = {

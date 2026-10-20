@@ -31,7 +31,6 @@ mod taskbar;
 mod webview2;
 mod webview2_check;
 mod webview_memory;
-mod window_chrome;
 mod window_place;
 
 use app_state::AppState;
@@ -392,9 +391,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::overlap_window,
             commands::hooks::bypass_log,
             commands::popup_context_menu,
-            commands::menu_model,
             commands::menu_command,
-            commands::window_chrome,
             commands::open_compare_window,
             commands::commit_window::open_commit_window,
             commands::commit_window::recent_commits,
@@ -464,9 +461,7 @@ pub fn run() -> anyhow::Result<()> {
                 .with_filter(child_window::is_main)
                 .with_state_flags(
                     tauri_plugin_window_state::StateFlags::all()
-                            - tauri_plugin_window_state::StateFlags::VISIBLE
-                            // Decided by `window_chrome`, not remembered.
-                            - tauri_plugin_window_state::StateFlags::DECORATIONS,
+                        - tauri_plugin_window_state::StateFlags::VISIBLE,
                 )
                 .build(),
         );
@@ -542,8 +537,6 @@ pub fn run() -> anyhow::Result<()> {
             specta_builder.mount_events(app);
             events::forward_repo_changes(app.handle().clone(), &state);
 
-            let chrome = window_chrome::stored(&config_dir);
-            app.manage(chrome);
             app.manage(menu::ContextMenu::<tauri::Wry>::default());
             let stored = menu::stored_keymap(&config_dir);
             let (menu, collected) = menu::build(app.handle(), &stored)?;
@@ -582,14 +575,7 @@ pub fn run() -> anyhow::Result<()> {
                 // itself for maximize, snap and minimize, and correcting it afterwards is
                 // a fight the window loses (doc/12-risks.md, R-118).
                 window_place::settle(&window);
-                if chrome.custom_titlebar {
-                    window.set_decorations(false)?;
-                }
                 window.show()?;
-                // After `show`, which makes every widget of the window visible again.
-                if chrome.web_menus {
-                    window_chrome::hide_native_menu(&window);
-                }
             }
             Ok(())
             })();
