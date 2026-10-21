@@ -10,15 +10,10 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use tauri::Manager as _;
-use tauri::utils::config::Color;
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 
 /// The label `tauri.conf.json` gives the one window that owns the application.
 pub const MAIN: &str = "main";
-
-/// `--c-bg-window` from the dark theme. A window that has not painted yet shows this
-/// instead of the webview's default white.
-const BACKGROUND: Color = Color(0x0f, 0x11, 0x15, 0xff);
 
 /// Labels must be unique for the lifetime of the process. Counting the open windows is
 /// not enough: close one of two and the next window is handed a label that is still in
@@ -148,7 +143,7 @@ pub fn open_with_menu<R: tauri::Runtime>(
         .menu(bar)
         .visible(false)
         .theme(Some(crate::native_theme::current()))
-        .background_color(BACKGROUND)
+        .background_color(crate::native_theme::background())
         .inner_size(shape.width, shape.height)
         .min_inner_size(shape.min_width, shape.min_height)
         .center();

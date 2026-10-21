@@ -526,8 +526,11 @@ export const commands = {
 	openInTerminal: (path: string, terminal: string) => typedError<null, GitError>(__TAURI_INVOKE("open_in_terminal", { path, terminal })),
 	/**  Looks for Git Bash on disk and in the registry, so it stays off the main thread. */
 	desktopInfo: () => typedError<DesktopInfo, GitError>(__TAURI_INVOKE("desktop_info")),
-	/**  The frontend's theme is dark or light; GTK dialogs follow it (Linux), a no-op elsewhere. */
-	setNativeTheme: (dark: boolean) => __TAURI_INVOKE<void>("set_native_theme", { dark }),
+	/**
+	 *  The frontend's theme is dark or light, on its `bg.app` background: the menus, dialogs
+	 *  and window backgrounds follow it.
+	 */
+	setNativeTheme: (dark: boolean, background: string) => __TAURI_INVOKE<void>("set_native_theme", { dark, background }),
 	/**  The desktop's UI font and which of `families` are installed (`fc-list` on Linux). */
 	systemFont: (families: string[]) => typedError<SystemFont, GitError>(__TAURI_INVOKE("system_font", { families })),
 	/**  Every installed font family, sorted, for Preferences ▸ Font; empty on macOS. */

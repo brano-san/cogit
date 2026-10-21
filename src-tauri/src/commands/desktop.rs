@@ -19,11 +19,12 @@ pub async fn desktop_info() -> Result<DesktopInfo, GitError> {
     blocking("desktop_info", || Ok(desktop::info(Platform::current()))).await
 }
 
-/// The frontend's theme is dark or light; GTK dialogs follow it (Linux), a no-op elsewhere.
+/// The frontend's theme is dark or light, on its `bg.app` background: the menus, dialogs
+/// and window backgrounds follow it.
 #[tauri::command]
 #[specta::specta]
-pub async fn set_native_theme(app: tauri::AppHandle, dark: bool) {
-    crate::native_theme::apply(&app, dark);
+pub async fn set_native_theme(app: tauri::AppHandle, dark: bool, background: String) {
+    crate::native_theme::apply(&app, dark, &background);
 }
 
 /// Every installed font family, sorted, for Preferences ▸ Font; empty on macOS.

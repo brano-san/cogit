@@ -508,8 +508,6 @@ pub fn run() -> anyhow::Result<()> {
             let started = (|| -> Result<(), Box<dyn std::error::Error>> {
             #[cfg(target_os = "linux")]
             gtk::Window::set_default_icon_name(desktop_entry::APP_NAME);
-            #[cfg(target_os = "linux")]
-            native_theme::use_adwaita(gtk_theme.as_deref());
             let (log_dir, config_dir) = match portable {
                 Some(layout) => (layout.logs(), layout.config()),
                 None => (app.path().app_log_dir()?, app.path().app_config_dir()?),
@@ -517,6 +515,9 @@ pub fn run() -> anyhow::Result<()> {
             let (guard, log_path) = logging::init(&log_dir, &config_dir)?;
             notify::register_identity(&config_dir);
             logging::install_panic_hook(&log_dir);
+            // After the log exists: it records what GTK had before (R-777).
+            #[cfg(target_os = "linux")]
+            native_theme::use_adwaita(gtk_theme.as_deref());
             app_state::legacy_dirs::log_outcomes(&migrated);
             webview_memory::spawn(std::process::id());
             use_git_from_settings(&config_dir);

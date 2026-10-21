@@ -91,6 +91,6 @@ export async function presentOnDisk(repo: RepoId, paths: string[]) {
 }
 
 /** Native leftovers (GTK file chooser) follow the Cogit theme; a no-op outside Linux. */
-export async function setNativeTheme(dark: boolean) {
-  await commands.setNativeTheme(dark);
+export async function setNativeTheme(dark: boolean, background: string) {
+  await commands.setNativeTheme(dark, background);
 }

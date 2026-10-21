@@ -33,7 +33,7 @@ class ThemeStore {
     }
     // GTK's file chooser and the like: dark for a dark family, whatever the system says.
     void Promise.resolve()
-      .then(() => setNativeTheme(isDarkTheme(id)))
+      .then(() => setNativeTheme(isDarkTheme(id), String(tokens["bg.app"] ?? "")))
       .catch(() => {});
     // Written, never read: this runs inside effects, and a read would make them depend on it.
     this.version = ++this.#swaps;
