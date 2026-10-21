@@ -48,11 +48,11 @@ describe("signedIn", () => {
     expect(asked[1]).toEqual({ host: "cdb.example", username: "ann", error: "fatal: Authentication failed" });
   });
 
-  it("gives back the command's own error when the dialog is canceled", async () => {
-    const error = refusal(null);
-    const operation = vi.fn().mockRejectedValue(error);
+  // Closing the dialog is the user's cancel, not a failure: no Errors window for it.
+  it("ends as canceled when the dialog is closed", async () => {
+    const operation = vi.fn().mockRejectedValue(refusal(null));
 
-    await expect(signedIn(operation, async () => null)).rejects.toBe(error);
+    await expect(signedIn(operation, async () => null)).rejects.toMatchObject({ detail: { kind: "cancelled" } });
     expect(operation).toHaveBeenCalledTimes(1);
   });
 

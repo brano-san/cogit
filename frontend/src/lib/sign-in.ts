@@ -1,4 +1,5 @@
 import type { AuthRequired, GitError, SignIn } from "$lib/ipc/bindings";
+import { CogitError } from "$lib/ipc";
 
 /** What the Sign in dialog is opened with: the host the remote refused, the username tried
     there, and git's words when what was typed did not work either. */
@@ -23,7 +24,8 @@ function gitText(err: unknown): string | null {
 }
 
 /** Runs `operation`; a refusal opens the Sign in dialog and runs it again with what was typed,
-    until it works or the dialog is canceled, which gives back the command's own error. */
+    until it works or the dialog is closed, which ends it as canceled: the user's choice, not an
+    error, and nothing reaches the Errors window (its refusal was journaled as answered). */
 export async function signedIn<T>(operation: (credential: SignIn | null) => Promise<T>, ask: AskSignIn): Promise<T> {
   let credential: SignIn | null = null;
   for (;;) {
@@ -37,7 +39,10 @@ export async function signedIn<T>(operation: (credential: SignIn | null) => Prom
         username: refused.username ?? credential?.username ?? null,
         error: credential === null ? null : gitText(err),
       });
-      if (answer === null) throw err;
+      if (answer === null) {
+        const detail = (err as { detail?: GitError } | null)?.detail;
+        throw new CogitError({ kind: "cancelled", data: detail?.kind === "command" ? detail.data.command : "" });
+      }
       credential = answer;
     }
   }
