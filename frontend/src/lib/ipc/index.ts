@@ -1205,6 +1205,11 @@ export async function onOperationChanged(handler: (event: OperationChanged) => v
 /** The platform's own menu; the call returns when it is shown, and the chosen id comes back
     as a `menu-command`. */
 export async function popupContextMenu(items: ContextItem[], x: number, y: number) {
+  // Never from inside the `contextmenu` dispatch: a Windows menu opened there while WebView2
+  // still handled the click (facts already cached) tracked the pointer one client-area offset
+  // off, the highlight rows above it (R-776). A task was not enough; after the next frame
+  // the click is done.
+  await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
   return unwrap(await commands.popupContextMenu(items, x, y));
 }
 

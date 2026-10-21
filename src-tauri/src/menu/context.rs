@@ -76,7 +76,15 @@ pub fn popup<R: Runtime>(
     for item in tidy_items(items) {
         append_context_item(app, &item, &|entry| menu.append(entry))?;
     }
-    window.popup_menu_at(&menu, tauri::LogicalPosition::new(x, y))?;
+    let bar = app.try_state::<super::MenuItems<R>>();
+    if let Some(bar) = &bar {
+        bar.set_popup_open(true);
+    }
+    let shown = window.popup_menu_at(&menu, tauri::LogicalPosition::new(x, y));
+    if let Some(bar) = &bar {
+        bar.set_popup_open(false);
+    }
+    shown?;
     if let Ok(mut slot) = held.current.lock() {
         *slot = Some(menu);
     }

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use tauri::menu::{
     CheckMenuItem, CheckMenuItemBuilder, Menu, MenuItem, MenuItemBuilder, PredefinedMenuItem,
@@ -380,6 +381,9 @@ fn leaves(entries: &'static [Entry]) -> Vec<&'static Entry> {
 pub struct MenuItems<R: Runtime> {
     items: Mutex<HashMap<String, MenuItem<R>>>,
     checks: Mutex<HashMap<String, CheckMenuItem<R>>>,
+    /// Set while a context menu is open: the bar's state waits in `held` until it closes.
+    popup_open: AtomicBool,
+    held: Mutex<Option<(Vec<String>, Vec<String>)>>,
 }
 
 impl<R: Runtime> MenuItems<R> {
@@ -393,7 +397,33 @@ impl<R: Runtime> MenuItems<R> {
         }
     }
 
+    /// Every item redraws the bar on Windows (`DrawMenuBar`), and a right-click selects
+    /// its commit, which pushes the state while the context menu tracks the pointer: a bar
+    /// redrawn under an open popup left its highlight rows off the pointer (R-776).
     pub fn apply(&self, disabled: &[String], checked: &[String]) {
+        if self.popup_open.load(Ordering::SeqCst) {
+            if let Ok(mut held) = self.held.lock() {
+                *held = Some((disabled.to_vec(), checked.to_vec()));
+            }
+            return;
+        }
+        self.apply_now(disabled, checked);
+    }
+
+    /// Around a popup, which blocks until it closes on Windows: `false` applies the state
+    /// that arrived while it was open.
+    pub fn set_popup_open(&self, open: bool) {
+        self.popup_open.store(open, Ordering::SeqCst);
+        if open {
+            return;
+        }
+        let held = self.held.lock().ok().and_then(|mut held| held.take());
+        if let Some((disabled, checked)) = held {
+            self.apply_now(&disabled, &checked);
+        }
+    }
+
+    fn apply_now(&self, disabled: &[String], checked: &[String]) {
         if let Ok(items) = self.items.lock() {
             for (id, item) in items.iter() {
                 report(id, item.set_enabled(!disabled.contains(id)));
@@ -547,6 +577,8 @@ impl<R: Runtime> From<Collected<R>> for MenuItems<R> {
         Self {
             items: Mutex::new(collected.items),
             checks: Mutex::new(collected.checks),
+            popup_open: AtomicBool::new(false),
+            held: Mutex::new(None),
         }
     }
 }
