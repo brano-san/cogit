@@ -2,6 +2,7 @@
   import Checkbox from "$components/common/Checkbox.svelte";
   import Dialog from "$components/common/Dialog.svelte";
   import { scan } from "$stores/scan.svelte";
+  import { scanSections, type ScanLayout } from "$lib/scan-groups";
 
   interface Props {
     busy: boolean;
@@ -13,6 +14,7 @@
   let { busy, onbrowse, onopen, onclose }: Props = $props();
 
   let filter = $state("");
+  let layout = $state<ScanLayout>("folders");
 
   const shown = $derived(
     scan.hits.filter(
@@ -21,6 +23,7 @@
         `${hit.name} ${hit.root}`.toLowerCase().includes(filter.trim().toLowerCase()),
     ),
   );
+  const sections = $derived(scanSections(shown, layout, scan.folder ?? ""));
   const chosen = $derived(scan.selected);
   const shownOpenable = $derived(shown.filter((hit) => !hit.alreadyOpen));
 
@@ -69,6 +72,9 @@
       >
         {shownOpenable.every((hit) => scan.chosen.has(hit.root)) ? "Select None" : "Select All"}
       </button>
+      <button class="btn" type="button" onclick={() => (layout = layout === "folders" ? "flat" : "folders")}>
+        {layout === "folders" ? "Flat List" : "Group by Folder"}
+      </button>
     </div>
   {/if}
 
@@ -89,21 +95,27 @@
         {/if}
       </div>
     {:else}
-      {#each shown as hit (hit.root)}
-        <div class="row" class:disabled={hit.alreadyOpen}>
-          <Checkbox
-            wide
-            checked={scan.chosen.has(hit.root)}
-            disabled={hit.alreadyOpen}
-            onchange={() => scan.toggle(hit.root)}
-          >
-            <span class="name">{hit.name}</span>
-            {#if hit.bare}<span class="tag">bare</span>{/if}
-            {#if hit.alreadyOpen}<span class="tag">already open</span>{/if}
-            <span class="path truncate" title={hit.root}>{hit.root}</span>
-          </Checkbox>
-        </div>
-      {/each}
+      <!-- As wide as the longest path: the list scrolls sideways instead of cutting it. -->
+      <div class="rows">
+        {#each sections as section (section.title)}
+          {#if section.title !== null}
+            <div class="heading">{section.title}<span class="n">{section.hits.length}</span></div>
+          {/if}
+          {#each section.hits as hit (hit.root)}
+            <div class="row" class:disabled={hit.alreadyOpen} class:grouped={section.title !== null}>
+              <Checkbox
+                wide
+                checked={scan.chosen.has(hit.root)}
+                disabled={hit.alreadyOpen}
+                onchange={() => scan.toggle(hit.root)}
+              >
+                <span class="name">{hit.name}</span>
+                <span class="path">{hit.root}</span>
+              </Checkbox>
+            </div>
+          {/each}
+        {/each}
+      </div>
     {/if}
   </div>
 
@@ -140,7 +152,31 @@
   }
 
   .results {
+    flex: 1 1 auto;
     min-height: 160px;
+    overflow: auto;
+    overflow-wrap: normal;
+  }
+
+  .rows {
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .heading {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    height: var(--h-row-dense);
+    padding: 0 var(--sp-5);
+    color: var(--text-secondary);
+    font-size: var(--fs-header);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .heading .n {
+    font-weight: 400;
   }
 
   /* Not an empty frame: a folder has to be chosen and the dialog says so and offers it. */
@@ -168,6 +204,10 @@
     background: var(--state-hover);
   }
 
+  .row.grouped {
+    padding-left: calc(var(--sp-5) * 2);
+  }
+
   .row.disabled {
     color: var(--text-secondary);
   }
@@ -176,18 +216,8 @@
     flex: 0 0 auto;
   }
 
-  .tag {
-    flex: 0 0 auto;
-    padding: 0 var(--sp-2);
-    border-radius: var(--r-sm);
-    background: var(--state-selected);
-    color: var(--text-secondary);
-    font-size: var(--fs-small);
-  }
-
   .path {
-    flex: 1 1 auto;
-    min-width: 0;
+    flex: 0 0 auto;
     color: var(--text-secondary);
     font-size: var(--fs-header);
   }
