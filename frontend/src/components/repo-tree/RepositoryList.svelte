@@ -780,7 +780,16 @@
   }
 
   .changes.dirty {
+    position: relative;
     background: var(--indicator-changes);
+  }
+
+  /* 6 px was too small to hover: the tooltip answers the row's height and reaches into the
+     icon, whose tooltip is the same, but not into the name. */
+  .changes.dirty::before {
+    content: "";
+    position: absolute;
+    inset: -8px -2px -8px -6px;
   }
 
   .branch {
