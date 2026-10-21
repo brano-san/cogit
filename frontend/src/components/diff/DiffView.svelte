@@ -1376,7 +1376,8 @@
   }
 
   /* Over the row's own fills, fading out in `FLASH_MS`; with reduced motion it just stays
-     lit that long. Feedback, not a transition: nothing waits for it. */
+     lit that long. Feedback, not a transition: nothing waits for it. A tint, never opaque:
+     the text and the add/remove colors stay readable through it. */
   .line.flash::after,
   .cm-host :global(.flash::after) {
     content: "";
@@ -1390,7 +1391,7 @@
 
   @keyframes jump-flash {
     from {
-      opacity: 1;
+      opacity: 0.4;
     }
   }
 
@@ -1398,7 +1399,7 @@
     .line.flash::after,
     .cm-host :global(.flash::after) {
       animation: none;
-      opacity: 1;
+      opacity: 0.4;
     }
   }
 
