@@ -43,3 +43,10 @@ export function openRoute(file: RowFile, side: "worktree" | "index"): FileRoute 
   if (showsWholeFile(file.status)) return { kind: "editor" };
   return { kind: "compare", spec: { kind: "workTreeVsIndex" } };
 }
+
+/** A double-click or Enter on a row of a past commit: that commit's change to the file,
+    read-only (`editOffer` offers Edit on a working tree side only). */
+export function commitRoute(mode: FileMode, oid: string | null): FileRoute {
+  if (mode === "submodule") return { kind: "module" };
+  return oid ? { kind: "compare", spec: { kind: "commitVsParent", oid } } : { kind: "refused", reason: "no commit" };
+}
