@@ -56,6 +56,7 @@
 
   const refs = $derived(capsules(labels, CAPSULE_ROOM));
   const timeColumn = $derived(timeColumnStore.width(timeFormat));
+  const hashColumn = $derived(timeColumnStore.hashWidth());
 </script>
 
 {#if folds}
@@ -120,7 +121,7 @@
       {row?.isBase ? "base" : row ? overlapLabel(row.overlap) : ""}
     </span>
   {:else}
-    <span class="oid mono tabular" style:flex-basis="{COLUMN_WIDTH.hash}px">{shortOid(entry.commit.oid)}</span>
+    <span class="oid mono tabular" style:flex-basis="{hashColumn}px">{shortOid(entry.commit.oid)}</span>
   {/if}
 {/each}
 {#each linkStubs(entry.layout) as stub (stub.segment)}
