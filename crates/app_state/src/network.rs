@@ -8,6 +8,22 @@ use std::cell::{Cell, RefCell};
 
 pub(crate) type Credentials<'a> = &'a dyn Fn(&str) -> Option<Credential>;
 
+thread_local! {
+    /// Set while `signed_in` runs: the journal is written on this thread, before the page
+    /// learns of the refusal and opens the Sign in dialog.
+    static SIGNING_IN: Cell<bool> = const { Cell::new(false) };
+}
+
+/// A refusal the Sign in dialog asks about is no error notice as well. A host it cannot
+/// sign in to still reaches the Errors window: the rejected call carries no `authRequired`.
+pub(crate) fn asks_sign_in(trouble: Option<CredentialTrouble>) -> bool {
+    SIGNING_IN.get()
+        && matches!(
+            trouble,
+            Some(CredentialTrouble::NoPrompt | CredentialTrouble::Refused)
+        )
+}
+
 /// A network command running as one queue operation; `cancel_network` finds it until
 /// this is dropped.
 #[derive(Debug)]
@@ -251,7 +267,10 @@ impl AppState {
             asked.borrow_mut().push((host, username));
             credential
         };
-        match run(&credential) {
+        SIGNING_IN.set(true);
+        let outcome = run(&credential);
+        SIGNING_IN.set(false);
+        match outcome {
             Ok(done) => {
                 if let Some((_, sign_in)) = typed.filter(|(_, s)| s.remember && used_typed.get())
                     && let Err(err) = self.store_credential(sign_in)
@@ -297,4 +316,21 @@ fn auth_required(
         .find(|(asked_host, _)| *asked_host == host)
         .and_then(|(_, username)| username.clone());
     Some(AuthRequired { host, username })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_refusal_is_answered_only_while_a_sign_in_can_ask() {
+        let state = AppState::new();
+        let asked = state.signed_in(None, |_| {
+            Ok::<_, GitError>(asks_sign_in(Some(CredentialTrouble::NoPrompt)))
+        });
+        assert!(matches!(asked, Ok(true)));
+        assert!(!asks_sign_in(Some(CredentialTrouble::NoPrompt)));
+        let other = state.signed_in(None, |_| Ok::<_, GitError>(asks_sign_in(None)));
+        assert!(matches!(other, Ok(false)));
+    }
 }

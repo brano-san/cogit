@@ -29,7 +29,7 @@ impl From<&git_engine::GitOutput> for CommandNotice {
             severity: entry.severity,
             summary: entry.summary.clone(),
             stopped_on_conflicts: entry.stopped_on_conflicts,
-            answered: entry.answered,
+            answered: entry.answered || crate::network::asks_sign_in(entry.credential_trouble),
         }
     }
 }
