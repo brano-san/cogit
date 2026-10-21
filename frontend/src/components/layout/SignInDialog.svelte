@@ -11,6 +11,8 @@
   let username = $state("");
   let secret = $state("");
   let remember = $state(true);
+  /** The eye beside the field: the typed secret in plain text, until the next opening. */
+  let shown = $state(false);
 
   // Each opening starts from what it was asked with.
   $effect.pre(() => {
@@ -19,6 +21,7 @@
     username = request.username ?? "";
     secret = "";
     remember = true;
+    shown = false;
   });
 
   const ready = $derived(host.trim() !== "" && secret !== "");
@@ -70,15 +73,33 @@
         bind:value={username}
       />
     </label>
-    <label class="field">
-      <span class="lbl">Password or token</span>
-      <input
-        type="password"
-        autocomplete="current-password"
-        data-autofocus={!request.adding && username !== "" ? true : undefined}
-        bind:value={secret}
-      />
-    </label>
+    <div class="field">
+      <label class="lbl" for="sign-in-secret">Password or token</label>
+      <span class="secret">
+        <input
+          id="sign-in-secret"
+          type={shown ? "text" : "password"}
+          spellcheck="false"
+          autocomplete="current-password"
+          data-autofocus={!request.adding && username !== "" ? true : undefined}
+          bind:value={secret}
+        />
+        <button
+          type="button"
+          class="btn sm eye"
+          aria-pressed={shown}
+          aria-label={shown ? "Hide password" : "Show password"}
+          title={shown ? "Hide password" : "Show password"}
+          onclick={() => (shown = !shown)}
+        >
+          <svg viewBox="0 0 16 16" aria-hidden="true"
+            ><path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z" /><circle cx="8" cy="8" r="2" />{#if shown}<path
+                d="M2.5 13.5 13.5 2.5"
+              />{/if}</svg
+          >
+        </button>
+      </span>
+    </div>
     {#if !request.adding}
       <OptionRow
         bind:checked={remember}
@@ -104,6 +125,26 @@
 
   .lbl {
     color: var(--text-secondary);
+  }
+
+  .secret {
+    display: flex;
+    gap: var(--sp-2);
+  }
+
+  .secret input {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .eye svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   .error {
