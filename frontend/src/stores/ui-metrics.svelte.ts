@@ -1,4 +1,4 @@
-import { fontStacks, STACK_CANDIDATES } from "$lib/font-stack";
+import { fontStack, STACK_CANDIDATES } from "$lib/font-stack";
 import { systemFont, type SystemFont } from "$lib/ipc";
 import { OS } from "$lib/platform";
 import { BASE_FONT_PX, DIFF_FONT_PX, uiFontPx, uiMetrics, type UiMetrics } from "$lib/ui-metrics";
@@ -14,6 +14,7 @@ const SAMPLES = {
 };
 
 interface Sizes {
+  fontFamily: string;
   uiFontSize: number;
   diffFontSize: number;
   uiZoom: number;
@@ -50,9 +51,9 @@ class UiMetricsStore {
     if (typeof document === "undefined") return;
     const root = document.documentElement.style;
     for (const [name, value] of Object.entries(metrics.css)) root.setProperty(name, value);
-    const stacks = fontStacks(OS, this.#desktop && { family: this.#desktop.family, installed: this.#desktop.installed });
-    root.setProperty("--font-ui", stacks.ui);
-    root.setProperty("--font-mono", stacks.mono);
+    const font = fontStack(OS, this.#desktop && { family: this.#desktop.family, installed: this.#desktop.installed }, sizes.fontFamily);
+    root.setProperty("--font-ui", font);
+    root.setProperty("--font-mono", font);
     if (sizes.uiZoom !== this.#zoom) {
       this.#zoom = sizes.uiZoom;
       void import("@tauri-apps/api/webview")

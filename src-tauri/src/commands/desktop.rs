@@ -26,6 +26,13 @@ pub async fn set_native_theme(app: tauri::AppHandle, dark: bool) {
     crate::native_theme::apply(&app, dark);
 }
 
+/// Every installed font family, sorted, for Preferences ▸ Font; empty on macOS.
+#[tauri::command]
+#[specta::specta]
+pub async fn font_families() -> Result<Vec<String>, GitError> {
+    blocking("font_families", || Ok(crate::system_font::families())).await
+}
+
 /// The desktop's UI font and which of `families` are installed (`fc-list` on Linux).
 #[tauri::command]
 #[specta::specta]

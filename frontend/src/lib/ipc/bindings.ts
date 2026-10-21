@@ -530,6 +530,8 @@ export const commands = {
 	setNativeTheme: (dark: boolean) => __TAURI_INVOKE<void>("set_native_theme", { dark }),
 	/**  The desktop's UI font and which of `families` are installed (`fc-list` on Linux). */
 	systemFont: (families: string[]) => typedError<SystemFont, GitError>(__TAURI_INVOKE("system_font", { families })),
+	/**  Every installed font family, sorted, for Preferences ▸ Font; empty on macOS. */
+	fontFamilies: () => typedError<string[], GitError>(__TAURI_INVOKE("font_families")),
 	openPath: (path: string) => typedError<null, GitError>(__TAURI_INVOKE("open_path", { path })),
 	/**
 	 *  A link in the browser. Not the opener plugin's `openUrl` from the page: it starts the

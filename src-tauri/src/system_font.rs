@@ -121,6 +121,79 @@ pub fn read(families: &[String]) -> SystemFont {
     }
 }
 
+/// Every installed family, sorted and once each.
+#[must_use]
+pub fn families() -> Vec<String> {
+    let mut all = listed();
+    all.sort_by_key(|family| family.to_lowercase());
+    all.dedup();
+    all
+}
+
+#[cfg(windows)]
+#[allow(unsafe_code)]
+fn listed() -> Vec<String> {
+    use windows::Win32::Graphics::DirectWrite::{
+        DWRITE_FACTORY_TYPE_SHARED, DWriteCreateFactory, IDWriteFactory,
+    };
+    // SAFETY: COM calls on objects created here; a shared DirectWrite factory needs no apartment.
+    let read = || -> windows::core::Result<Vec<String>> {
+        unsafe {
+            let factory: IDWriteFactory = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED)?;
+            let mut collection = None;
+            factory.GetSystemFontCollection(&mut collection, false)?;
+            let Some(collection) = collection else {
+                return Ok(Vec::new());
+            };
+            let mut all = Vec::new();
+            for i in 0..collection.GetFontFamilyCount() {
+                let names = collection.GetFontFamily(i)?.GetFamilyNames()?;
+                let (mut index, mut english) = (0, windows::core::BOOL(0));
+                names.FindLocaleName(windows::core::w!("en-us"), &mut index, &mut english)?;
+                let index = if english.as_bool() { index } else { 0 };
+                let mut name = vec![0u16; names.GetStringLength(index)? as usize + 1];
+                names.GetString(index, &mut name)?;
+                name.pop();
+                all.push(String::from_utf16_lossy(&name));
+            }
+            Ok(all)
+        }
+    };
+    read().unwrap_or_else(|err| {
+        tracing::warn!(%err, "font families not listed");
+        Vec::new()
+    })
+}
+
+/// A line of `fc-list` holds one font's family names, comma-separated; the first is the one
+/// CSS knows it by.
+#[cfg(target_os = "linux")]
+fn listed() -> Vec<String> {
+    let Ok(out) = std::process::Command::new("fc-list")
+        .args([
+            "--format",
+            "%{family}
+",
+        ])
+        .output()
+    else {
+        return Vec::new();
+    };
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .filter_map(|line| line.split(',').next())
+        .map(str::trim)
+        .filter(|family| !family.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+// ponytail: macOS lists nothing yet; NSFontManager.availableFontFamilies when it ships.
+#[cfg(not(any(windows, target_os = "linux")))]
+fn listed() -> Vec<String> {
+    Vec::new()
+}
+
 #[cfg(target_os = "linux")]
 fn installed(families: &[String]) -> Option<Vec<String>> {
     let out = std::process::Command::new("fc-list")
@@ -137,4 +210,13 @@ fn installed(families: &[String]) -> Option<Vec<String>> {
 #[cfg(not(target_os = "linux"))]
 fn installed(_: &[String]) -> Option<Vec<String>> {
     None
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    #[test]
+    fn windows_lists_its_ui_font_once() {
+        let all = super::families();
+        assert_eq!(all.iter().filter(|family| *family == "Segoe UI").count(), 1);
+    }
 }

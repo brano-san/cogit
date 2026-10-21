@@ -169,6 +169,12 @@ export const CATEGORIES: Category[] = [
         fields: [
           { key: "theme", label: "Theme", keywords: ["dark", "light", "grey", "gray"] },
           {
+            key: "fontFamily",
+            label: "Font",
+            hint: "One font for the whole app: lists, dialogs, the diff and the editor.",
+            keywords: ["font", "family", "typeface", "text", "monospace", "code"],
+          },
+          {
             key: "uiFontSize",
             label: "Interface font size",
             hint: "System takes the desktop's font size. Rows in every list grow with it.",

@@ -28,6 +28,8 @@ export type GraphSort = "topological" | "date";
 
 export interface Settings {
   theme: Theme;
+  /** The family of the whole app, the diff and code included; empty is the desktop's (R-778). */
+  fontFamily: string;
   /** The UI font in CSS px; 0 follows the desktop's (`gtk-font-name`, Segoe UI 9pt). Rows scale with it. */
   uiFontSize: number;
   /** The diff and editor font in CSS px; its rows stay 18 px, so at most 14. */
@@ -133,8 +135,9 @@ export const INTERNAL_SETTINGS: readonly (keyof Settings)[] = ["settingsVersion"
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: "dark",
-  uiFontSize: 0,
-  diffFontSize: 12.5,
+  fontFamily: "",
+  uiFontSize: 14,
+  diffFontSize: 14,
   uiZoom: 1,
   dateFormat: "smart",
   algorithm: "histogram",

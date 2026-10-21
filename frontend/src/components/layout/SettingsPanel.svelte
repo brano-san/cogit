@@ -21,12 +21,12 @@
   import { NO_FILTER_FOLDS, shownFolds, toggle, toggleFilterFold, type TreeNode } from "$lib/tree";
   import { protectedNames, staleChoices } from "$lib/push-dialog";
   import { needsRestart, THEMES, type Settings } from "$lib/settings";
-  import { diffFontChoices, uiFontChoices, zoomChoices } from "$lib/ui-metrics";
+  import { diffFontChoices, fontChoices, uiFontChoices, zoomChoices } from "$lib/ui-metrics";
   import { uiMetricsStore } from "$stores/ui-metrics.svelte";
   import { isSetting, type Field } from "$lib/preferences";
   import { createGitChecker, describeCheck, type GitCheck } from "$lib/git-check";
   import { ON_WINDOWS } from "$lib/platform";
-  import { probeGit } from "$lib/ipc";
+  import { fontFamilies, probeGit } from "$lib/ipc";
   import { credentials } from "$stores/credentials.svelte";
   import type { Keymap } from "$lib/keymap";
   import type { KeyBinding } from "$lib/ipc";
@@ -121,6 +121,12 @@
       (doc/12-risks.md, R-122). The snapshot is what `Cancel` goes back to. */
   // svelte-ignore state_referenced_locally
   let draft = $state<Settings>({ ...value });
+  /** Installed font families for Font, asked once per opening; until then only System. */
+  let families = $state.raw<string[]>([]);
+  fontFamilies().then(
+    (listed) => (families = listed),
+    () => {},
+  );
   // svelte-ignore state_referenced_locally
   let draftKeys = $state<Keymap>({ ...keymap });
   let search = $state("");
@@ -344,6 +350,16 @@
                   options={THEMES}
                   label={field.label}
                   onchange={(next) => set("theme", next)}
+                />
+              </div>
+            {:else if field.key === "fontFamily"}
+              <div class="row">
+                {@render caption(field)}
+                <Select
+                  value={draft.fontFamily}
+                  options={fontChoices(families, draft.fontFamily)}
+                  label={field.label}
+                  onchange={(next) => set("fontFamily", next)}
                 />
               </div>
             {:else if field.key === "uiFontSize" || field.key === "diffFontSize" || field.key === "uiZoom"}

@@ -3,7 +3,7 @@ export const BASE_FONT_PX = 13;
 
 /** Diff rows stay 18 px (the diff, its editor and the Conflict Solver share one grid), so the
     diff font goes no larger than reads well in them. */
-export const DIFF_FONT_PX = { default: 12.5, min: 10, max: 14 } as const;
+export const DIFF_FONT_PX = { default: 14, min: 10, max: 14 } as const;
 
 export const UI_FONT_PX = { min: 11, max: 20 } as const;
 
@@ -11,6 +11,13 @@ export const UI_FONT_PX = { min: 11, max: 20 } as const;
 export function uiFontChoices(desktopPx: number | null): (readonly [string, string])[] {
   const sizes = [11, 12, 13, 14, 15, 16, 18, 20];
   return [["0", `System (${uiFontPx(0, desktopPx)} px)`] as const, ...sizes.map((size) => [String(size), `${size} px`] as const)];
+}
+
+/** The families of Preferences ▸ Font; "" is the desktop's. A chosen family the list lacks
+    (uninstalled, or macOS, which lists none) stays, so the choice reads as it is. */
+export function fontChoices(families: readonly string[], chosen: string): (readonly [string, string])[] {
+  const listed = chosen && !families.includes(chosen) ? [chosen, ...families] : families;
+  return [["", "System"] as const, ...listed.map((family) => [family, family] as const)];
 }
 
 export function diffFontChoices(): (readonly [string, string])[] {

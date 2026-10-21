@@ -407,6 +407,10 @@ export const DEFAULT_DIFF_OPTIONS: DiffOptions = {
 };
 
 /** The desktop's UI font and the `families` installed (Linux). */
+export async function fontFamilies() {
+  return unwrap(await commands.fontFamilies());
+}
+
 export async function systemFont(families: string[]) {
   return unwrap(await commands.systemFont(families));
 }

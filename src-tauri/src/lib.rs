@@ -321,6 +321,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::desktop::desktop_info,
             commands::desktop::set_native_theme,
             commands::desktop::system_font,
+            commands::desktop::font_families,
             commands::desktop::open_path,
             commands::desktop::open_url,
             commands::desktop::reveal_path,

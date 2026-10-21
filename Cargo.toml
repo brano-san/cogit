@@ -126,6 +126,8 @@ windows-core = "0.62"
 # `GetKeyState`: the accelerator event says which key, never which modifiers. The rest
 # holds a shutdown while operations run: a window subclass and the block reason (R-168).
 windows = { version = "0.62", features = [
+    # Installed font families for Preferences ▸ Font (src-tauri/src/system_font.rs).
+    "Win32_Graphics_DirectWrite",
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_Shell",
     # The Start menu shortcut toasts take their name and icon from (src-tauri/src/notify).
