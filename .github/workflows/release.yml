@@ -305,3 +305,8 @@ jobs:
             gh release create "$TAG" "${flags[@]}"
           fi
           gh release upload "$TAG" dist/* --clobber
+          # A draft whose notes were written ahead goes out once every file, latest.json included,
+          # is up; one still without notes stays a draft until they are written (RELEASE_DRAFT).
+          if [ "$(gh release view "$TAG" --json isDraft,body -q '.isDraft and (.body | length > 0)')" = true ]; then
+            gh release edit "$TAG" --draft=false
+          fi
