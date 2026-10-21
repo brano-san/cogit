@@ -132,6 +132,13 @@
     gap: var(--sp-2);
   }
 
+  /* As tall as the field beside it, not the small button height: no step between them. */
+  .secret .eye {
+    align-self: stretch;
+    height: auto;
+    padding-block: 0;
+  }
+
   .secret input {
     flex: 1 1 auto;
     min-width: 0;
