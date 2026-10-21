@@ -47,7 +47,7 @@
   import { suppressBrowserFind } from "$lib/browser-find";
   import { suppressBrowserNavigation } from "$lib/browser-navigation";
   import { findModuleRow, isModulePath, onOpenModule } from "$lib/module-open";
-  import { editRoute, openRoute, type FileRoute } from "$lib/file-edit";
+  import { commitRoute, editRoute, openRoute, type FileRoute } from "$lib/file-edit";
   import { onPushHead } from "$lib/push-head";
   import { onTreeChange } from "$lib/tree-sync";
   import { emptyStateVisible, footerRepository, panelView } from "$lib/repo-phase";
@@ -1866,7 +1866,7 @@ ${event.error}`,
 
   /** Double-click opens the file in its own window, which survives a webview reload. A
       submodule has no lines to compare: it opens, as its row in Repositories does (R-537). */
-  function openInWindow(path: string, spec = diff.spec) {
+  function openInWindow(path: string, spec: import("$lib/ipc").DiffSpec | null) {
     const id = repository.current?.repo;
     // A conflicted file has three sides: it opens in the Conflict Solver, not in a diff.
     if (id && conflicts.paths.includes(path)) {
@@ -3944,8 +3944,9 @@ ${event.error}`,
               onopencommit={openDiff}
               onopenstash={openStashDiff}
               onopencompare={openCompareDiff}
-              onopenwindow={openInWindow}
+              onopenwindow={(path) => openInWindow(path, diff.spec)}
               onopenrow={openRow}
+              onopenpast={(path) => follow(path, commitRoute(isModulePath(path, [commit.files]) ? "submodule" : "plain", commit.oid))}
               onmask={(mask) => (fileMask = mask)}
               onshownstaged={(paths) => (shownStaged = paths)}
               onmarked={(paths, bySection) => {

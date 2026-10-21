@@ -39,6 +39,8 @@
     onopenwindow: (path: string) => void;
     /** Double-click or Enter on a Working Tree row: Unstaged or Staged, whatever Diff shows. */
     onopenrow: (path: string, side: "worktree" | "index") => void;
+    /** Double-click or Enter on a row of a past commit. */
+    onopenpast: (path: string) => void;
     onmask: (mask: string) => void;
     /** The staged files the working-tree list shows once filtered. */
     onshownstaged?: (paths: string[] | null) => void;
@@ -66,6 +68,7 @@
     onopencompare,
     onopenwindow,
     onopenrow,
+    onopenpast,
     onmask,
     onshownstaged,
     onmarked,
@@ -257,7 +260,7 @@
       empty={nothing}
       selected={diff.path}
       onselect={onopencommit}
-      onopen={onopenwindow}
+      onopen={(path) => onopenpast(path)}
       {onmarked}
       {oncontext}
     />

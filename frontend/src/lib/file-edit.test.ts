@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FileStatus } from "./ipc";
-import { editRoute, openRoute } from "./file-edit";
+import { commitRoute, editRoute, openRoute } from "./file-edit";
 
 const plain = (status: FileStatus) => ({ status, mode: "plain" as const });
 const onDisk = { unstaged: true, headExists: true };
@@ -55,5 +55,17 @@ describe("openRoute", () => {
   it("sends a conflict to the Solver and a submodule to its repository", () => {
     expect(openRoute(plain("conflicted"), "worktree")).toEqual({ kind: "solver" });
     expect(openRoute({ status: "unchanged", mode: "submodule" }, "worktree")).toEqual({ kind: "module" });
+  });
+});
+
+// A double-click on a past commit's file opened a window saying it needs a file to compare.
+describe("commitRoute", () => {
+  it("opens the commit's change to the file, whatever the Diff panel showed last", () => {
+    expect(commitRoute("plain", "abc123")).toEqual({ kind: "compare", spec: { kind: "commitVsParent", oid: "abc123" } });
+  });
+
+  it("opens a submodule in its repository and has nothing to open without a commit", () => {
+    expect(commitRoute("submodule", "abc123")).toEqual({ kind: "module" });
+    expect(commitRoute("plain", null)).toEqual({ kind: "refused", reason: "no commit" });
   });
 });
