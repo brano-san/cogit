@@ -350,8 +350,13 @@
       title="Search for Repositories…"
       aria-label="Search for repositories"
     >
+      <!-- A magnifier over a repository: a bare one read as the panel's own filter. -->
       <svg viewBox="0 0 24 24" aria-hidden="true"
-        ><circle cx="11" cy="11" r="6" /><path d="m20 20-4.3-4.3" /></svg
+        ><clipPath id="scan-repo-cut"
+          ><path clip-rule="evenodd" d="M0 0h24v24H0ZM15.5 9.7a5.8 5.8 0 1 0 0 11.6 5.8 5.8 0 1 0 0-11.6Z" /></clipPath
+        ><g clip-path="url(#scan-repo-cut)"
+          ><rect x="3.5" y="3" width="11" height="13" rx="1.8" /><path d="M3.5 7.3h11M3.5 11.7h11" /></g
+        ><circle cx="15.5" cy="15.5" r="4" /><path d="m18.4 18.4 2.6 2.6" /></svg
       >
     </button>
     <span class="separator" aria-hidden="true"></span>
@@ -368,17 +373,18 @@
         /><path d="M12 10.5v5M9.5 13h5" /></svg
       >
     </button>
+    {#if showsFilter(repository.openRepos.length + repoList.list.closed.length, filter)}
+      <span class="separator" aria-hidden="true"></span>
+      <input
+        class="filter"
+        type="search"
+        bind:value={filter}
+        placeholder="Filter repositories"
+        aria-label="Filter repositories"
+      />
+    {/if}
   </div>
 
-  {#if showsFilter(repository.openRepos.length + repoList.list.closed.length, filter)}
-    <input
-      class="filter"
-      type="search"
-      bind:value={filter}
-      placeholder="Filter repositories"
-      aria-label="Filter repositories"
-    />
-  {/if}
 
     {#each rows as row, at (row.kind === "group" ? `g:${row.id}` : row.root)}
       {#if row.kind === "group"}
@@ -676,10 +682,11 @@
     letter-spacing: 0.04em;
   }
 
+  /* On the buttons' line, taking what they leave. */
   .filter {
-    display: block;
-    width: calc(100% - var(--sp-5) * 2);
-    margin: 0 var(--sp-5) var(--sp-4);
+    flex: 1 1 auto;
+    align-self: center;
+    min-width: 0;
     height: var(--h-button-sm);
     padding: 0 var(--sp-3);
     background: var(--surface-input);
