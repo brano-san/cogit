@@ -34,8 +34,8 @@
   <svg viewBox="0 0 16 16" aria-hidden="true">
     {#if kind === "repository" || kind === "submodule"}
       <!-- A stack of three disks, as SmartGit draws a repository; a submodule is one too. -->
-      <rect x="2.5" y="2" width="11" height="12" rx="1.5" />
-      <path d="M2.5 6h11M2.5 10h11" />
+      <rect x="1.75" y="2.25" width="12.5" height="11.5" rx="1.5" />
+      <path d="M1.75 6.1h12.5M1.75 9.9h12.5" />
     {:else if kind === "worktree"}
       <circle cx="4.5" cy="3.5" r="1.5" />
       <circle cx="4.5" cy="12.5" r="1.5" />
