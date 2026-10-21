@@ -509,7 +509,7 @@ pub fn run() -> anyhow::Result<()> {
             #[cfg(target_os = "linux")]
             gtk::Window::set_default_icon_name(desktop_entry::APP_NAME);
             #[cfg(target_os = "linux")]
-            native_theme::keep_theme_name(gtk_theme.as_deref());
+            native_theme::use_adwaita(gtk_theme.as_deref());
             let (log_dir, config_dir) = match portable {
                 Some(layout) => (layout.logs(), layout.config()),
                 None => (app.path().app_log_dir()?, app.path().app_config_dir()?),
