@@ -427,6 +427,8 @@ pub fn run() -> anyhow::Result<()> {
     // Also before GTK: no session bus (WSLg) means dconf warns on every settings write.
     #[cfg(target_os = "linux")]
     portable::quiet_gsettings_without_a_bus();
+    #[cfg(target_os = "linux")]
+    let gtk_theme = native_theme::take_gtk_theme();
 
     // Before the builder: without the runtime no window can exist, so the user is told here.
     #[cfg(windows)]
@@ -505,6 +507,8 @@ pub fn run() -> anyhow::Result<()> {
             let started = (|| -> Result<(), Box<dyn std::error::Error>> {
             #[cfg(target_os = "linux")]
             gtk::Window::set_default_icon_name(desktop_entry::APP_NAME);
+            #[cfg(target_os = "linux")]
+            native_theme::keep_theme_name(gtk_theme.as_deref());
             let (log_dir, config_dir) = match portable {
                 Some(layout) => (layout.logs(), layout.config()),
                 None => (app.path().app_log_dir()?, app.path().app_config_dir()?),
