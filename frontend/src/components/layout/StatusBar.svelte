@@ -67,7 +67,7 @@
   {/if}
 
   {#if repository}
-    <span class="item shrink-last" title={repository}>
+    <span class="item shrink-last">
       <svg class="folder" viewBox="0 0 16 16" aria-hidden="true"
         ><path
           fill="currentColor"
@@ -79,10 +79,11 @@
     {#if branch || summary}<span class="divider" aria-hidden="true"></span>{/if}
   {/if}
 
-  <!-- Names give up the width before the status on the right does, the upstream and the
+  <!-- No tooltip on the repository, the branch or the summary: it only repeated them; the
+       ahead/behind one spells out the arrows. Names give up the width before the status on the right does, the upstream and the
        summary first: they are the secondary text (R-243). -->
   {#if branch}
-    <span class="item shrink-last" title={upstream ? `${branch} (${upstream})` : branch}>
+    <span class="item shrink-last">
       <span class="glyph" aria-hidden="true">⎇</span>
       <span class="branch truncate shrink-last">{branch}</span>
       {#if upstream}<span class="muted truncate shrink-first">({upstream})</span>{/if}
@@ -93,7 +94,7 @@
   {/if}
 
   {#if summary}
-    <span class="item shrink-first" title={summary}><span class="truncate">{summary}</span></span>
+    <span class="item shrink-first"><span class="truncate">{summary}</span></span>
     <span class="divider" aria-hidden="true"></span>
   {/if}
 
