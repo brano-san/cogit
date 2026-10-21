@@ -32,12 +32,10 @@
 
 <span class="kind {kind}" title={title ?? KIND_LABELS[kind]} role="img" aria-label={KIND_LABELS[kind]}>
   <svg viewBox="0 0 16 16" aria-hidden="true">
-    {#if kind === "repository"}
-      <path d="M4 2.5h8.5v11H4a1.5 1.5 0 0 1-1.5-1.5V4A1.5 1.5 0 0 1 4 2.5Z" />
-      <path d="M2.5 11.5A1.5 1.5 0 0 1 4 10h8.5M6 5.5h4" />
-    {:else if kind === "submodule"}
-      <path d="M1.5 4A1.5 1.5 0 0 1 3 2.5h3l1.5 1.5H13A1.5 1.5 0 0 1 14.5 5.5V12A1.5 1.5 0 0 1 13 13.5H3A1.5 1.5 0 0 1 1.5 12Z" />
-      <rect class="solid" x="6" y="7" width="4.5" height="4" rx="0.5" />
+    {#if kind === "repository" || kind === "submodule"}
+      <!-- A stack of three disks, as SmartGit draws a repository; a submodule is one too. -->
+      <rect x="2.5" y="2" width="11" height="12" rx="1.5" />
+      <path d="M2.5 6h11M2.5 10h11" />
     {:else if kind === "worktree"}
       <circle cx="4.5" cy="3.5" r="1.5" />
       <circle cx="4.5" cy="12.5" r="1.5" />
@@ -83,6 +81,7 @@
     stroke: none;
   }
 
+  .repository,
   .submodule,
   .worktree {
     color: var(--status-ref);
