@@ -79,7 +79,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all
 cargo deny check
 cargo insta review                             # never accept blindly
-cargo run -p cogit --bin export-bindings       # after command/DTO change
+cargo run -p cogit -F bindings --bin export-bindings # after command/DTO change
 npm run tauri dev | npm run tauri build
 npm --prefix frontend run check | test
 npx vitest run <path>

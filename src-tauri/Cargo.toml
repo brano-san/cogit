@@ -60,7 +60,16 @@ windows.workspace = true
 windows-core.workspace = true
 windows-registry.workspace = true
 
+[[bin]]
+name = "export-bindings"
+path = "src/bin/export-bindings.rs"
+# Only with `--features bindings`: Tauri packs every binary it finds built into the
+# installers, and this one is a 31 MB development tool (R-780).
+required-features = ["bindings"]
+
 [features]
+# Builds the export-bindings helper (pre-commit, CLAUDE.md).
+bindings = []
 # The portable build: the data folder beside the binary, no updater, no legacy migration.
 portable = []
 

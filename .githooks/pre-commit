@@ -128,7 +128,7 @@ if [ "$RUST" = "1" ]; then
 
   # IPC bindings are generated, never hand-written (INV-10).
   say "IPC bindings"
-  cargo run -q -p cogit --bin export-bindings || fail "could not export IPC bindings"
+  cargo run -q -p cogit --features bindings --bin export-bindings || fail "could not export IPC bindings"
   if ! git diff --quiet -- "$BINDINGS"; then
     if [ "$FIX" = "1" ]; then
       git add -- "$BINDINGS"
