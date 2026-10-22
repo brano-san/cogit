@@ -197,7 +197,7 @@
   <div class="row choice">
     <span>{field.label}</span>
     {#if value.graphFilterPatterns.length === 0}
-      <span class="why">None yet: Remember Pattern in the magnifier's menu keeps the filter in the field.</span>
+      <span class="why">None yet: Remember Pattern under the history button in the Graph filter keeps the filter in the field.</span>
     {:else}
       <ul class="patterns" aria-label={field.label}>
         {#each value.graphFilterPatterns as pattern (pattern)}

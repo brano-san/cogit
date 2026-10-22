@@ -114,7 +114,7 @@
     gap: var(--sp-3);
   }
 
-  /* The magnifier sits inside the field. */
+  /* The Remembered filters button sits inside the field. */
   .box {
     display: flex;
     align-items: center;

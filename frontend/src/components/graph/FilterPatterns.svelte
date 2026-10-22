@@ -4,7 +4,7 @@
   import { menuKey } from "$lib/menu-keys";
   import { graphFilter } from "$stores/graph-filter.svelte";
 
-  /** The magnifier in the graph filter: Remember Pattern and the patterns kept
+  /** The history button in the graph filter: Remember Pattern and the patterns kept
       by it (F-563). */
   interface Props {
     /** A remembered pattern was chosen: it goes into the field and filters at once. */
@@ -94,7 +94,10 @@
     aria-label="Remembered filters"
     onclick={toggle}
   >
-    <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="6.5" cy="6.5" r="4" /><path d="m9.5 9.5 4 4" /></svg>
+    <!-- Lucide history: a magnifier read as decoration, not as a button with a menu. -->
+    <svg viewBox="0 0 24 24" aria-hidden="true"
+      ><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5M12 7v5l4 2" /></svg
+    >
   </button>
   {#if open}
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
@@ -175,7 +178,9 @@
     height: var(--panel-icon);
     fill: none;
     stroke: currentColor;
-    stroke-width: 1.4;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   .backdrop {

@@ -322,8 +322,8 @@ export const CATEGORIES: Category[] = [
           {
             key: "graphFilterPatterns",
             label: "Remembered filters",
-            hint: "Kept by Remember Pattern in the menu of the magnifier in the Graph filter.",
-            keywords: ["pattern", "remember", "saved", "search", "filter", "magnifier"],
+            hint: "Kept by Remember Pattern under the history button in the Graph filter.",
+            keywords: ["pattern", "remember", "saved", "search", "filter", "history"],
           },
         ],
       },
