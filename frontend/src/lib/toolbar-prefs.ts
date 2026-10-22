@@ -89,7 +89,7 @@ export interface RemoteFacts {
   ffOnly: boolean;
   deleteMerged: boolean;
   /** The checked-out branch, as the last fetch left it. */
-  branch?: { name: string; upstream: string | null; ahead: number; behind: number } | null;
+  branch?: { name: string; upstream: string | null; ahead: number; behind: number; upstreamAhead?: number | null } | null;
   /** HEAD is detached: Pull only fetches (F-710). */
   detached?: boolean;
 }
@@ -98,9 +98,11 @@ export interface RemoteFacts {
     branches that have both moved (F-320, R-456). */
 function pullProblem(facts: RemoteFacts): string | null {
   const branch = facts.branch;
-  if (!facts.ffOnly || !branch?.upstream || branch.ahead === 0 || branch.behind === 0) return null;
+  // `ahead` counts against the push target when the branch pushes elsewhere.
+  const ahead = branch?.upstreamAhead ?? branch?.ahead ?? 0;
+  if (!facts.ffOnly || !branch?.upstream || ahead === 0 || branch.behind === 0) return null;
   return (
-    `${branch.name} and ${branch.upstream} have diverged (${branch.ahead} ahead, ${branch.behind} behind), ` +
+    `${branch.name} and ${branch.upstream} have diverged (${ahead} ahead, ${branch.behind} behind), ` +
     "and Pull only fast-forwards (Preferences ▸ Pull). Merge or rebase the branch first, " +
     "or let Pull merge it."
   );
