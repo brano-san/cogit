@@ -85,11 +85,11 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
     } else {
         cursor.cut_colour.remove(&node.oid)
     };
-    let on_main = cursor.reserved
-        && cursor
+    let on_main = cursor.mainline.as_deref() == Some(node.oid.as_str())
+        || cursor
             .lanes
-            .first()
-            .is_some_and(|lane| waits_for(lane, &node.oid));
+            .iter()
+            .any(|lane| lane.primary && waits_for(lane, &node.oid));
     let waited = cursor
         .lanes
         .iter()
@@ -121,11 +121,8 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
     }
     // A line moves left only here, bending into its own node: a free column left of it is
     // taken back at the ring, never by a line passing a row (R-765).
-    let floor = usize::from(cursor.reserved);
     if waited.is_some()
-        && !cursor.lanes[node_at].primary
-        && let Some(free) =
-            find_from(&cursor.lanes, floor, Lane::is_free).filter(|&at| at < node_at)
+        && let Some(free) = find_from(&cursor.lanes, 0, Lane::is_free).filter(|&at| at < node_at)
     {
         let id = cursor.take_id();
         let lane = std::mem::replace(&mut cursor.lanes[node_at], Lane::free(id));
@@ -137,7 +134,7 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
     // 3. The first parent continues the lane; the others join a lane already waiting for
     // them or take the first free column right of the node, in parent order.
     let shown = |parent: &String| !node.hidden.contains(parent);
-    // Column 0 is never cut: it is the one line the eye follows all the way down.
+    // The main line is never cut: it is the one line the eye follows all the way down.
     let cut_first = !on_main
         && node
             .parents
@@ -156,7 +153,8 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
         let lane = &mut cursor.lanes[node_index];
         lane.waits = first;
         lane.drawn = continues;
-        lane.ended = !continues && !lane.primary;
+        lane.ended = !continues;
+        lane.primary = on_main;
     }
     if continues {
         leaving.push(node_id);
@@ -166,8 +164,6 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
     for parent in node.parents.iter().skip(1).filter(|parent| shown(parent)) {
         if let Some(lane) = cursor.lanes.iter_mut().find(|lane| waits_for(lane, parent)) {
             if lane.id != node_id {
-                // Column 0 still waiting for the main line's tip is drawn from here on.
-                lane.drawn = true;
                 leaving.push(lane.id);
             }
             continue;
@@ -359,7 +355,7 @@ fn far(cursor: &LayoutCursor, parent: &str) -> bool {
 }
 
 /// A commit nobody was waiting for starts a lane of its own in the first free column right
-/// of the lane its first parent is already on, else the first free one; never column 0. Below a
+/// of the lane its first parent is already on, else the first free one. Below a
 /// cut first-parent link it takes the colour of the child above the cut, `across`.
 fn open_tip(node: &CommitNode, cursor: &mut LayoutCursor, across: Option<u8>) -> u64 {
     let beside = node
@@ -367,8 +363,7 @@ fn open_tip(node: &CommitNode, cursor: &mut LayoutCursor, across: Option<u8>) ->
         .first()
         .filter(|parent| !node.hidden.contains(parent))
         .and_then(|parent| cursor.lanes.iter().position(|lane| waits_for(lane, parent)));
-    let floor = usize::from(cursor.reserved);
-    let at = beside.map_or(floor, |lane| lane + 1).max(floor);
+    let at = beside.map_or(0, |lane| lane + 1);
     // Taken either way, so the lanes after it keep their colours.
     let next = cursor.take_color();
     let lane = Lane {

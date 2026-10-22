@@ -334,8 +334,8 @@ describe("centreRow", () => {
 });
 
 describe("HEAD's ring under the Working Tree row", () => {
-  // A ticked origin/main two commits ahead: its tip opens beside lane 0, HEAD comes third.
-  const lanes = [1, 1, 0, 0];
+  // A ticked origin/main two commits ahead: one line down lane 0, HEAD comes third.
+  const lanes = [0, 0, 0, 0];
   const laneAt = (row: number) => lanes[row];
 
   it("is HEAD's own node when newer commits are drawn above it", () => {
@@ -637,10 +637,11 @@ describe("Working Tree row above a HEAD that is not the first commit", () => {
     expect(headNode(3, () => 0, 1, at)).toEqual({ lane: 0, listRow: 4 });
   });
 
-  it("takes HEAD's lane when free, else the first lane no line crosses", () => {
+  it("takes HEAD's lane when free, else the first lane right of it no line crosses", () => {
     expect(workingTreeLane(1, [{ from: 0, span: "through" }])).toBe(1);
     expect(workingTreeLane(0, [{ from: 0, span: "top" }, { from: 1, span: "through" }])).toBe(2);
     expect(workingTreeLane(0, [{ from: 0, span: "top" }, { from: 2, span: "bottom" }])).toBe(1);
+    expect(workingTreeLane(2, [{ from: 2, span: "top" }])).toBe(3);
   });
 });
 

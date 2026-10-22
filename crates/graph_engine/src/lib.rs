@@ -104,7 +104,7 @@ impl Lane {
     }
 
     pub(crate) fn is_free(&self) -> bool {
-        self.waits.is_none() && !self.drawn && !self.ended && !self.primary
+        self.waits.is_none() && !self.drawn && !self.ended
     }
 }
 
@@ -114,7 +114,8 @@ pub struct LayoutCursor {
     pub(crate) next_id: u64,
     pub(crate) next_color: u8,
     pub(crate) next_row: u32,
-    pub(crate) reserved: bool,
+    /// The primary ref's commit: its lane turns primary there, wherever the layout put it.
+    pub(crate) mainline: Option<String>,
     pub(crate) above: Vec<Above>,
     pub(crate) converging: Vec<u64>,
     pub(crate) leaving: Vec<u64>,
@@ -132,24 +133,14 @@ pub struct LayoutCursor {
 }
 
 impl LayoutCursor {
-    /// Column 0 waits for `tip`, then follows its first parents (R-115, R-161).
+    /// The main line starts at `tip` and follows its first parents (R-115); it only marks
+    /// lines, the columns are the top commit's (R-783).
     #[must_use]
     pub fn with_mainline(tip: Option<String>) -> Self {
-        let mut cursor = Self::default();
-        if let Some(tip) = tip {
-            cursor.reserved = true;
-            cursor.lanes.push(Lane {
-                id: 0,
-                waits: Some(tip),
-                color: 0,
-                drawn: false,
-                primary: true,
-                ended: false,
-            });
-            cursor.next_id = 1;
-            cursor.next_color = 1;
+        Self {
+            mainline: tip,
+            ..Self::default()
         }
-        cursor
     }
 
     /// Cuts links longer than `rows` rows (R-330); rows then come out `rows` commits late.

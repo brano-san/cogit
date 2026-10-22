@@ -254,7 +254,8 @@ fn cut_links_pair_up_and_leave_the_main_line_alone_on_random_histories() {
             chain.push(names.iter().position(|name| name == parent).unwrap());
         }
         let last = *chain.last().unwrap();
-        for (index, row) in rows.iter().enumerate() {
+        // Past the root of the main line column 0 is free for whoever comes next.
+        for (index, row) in rows.iter().enumerate().take(last + 1) {
             assert_eq!(
                 chain.contains(&index),
                 row.lane == 0,

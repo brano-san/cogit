@@ -101,8 +101,8 @@ fn a_diamond_is_two_columns_wide_while_it_is_open() {
     assert_eq!(widest, 2);
 }
 
-/// Column 0 follows HEAD's first parents; with HEAD unticked it follows nothing, rather
-/// than sitting empty for a line that is not drawn (doc/12-risks.md, R-161).
+/// The main line follows HEAD's first parents; with HEAD unticked it follows nothing, and
+/// column 0 is the top commit's either way (doc/12-risks.md, R-161, R-783).
 #[test]
 fn the_main_column_follows_head_when_head_is_ticked_and_nothing_when_it_is_not() {
     let f = test_fixtures::linear(3).unwrap();

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BisectState } from "./ipc/bisect";
-import { abortAction, bannerQuestion, repoStateTag, stateBanner, workingTreeLabel } from "./repo-state";
+import { abortAction, bannerQuestion, repoStateTag, stateBanner, workingTreeChanged, workingTreeLabel } from "./repo-state";
 
 const BISECT: BisectState = {
   start: "main",
@@ -129,44 +129,21 @@ describe("git am and bisect", () => {
 });
 
 describe("workingTreeLabel", () => {
-  const status = { staged: 1, unstaged: 2, untracked: 0, conflicted: 3, dirtySubmodules: 0 };
+  const none = { staged: 0, unstaged: 0, untracked: 0, conflicted: 0, dirtySubmodules: 0 };
 
-  it("counts what the working tree holds", () => {
-    expect(workingTreeLabel(status, { kind: "clean" })).toBe(
-      "Working Tree (1 staged, 2 modified, 3 conflicted)",
-    );
+  it("says clean when the index and the working tree hold nothing", () => {
+    expect(workingTreeLabel(none)).toBe("Working Tree/Index (clean)");
   });
 
-  it("adds the operation in progress after the counts", () => {
-    expect(workingTreeLabel(status, { kind: "merging" })).toBe(
-      "Working Tree (1 staged, 2 modified, 3 conflicted), merging",
-    );
-    expect(workingTreeLabel(undefined, { kind: "applyingPatches" })).toBe(
-      "Working Tree, applying patches",
-    );
+  it("says changed for anything in either, untracked and submodules included", () => {
+    for (const key of Object.keys(none)) {
+      expect(workingTreeLabel({ ...none, [key]: 1 }), key).toBe("Working Tree/Index (changed)");
+    }
   });
 
-  it("says clean when there is nothing to count", () => {
-    const none = { staged: 0, unstaged: 0, untracked: 0, conflicted: 0, dirtySubmodules: 0 };
-    expect(workingTreeLabel(none, { kind: "clean" })).toBe("Working Tree — clean");
-    expect(workingTreeLabel(none, { kind: "rebasing" })).toBe("Working Tree — clean, rebasing");
-  });
-
-  it("names submodules with edits inside, alone or after the counts", () => {
-    const none = { staged: 0, unstaged: 0, untracked: 0, conflicted: 0, dirtySubmodules: 0 };
-    expect(workingTreeLabel({ ...none, dirtySubmodules: 1 }, { kind: "clean" })).toBe(
-      "Working Tree (1 submodule with modifications)",
-    );
-    expect(workingTreeLabel({ ...none, dirtySubmodules: 3 }, { kind: "clean" })).toBe(
-      "Working Tree (3 submodules with modifications)",
-    );
-    expect(workingTreeLabel({ ...none, unstaged: 5, dirtySubmodules: 1 }, { kind: "clean" })).toBe(
-      "Working Tree (5 modified, 1 submodule with modifications)",
-    );
-  });
-
-  it("leaves a detached HEAD to the banner", () => {
-    expect(workingTreeLabel(undefined, { kind: "detachedHead", oid: "abc" })).toBe("Working Tree");
+  it("says neither before the status is read", () => {
+    expect(workingTreeLabel(undefined)).toBe("Working Tree/Index");
+    expect(workingTreeChanged(undefined)).toBeNull();
   });
 });
 

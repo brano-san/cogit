@@ -50,6 +50,9 @@ export interface RefLabel {
   title?: string;
   /** Another worktree has this branch checked out (#25). */
   worktree?: WorktreeMark;
+  /** A local branch apart from its upstream: `+2 -1`, a block right before the label. */
+  divergence?: string;
+  divergenceTitle?: string;
 }
 
 export interface WorktreeMark {
@@ -145,6 +148,13 @@ export function refLabels(
     }
     if (lines.length === 0 && label.text !== branch.name) lines.push(branch.name);
     if (lines.length > 0) label.title = lines.join("\n");
+    if (branch.upstream !== null && branch.ahead + branch.behind > 0) {
+      const counts: [string, string][] = [];
+      if (branch.ahead > 0) counts.push([`+${branch.ahead}`, `${branch.ahead} ahead`]);
+      if (branch.behind > 0) counts.push([`-${branch.behind}`, `${branch.behind} behind`]);
+      label.divergence = counts.map(([short]) => short).join(" ");
+      label.divergenceTitle = `${branch.upstream}: ${counts.map(([, long]) => long).join(", ")}`;
+    }
     add(branch.oid, label);
   }
   for (const branch of remotes.values()) {

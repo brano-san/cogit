@@ -292,9 +292,9 @@ fn only_what_the_main_line_has_not_merged_takes_the_colour() {
     assert_eq!(
         coloured,
         vec![
-            (0, Span::Bottom, 1, 1),
-            (1, Span::Through, 1, 1),
-            (2, Span::Top, 1, 1),
+            (0, Span::Bottom, 0, 0),
+            (1, Span::Through, 0, 0),
+            (2, Span::Top, 0, 0),
         ],
         "m3's line down to m2, not f3's merge into it"
     );

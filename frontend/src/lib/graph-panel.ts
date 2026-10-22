@@ -1,5 +1,6 @@
 import { textX } from "$lib/graph-geometry";
 import type { RepoState, RepoStatus } from "$lib/ipc";
+import { workingTreeChanged } from "$lib/repo-state";
 
 /** The narrowest the Graph panel goes, splitter or window alike: one lane and about this
     many characters of the subject. Nothing inside it hides a column (#5, R-243). */
@@ -52,6 +53,6 @@ export function showsWorkingTree(
   state: RepoState | undefined,
 ): boolean {
   if (always || !status) return true;
-  if (status.staged + status.unstaged + status.untracked + status.conflicted + status.dirtySubmodules > 0) return true;
+  if (workingTreeChanged(status)) return true;
   return state !== undefined && state.kind !== "clean" && state.kind !== "detachedHead";
 }

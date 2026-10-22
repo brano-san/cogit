@@ -39,36 +39,48 @@
   {/if}
 {/snippet}
 
-{#if parts.remote}
-  {@const remote = parts.remote}
-  <!-- The HEAD colour stays on the local part: the prefix and `=` are in remote colours. -->
-  <span class="capsule {label.kind} joined" class:holds={label.worktree}>
+{#snippet capsule()}
+  {#if parts.remote}
+    {@const remote = parts.remote}
+    <!-- The HEAD colour stays on the local part: the prefix and `=` are in remote colours. -->
+    <span class="capsule {label.kind} joined" class:holds={label.worktree}>
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <span class="prefix" title={remote.text} oncontextmenu={menu(remote)} ondblclick={activate(remote)}
+        >{label.prefix}</span
+      ><!-- svelte-ignore a11y_no_static_element_interactions --><span
+        class="eq"
+        title={localTip}
+        oncontextmenu={menu(parts.local)}
+        ondblclick={activate(parts.local)}>=</span
+      ><!-- svelte-ignore a11y_no_static_element_interactions --><span
+        class="branch"
+        title={localTip}
+        oncontextmenu={menu(parts.local)}
+        ondblclick={activate(parts.local)}>{@render held()}{#if label.kind === "head"}<HereMark />{/if}{text}</span
+      >
+    </span>
+  {:else}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <span class="prefix" title={remote.text} oncontextmenu={menu(remote)} ondblclick={activate(remote)}
-      >{label.prefix}</span
-    ><!-- svelte-ignore a11y_no_static_element_interactions --><span
-      class="eq"
-      title={localTip}
-      oncontextmenu={menu(parts.local)}
-      ondblclick={activate(parts.local)}>=</span
-    ><!-- svelte-ignore a11y_no_static_element_interactions --><span
-      class="branch"
-      title={localTip}
-      oncontextmenu={menu(parts.local)}
-      ondblclick={activate(parts.local)}>{@render held()}{#if label.kind === "head"}<HereMark />{/if}{text}</span
+    <span
+      class="capsule {label.kind}"
+      class:holds={label.worktree}
+      title={tooltip}
+      oncontextmenu={menu(label)}
+      ondblclick={activate(label)}
     >
+      {@render held()}{#if label.kind === "head"}<HereMark />{/if}{text}
+    </span>
+  {/if}
+{/snippet}
+
+{#if label.divergence}
+  <span class="group">
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <span class="counter" title={label.divergenceTitle} oncontextmenu={menu(parts.local)}>{label.divergence}</span
+    >{@render capsule()}
   </span>
 {:else}
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <span
-    class="capsule {label.kind}"
-    class:holds={label.worktree}
-    title={tooltip}
-    oncontextmenu={menu(label)}
-    ondblclick={activate(label)}
-  >
-    {@render held()}{#if label.kind === "head"}<HereMark />{/if}{text}
-  </span>
+  {@render capsule()}
 {/if}
 
 <style>
@@ -84,6 +96,33 @@
     font-family: var(--font-mono);
     font-size: var(--fs-small);
     line-height: 14px;
+  }
+
+  /* The ahead/behind counter, flush left of the branch label: two plain blocks, one group. */
+  .group {
+    display: inline-flex;
+    flex: none;
+  }
+
+  .counter {
+    display: inline-flex;
+    align-items: center;
+    height: 16px;
+    padding: 0 var(--sp-2);
+    white-space: nowrap;
+    color: var(--badge-divergence-fg);
+    background: var(--badge-divergence-bg);
+    border: 1px solid var(--badge-divergence-fg);
+    border-right: 0;
+    border-radius: var(--r-md) 0 0 var(--r-md);
+    font-family: var(--font-mono);
+    font-size: var(--fs-small);
+    line-height: 14px;
+  }
+
+  .group .capsule {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
   }
 
   .head {

@@ -221,6 +221,14 @@
       "type": "color",
       "description": "Unticked branches: the lines and nodes of the graph that have no branch color. Lanes 0-7 are for ticked branches only."
     },
+    "graph.workingTree.clean": {
+      "type": "color",
+      "description": "The Working Tree node in the graph when the index and the working tree hold nothing."
+    },
+    "graph.workingTree.changed": {
+      "type": "color",
+      "description": "The Working Tree node in the graph when the index or the working tree hold changes, untracked files included."
+    },
     "badge.head.bg": {
       "type": "color",
       "description": "The HEAD badge: background."
@@ -244,6 +252,14 @@
     "badge.remote.fg": {
       "type": "color",
       "description": "A remote-branch badge: text."
+    },
+    "badge.divergence.bg": {
+      "type": "color",
+      "description": "The ahead/behind counter beside a local branch badge (+2 -1): background, unlike the branch badge."
+    },
+    "badge.divergence.fg": {
+      "type": "color",
+      "description": "The ahead/behind counter beside a local branch badge: text and border."
     },
     "badge.tag.bg": {
       "type": "color",
