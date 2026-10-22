@@ -1822,7 +1822,7 @@ ${event.error}`,
   /** A working tree row's file: from Unstaged first, as the Files list shows it. An
       unchanged submodule is listed as a plain file; Repositories knows it. */
   function rowFile(path: string) {
-    const row = worktree.unstaged.find((file) => file.path === path) ?? worktree.staged.find((file) => file.path === path);
+    const row = [...worktree.unstaged, ...worktree.staged, ...worktree.found].find((file) => file.path === path);
     const known = submodules.children.get(submodules.open ?? "") ?? [];
     const module = isModulePath(path, [worktree.unstaged, worktree.staged]) || known.some((each) => each.path === path);
     return { status: row?.status ?? "modified", mode: module ? ("submodule" as const) : (row?.mode ?? "plain") };
@@ -2341,7 +2341,7 @@ ${event.error}`,
 
     const index = section === "Staged";
     const own = index ? worktree.staged : worktree.unstaged;
-    const every = [...own, ...worktree.staged, ...worktree.unstaged];
+    const every = [...own, ...worktree.staged, ...worktree.unstaged, ...worktree.found];
     const statuses = paths.map((each) => every.find((file) => file.path === each)?.status ?? "modified");
     fileTarget = { path, paths, statuses, rev: null, oldPath: null };
     fileSection = index ? "index" : "worktree";

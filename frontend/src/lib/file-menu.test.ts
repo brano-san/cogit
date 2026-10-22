@@ -240,4 +240,16 @@ describe("rowActionBlocked", () => {
   it("stages any unstaged row", () => {
     for (const status of ["modified", "untracked", "deleted"]) expect(rowActionBlocked("stage", file(status))).toBeNull();
   });
+
+  // A filter over a clean tree lists unchanged files: Stage and Discard had nothing to do
+  // there, yet were on and asked to discard "changes" that did not exist.
+  it("neither stages nor discards an unchanged file, nor does the menu", () => {
+    expect(rowActionBlocked("stage", file("unchanged"))).not.toBeNull();
+    expect(rowActionBlocked("discard", file("unchanged"))).not.toBeNull();
+    const unchanged = { ...MODIFIED, statuses: ["unchanged"], unstaged: true };
+    expect(on(worktreeFileMenu(unchanged), "file-stage")).toBe(false);
+    expect(on(worktreeFileMenu(unchanged), "file-discard")).toBe(false);
+    expect(on(worktreeFileMenu({ ...unchanged, statuses: ["unchanged", "modified"] }), "file-stage")).toBe(true);
+    expect(rowActionBlocked("delete", file("unchanged"))).toBeNull();
+  });
 });

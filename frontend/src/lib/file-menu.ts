@@ -27,10 +27,15 @@ function ignoreBlocked(statuses: readonly string[]): string | null {
     : "Only an untracked file can be ignored";
 }
 
+/** A filter over a clean tree lists unchanged files: nothing in them to stage or discard. */
+function stageBlocked(statuses: readonly string[]): string | null {
+  return statuses.length > 0 && statuses.every((status) => status === "unchanged") ? "No changes" : null;
+}
+
 function discardBlocked(statuses: readonly string[]): string | null {
-  return statuses.some((status) => status === "untracked")
-    ? "An untracked file has no version to go back to; Delete removes it"
-    : null;
+  if (statuses.some((status) => status === "untracked"))
+    return "An untracked file has no version to go back to; Delete removes it";
+  return stageBlocked(statuses);
 }
 
 function deleteBlocked(statuses: readonly string[]): string | null {
@@ -48,7 +53,7 @@ export function rowActionBlocked(
 ): string | null {
   switch (action) {
     case "stage":
-      return null;
+      return stageBlocked([file.status]);
     case "mode":
       return file.modeChange ? null : "The mode did not change";
     case "discard":
@@ -85,7 +90,7 @@ export function worktreeFileMenu(at: WorktreeFileTarget): ContextItem[] {
     item("file-commit", "Commit…", !conflicted),
     item("file-stash", "Stash Selection…", !conflicted, "CmdOrCtrl+Alt+S"),
     SEPARATOR,
-    item("file-stage", "Stage", at.unstaged, "CmdOrCtrl+T"),
+    item("file-stage", "Stage", at.unstaged && stageBlocked(at.statuses) === null, "CmdOrCtrl+T"),
     item("file-unstage", "Unstage", at.staged, "CmdOrCtrl+Shift+T"),
     offer("file-index-editor", "Index Editor…", single ?? (conflicted ? "resolve first" : null)),
     offer(
