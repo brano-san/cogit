@@ -260,7 +260,8 @@
 
 <!-- The tree of the repository the panels own is read in full; every other one is the light
      outline, and a click there opens the submodule in one go (R-352). -->
-{#snippet moduleTree(root: string, owned: boolean, depth: number, start: number)}
+<!-- `opened`: the repository is open, and its submodules read bold like its own name. -->
+{#snippet moduleTree(root: string, owned: boolean, depth: number, start: number, opened = true)}
   {@const children = owned ? submodules.children : (moduleForest.trees.get(root) ?? new Map())}
   {@const toggle = (node: ModuleRow) =>
     void (owned ? submodules.toggle(node) : moduleForest.toggle(root, node))}
@@ -274,6 +275,7 @@
     {@const sync = nodeSync(root, owned, node.key, inside.above.has(node.key))}
     <div
       class="row module {node.module.state}"
+      class:opened
       class:striped={striped(start + index, stripes)}
       class:selected={owned && submodules.open === node.key}
       class:menu={repoMenuRow.key === nodeRoot}
@@ -318,7 +320,7 @@
         <span class="hint" title={moduleTooltip(node.module) || undefined}>{hint.label}</span>
       {/if}
       {#if hint.where}
-        <span class="where truncate shrink-first" title={hint.where}>{hint.where}</span>
+        <span class="where truncate shrink-first" title={hint.where}>({hint.where})</span>
       {/if}
     </div>
   {/each}
@@ -463,7 +465,7 @@
         {#if sync.missing}
           <span class="gone" title={MISSING_REPOSITORY}>missing</span>
         {/if}
-        {#if sync.branch}<span class="branch truncate shrink-first">{sync.branch}</span>{/if}
+        {#if sync.branch}<span class="branch truncate shrink-first">({sync.branch})</span>{/if}
       </div>
 
       {@render moduleTree(entry.root, ownsTree(entry), row.depth, (starts[at] ?? 0) + 1)}
@@ -492,9 +494,9 @@
             {#if backends.get(listed.root)}<span class="backend" title="Where this repository lives">{backends.get(listed.root)}</span>{/if}
             {#if listed.pinned}<span class="pin" title="Pinned to the top of its group">⊤</span>{/if}
             {#if sync.missing}<span class="gone" title={MISSING_REPOSITORY}>missing</span>{/if}
-            {#if sync.branch}<span class="branch truncate shrink-first">{sync.branch}</span>{/if}
+            {#if sync.branch}<span class="branch truncate shrink-first">({sync.branch})</span>{/if}
           </div>
-          {@render moduleTree(listed.root, false, row.depth, (starts[at] ?? 0) + 1)}
+          {@render moduleTree(listed.root, false, row.depth, (starts[at] ?? 0) + 1, false)}
         {/if}
       {/if}
     {/each}
@@ -522,6 +524,19 @@
     font-size: var(--fs-header);
   }
 
+  /* Open: the name and its folder bold, the branch in the text color. Closed: the name in
+     the text color, the folder, branch and icon gray. */
+  .row:not(.closed):not(.module) .name,
+  .row.module.opened .modpath,
+  .row.module.opened .dir {
+    font-weight: 600;
+  }
+
+  .row:not(.closed):not(.module) .branch,
+  .row.module.opened .where {
+    color: var(--text-primary);
+  }
+
   /* Whole and before the text that gives way: a long branch or subject cut it off (R-544). */
   .row.module .hint {
     flex: none;
@@ -529,12 +544,9 @@
     font-size: var(--fs-small);
   }
 
-  /* Closed reads as dimmed, text and icon alike, with no word for it (R-351). */
-  .row.closed {
-    color: var(--text-secondary);
-  }
-
-  .row.closed :global(.kind) {
+  /* Closed reads as dimmed, the icon and the branch, with no word for it (R-351). */
+  .row.closed :global(.kind),
+  .row.module:not(.opened) :global(.kind) {
     opacity: 0.5;
   }
 
@@ -802,7 +814,7 @@
   .branch {
     flex-grow: 1;
     color: var(--text-secondary);
-    font-size: var(--fs-small);
+    font-size: var(--fs-header);
   }
 
 </style>
