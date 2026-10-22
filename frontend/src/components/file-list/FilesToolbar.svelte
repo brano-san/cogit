@@ -51,35 +51,6 @@
     if (!columnsOpen && box) menuAt = { top: box.bottom + 2, right: window.innerWidth - box.right };
     columnsOpen = !columnsOpen;
   }
-  let bar: HTMLDivElement | undefined = $state();
-  let crowded = $state(false);
-
-  /** Field at its narrowest, plus the eight buttons and three rules to its right. */
-  const ROOM_FOR_SWITCHES = 420;
-
-  /** The Files panel is often a narrow column. Rather than clip the switches, they move
-      into the Customise View menu, where they are still one click away (issue 12). */
-  $effect(() => {
-    const element = bar;
-    if (!element) return;
-    // Read the switches so a change in what is rendered re-measures the row.
-    void hidden;
-    void view;
-
-    // A width, not a measurement of the overflow: once the switches are hidden the row
-    // fits again, so measuring the overflow makes the decision flap.
-    const measure = () => {
-      crowded = element.clientWidth < ROOM_FOR_SWITCHES;
-    };
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    // One frame later: on the first pass the children have no laid-out width yet.
-    const frame = requestAnimationFrame(measure);
-    return () => {
-      observer.disconnect();
-      cancelAnimationFrame(frame);
-    };
-  });
 
   export function focus() {
     box?.select();
@@ -115,7 +86,7 @@
       (contentsReady ? null : "Search in file contents — only the working tree is on disk to search"),
   );
 
-  /** Customise View (#34): the columns of the table, then what the bar has no room for. On a
+  /** Customize View (#34): the columns of the table. On a
       commit the sources of renames are the Missing switch; the working tree has them here. */
   const columnMenu = $derived(columnItems(filesView.columns, view.directories));
 
@@ -132,7 +103,7 @@
   }
 </script>
 
-<div class="bar" class:crowded bind:this={bar} role="toolbar" aria-label="File list options">
+<div class="bar" role="toolbar" aria-label="File list options">
   {#if hidden > 0}
     <button
       type="button"
@@ -218,7 +189,7 @@
 
   <span class="rule" aria-hidden="true"></span>
 
-  {#each crowded ? [] : switches as item (item.slot)}
+  {#each switches as item (item.slot)}
     <button
       type="button"
       class="tool"
@@ -268,26 +239,8 @@
             {column.label}
           </button>
         {/each}
-        {#if crowded || context === "worktree"}
-          <p class="group-label">Show files that are…</p>
-        {/if}
-        {#if crowded}
-          {#each switches as item (item.slot)}
-            <button
-              type="button"
-              role="menuitemcheckbox"
-              class:dead={item.reason !== null}
-              aria-checked={item.reason === null && view[item.key]}
-              aria-disabled={item.reason !== null}
-              title={item.reason ?? item.title}
-              onclick={() => item.reason === null && set(item.key, !view[item.key])}
-            >
-              <span class="tick">{item.reason === null && view[item.key] ? "✓" : ""}</span>
-              {item.key === "renameSources" ? "Rename Sources" : item.slot.charAt(0).toUpperCase() + item.slot.slice(1)}
-            </button>
-          {/each}
-        {/if}
         {#if context === "worktree"}
+          <p class="group-label">Show files that are…</p>
           <button
             type="button"
             role="menuitemcheckbox"
@@ -317,10 +270,14 @@
     overflow: hidden;
   }
 
+  /* Gives way after the field has: the title says the rest. */
   .badge {
-    display: inline-flex;
-    align-items: center;
-    flex: 0 0 auto;
+    display: block;
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 20px;
     height: 20px;
     padding: 0 var(--sp-3);
     background: var(--state-hover);
@@ -340,8 +297,9 @@
     display: flex;
     align-items: center;
     gap: var(--sp-1);
-    flex: 1 1 auto;
-    min-width: 90px;
+    /* The field narrows first, so every switch stays on the bar. */
+    flex: 1 1000 auto;
+    min-width: 72px;
     max-width: 260px;
     height: 22px;
     padding: 0 var(--sp-2) 0 var(--sp-3);
@@ -522,10 +480,5 @@
     padding: 0 var(--sp-4);
     color: var(--text-secondary);
     font-size: var(--fs-header);
-  }
-
-  /* Once the switches have moved into the menu, the rules that fenced them go too. */
-  .bar.crowded .rule:nth-of-type(n + 2) {
-    display: none;
   }
 </style>
