@@ -26,3 +26,31 @@ describe("worktree.load called from an effect", () => {
     stop();
   });
 });
+
+describe("worktree.load while a filter searches a clean working tree", () => {
+  it("asks for the unchanged files too, the Unchanged switch left as it is", async () => {
+    ipc.worktreeFiles.mockClear();
+    filesView.set({ ...filesView.current, unchanged: false });
+    worktree.everyFile = true;
+    await worktree.load(1 as never);
+    expect(ipc.worktreeFiles).toHaveBeenLastCalledWith(1, expect.objectContaining({ unchanged: true }));
+    expect(filesView.current.unchanged).toBe(false);
+    worktree.everyFile = false;
+    await worktree.load(1 as never);
+    expect(ipc.worktreeFiles).toHaveBeenLastCalledWith(1, expect.objectContaining({ unchanged: false }));
+  });
+
+  it("is not run again from an effect when the search starts", async () => {
+    ipc.worktreeFiles.mockClear();
+    const stop = $effect.root(() => {
+      $effect(() => void worktree.load(1 as never));
+    });
+    flushSync();
+    worktree.everyFile = true;
+    flushSync();
+    await Promise.resolve();
+    expect(ipc.worktreeFiles).toHaveBeenCalledTimes(1);
+    worktree.everyFile = false;
+    stop();
+  });
+});

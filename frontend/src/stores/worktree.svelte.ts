@@ -23,6 +23,8 @@ class WorktreeStore {
   /** An answer came since `clear()`: until then an empty list says nothing about the tree. */
   loaded = $state(false);
   error = $state<CogitError | null>(null);
+  /** A filter searches a clean working tree: the unchanged files are read as well. */
+  everyFile = $state(false);
 
   #generation = 0;
   /** Bumped by `clear()`: a write that finishes after it reads nothing back, since the
@@ -42,7 +44,8 @@ class WorktreeStore {
 
     try {
       // Untracked: an effect that loads would otherwise run again on every Files switch.
-      const files = await worktreeFiles(repo, untrack(() => backendView(filesView.current)));
+      const view = untrack(() => ({ ...backendView(filesView.current), ...(this.everyFile ? { unchanged: true } : {}) }));
+      const files = await worktreeFiles(repo, view);
       if (generation !== this.#generation) return null;
       this.staged = files.staged;
       this.unstaged = files.unstaged;

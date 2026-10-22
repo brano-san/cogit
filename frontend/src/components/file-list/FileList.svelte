@@ -104,6 +104,8 @@
     onmarked?: (paths: string[], bySection: Record<string, string[]>) => void;
     /** Only the working tree is on disk to be searched inside. */
     contents?: ContentSearch;
+    /** Unchanged rows are shown whatever the switch says: a filter over a clean tree. */
+    unchanged?: boolean;
     context?: ListContext;
   }
 
@@ -125,6 +127,7 @@
     disabled = false,
     activePanel = false,
     contents,
+    unchanged = false,
     context = "worktree",
   }: Props = $props();
 
@@ -184,6 +187,8 @@
   });
 
   const active = $derived(view ?? DEFAULT_VIEW);
+  /** What the rows are gated by; the toolbar keeps showing the switches as they are. */
+  const gates = $derived(unchanged ? { ...active, unchanged: true } : active);
   const pattern = $derived(compile(mask, active.regex));
   const query = $derived(contents ? contentQuery(active, mask) : null);
   /** Until the first answer, a content search shows nothing rather than name matches. */
@@ -224,7 +229,7 @@
   const groups = $derived(
     shownSections(sections).map((section) => {
       const index = sections.indexOf(section);
-      const kept = visibleFiles(section.files, active).filter((file) => keepFile(file, pattern, hits, sideOf(section)));
+      const kept = visibleFiles(section.files, gates).filter((file) => keepFile(file, pattern, hits, sideOf(section)));
       const files = sortRows(kept, filesView.sort, active.directories, (path) => remoteOps.lfsState(path));
       const paths = files.map((file) => file.path);
       return {
@@ -273,8 +278,8 @@
   const shownCount = $derived(groups.reduce((n, group) => n + group.files.length, 0));
   const order = $derived(groups.flatMap((group) => group.keys));
   const came = $derived(sections.flatMap((section) => section.files));
-  const hidden = $derived(hiddenCount(came, active, (file) => keepFile(file, pattern, hits)));
-  const hiding = $derived(hidingSwitches(came, active));
+  const hidden = $derived(hiddenCount(came, gates, (file) => keepFile(file, pattern, hits)));
+  const hiding = $derived(hidingSwitches(came, gates));
   const visibleMarks = $derived(shownMarks(marked, order));
   const marks = $derived(markedRows(visibleMarks.paths));
 

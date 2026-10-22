@@ -1,9 +1,10 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import FileList from "$components/file-list/FileList.svelte";
   import { ContentSearch } from "$lib/content-search.svelte";
   import { rowActionBlocked, type RowAction } from "$lib/file-menu";
   import { withUnchanged } from "$lib/file-switches";
-  import { emptyText, filesPanelList, mergedSide, mergeIndex, stagedShown } from "$lib/files-panel";
+  import { emptyText, filesPanelList, mergedSide, mergeIndex, searchesEveryFile, stagedShown } from "$lib/files-panel";
   import type { FileView } from "$lib/file-view";
   import type { FileEntry } from "$lib/ipc";
   import { effective, shortcutOf } from "$lib/keymap";
@@ -121,6 +122,20 @@
   /** Unstaged and Staged, or one list of both while the index is not shown apart (#32). */
   const separate = $derived(filesView.current.separateIndex);
   const merged = $derived(separate ? [] : mergeIndex(worktree.unstaged, worktree.staged));
+
+  /** The working tree list's filter: over a clean tree it looks through every file. */
+  let mask = $state("");
+  const everyFile = $derived(onWorkingTree && searchesEveryFile(mask, repository.current?.status));
+  $effect(() => {
+    const on = everyFile;
+    const id = repository.current?.repo;
+    untrack(() => {
+      if (worktree.everyFile === on) return;
+      worktree.everyFile = on;
+      if (id) void worktree.load(id);
+    });
+  });
+  $effect(() => () => (worktree.everyFile = false));
 
   /** A row button off where the Files menu has its item off (#40). */
   const rowBlocked = (action: RowAction) => (file: FileEntry) => rowActionBlocked(action, file);
@@ -245,7 +260,11 @@
       )}
       selected={diff.path}
       onopen={(path, side) => onopenrow(path, separate ? (side === "index" ? "index" : "worktree") : mergedSide(path, worktree.unstaged))}
-      {onmask}
+      unchanged={everyFile}
+      onmask={(text) => {
+        mask = text;
+        onmask(text);
+      }}
       onshown={(shown) => onshownstaged?.(shown && stagedShown(shown, separate, worktree.staged))}
       {onmarked}
       {oncontext}
