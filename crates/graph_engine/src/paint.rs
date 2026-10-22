@@ -112,20 +112,17 @@ fn trace(
         trace.segment_group.resize(first + row.segments.len(), NONE);
         let into_node = |s: &Segment| s.span == Span::Top && s.to == row.lane;
 
-        // Main line: the primary lane; any other node: the leftmost lane meeting in it.
+        // The leftmost lane meeting in the node, as the layout picks it; the main line too.
         let own_in = row
             .segments
             .iter()
-            .filter(|s| into_node(s) && (!row.primary || s.primary))
+            .filter(|s| into_node(s))
             .min_by_key(|s| s.from)
             .map(|s| at(&above, s.from))
             .filter(|group| *group != NONE);
         let node_lane = match own_in {
             Some(group) => trace.lane_of(group),
-            None if !row.primary => {
-                across_cut(row, r, parents, row_of, &stubs).unwrap_or_else(&mut fresh)
-            }
-            None => fresh(),
+            None => across_cut(row, r, parents, row_of, &stubs).unwrap_or_else(&mut fresh),
         };
         trace.node_lane.push(node_lane);
 

@@ -340,11 +340,12 @@ export function toCommitRow(listRow: number, headerRows: number = HEADER_ROWS, a
 }
 
 /** The Working Tree row's lane above HEAD: HEAD's own when no line comes into it from above,
-    else the first lane no line crosses there. */
+    else the first lane right of it no line crosses there. Like a merge's second parent, the
+    Working Tree reserves nothing: the line from above keeps HEAD's lane (R-783). */
 export function workingTreeLane(headLane: number, segments: readonly { from: number; span: string }[]): number {
   const taken = new Set(segments.filter((segment) => segment.span !== "bottom").map((segment) => segment.from));
   if (!taken.has(headLane)) return headLane;
-  let lane = 0;
+  let lane = headLane + 1;
   while (taken.has(lane)) lane++;
   return lane;
 }

@@ -149,8 +149,8 @@ fn graph_view(
     )))
 }
 
-/// HEAD, then `master`, then `main` — of those the graph draws. A primary ref that is
-/// unticked or filtered out would hold column 0 empty for a line that never comes (R-161).
+/// HEAD, then `master`, then `main` — of those the graph draws: the line drawn as the main
+/// one from there down. It picks no column; the top commit has column 0 (R-783).
 fn mainline_of(handle: &git_engine::RepoHandle, query: &git_engine::CommitQuery) -> Option<String> {
     let ticked = |name: &str| {
         query
@@ -175,7 +175,7 @@ fn mainline_of(handle: &git_engine::RepoHandle, query: &git_engine::CommitQuery)
     }
     .filter(|_| ticked("HEAD"));
     let tip = graph_engine::mainline_tip(&locals, head.as_deref())?;
-    // Lines through left-out commits keep column 0 on HEAD's first parents all the way.
+    // Lines through left-out commits keep the main line on HEAD's first parents all the way.
     (!query.filters_rows() || query.view.filtered_graph || handle.shown_by(query, &tip))
         .then_some(tip)
 }

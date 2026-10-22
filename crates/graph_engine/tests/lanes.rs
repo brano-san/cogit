@@ -3,8 +3,8 @@
 
 //! The lane layout: a list of columns, each holding a lane or free. A lane keeps its column
 //! from its first row to its last: a column given back stays empty until a new lane takes it,
-//! or a lane moves into it at its own node; a line never turns between nodes (R-765). Lane 0, the primary ref's first parents,
-//! is reserved.
+//! or a lane moves into it at its own node; a line never turns between nodes (R-765). Lane 0 is the
+//! top commit's first parents; HEAD reserves nothing.
 
 use graph_engine::{CommitNode, GraphRow, LayoutCursor, NodeKind, Span, layout, mainline_tip};
 
@@ -122,6 +122,7 @@ fn a_lane_ending_in_the_middle_leaves_its_column_to_the_next_node_right_of_it() 
 fn an_octopus_opens_its_new_lanes_right_of_the_node_in_parent_order() {
     let rows = run(
         &[
+            ("top", &["m"]),
             ("t", &["z"]),
             ("m", &["a", "b", "c"]),
             ("a", &["r"]),
@@ -133,7 +134,7 @@ fn an_octopus_opens_its_new_lanes_right_of_the_node_in_parent_order() {
         Some("m"),
     );
 
-    let m = &rows[1];
+    let m = &rows[2];
     assert_eq!(m.lane, 0);
     assert_eq!(
         segs(m, Span::Bottom),
@@ -142,12 +143,12 @@ fn an_octopus_opens_its_new_lanes_right_of_the_node_in_parent_order() {
         m.segments
     );
     assert_eq!(segs(m, Span::Through), vec![(1, 1)]);
-    assert_eq!(rows[3].lane, 2, "b takes the first new column");
-    assert_eq!(rows[4].lane, 3, "c the second");
+    assert_eq!(rows[4].lane, 2, "b takes the first new column");
+    assert_eq!(rows[5].lane, 3, "c the second");
 }
 
-/// Requirement 5: on any history, column 0 is the first-parent chain of the primary ref,
-/// unbroken, and nothing else.
+/// On any history column 0 is the top commit's first-parent chain, unbroken, and nothing
+/// else; here the primary ref is that commit too.
 #[test]
 fn the_main_line_holds_column_zero_on_random_histories() {
     let mut seed = 0x2545_f491_u64;
@@ -313,6 +314,7 @@ fn every_turn_takes_half_a_row_on_random_histories() {
 fn a_merge_line_crosses_a_lane_rather_than_pushing_it_aside() {
     let rows = run(
         &[
+            ("top", &["m"]),
             ("t", &["z"]),
             ("m", &["a", "b"]),
             ("b", &["r"]),
@@ -322,7 +324,7 @@ fn a_merge_line_crosses_a_lane_rather_than_pushing_it_aside() {
         ],
         Some("m"),
     );
-    let m = &rows[1];
+    let m = &rows[2];
     assert_eq!(
         segs(m, Span::Bottom),
         vec![(0, 0), (0, 2)],
@@ -494,7 +496,7 @@ fn a_branch_bends_into_its_parent_not_below_its_last_commit() {
 }
 
 #[test]
-fn the_main_column_waits_empty_until_the_primary_ref_arrives() {
+fn the_top_commit_takes_column_zero_whatever_the_primary_ref() {
     let rows = run(
         &[
             ("f2", &["f1"]),
@@ -504,36 +506,64 @@ fn the_main_column_waits_empty_until_the_primary_ref_arrives() {
         ],
         Some("m2"),
     );
-    assert_ne!(rows[0].lane, 0, "a newer feature branch gives way");
+    assert!(rows.iter().all(|row| row.lane == 0), "one straight line");
+    assert!(!rows[0].primary && !rows[1].primary);
+    assert!(rows[2].primary && rows[3].primary);
+    let into_head = rows[2].segments.iter().find(|seg| seg.span == Span::Top);
     assert!(
-        rows[0]
+        into_head.is_some_and(|seg| !seg.primary),
+        "the line above HEAD is not HEAD's"
+    );
+    assert!(
+        rows[2]
             .segments
             .iter()
-            .all(|seg| seg.from != 0 && seg.to != 0),
-        "and nothing is drawn in the empty main column: {:?}",
-        rows[0].segments
+            .any(|seg| seg.span == Span::Bottom && seg.primary)
     );
-    assert_eq!(rows[2].lane, 0);
-    assert_eq!(rows[3].lane, 0);
 }
 
 #[test]
-fn the_main_column_stays_reserved_across_a_chunk_boundary() {
-    let mut cursor = LayoutCursor::with_mainline(Some("m1".to_owned()));
-    let first = layout(&commits(&[("f2", &["f1"]), ("f1", &["m1"])]), &mut cursor);
-    let second = layout(&commits(&[("m1", &[])]), &mut cursor);
-
-    assert!(first.iter().all(|row| row.lane != 0));
-    assert_eq!(second[0].lane, 0);
-    assert_eq!(second[0].row, 2, "rows keep counting across chunks");
+fn an_upstream_ahead_of_head_runs_straight_down_column_zero() {
+    let rows = run(&[("o1", &["h"]), ("h", &["b"]), ("b", &[])], Some("h"));
+    assert_eq!(
+        rows.iter().map(|row| row.lane).collect::<Vec<_>>(),
+        [0, 0, 0]
+    );
+    assert!(
+        rows.iter().all(|row| row.width == 1),
+        "no second column: {rows:?}"
+    );
 }
 
 #[test]
-fn column_zero_is_not_given_away_after_the_main_line_ends() {
+fn the_main_line_goes_on_in_the_lane_its_parent_takes() {
+    let rows = run(
+        &[("d", &["x", "h"]), ("x", &["b"]), ("h", &["b"]), ("b", &[])],
+        Some("h"),
+    );
+    assert_eq!(
+        rows.iter().map(|row| row.lane).collect::<Vec<_>>(),
+        [0, 0, 1, 0]
+    );
+    assert_eq!(
+        rows.iter().map(|row| row.primary).collect::<Vec<_>>(),
+        [false, false, true, true]
+    );
+    assert!(
+        rows[2]
+            .segments
+            .iter()
+            .any(|seg| seg.span == Span::Bottom && seg.primary)
+    );
+}
+
+#[test]
+fn column_zero_is_free_once_its_line_ends() {
     let rows = run(&[("m1", &[]), ("t2", &["t1"]), ("t1", &[])], Some("m1"));
-    assert_eq!(rows[0].lane, 0);
-    assert_ne!(rows[1].lane, 0);
-    assert_ne!(rows[2].lane, 0);
+    assert_eq!(
+        rows.iter().map(|row| row.lane).collect::<Vec<_>>(),
+        [0, 0, 0]
+    );
 }
 
 #[test]
@@ -651,17 +681,17 @@ fn a_stash_is_three_nodes_each_line_bending_into_its_parent() {
         Some("h"),
     );
     assert_eq!(rows[0].kind, NodeKind::Merge);
-    assert_eq!(segs(&rows[0], Span::Bottom), vec![(1, 1), (1, 2), (1, 3)]);
+    assert_eq!(segs(&rows[0], Span::Bottom), vec![(0, 0), (0, 1), (0, 2)]);
     assert!(segs(&rows[0], Span::Top).is_empty());
     assert_eq!(rows.len(), 5);
     assert_eq!(
         segs(&rows[1], Span::Bottom),
-        vec![(2, 2)],
+        vec![(1, 1)],
         "{:?}",
         rows[1].segments
     );
     assert_eq!(rows[2].kind, NodeKind::Root);
-    assert_eq!(segs(&rows[3], Span::Top), vec![(1, 0), (2, 0)]);
+    assert_eq!(segs(&rows[3], Span::Top), vec![(0, 0), (1, 0)]);
 }
 
 #[test]
