@@ -53,7 +53,7 @@ const OLD_COPIES = new Set([
   "components/layout/KeymapEditor.svelte", // the key-capture field, mono
   "components/layout/Notifications.svelte",
   "components/layout/StateBanner.svelte",
-  "components/repo-tree/RepositoryList.svelte", // the filter field, an input
+  "components/repo-tree/RepoListActions.svelte", // the filter field, an input
   "components/solver/SolverWholeFile.svelte",
 ]);
 

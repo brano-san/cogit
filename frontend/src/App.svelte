@@ -16,6 +16,7 @@
   import RefSortButtons from "$components/branch-tree/RefSortButtons.svelte";
   import SafetyJournal from "$components/layout/SafetyJournal.svelte";
   import RepositoriesPanel from "$components/panels/RepositoriesPanel.svelte";
+  import RepoListActions from "$components/repo-tree/RepoListActions.svelte";
   import GraphPanel from "$components/panels/GraphPanel.svelte";
   import FilesPanel from "$components/panels/FilesPanel.svelte";
   import CommitPanel from "$components/panels/CommitPanel.svelte";
@@ -414,6 +415,7 @@
   let stale = $state.raw<ReadonlySet<PanelId>>(new Set());
   let splitBusy = $state(false);
   let refFilter = $state("");
+  let repoFilter = $state("");
   let dropping = $state(false);
   let fileMask = $state("");
 
@@ -3681,15 +3683,21 @@ ${event.error}`,
           count={listedRepos(repository.openRepos, repoList.list).length}
           stale={stale.has("repositories")}
         >
+          {#snippet actions()}
+            <RepoListActions
+              {opening}
+              bind:filter={repoFilter}
+              onopen={pickRepository}
+              onscan={openScan}
+              onaddgroup={askAddGroup}
+            />
+          {/snippet}
           <RepositoriesPanel
-            {opening}
-            onscan={openScan}
-            onopen={pickRepository}
+            filter={repoFilter}
             onselect={(entry) => void selectRepository(entry)}
             oncontext={(row, x, y) => void repoContext(row, x, y)}
             onreopen={reopen}
             onmarked={(roots) => (markedRepos = roots)}
-            onaddgroup={askAddGroup}
             ongroupcontext={(id, x, y) => void groupContext(id, x, y)}
             onopenmodule={(row) => void openModule(row)}
             onopenforeignmodule={(root, row) => void openForeignModule(root, row)}

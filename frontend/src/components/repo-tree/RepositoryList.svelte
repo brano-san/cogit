@@ -22,7 +22,7 @@
   import { submodules } from "$stores/submodules.svelte";
   import { moduleForest } from "$stores/module-forest.svelte";
   import { moduleMemory } from "$stores/module-memory.svelte";
-  import { UNGROUPED, groupRows, showsFilter } from "$lib/repo-groups";
+  import { UNGROUPED, groupRows } from "$lib/repo-groups";
   import { NO_FILTER_FOLDS, shownFolds, toggleFilterFold } from "$lib/tree";
   import type { RepoOverview } from "$lib/ipc";
   import { listedRepos, type ListedRepo } from "$lib/repo-list";
@@ -40,15 +40,13 @@
   import { ON_MAC, primary } from "$lib/platform";
 
   interface Props {
-    /** Only the folder dialog changes the label; selecting a repository must not (R-35). */
-    opening?: boolean;
+    /** Typed in the panel's header (R-792). */
+    filter: string;
     onopenmodule: (row: ModuleRow) => void;
     /** A submodule of a repository the panels do not own: open both in one click. */
     onopenforeignmodule: (root: string, row: ModuleRow) => void;
     /** `root` names the owner when it is not the repository the panels own. */
     onmodulecontext: (row: ModuleRow, x: number, y: number, root?: string) => void;
-    onopen: () => void;
-    onscan: () => void;
     onselect: (entry: RepoOverview) => void;
     oncontext: (row: ListedRepo, x: number, y: number) => void;
     /** A closed row was clicked: open it again. */
@@ -57,19 +55,15 @@
     onmarked: (roots: string[]) => void;
     /** Renaming and deleting a group live in the caller's dialogs, not here. */
     ongroupcontext: (id: string, x: number, y: number) => void;
-    onaddgroup: () => void;
   }
 
   let {
-    opening = false,
-    onopen,
-    onscan,
+    filter,
     onselect,
     oncontext,
     onreopen,
     onmarked,
     ongroupcontext,
-    onaddgroup,
     onopenmodule,
     onopenforeignmodule,
     onmodulecontext,
@@ -78,7 +72,6 @@
   /** The group a drag is hovering, so the drop target is visible before the drop. */
   let over = $state<string | null>(null);
 
-  let filter = $state("");
   /** Headings folded while a filter is typed; the stored folds are left alone (R-485). */
   let filterFolds = $state.raw(NO_FILTER_FOLDS);
   let marked = $state.raw<FileSelection>(EMPTY_SELECTION);
@@ -334,64 +327,6 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="wrapper tree-rows key-list" bind:this={wrapper} use:pointerDrag={rowDrag} {onkeydown}>
-  <div class="actions" role="toolbar" aria-label="Repository list actions">
-    <button
-      type="button"
-      class="tool"
-      onclick={onopen}
-      disabled={repository.busy}
-      title={opening ? "Opening…" : "Open Repository…"}
-      aria-label="Open Repository"
-    >
-      <svg viewBox="0 0 24 24" aria-hidden="true"
-        ><path
-          d="M4 5.5A1.5 1.5 0 0 1 5.5 4h3.2a1.5 1.5 0 0 1 1.2.6l1 1.4h7.6A1.5 1.5 0 0 1 20 7.5v11A1.5 1.5 0 0 1 18.5 20h-13A1.5 1.5 0 0 1 4 18.5Z"
-        /></svg
-      >
-    </button>
-    <span class="separator" aria-hidden="true"></span>
-    <button
-      type="button"
-      class="tool"
-      onclick={onscan}
-      disabled={repository.busy}
-      title="Search for Repositories…"
-      aria-label="Search for repositories"
-    >
-      <!-- A magnifier over a repository: a bare one read as the panel's own filter. -->
-      <svg viewBox="0 0 24 24" aria-hidden="true"
-        ><clipPath id="scan-repo-cut"
-          ><path clip-rule="evenodd" d="M0 0h24v24H0ZM15.5 9.7a5.8 5.8 0 1 0 0 11.6 5.8 5.8 0 1 0 0-11.6Z" /></clipPath
-        ><g clip-path="url(#scan-repo-cut)"
-          ><rect x="3.5" y="3" width="11" height="13" rx="1.8" /><path d="M3.5 7.3h11M3.5 11.7h11" /></g
-        ><circle cx="15.5" cy="15.5" r="4" /><path d="m18.4 18.4 2.6 2.6" /></svg
-      >
-    </button>
-    <span class="separator" aria-hidden="true"></span>
-    <button
-      type="button"
-      class="tool"
-      onclick={onaddgroup}
-      title="New Group"
-      aria-label="New group"
-    >
-      <svg viewBox="0 0 24 24" aria-hidden="true"
-        ><path
-          d="M4 6.5A1.5 1.5 0 0 1 5.5 5h3.2a1.5 1.5 0 0 1 1.2.6l.9 1.4h7.7A1.5 1.5 0 0 1 20 8.5v9A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5Z"
-        /><path d="M12 10.5v5M9.5 13h5" /></svg
-      >
-    </button>
-    {#if showsFilter(repository.openRepos.length + repoList.list.closed.length, filter)}
-      <span class="separator" aria-hidden="true"></span>
-      <input
-        class="filter"
-        type="search"
-        bind:value={filter}
-        placeholder="Filter repositories"
-        aria-label="Filter repositories"
-      />
-    {/if}
-  </div>
 
 
     {#each rows as row, at (row.kind === "group" ? `g:${row.id}` : row.root)}
@@ -583,60 +518,18 @@
     color: var(--status-add);
   }
 
-  .actions {
-    display: flex;
-    gap: var(--sp-1);
-    margin: 0 var(--sp-3) var(--sp-2);
-  }
 
-  /* The main toolbar's separator, scaled to these smaller buttons. */
-  .separator {
-    align-self: center;
-    width: 1px;
-    height: 16px;
-    background: var(--divider);
-    margin-inline: var(--sp-1);
-  }
 
-  .tool {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 22px;
-    padding: 0;
-    background: none;
-    border: 0;
-    border-radius: var(--r-sm);
-    color: var(--text-secondary);
-    cursor: default;
-  }
 
-  .tool svg {
-    width: var(--panel-icon);
-    height: var(--panel-icon);
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.7;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
 
-  .tool:not(:disabled):hover {
-    background: var(--state-hover);
-    color: var(--text-primary);
-  }
 
-  .tool:disabled {
-    opacity: 0.4;
-  }
 
 
   .row {
     display: flex;
     align-items: center;
     gap: var(--tree-gap);
-    height: 22px;
+    height: var(--h-row-dense);
     padding: 0 var(--sp-5);
     font-size: var(--fs-dense);
     white-space: nowrap;
@@ -700,19 +593,6 @@
     letter-spacing: 0.04em;
   }
 
-  /* On the buttons' line, taking what they leave. */
-  .filter {
-    flex: 1 1 auto;
-    align-self: center;
-    min-width: 0;
-    height: var(--h-button-sm);
-    padding: 0 var(--sp-3);
-    background: var(--surface-input);
-    color: var(--text-primary);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-sm);
-    font-size: var(--fs-dense);
-  }
 
   .op {
     flex: 0 0 auto;
@@ -725,10 +605,10 @@
      them off the disclosure triangle and the changes dot. */
   .repo-icon {
     /* Larger than the 14 px of other kinds: the state badge is a quarter of its box and
-       at 8 px a conflict's circle and exclamation mark ran together. 22 px of badge box
-       gives an 11 px badge; the row (--h-row-dense) still holds the 18 px icon. */
-    --kind-icon: 18px;
-    --file-icon: 22px;
+       at 8 px a conflict's circle and exclamation mark ran together. 20 px of badge box
+       gives a 10 px badge; the row (--h-row-dense) holds the 16 px icon, as SmartGit's (R-792). */
+    --kind-icon: 16px;
+    --file-icon: 20px;
     --sync-arrow: 12px;
     position: relative;
     display: inline-flex;
