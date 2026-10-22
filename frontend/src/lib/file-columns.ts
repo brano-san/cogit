@@ -134,9 +134,9 @@ export type ColumnWidths = Record<ColumnKey, number>;
 export const DEFAULT_COLUMN_WIDTHS: ColumnWidths = {
   name: 180,
   extension: 70,
-  change: 130,
+  change: 96,
   lfs: 110,
-  path: 260,
+  path: 60,
 };
 
 export const MIN_COLUMN_WIDTH: Record<ColumnKey, number> = {
@@ -157,9 +157,9 @@ export function tableWidth(shown: readonly ColumnKey[], widths?: Partial<ColumnW
 /** Fixed pixel column widths so table content can be resized and overflow gracefully. */
 export function gridColumns(shown: readonly ColumnKey[], widths?: Partial<ColumnWidths>): string {
   return shown
-    .map((key) => {
+    .map((key, at) => {
       const width = widths?.[key] ?? DEFAULT_COLUMN_WIDTHS[key];
-      return `${width}px`;
+      return at === shown.length - 1 ? `minmax(${width}px, 1fr)` : `${width}px`;
     })
     .join(" ");
 }

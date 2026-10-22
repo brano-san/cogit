@@ -104,9 +104,11 @@ describe("the columns shown", () => {
     expect(columnReason("name", false)).toMatch(/always/);
   });
 
-  it("formats pixel widths for grid columns", () => {
-    expect(gridColumns(["name", "change", "path"])).toBe("180px 130px 260px");
-    expect(gridColumns(["name", "change"], { name: 200, change: 80 })).toBe("200px 80px");
+  // Fixed widths wider than the panel scrolled it sideways, cut names short and left the
+  // path far off; the last column takes what is left instead, as in SmartGit.
+  it("formats pixel widths for grid columns, the last one filling the rest", () => {
+    expect(gridColumns(["name", "change", "path"])).toBe("180px 96px minmax(60px, 1fr)");
+    expect(gridColumns(["name", "change"], { name: 200, change: 80 })).toBe("200px minmax(80px, 1fr)");
   });
 });
 
