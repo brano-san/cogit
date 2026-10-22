@@ -78,18 +78,19 @@ impl RepoHandle {
     }
 
     fn listed(&self, full: bool) -> Result<Vec<WorktreeEntry>> {
+        use rayon::prelude::*;
         let here = normalise(self.root());
-        let main = self.main_root();
-        let mut entries = vec![if full {
-            self.describe(main, true, None, &here)
-        } else {
-            self.outline(main, true, None, &here, self.repo.common_dir())
-        }];
-
         let linked = self
             .repo
             .worktrees()
             .map_err(|err| GitError::Io(format!("cannot list worktrees: {err}")))?;
+        let mut found = vec![Found {
+            folder: Some(self.main_root()),
+            is_main: true,
+            locked: None,
+            record: self.repo.common_dir().to_path_buf(),
+            id: String::new(),
+        }];
         for proxy in linked {
             let locked = proxy.is_locked().then(|| {
                 proxy
@@ -97,30 +98,46 @@ impl RepoHandle {
                     .map(|r| r.to_string())
                     .unwrap_or_default()
             });
-            let mut entry = match proxy.base() {
-                Ok(path) if full => self.describe(path, false, locked, &here),
-                Ok(path) => self.outline(path, false, locked, &here, proxy.git_dir()),
-                Err(_) => WorktreeEntry {
-                    path: crate::slash_path(proxy.git_dir()),
-                    name: proxy.id().to_string(),
-                    branch: None,
-                    head: String::new(),
-                    is_main: false,
-                    is_current: false,
-                    locked,
-                    missing: true,
-                    dirty: false,
-                    changed: 0,
-                    untracked: 0,
-                    bare: false,
-                    has_submodules: false,
-                },
-            };
+            found.push(Found {
+                folder: proxy.base().ok(),
+                is_main: false,
+                locked,
+                record: proxy.git_dir().to_path_buf(),
+                id: proxy.id().to_string(),
+            });
+        }
+
+        // Each status walks a whole tree; side by side, the list costs the slowest (R-788).
+        let mut entries: Vec<WorktreeEntry> = if full {
+            found
+                .par_iter()
+                .map(|item| match &item.folder {
+                    Some(path) => {
+                        Self::describe(path.clone(), item.is_main, item.locked.clone(), &here)
+                    }
+                    None => item.gone(),
+                })
+                .collect()
+        } else {
+            found
+                .iter()
+                .map(|item| match &item.folder {
+                    Some(path) => self.outline(
+                        path.clone(),
+                        item.is_main,
+                        item.locked.clone(),
+                        &here,
+                        &item.record,
+                    ),
+                    None => item.gone(),
+                })
+                .collect()
+        };
+        for (entry, item) in entries.iter_mut().zip(&found).skip(1) {
             // The folder is gone but its record is not, and git still keeps the branch there.
             if entry.missing {
-                (entry.branch, entry.head) = self.recorded_head(proxy.git_dir());
+                (entry.branch, entry.head) = self.recorded_head(&item.record);
             }
-            entries.push(entry);
         }
         // gix orders the records by name, git by path — case-folded under core.ignoreCase.
         let fold = self
@@ -173,7 +190,7 @@ impl RepoHandle {
         }
         let here = normalise(self.root());
         let path = std::path::PathBuf::from(&held.path);
-        let mut entry = self.describe(path, held.is_main, held.locked.clone(), &here);
+        let mut entry = Self::describe(path, held.is_main, held.locked.clone(), &here);
         if entry.missing {
             (entry.branch, entry.head) = (held.branch, held.head);
         }
@@ -411,7 +428,6 @@ impl RepoHandle {
     }
 
     fn describe(
-        &self,
         path: std::path::PathBuf,
         is_main: bool,
         locked: Option<String>,
@@ -466,6 +482,37 @@ impl RepoHandle {
                     .join(".git")
                     .exists()
         })
+    }
+}
+
+/// A worktree record, read before its folder is.
+struct Found {
+    folder: Option<std::path::PathBuf>,
+    is_main: bool,
+    locked: Option<String>,
+    /// The worktree's git directory; the common one for the main worktree.
+    record: std::path::PathBuf,
+    id: String,
+}
+
+impl Found {
+    /// A record whose folder git cannot name any more.
+    fn gone(&self) -> WorktreeEntry {
+        WorktreeEntry {
+            path: crate::slash_path(&self.record),
+            name: self.id.clone(),
+            branch: None,
+            head: String::new(),
+            is_main: false,
+            is_current: false,
+            locked: self.locked.clone(),
+            missing: true,
+            dirty: false,
+            changed: 0,
+            untracked: 0,
+            bare: false,
+            has_submodules: false,
+        }
     }
 }
 
