@@ -51,7 +51,8 @@ class WorktreeStore {
       if (generation !== this.#generation) return null;
       this.staged = files.staged;
       this.unstaged = apart ? files.unstaged.filter((file) => file.status !== "unchanged") : files.unstaged;
-      this.found = apart ? files.unstaged.filter((file) => file.status === "unchanged") : [];
+      // The search may have stopped while the read was on its way.
+      this.found = apart && this.everyFile ? files.unstaged.filter((file) => file.status === "unchanged") : [];
       this.loaded = true;
       return files.state;
     } catch (err) {

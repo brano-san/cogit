@@ -51,6 +51,17 @@ describe("a filter searching a clean working tree", () => {
     expect(ipc.worktreeFiles).toHaveBeenLastCalledWith(1, expect.objectContaining({ unchanged: false }));
   });
 
+  it("keeps nothing a read still on its way finds after the search stopped", async () => {
+    let answer!: (files: never) => void;
+    ipc.worktreeFiles.mockReturnValueOnce(new Promise((ok) => (answer = ok)) as never);
+    const read = worktree.searchEveryFile(true, 1 as never);
+    await worktree.searchEveryFile(false, 1 as never);
+    answer({ staged: [], unstaged: [row("a", "modified"), row("b", "unchanged")], state: null } as never);
+    await read;
+    expect(worktree.found).toEqual([]);
+    expect(worktree.unstaged.map((file) => file.path)).toEqual(["a"]);
+  });
+
   it("is not run again from an effect when the search starts", async () => {
     ipc.worktreeFiles.mockClear();
     const stop = $effect.root(() => {
