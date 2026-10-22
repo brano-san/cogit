@@ -89,7 +89,6 @@
 
   /** Lucide paths, the family the main toolbar uses. */
   const I = {
-    search: "M11 5a6 6 0 1 0 0 12 6 6 0 0 0 0-12m9 15-4.3-4.3",
     split: "M4 4h10v10H4zM10 10h10v10H10m2-2 2 2 4-4",
     tree: "M3 6.5A1.5 1.5 0 0 1 4.5 5h3l1.5 2h10a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 19 19H4.5A1.5 1.5 0 0 1 3 17.5ZM9 11v5m0-5h4m-4 5h4",
     flat: "M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01",
@@ -146,7 +145,6 @@
   {/if}
 
   <div class="field" class:broken>
-    <svg class="lens" viewBox="0 0 24 24" aria-hidden="true"><path d={I.search} /></svg>
     <input
       bind:this={box}
       type="search"
@@ -346,7 +344,7 @@
     min-width: 90px;
     max-width: 260px;
     height: 22px;
-    padding: 0 var(--sp-2);
+    padding: 0 var(--sp-2) 0 var(--sp-3);
     background: var(--surface-input);
     border: 1px solid var(--field-border);
     border-radius: var(--r-sm);
@@ -355,16 +353,6 @@
   /* A half-typed expression is normal; the field says so without an error anywhere. */
   .field.broken {
     border-color: var(--status-delete);
-  }
-
-  .lens {
-    flex: 0 0 auto;
-    width: 12px;
-    height: 12px;
-    fill: none;
-    stroke: var(--text-secondary);
-    stroke-width: 2;
-    stroke-linecap: round;
   }
 
   .field input {
