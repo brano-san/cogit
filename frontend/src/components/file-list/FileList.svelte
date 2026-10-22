@@ -3,7 +3,7 @@
   import { keyLetter } from "$lib/key-letter";
   import { modals } from "$lib/modal-stack";
   import { ON_MAC, primary } from "$lib/platform";
-  import { sameLists, selectAllKeys } from "$lib/files-panel";
+  import { changeCount, sameLists, selectAllKeys } from "$lib/files-panel";
   import { registerSelectAll } from "$lib/select-all";
   import { untrack } from "svelte";
   import FilesToolbar from "./FilesToolbar.svelte";
@@ -453,6 +453,7 @@
                 rows={group.rows}
                 title={group.section.title}
                 paths={group.paths}
+                count={changeCount(group.paths, group.section.files)}
                 actions={scoped(group, group.section.actions ?? [])}
                 {columns}
                 nested={active.directories}
@@ -476,6 +477,7 @@
                   rows={group.rows}
                   title={layout.titled ? group.section.title : undefined}
                   paths={group.paths}
+                  count={changeCount(group.paths, group.section.files)}
                   actions={scoped(group, group.section.actions ?? [])}
                   {columns}
                   nested={active.directories}

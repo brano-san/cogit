@@ -43,6 +43,8 @@
     actions?: readonly PaneAction[];
     /** Paths shown here, for the "all" buttons in the heading. */
     paths: readonly string[];
+    /** The heading's count, when not every row is a change (`changeCount`). */
+    count?: number;
     /** The columns of the table (#33), the same for every pane of the list. */
     columns: readonly ColumnKey[];
     /** Grouped by directory: a file is one level in, under its folder row. */
@@ -63,6 +65,7 @@
     marked,
     actions = [],
     paths,
+    count,
     columns,
     nested = false,
     side = "worktree",
@@ -162,7 +165,7 @@
 <div class="pane tree-rows key-list" style:--file-grid={template} bind:this={pane} {onkeydown}>
   {#if title}
     <div class="heading">
-      <span class="grow">{title} ({paths.length})</span>
+      <span class="grow">{title} ({count ?? paths.length})</span>
       {#each actions as action (action.label)}
         {@const reason = action.allBlocked?.(paths) ?? null}
         <button

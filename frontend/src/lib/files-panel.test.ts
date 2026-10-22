@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FileEntry } from "$lib/ipc";
-import { emptyText, filesPanelList, mergedSide, mergeIndex, searchesEveryFile, selectAllKeys, sameLists, stagedShown, type FilesPanelInput } from "./files-panel";
+import { changeCount, emptyText, filesPanelList, mergedSide, mergeIndex, searchesEveryFile, selectAllKeys, sameLists, stagedShown, type FilesPanelInput } from "./files-panel";
 
 const base: FilesPanelInput = {
   content: true,
@@ -144,5 +144,18 @@ describe("a filter over a working tree with nothing to list", () => {
     expect(searchesEveryFile("main", { ...clean, untracked: 1 })).toBe(false);
     expect(searchesEveryFile("  ", clean)).toBe(false);
     expect(searchesEveryFile("main", undefined)).toBe(false);
+  });
+});
+
+// A filter over a clean tree listed 86 unchanged files under "Unstaged (86)".
+describe("changeCount", () => {
+  it("counts the changes a list shows, not the unchanged files beside them", () => {
+    const files = [
+      { path: "a", status: "modified" },
+      { path: "b", status: "unchanged" },
+      { path: "c", status: "untracked" },
+    ] as const;
+    expect(changeCount(["a", "b", "c"], files)).toBe(2);
+    expect(changeCount(["b"], files)).toBe(0);
   });
 });
