@@ -642,6 +642,8 @@ describe("Working Tree row above a HEAD that is not the first commit", () => {
     expect(workingTreeLane(0, [{ from: 0, span: "top" }, { from: 1, span: "through" }])).toBe(2);
     expect(workingTreeLane(0, [{ from: 0, span: "top" }, { from: 2, span: "bottom" }])).toBe(1);
     expect(workingTreeLane(2, [{ from: 2, span: "top" }])).toBe(3);
+    // The arrow of a cut link above HEAD is a stub inside its row, not a line through the Working Tree.
+    expect(workingTreeLane(0, [{ from: 0, span: "top", arrow: true }])).toBe(0);
   });
 });
 
