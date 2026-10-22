@@ -34,6 +34,8 @@ pub struct Submodule {
     pub branch: Option<String>,
     /// First line of the commit it sits on, for the row that has no branch to show.
     pub subject: Option<String>,
+    /// Detached, a branch whose tip it sits on: the row names it rather than the commit.
+    pub branch_at: Option<String>,
     /// Whether it holds submodules of its own. Answered here so the tree can decide
     /// before drawing whether the row opens at all (doc/12-risks.md, R-148).
     pub nested: bool,
@@ -104,6 +106,7 @@ struct Inside {
     handle: RepoHandle,
     oid: Option<String>,
     branch: Option<String>,
+    branch_at: Option<String>,
     subject: Option<String>,
     state: Option<RepoState>,
 }
@@ -186,6 +189,7 @@ impl RepoHandle {
                 },
                 branch: None,
                 subject: None,
+                branch_at: None,
                 nested: initialised && dir.join(".gitmodules").is_file(),
                 ahead: 0,
                 behind: 0,
@@ -230,6 +234,7 @@ impl RepoHandle {
                 state,
                 branch: inside.as_ref().and_then(|found| found.branch.clone()),
                 repo_state: inside.as_ref().and_then(|found| found.state.clone()),
+                branch_at: inside.as_ref().and_then(|found| found.branch_at.clone()),
                 subject: inside.and_then(|found| found.subject),
                 nested,
                 ahead,
@@ -281,11 +286,16 @@ impl RepoHandle {
             .as_deref()
             .and_then(|oid| inner.commit_details(oid).ok())
             .map(|details| details.summary);
+        let branch_at = match (&branch, &oid) {
+            (None, Some(oid)) => inner.branch_at(oid),
+            _ => None,
+        };
         Some(Inside {
             state: inner.state().ok(),
             handle: inner,
             oid,
             branch,
+            branch_at,
             subject,
         })
     }

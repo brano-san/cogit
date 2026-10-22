@@ -18,6 +18,7 @@ const overview = (over: Partial<RepoOverview> = {}): RepoOverview => ({
   name: "a",
   root: "/a",
   branch: "main",
+  branchAt: null,
   ahead: 1,
   behind: 0,
   dirty: true,
@@ -29,6 +30,7 @@ const overview = (over: Partial<RepoOverview> = {}): RepoOverview => ({
 const pulse = (over: Partial<RepoPulse> = {}): RepoPulse => ({
   missing: false,
   branch: "main",
+  branchAt: null,
   tracked: true,
   ahead: 0,
   behind: 3,
@@ -57,6 +59,7 @@ describe("the marks of a repository row", () => {
       remoteAhead: false,
       missing: false,
       branch: null,
+      branchAt: null,
       conflicted: false,
     });
   });
@@ -282,6 +285,6 @@ describe("the marks the panels hand to a row they let go of", () => {
       indexLock: null,
       tagGroupSeparator: "/",
     } as unknown as RepoSummary;
-    expect(summaryPulse(now)).toEqual({ missing: false, branch: "dev", tracked: true, ahead: 0, behind: 2, dirty: true, conflicted: false });
+    expect(summaryPulse(now)).toEqual({ missing: false, branch: "dev", branchAt: null, tracked: true, ahead: 0, behind: 2, dirty: true, conflicted: false });
   });
 });

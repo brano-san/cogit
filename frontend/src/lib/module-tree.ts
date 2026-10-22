@@ -92,7 +92,8 @@ const LABELS: Partial<Record<Submodule["state"], string>> = {
 export interface ModuleHint {
   /** Never cut: the row shows it whole, before the text it cuts (R-544). */
   label: string | null;
-  /** The branch, or the commit and its subject; the part of the row that gives way. */
+  /** The branch, a branch at its detached commit, or the commit and its subject; the part
+      of the row that gives way. */
   where: string;
 }
 
@@ -102,6 +103,7 @@ export function moduleHint(module: Submodule): ModuleHint {
   if (module.state === "notInitialised" || module.state === "unread") return { label, where: "" };
   const where =
     module.branch ??
+    module.branchAt ??
     (module.checkedOut
       ? `${shortOid(module.checkedOut)}${module.subject ? `: ${module.subject}` : ""}`
       : "no commit checked out");

@@ -15,12 +15,17 @@ export interface RowSync {
   missing: boolean;
   /** HEAD's branch; `null` while detached or not read yet. */
   branch: string | null;
+  /** On a detached HEAD, a branch whose tip it is: the row names it instead of nothing. */
+  branchAt: string | null;
   /** An unmerged file in it or in a submodule below it; outranks `dirty` (item 3 of 14). */
   conflicted: boolean;
 }
 
 /** What a row's marks are read from: a list row, a pulse or what the panels show. */
-type Marks = Pick<RepoOverview, "dirty" | "ahead" | "behind" | "missing" | "branch"> & { conflicted?: boolean };
+type Marks = Pick<RepoOverview, "dirty" | "ahead" | "behind" | "missing" | "branch"> & {
+  conflicted?: boolean;
+  branchAt?: string | null;
+};
 
 export interface RowSyncInput {
   overview: Marks | null;
@@ -48,6 +53,7 @@ export function rowSync(input: RowSyncInput): RowSync {
     remoteAhead,
     missing: false,
     branch: null,
+    branchAt: null,
     conflicted: below,
   };
   if (!source) return { ...none, unknown: fetchFailed };
@@ -60,16 +66,25 @@ export function rowSync(input: RowSyncInput): RowSync {
     remoteAhead,
     missing: false,
     branch: source.branch,
+    branchAt: source.branchAt ?? null,
     conflicted: source.conflicted === true || below,
   };
 }
 
-function summaryMarks(current: RepoSummary): Marks & { conflicted: boolean } {
+function summaryMarks(current: RepoSummary): Marks & { conflicted: boolean; branchAt: string | null } {
   const head = current.head.kind === "branch" ? current.head.name : null;
   const tracked = head === null ? undefined : current.branches.find((b) => b.kind === "local" && b.name === head);
   const { staged, unstaged, untracked, conflicted } = current.status;
+  // Detached: a local branch at HEAD first, else a remote-tracking one, as the backend picks.
+  const at = current.head.kind === "detached" ? current.head.oid : null;
+  const branchAt =
+    at === null
+      ? null
+      : (current.branches.find((b) => b.kind === "local" && b.oid === at) ??
+          current.branches.find((b) => b.kind !== "local" && b.oid === at && !b.name.endsWith("/HEAD")))?.name ?? null;
   return {
     branch: head,
+    branchAt,
     ahead: tracked?.ahead ?? 0,
     behind: tracked?.behind ?? 0,
     dirty: staged + unstaged + untracked + conflicted > 0,

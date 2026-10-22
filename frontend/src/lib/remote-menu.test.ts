@@ -135,6 +135,7 @@ function module(path: string): Submodule {
     state: "inSync",
     branch: null,
     subject: null,
+    branchAt: null,
     nested: false,
     ahead: 0,
     behind: 0,

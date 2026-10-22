@@ -14,6 +14,8 @@ pub struct RepoOverview {
     pub name: String,
     pub root: String,
     pub branch: Option<String>,
+    /// On a detached HEAD, a branch whose tip it is: the row names it instead of nothing.
+    pub branch_at: Option<String>,
     pub ahead: u32,
     pub behind: u32,
     pub dirty: bool,
@@ -86,6 +88,7 @@ impl AppState {
             name: open.display_name.clone(),
             root: git_engine::slash_path(&open.root),
             branch: None,
+            branch_at: None,
             ahead: 0,
             behind: 0,
             dirty: false,
@@ -103,10 +106,10 @@ impl AppState {
                 tracing::error!(error = ?err, context = part, root = %open.root.display());
             }
         };
-        if let Ok(git_engine::Head::Branch { name, .. }) =
-            handle.head().inspect_err(logged("repository row: head"))
-        {
-            row.branch = Some(name);
+        match handle.head().inspect_err(logged("repository row: head")) {
+            Ok(git_engine::Head::Branch { name, .. }) => row.branch = Some(name),
+            Ok(git_engine::Head::Detached { oid }) => row.branch_at = handle.branch_at(&oid),
+            _ => {}
         }
         if let Ok(branches) = handle
             .branches()
@@ -150,6 +153,7 @@ mod tests {
             name: "a".into(),
             root: "/a".into(),
             branch: None,
+            branch_at: None,
             ahead: 0,
             behind: 0,
             dirty: false,

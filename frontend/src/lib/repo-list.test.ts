@@ -19,6 +19,7 @@ function overview(root: string, name = folderName(root)): RepoOverview {
     name,
     root,
     branch: "main",
+    branchAt: null,
     ahead: 0,
     behind: 0,
     dirty: false,

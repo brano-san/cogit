@@ -465,7 +465,7 @@
         {#if sync.missing}
           <span class="gone" title={MISSING_REPOSITORY}>missing</span>
         {/if}
-        {#if sync.branch}<span class="branch truncate shrink-first">({sync.branch})</span>{/if}
+        {#if sync.branch ?? sync.branchAt}<span class="branch truncate shrink-first">({sync.branch ?? sync.branchAt})</span>{/if}
       </div>
 
       {@render moduleTree(entry.root, ownsTree(entry), row.depth, (starts[at] ?? 0) + 1)}
@@ -494,7 +494,7 @@
             {#if backends.get(listed.root)}<span class="backend" title="Where this repository lives">{backends.get(listed.root)}</span>{/if}
             {#if listed.pinned}<span class="pin" title="Pinned to the top of its group">⊤</span>{/if}
             {#if sync.missing}<span class="gone" title={MISSING_REPOSITORY}>missing</span>{/if}
-            {#if sync.branch}<span class="branch truncate shrink-first">({sync.branch})</span>{/if}
+            {#if sync.branch ?? sync.branchAt}<span class="branch truncate shrink-first">({sync.branch ?? sync.branchAt})</span>{/if}
           </div>
           {@render moduleTree(listed.root, false, row.depth, (starts[at] ?? 0) + 1, false)}
         {/if}

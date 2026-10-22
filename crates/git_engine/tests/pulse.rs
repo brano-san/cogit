@@ -264,3 +264,22 @@ fn a_plain_change_is_not_a_conflict() {
     let found = pulse(f.path());
     assert!(found.dirty && !found.conflicted);
 }
+
+#[test]
+fn a_detached_head_names_the_branch_at_its_commit() {
+    let f = test_fixtures::linear(2).unwrap();
+    f.git(&["checkout", "-q", "--detach"]).unwrap();
+
+    let found = pulse(f.path());
+
+    assert_eq!(found.branch, None);
+    assert_eq!(found.branch_at.as_deref(), Some("main"));
+}
+
+#[test]
+fn a_detached_head_off_every_branch_names_none() {
+    let f = test_fixtures::linear(2).unwrap();
+    f.git(&["checkout", "-q", "--detach", "HEAD~1"]).unwrap();
+
+    assert_eq!(pulse(f.path()).branch_at, None);
+}

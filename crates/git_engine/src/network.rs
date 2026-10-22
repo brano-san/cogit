@@ -212,6 +212,18 @@ impl RepoHandle {
         tips
     }
 
+    /// A branch whose tip is `oid`, for a detached HEAD: a local one first, else a
+    /// remote-tracking one (`origin/main`); `None` when no branch ends there.
+    pub fn branch_at(&self, oid: &str) -> Option<String> {
+        let tips = self.ref_tips(&["refs/heads/", "refs/remotes/"]);
+        let at = |prefix: &str| {
+            tips.iter()
+                .filter(|(name, target)| target == oid && !name.ends_with("/HEAD"))
+                .find_map(|(name, _)| name.strip_prefix(prefix).map(str::to_owned))
+        };
+        at("refs/heads/").or_else(|| at("refs/remotes/"))
+    }
+
     pub fn push(
         &self,
         remote: &str,

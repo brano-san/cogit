@@ -10,6 +10,7 @@ const mod = (path: string): Submodule => ({
   state: "unread",
   branch: null,
   subject: null,
+  branchAt: null,
   nested: false,
   ahead: 0,
   behind: 0,

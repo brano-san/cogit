@@ -5,6 +5,7 @@ import type { RepoPulse } from "$lib/ipc/bindings";
 const PULSE: RepoPulse = {
   missing: false,
   branch: "main",
+  branchAt: null,
   tracked: true,
   ahead: 0,
   behind: 1,
