@@ -86,3 +86,14 @@ fn a_match_joins_its_nearest_match_through_several_commits_left_out() {
     assert_eq!(into_node(&rows[1]), 1, "a's line ends in d: {:?}", rows[1]);
     assert!(rows.iter().flat_map(|r| &r.segments).all(|s| !s.arrow));
 }
+
+#[test]
+fn the_main_line_starts_at_heads_first_parent_when_the_filter_hides_head() {
+    let mut cursor = LayoutCursor::with_mainline(Some("h".to_owned()));
+    let mut rows = push(vec![node("x", &["a"])], &mut cursor);
+    pass_through(&mut cursor, "h", Some("a"));
+    rows.extend(push(vec![node("a", &["b"]), node("b", &[])], &mut cursor));
+
+    assert!(!rows[0].primary);
+    assert!(rows[1].primary && rows[2].primary, "{rows:?}");
+}

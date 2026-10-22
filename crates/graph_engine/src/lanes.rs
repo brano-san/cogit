@@ -401,6 +401,9 @@ pub fn pass_through(cursor: &mut LayoutCursor, oid: &str, first_parent: Option<&
     let Some(parent) = first_parent else {
         return;
     };
+    if cursor.mainline.as_deref() == Some(oid) {
+        cursor.mainline = Some(parent.to_owned());
+    }
     for lane in &mut cursor.lanes {
         if waits_for(lane, oid) {
             lane.waits = Some(parent.to_owned());
