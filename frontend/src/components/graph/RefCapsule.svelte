@@ -98,7 +98,9 @@
     line-height: 14px;
   }
 
-  /* The ahead/behind counter, flush left of the branch label: two plain blocks, one group. */
+  /* The ahead/behind counter, flush left of the branch label: two plain blocks, one group.
+     A filled plate, border and fill one colour like HEAD's: an outline beside HEAD's solid
+     label read as a frame that did not meet the label's edge. */
   .group {
     display: inline-flex;
     flex: none;
@@ -112,7 +114,7 @@
     white-space: nowrap;
     color: var(--badge-divergence-fg);
     background: var(--badge-divergence-bg);
-    border: 1px solid var(--badge-divergence-fg);
+    border: 1px solid var(--badge-divergence-bg);
     border-right: 0;
     border-radius: var(--r-md) 0 0 var(--r-md);
     font-family: var(--font-mono);
