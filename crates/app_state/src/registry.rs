@@ -127,7 +127,14 @@ impl AppState {
         let mut watch = Steps::new();
         let handle = git_engine::RepoHandle::open_root(&open.root)?;
         watch.done("open");
-        self.open_with(handle, &open.root, open.owner, watch, began)
+        let (git_dir, common_dir) = (
+            handle.git_dir().to_path_buf(),
+            handle.common_dir().to_path_buf(),
+        );
+        let summary = self.open_with(handle, &open.root, open.owner, watch, began)?;
+        // A folder recreated under a shown repository left its watcher dead.
+        self.start_watching(repo, &open.root, &git_dir, &common_dir);
+        Ok(summary)
     }
 
     /// The one place a tree key becomes a directory, shared by listing and opening so the
@@ -179,7 +186,8 @@ impl AppState {
                 root.display()
             )));
         };
-        self.start_watching(id, &root, handle.git_dir(), handle.common_dir());
+        // No watcher here: `show_repository` starts it on its own call. A recursive watch of a
+        // large tree takes seconds on Linux, and the open waited for it (R-785).
 
         Ok(RepoSummary {
             repo: id,
