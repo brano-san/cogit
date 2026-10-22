@@ -42,7 +42,7 @@
 {#snippet capsule()}
   {#if parts.remote}
     {@const remote = parts.remote}
-    <!-- The HEAD colour stays on the local part: the prefix and `=` are in remote colours. -->
+    <!-- The branch colour stays on the local part: the prefix in remote colours, `=` olive. -->
     <span class="capsule {label.kind} joined" class:holds={label.worktree}>
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <span class="prefix" title={remote.text} oncontextmenu={menu(remote)} ondblclick={activate(remote)}
@@ -91,16 +91,16 @@
     height: 16px;
     padding: 0 var(--sp-3);
     white-space: nowrap;
-    border: 1px solid;
+    /* One outline for every label, as SmartGit; the kind is the fill. */
+    border: 1px solid var(--badge-border);
     border-radius: var(--r-md);
     font-family: var(--font-mono);
     font-size: var(--fs-small);
     line-height: 14px;
   }
 
-  /* The ahead/behind counter, flush left of the branch label: two plain blocks, one group.
-     A filled plate, border and fill one colour like HEAD's: an outline beside HEAD's solid
-     label read as a frame that did not meet the label's edge. */
+  /* The ahead/behind counter, flush left of the branch label: two plain blocks inside the
+     labels' one outline, which the label's left edge closes. */
   .group {
     display: inline-flex;
     flex: none;
@@ -114,7 +114,7 @@
     white-space: nowrap;
     color: var(--badge-divergence-fg);
     background: var(--badge-divergence-bg);
-    border: 1px solid var(--badge-divergence-bg);
+    border: 1px solid var(--badge-border);
     border-right: 0;
     border-radius: var(--r-md) 0 0 var(--r-md);
     font-family: var(--font-mono);
@@ -127,28 +127,21 @@
     border-bottom-left-radius: 0;
   }
 
-  .head {
-    color: var(--badge-head-fg);
-    background: var(--badge-head-bg);
-    border-color: var(--badge-head-bg);
-  }
-
+  /* HEAD is a local branch like any other; the triangle says where HEAD is (SmartGit). */
+  .head,
   .local {
     color: var(--badge-branch-fg);
     background: var(--badge-branch-bg);
-    border-color: var(--badge-branch-fg);
   }
 
   .remote {
     color: var(--badge-remote-fg);
     background: var(--badge-remote-bg);
-    border-color: var(--field-border);
   }
 
   .tag {
     color: var(--badge-tag-fg);
     background: var(--badge-tag-bg);
-    border-color: var(--badge-tag-fg);
   }
 
   .stash {
@@ -167,6 +160,11 @@
     flex: none;
     color: var(--badge-remote-fg);
     background: var(--badge-remote-bg);
+  }
+
+  .eq {
+    color: var(--badge-equal-fg);
+    background: var(--badge-equal-bg);
   }
 
   .prefix {

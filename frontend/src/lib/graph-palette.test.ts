@@ -144,10 +144,29 @@ describe.each(Object.keys(THEMES))("Working Tree dots in the %s theme", (name) =
 describe.each(Object.keys(THEMES))("the ahead/behind counter in the %s theme", (name) => {
   const colour = theme(name);
 
-  it("is legible and unlike the branch and HEAD badges", () => {
+  it("is legible and unlike the branch, remote and tag labels", () => {
     expect(contrast(colour("--badge-divergence-fg"), colour("--badge-divergence-bg"))).toBeGreaterThanOrEqual(4.5);
-    for (const badge of ["--badge-branch-bg", "--badge-head-bg"]) {
+    for (const badge of ["--badge-branch-bg", "--badge-remote-bg", "--badge-tag-bg"]) {
       expect(distance(colour("--badge-divergence-bg"), colour(badge)), badge).toBeGreaterThanOrEqual(15);
     }
+  });
+});
+
+// Branch, remote, tag and the `=` between a remote and its branch, as SmartGit draws them: a
+// fill per kind inside one grey outline.
+describe.each(Object.keys(THEMES))("ref labels in the %s theme", (name) => {
+  const colour = theme(name);
+  const kinds = ["branch", "remote", "tag", "equal"];
+
+  it("read 4.5:1 on their fills", () => {
+    for (const kind of kinds) {
+      expect(contrast(colour(`--badge-${kind}-fg`), colour(`--badge-${kind}-bg`)), kind).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("are outlined 3:1 off the graph and told apart by their fills", () => {
+    expect(contrast(colour("--badge-border"), colour("--surface-editor"))).toBeGreaterThanOrEqual(3);
+    expect(distance(colour("--badge-branch-bg"), colour("--badge-remote-bg"))).toBeGreaterThanOrEqual(8);
+    expect(distance(colour("--badge-branch-bg"), colour("--badge-tag-bg"))).toBeGreaterThanOrEqual(8);
   });
 });

@@ -229,17 +229,9 @@
       "type": "color",
       "description": "The Working Tree node in the graph when the index or the working tree hold changes, untracked files included."
     },
-    "badge.head.bg": {
-      "type": "color",
-      "description": "The HEAD badge: background."
-    },
-    "badge.head.fg": {
-      "type": "color",
-      "description": "The HEAD badge: text."
-    },
     "badge.branch.bg": {
       "type": "color",
-      "description": "A branch badge: background."
+      "description": "A local branch badge, HEAD's too (HEAD is marked by the triangle): background."
     },
     "badge.branch.fg": {
       "type": "color",
@@ -252,6 +244,18 @@
     "badge.remote.fg": {
       "type": "color",
       "description": "A remote-branch badge: text."
+    },
+    "badge.equal.bg": {
+      "type": "color",
+      "description": "The = between a remote and its local branch in one graph label (origin = master): background, as SmartGit."
+    },
+    "badge.equal.fg": {
+      "type": "color",
+      "description": "The = between a remote and its local branch: text."
+    },
+    "badge.border": {
+      "type": "color",
+      "description": "The outline of every ref label in the graph (branch, remote, tag, ahead/behind counter), as SmartGit."
     },
     "badge.divergence.bg": {
       "type": "color",

@@ -108,7 +108,7 @@ describe("theme files", () => {
     expect(contrast(tokens["fg.secondary"]!, tokens["bg.panel"]!)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(tokens["search.ink"]!, tokens["search.current"]!)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(tokens["fg.onAccent"]!, tokens["accent"]!)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(tokens["badge.head.fg"]!, tokens["badge.head.bg"]!)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(tokens["badge.branch.fg"]!, tokens["badge.branch.bg"]!)).toBeGreaterThanOrEqual(4.5);
   });
 
   it("is the surfaces that differ: app, panel, editor and elevated are four tones", () => {
