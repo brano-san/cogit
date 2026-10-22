@@ -307,9 +307,10 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
     .map<RefNode>((entry) => ({
       id: `stash:${entry.index}`,
       kind: "stash",
-      label: `stash@{${entry.index}}`,
+      // The message beside its box, the date on the right: `stash@{n}` said nothing a user needs.
+      label: entry.message,
       depth: 1,
-      detail: `${stashDate(entry.timestamp)} · ${entry.message}`,
+      detail: stashDate(entry.timestamp),
       rev: `stash@{${entry.index}}`,
       oid: entry.oid,
     }))

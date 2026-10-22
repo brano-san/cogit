@@ -132,12 +132,12 @@ describe("buildRefTree", () => {
   });
 
   // F-040: the message and the date, as the stash list had them before the one tree (R-47).
-  it("gives a stash its message and its date", () => {
+  it("names a stash by its message, its date on the right, no stash@{n}", () => {
     const made = Date.UTC(2026, 8, 20, 12) / 1000;
     const nodes = buildRefTree(input({ stashes: [{ index: 0, oid: OID, message: "On main: wip", timestamp: made }] }));
-    const detail = nodes.find((node) => node.id === "stash:0")?.detail ?? "";
-    expect(detail).toContain("On main: wip");
-    expect(detail).toMatch(/^(19|20|21)-09-26 · /);
+    const stash = nodes.find((node) => node.id === "stash:0");
+    expect(stash?.label).toBe("On main: wip");
+    expect(stash?.detail).toMatch(/^(19|20|21)-09-26$/);
   });
 
   // F-042: the tag list marked annotated tags; the one tree dropped the marker (R-47).
