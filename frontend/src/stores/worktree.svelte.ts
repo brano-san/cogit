@@ -23,8 +23,10 @@ class WorktreeStore {
   /** An answer came since `clear()`: until then an empty list says nothing about the tree. */
   loaded = $state(false);
   error = $state<CogitError | null>(null);
-  /** A filter searches a clean working tree: the unchanged files are read as well. */
+  /** A filter searches a clean working tree: the unchanged files are read as well, into
+      `found` — listed, never counted or acted on as changes. */
   everyFile = $state(false);
+  found = $state.raw<FileEntry[]>([]);
 
   #generation = 0;
   /** Bumped by `clear()`: a write that finishes after it reads nothing back, since the
@@ -44,22 +46,32 @@ class WorktreeStore {
 
     try {
       // Untracked: an effect that loads would otherwise run again on every Files switch.
-      const view = untrack(() => ({ ...backendView(filesView.current), ...(this.everyFile ? { unchanged: true } : {}) }));
-      const files = await worktreeFiles(repo, view);
+      const [view, apart] = untrack(() => [backendView(filesView.current), this.everyFile && !filesView.current.unchanged]);
+      const files = await worktreeFiles(repo, apart ? { ...view, unchanged: true } : view);
       if (generation !== this.#generation) return null;
       this.staged = files.staged;
-      this.unstaged = files.unstaged;
+      this.unstaged = apart ? files.unstaged.filter((file) => file.status !== "unchanged") : files.unstaged;
+      this.found = apart ? files.unstaged.filter((file) => file.status === "unchanged") : [];
       this.loaded = true;
       return files.state;
     } catch (err) {
       if (generation !== this.#generation) return null;
       this.staged = [];
       this.unstaged = [];
+      this.found = [];
       this.error = toCogitError(err);
       return null;
     } finally {
       if (generation === this.#generation) this.loading = false;
     }
+  }
+
+  /** Starts or stops the search over every file; stopping only drops what it found. */
+  async searchEveryFile(on: boolean, repo: RepoId | null): Promise<void> {
+    if (this.everyFile === on) return;
+    this.everyFile = on;
+    if (on && repo !== null) await this.load(repo);
+    else this.found = [];
   }
 
   async stage(repo: RepoId, paths: string[]): Promise<WorkingState | null> {
@@ -109,6 +121,8 @@ class WorktreeStore {
     this.#cleared += 1;
     this.staged = [];
     this.unstaged = [];
+    this.found = [];
+    this.everyFile = false;
     this.loading = false;
     this.loaded = false;
     this.error = null;

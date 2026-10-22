@@ -27,15 +27,26 @@ describe("worktree.load called from an effect", () => {
   });
 });
 
-describe("worktree.load while a filter searches a clean working tree", () => {
-  it("asks for the unchanged files too, the Unchanged switch left as it is", async () => {
+describe("a filter searching a clean working tree", () => {
+  const row = (path: string, status: string) => ({ path, status }) as never;
+
+  it("reads the unchanged files too, keeps them apart from the changes, and leaves the switch alone", async () => {
     ipc.worktreeFiles.mockClear();
+    ipc.worktreeFiles.mockResolvedValueOnce({ staged: [], unstaged: [row("a", "modified"), row("b", "unchanged")], state: null } as never);
     filesView.set({ ...filesView.current, unchanged: false });
-    worktree.everyFile = true;
-    await worktree.load(1 as never);
+    await worktree.searchEveryFile(true, 1 as never);
     expect(ipc.worktreeFiles).toHaveBeenLastCalledWith(1, expect.objectContaining({ unchanged: true }));
     expect(filesView.current.unchanged).toBe(false);
-    worktree.everyFile = false;
+    expect(worktree.unstaged.map((file) => file.path)).toEqual(["a"]);
+    expect(worktree.found.map((file) => file.path)).toEqual(["b"]);
+    expect(worktree.total).toBe(1);
+  });
+
+  it("drops what it found without reading again when it stops", async () => {
+    ipc.worktreeFiles.mockClear();
+    await worktree.searchEveryFile(false, 1 as never);
+    expect(worktree.found).toEqual([]);
+    expect(ipc.worktreeFiles).not.toHaveBeenCalled();
     await worktree.load(1 as never);
     expect(ipc.worktreeFiles).toHaveBeenLastCalledWith(1, expect.objectContaining({ unchanged: false }));
   });
@@ -46,11 +57,11 @@ describe("worktree.load while a filter searches a clean working tree", () => {
       $effect(() => void worktree.load(1 as never));
     });
     flushSync();
-    worktree.everyFile = true;
+    void worktree.searchEveryFile(true, 1 as never);
     flushSync();
     await Promise.resolve();
-    expect(ipc.worktreeFiles).toHaveBeenCalledTimes(1);
-    worktree.everyFile = false;
+    expect(ipc.worktreeFiles).toHaveBeenCalledTimes(2);
+    await worktree.searchEveryFile(false, 1 as never);
     stop();
   });
 });

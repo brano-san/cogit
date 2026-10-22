@@ -119,23 +119,27 @@
 
   $effect(() => oncount?.(shown.count));
 
-  /** Unstaged and Staged, or one list of both while the index is not shown apart (#32). */
-  const separate = $derived(filesView.current.separateIndex);
-  const merged = $derived(separate ? [] : mergeIndex(worktree.unstaged, worktree.staged));
-
-  /** The working tree list's filter: over a clean tree it looks through every file. */
+  /** The working tree list's filter: over a clean tree it looks through every file. Another
+      list in the panel has a filter of its own, so this one starts empty again. */
   let mask = $state("");
-  const everyFile = $derived(onWorkingTree && searchesEveryFile(mask, repository.current?.status));
+  $effect(() => {
+    if (shown.kind !== "worktree") mask = "";
+  });
+  const everyFile = $derived(
+    shown.kind === "worktree" && !filesView.current.unchanged && searchesEveryFile(mask, repository.current?.status),
+  );
   $effect(() => {
     const on = everyFile;
-    const id = repository.current?.repo;
-    untrack(() => {
-      if (worktree.everyFile === on) return;
-      worktree.everyFile = on;
-      if (id) void worktree.load(id);
-    });
+    const id = repository.current?.repo ?? null;
+    untrack(() => void worktree.searchEveryFile(on, id));
   });
-  $effect(() => () => (worktree.everyFile = false));
+  $effect(() => () => void worktree.searchEveryFile(false, null));
+  /** What the search found is listed with the changes, never counted or staged as one. */
+  const unstagedRows = $derived(worktree.found.length > 0 ? [...worktree.unstaged, ...worktree.found] : worktree.unstaged);
+
+  /** Unstaged and Staged, or one list of both while the index is not shown apart (#32). */
+  const separate = $derived(filesView.current.separateIndex);
+  const merged = $derived(separate ? [] : mergeIndex(unstagedRows, worktree.staged));
 
   /** A row button off where the Files menu has its item off (#40). */
   const rowBlocked = (action: RowAction) => (file: FileEntry) => rowActionBlocked(action, file);
@@ -220,7 +224,7 @@
         ? [
             {
               title: "Unstaged",
-              files: worktree.unstaged,
+              files: unstagedRows,
               selected: diff.pathFor({ kind: "workTreeVsIndex" }),
               onselect: onopenworktree,
               actions: [
@@ -251,7 +255,7 @@
               files: merged,
               selected: diff.pathFor({ kind: "workTreeVsIndex" }) ?? diff.pathFor({ kind: "indexVsHead" }),
               onselect: (path: string) =>
-                mergedSide(path, worktree.unstaged) === "worktree" ? onopenworktree(path) : onopenstaged(path),
+                mergedSide(path, unstagedRows) === "worktree" ? onopenworktree(path) : onopenstaged(path),
             },
           ]}
       empty={emptyText(
@@ -259,7 +263,7 @@
         "The working tree is clean.",
       )}
       selected={diff.path}
-      onopen={(path, side) => onopenrow(path, separate ? (side === "index" ? "index" : "worktree") : mergedSide(path, worktree.unstaged))}
+      onopen={(path, side) => onopenrow(path, separate ? (side === "index" ? "index" : "worktree") : mergedSide(path, unstagedRows))}
       unchanged={everyFile}
       onmask={(text) => {
         mask = text;

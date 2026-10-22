@@ -190,7 +190,7 @@
   /** What the rows are gated by; the toolbar keeps showing the switches as they are. */
   const gates = $derived(unchanged ? { ...active, unchanged: true } : active);
   const pattern = $derived(compile(mask, active.regex));
-  const query = $derived(contents ? contentQuery(active, mask) : null);
+  const query = $derived(contents ? contentQuery(gates, mask) : null);
   /** Until the first answer, a content search shows nothing rather than name matches. */
   const hits = $derived(query === null ? null : (contents?.hits ?? NO_HITS));
 
