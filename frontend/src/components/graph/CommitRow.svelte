@@ -20,6 +20,8 @@
   interface Props {
     entry: GraphEntry;
     labels: readonly RefLabel[];
+    /** HEAD points here, on a branch or detached: the subject is bold. */
+    head?: boolean;
     /** Merged branches fold and the list is the graph, not a filtered one. */
     folds: boolean;
     cells: readonly (GraphColumn | "overlap")[];
@@ -38,6 +40,7 @@
   let {
     entry,
     labels,
+    head = false,
     folds,
     cells,
     timeFormat,
@@ -91,7 +94,7 @@
     </svg>
   </span>
 {/if}
-<span class="summary truncate">{entry.commit.summary}</span>
+<span class="summary truncate" class:head>{entry.commit.summary}</span>
 {#each cells as cell, at (cell)}
   {#if cell === "author"}
     <span class="author truncate" style:max-width="{COLUMN_WIDTH.author}px">{entry.commit.authorName}</span>
@@ -181,6 +184,10 @@
   .summary {
     flex: 1 1 auto;
     min-width: 0;
+  }
+
+  .summary.head {
+    font-weight: 700;
   }
 
   /* Widths of the columns are inline, from `COLUMN_WIDTH`: the row measures them too. */

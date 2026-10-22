@@ -863,6 +863,7 @@
             <CommitRow
               entry={item.entry}
               labels={labelsOf(item.entry.commit.oid)}
+              head={item.entry.commit.oid === headOid}
               folds={modes.collapseMerged && filterless}
               {cells}
               {timeFormat}
