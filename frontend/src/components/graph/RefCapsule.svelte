@@ -1,5 +1,6 @@
 <script lang="ts">
   import KindIcon from "$components/common/KindIcon.svelte";
+  import HereMark from "$components/graph/HereMark.svelte";
   import { labelParts, type RefLabel } from "$lib/format";
 
   interface Props {
@@ -54,7 +55,7 @@
       class="branch"
       title={localTip}
       oncontextmenu={menu(parts.local)}
-      ondblclick={activate(parts.local)}>{@render held()}{text}</span
+      ondblclick={activate(parts.local)}>{@render held()}{#if label.kind === "head"}<HereMark />{/if}{text}</span
     >
   </span>
 {:else}
@@ -66,7 +67,7 @@
     oncontextmenu={menu(label)}
     ondblclick={activate(label)}
   >
-    {@render held()}{text}
+    {@render held()}{#if label.kind === "head"}<HereMark />{/if}{text}
   </span>
 {/if}
 

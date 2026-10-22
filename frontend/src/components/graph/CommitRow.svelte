@@ -1,4 +1,6 @@
 <script lang="ts">
+  import HereMark from "$components/graph/HereMark.svelte";
+  import { repository } from "$stores/repository.svelte";
   import Avatar from "$components/common/Avatar.svelte";
   import FoldToggle from "$components/graph/FoldToggle.svelte";
   import RefCapsule from "$components/graph/RefCapsule.svelte";
@@ -55,6 +57,11 @@
   const CAPSULE_ROOM = 3;
 
   const refs = $derived(capsules(labels, CAPSULE_ROOM));
+  /** A detached HEAD on this commit: the mark goes before its subject, a branch's goes in
+      its label. */
+  const detachedHere = $derived(
+    repository.current?.head.kind === "detached" && repository.current.head.oid === entry.commit.oid,
+  );
   const timeColumn = $derived(timeColumnStore.width(timeFormat));
   const hashColumn = $derived(timeColumnStore.hashWidth());
 </script>
@@ -92,7 +99,7 @@
     </svg>
   </span>
 {/if}
-<span class="summary truncate">{entry.commit.summary}</span>
+{#if detachedHere}<HereMark />{/if}<span class="summary truncate">{entry.commit.summary}</span>
 {#each cells as cell, at (cell)}
   {#if cell === "author"}
     <span class="author truncate" style:max-width="{COLUMN_WIDTH.author}px">{entry.commit.authorName}</span>
