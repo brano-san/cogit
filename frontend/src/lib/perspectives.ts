@@ -24,7 +24,7 @@ export const DEFAULT_LAYOUT: LayoutFractions = {
   graph: 0.68,
   filesSplit: 0.55,
   commitHeight: 0.18,
-  worktreesHeight: 0.25,
+  worktreesHeight: 0.16,
 };
 
 export function clampFraction(value: number): number {
