@@ -207,6 +207,17 @@ fn a_push_remote_other_than_the_upstream_counts_ahead_against_it() {
     assert_eq!(branch.push_target.as_deref(), Some("fork/main"));
     assert_eq!(branch.ahead, 0, "the fork already has every local commit");
     assert_eq!(branch.behind, 1, "behind still counts against origin/main");
+    let against_upstream: u32 = f
+        .git(&["rev-list", "--count", "origin/main..HEAD"])
+        .unwrap()
+        .trim()
+        .parse()
+        .unwrap();
+    assert_eq!(
+        branch.upstream_ahead,
+        Some(against_upstream),
+        "the graph's counter compares with the upstream"
+    );
 }
 
 #[test]
@@ -216,4 +227,8 @@ fn a_plain_upstream_is_also_the_push_target() {
 
     assert_eq!(branch.push_remote.as_deref(), Some("origin"));
     assert!(branch.push_target.is_none());
+    assert_eq!(
+        branch.upstream_ahead, None,
+        "ahead is already against the upstream"
+    );
 }

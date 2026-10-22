@@ -35,6 +35,10 @@ pub struct Branch {
     pub push_target: Option<String>,
     pub ahead: u32,
     pub behind: u32,
+    /// `ahead` against the upstream, only while `push_target` has `ahead`: the graph's
+    /// ahead/behind counter compares with the upstream.
+    #[specta(optional)]
+    pub upstream_ahead: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -303,6 +307,7 @@ impl RepoHandle {
             branch.behind = behind;
         }
         if let Some((ahead, _)) = pushed_id.and_then(|id| self.count_divergence(local_id, id)) {
+            branch.upstream_ahead = Some(branch.ahead);
             branch.ahead = ahead;
         }
     }
@@ -403,6 +408,7 @@ fn collect<'a>(
             upstream: None,
             push_remote: None,
             push_target: None,
+            upstream_ahead: None,
             ahead: 0,
             behind: 0,
         });

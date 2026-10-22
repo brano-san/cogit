@@ -950,6 +950,11 @@ export type Branch = {
 	pushTarget: string | null,
 	ahead: number,
 	behind: number,
+	/**
+	 *  `ahead` against the upstream, only while `push_target` has `ahead`: the graph's
+	 *  ahead/behind counter compares with the upstream.
+	 */
+	upstreamAhead?: number | null,
 };
 
 /**  What `git branch -d` came to. */

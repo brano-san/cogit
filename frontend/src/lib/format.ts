@@ -148,9 +148,11 @@ export function refLabels(
     }
     if (lines.length === 0 && label.text !== branch.name) lines.push(branch.name);
     if (lines.length > 0) label.title = lines.join("\n");
-    if (branch.upstream !== null && branch.ahead + branch.behind > 0) {
+    // Against the upstream even when a push goes elsewhere and `ahead` counts against that.
+    const ahead = branch.upstreamAhead ?? branch.ahead;
+    if (branch.upstream !== null && ahead + branch.behind > 0) {
       const counts: [string, string][] = [];
-      if (branch.ahead > 0) counts.push([`+${branch.ahead}`, `${branch.ahead} ahead`]);
+      if (ahead > 0) counts.push([`+${ahead}`, `${ahead} ahead`]);
       if (branch.behind > 0) counts.push([`-${branch.behind}`, `${branch.behind} behind`]);
       label.divergence = counts.map(([short]) => short).join(" ");
       label.divergenceTitle = `${branch.upstream}: ${counts.map(([, long]) => long).join(", ")}`;
