@@ -18,9 +18,9 @@ export const GRAPH_STRIPES = true;
 export const LONG_LINK_ROWS = 40;
 
 export const DENSITY_ROW_HEIGHT: Record<GraphDensity, number> = {
-  compact: 20,
-  normal: 24,
-  comfortable: 28,
+  compact: 17,
+  normal: 19,
+  comfortable: 24,
 };
 
 /** Pixels. Fixed, so the columns of every row line up and the room they take is known;

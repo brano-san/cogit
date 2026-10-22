@@ -262,8 +262,8 @@
     display: flex;
     align-items: center;
     gap: var(--sp-1);
-    height: 32px;
-    flex: 0 0 32px;
+    height: 26px;
+    flex: 0 0 26px;
     padding: 0 var(--sp-3);
     border-bottom: 1px solid var(--divider);
     background: var(--surface-panel);

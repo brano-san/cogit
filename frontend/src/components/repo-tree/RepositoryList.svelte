@@ -505,7 +505,7 @@
 <style>
   .wrapper {
     --tree-gap: var(--sp-3);
-    padding: var(--sp-4) 0;
+    padding: var(--sp-2) 0;
   }
 
   /* One path, cut on the right like every list (R-243): `import/SignalGenerator200` is read
@@ -597,7 +597,7 @@
     align-items: center;
     justify-content: center;
     width: 26px;
-    height: 24px;
+    height: 22px;
     padding: 0;
     background: none;
     border: 0;

@@ -16,17 +16,21 @@ describe("uiFontPx", () => {
 });
 
 describe("uiMetrics", () => {
-  it("keeps the rows the layout was drawn with at the base size", () => {
+  // Rows were 1.85 times the font; SmartGit's are 1.5 (18 px at 12), and a screen showed
+  // a third fewer commits and files than it does.
+  it("keeps rows about one and a half times the font, as SmartGit does", () => {
     const base = uiMetrics(BASE_FONT_PX, 12.5);
-    expect([base.listRow, base.denseRow]).toEqual([24, 22]);
+    expect([base.listRow, base.denseRow]).toEqual([19, 18]);
     expect(base.css["--fs-ui"]).toBe("13px");
-    expect(base.css["--h-row"]).toBe("24px");
+    expect(base.css["--h-row"]).toBe("19px");
+    expect([uiMetrics(14, 14).listRow, uiMetrics(14, 14).denseRow]).toEqual([20, 19]);
+    expect([base.css["--h-panel-hdr"], uiMetrics(16, 14).css["--h-panel-hdr"]]).toEqual(["22px", "25px"]);
   });
 
   it("grows the rows with the font, so a larger font is never cut", () => {
     const large = uiMetrics(16, 13);
-    expect(large.listRow).toBe(30);
-    expect(large.denseRow).toBe(27);
+    expect(large.listRow).toBe(23);
+    expect(large.denseRow).toBe(22);
     expect(large.css["--fs-dense"]).toBe("15px");
     expect(large.css["--fs-code"]).toBe("13px");
   });

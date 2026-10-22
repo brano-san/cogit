@@ -20,7 +20,7 @@ export interface LayoutFractions {
 export const DEFAULT_LAYOUT: LayoutFractions = {
   leftColumn: 0.24,
   repositories: 0.45,
-  topRow: 0.55,
+  topRow: 0.66,
   graph: 0.68,
   filesSplit: 0.55,
   commitHeight: 0.18,

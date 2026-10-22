@@ -55,8 +55,8 @@ export interface UiMetrics {
 }
 
 export function uiMetrics(fontPx: number, diffPx: number): UiMetrics {
-  const listRow = scaled(24, fontPx);
-  const denseRow = scaled(22, fontPx);
+  const listRow = scaled(19, fontPx);
+  const denseRow = scaled(18, fontPx);
   const px = (value: number) => `${value}px`;
   return {
     fontPx,
@@ -74,6 +74,8 @@ export function uiMetrics(fontPx: number, diffPx: number): UiMetrics {
       "--lh-dense": px(scaled(18, fontPx)),
       "--h-row": px(listRow),
       "--h-row-dense": px(denseRow),
+      // Room for the 20 px fields and buttons a header holds, never less.
+      "--h-panel-hdr": px(Math.max(22, scaled(20, fontPx))),
     },
   };
 }
