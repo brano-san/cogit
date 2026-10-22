@@ -360,6 +360,8 @@ export interface ToolbarFacts {
   markedUnstaged: readonly string[];
   /** Paths selected in Files that have staged changes. */
   markedStaged: readonly string[];
+  /** Paths selected in Files with no change at all: listed by a filter over a clean tree. */
+  markedUnchanged: readonly string[];
   unstaged: readonly string[];
   staged: readonly string[];
   /** The commit selected in Graph or through a ref in Branches. */
@@ -382,6 +384,7 @@ export const NO_FACTS: ToolbarFacts = {
   onWorkingTree: false,
   markedUnstaged: [],
   markedStaged: [],
+  markedUnchanged: [],
   unstaged: [],
   staged: [],
   commit: null,
@@ -398,6 +401,7 @@ export interface SelectionInput {
   marked: readonly string[];
   unstaged: readonly { path: string }[];
   staged: readonly { path: string }[];
+  unchanged?: readonly { path: string }[];
   /** The ticks of each list by its title, when the Files list said: a partly staged file
       is a row of both, ticked in one. */
   bySection?: Readonly<Record<string, readonly string[]>> | null;
@@ -407,15 +411,18 @@ export interface SelectionInput {
 export function splitMarked(input: SelectionInput): {
   markedUnstaged: string[];
   markedStaged: string[];
+  markedUnchanged: string[];
 } {
   const unstaged = new Set(input.unstaged.map((file) => file.path));
   const staged = new Set(input.staged.map((file) => file.path));
+  const unchanged = new Set((input.unchanged ?? []).map((file) => file.path));
   // One list without titles says `{}`: its ticks are the selection itself.
   const section = input.bySection && Object.keys(input.bySection).length > 0 ? input.bySection : null;
   const ticked = (title: string) => (section ? (section[title] ?? []) : input.marked);
   return {
     markedUnstaged: ticked("Unstaged").filter((path) => unstaged.has(path)),
     markedStaged: ticked("Staged").filter((path) => staged.has(path)),
+    markedUnchanged: ticked("Unstaged").filter((path) => unchanged.has(path)),
   };
 }
 
@@ -441,13 +448,20 @@ const needWorkingTree: Rule = (f) =>
   (f.onWorkingTree ? undefined : "Select the Working Tree in the graph first");
 
 const anyMarked = (f: ToolbarFacts) => f.markedUnstaged.length + f.markedStaged.length > 0;
+/** Something is ticked, if only unchanged files: no action falls back to every file. */
+const anyTicked = (f: ToolbarFacts) => anyMarked(f) || f.markedUnchanged.length > 0;
 
 const needChanges: Rule = (f) =>
   needRepository(f) ??
   (f.unstaged.length + f.staged.length > 0 ? undefined : "The working tree is clean");
 
 const needSelection: Rule = (f) =>
-  needWorkingTree(f) ?? (anyMarked(f) ? undefined : "No file is selected in Files");
+  needWorkingTree(f) ??
+  (anyMarked(f)
+    ? undefined
+    : f.markedUnchanged.length > 0
+      ? "The selected files have no changes"
+      : "No file is selected in Files");
 
 /** git stash needs a commit to stash against: before the first one it only says "You do
     not have the initial commit yet". */
@@ -477,7 +491,7 @@ const RULES: Record<string, Rule> = {
   "sync-order": needRemote,
   stage: (f) =>
     needWorkingTree(f) ??
-    (anyMarked(f)
+    (anyTicked(f)
       ? f.markedUnstaged.length > 0
         ? undefined
         : "The selected files have nothing to stage"
@@ -486,7 +500,7 @@ const RULES: Record<string, Rule> = {
         : "Nothing to stage"),
   unstage: (f) =>
     needWorkingTree(f) ??
-    (anyMarked(f)
+    (anyTicked(f)
       ? f.markedStaged.length > 0
         ? undefined
         : "None of the selected files is staged"
@@ -534,7 +548,7 @@ export function targetsOf(
   const all = action === "unstage" ? facts.staged : facts.unstaged;
   const marked = action === "unstage" ? facts.markedStaged : facts.markedUnstaged;
   if (action === "discard") return [...marked];
-  return anyMarked(facts) ? [...marked] : [...all];
+  return anyTicked(facts) ? [...marked] : [...all];
 }
 
 export interface BranchLike {

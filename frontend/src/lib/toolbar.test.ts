@@ -47,9 +47,19 @@ describe("splitMarked", () => {
     expect(split.markedStaged).toEqual(["b.txt", "both.txt"]);
   });
 
+  it("keeps an unchanged file a filter lists apart from the changes", () => {
+    const split = splitMarked({
+      marked: ["a.txt", "b.txt"],
+      unstaged: [{ path: "b.txt" }],
+      staged: [],
+      unchanged: [{ path: "a.txt" }],
+    });
+    expect(split).toEqual({ markedUnstaged: ["b.txt"], markedStaged: [], markedUnchanged: ["a.txt"] });
+  });
+
   it("drops a path that has left both lists since it was selected", () => {
     const split = splitMarked({ marked: ["gone.txt"], unstaged: [], staged: [] });
-    expect(split).toEqual({ markedUnstaged: [], markedStaged: [] });
+    expect(split).toEqual({ markedUnstaged: [], markedStaged: [], markedUnchanged: [] });
   });
 
   // A file partly staged, ticked in Unstaged only, was ticked for Unstage too: the list
@@ -61,7 +71,7 @@ describe("splitMarked", () => {
       staged: [{ path: "both.txt" }],
       bySection: { Unstaged: ["both.txt"] },
     });
-    expect(split).toEqual({ markedUnstaged: ["both.txt"], markedStaged: [] });
+    expect(split).toEqual({ markedUnstaged: ["both.txt"], markedStaged: [], markedUnchanged: [] });
   });
 
   // With staged files shown in the one list it has no titled lists, so it says `{}`: two
@@ -73,7 +83,7 @@ describe("splitMarked", () => {
       staged: [],
       bySection: {},
     });
-    expect(split).toEqual({ markedUnstaged: ["a.txt"], markedStaged: [] });
+    expect(split).toEqual({ markedUnstaged: ["a.txt"], markedStaged: [], markedUnchanged: [] });
   });
 });
 
@@ -88,6 +98,15 @@ describe("Stage", () => {
 
   it("runs on everything when nothing is selected and there is a change", () => {
     expect(reasonOf("stage", tree({ unstaged: ["a"] }))).toBeUndefined();
+  });
+
+  // A filter over a clean tree lists unchanged files: ticking only those left no selection,
+  // and Stage fell back to every listed row.
+  it("stays off, and stages nothing else, when only unchanged files are ticked", () => {
+    const only = tree({ unstaged: ["ignored.log"], markedUnchanged: ["a.txt"] });
+    expect(reasonOf("stage", only)).toBe("The selected files have nothing to stage");
+    expect(targetsOf("stage", only)).toEqual([]);
+    expect(reasonOf("stash-selection", only)).toBe("The selected files have no changes");
   });
 
   it("stays off when the selection holds only staged files", () => {

@@ -689,6 +689,7 @@
       marked: markedFiles,
       unstaged: worktree.unstaged,
       staged: worktree.staged,
+      unchanged: worktree.found,
       bySection: markedBySection,
     }),
     unstaged: worktree.unstaged.map((file) => file.path),
