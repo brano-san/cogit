@@ -76,6 +76,8 @@
     <FoldToggle {open} {hidden} ontoggle={() => graphFolds.toggle(entry.commit.oid)} />
   {/if}
 {/if}
+<!-- Labels in full, cut by this area's edge rather than pushing the right columns (R-331). -->
+<span class="middle">
 {#each refs.shown as label (refLabelKey(label))}
   <RefCapsule
     {label}
@@ -103,6 +105,7 @@
   </span>
 {/if}
 {#if detachedHere}<HereMark />{/if}<span class="summary truncate" class:head>{entry.commit.summary}</span>
+</span>
 {#each cells as cell, at (cell)}
   {#if cell === "author"}
     <span class="author truncate" style:max-width="{COLUMN_WIDTH.author}px">{entry.commit.authorName}</span>
@@ -156,6 +159,15 @@
 {/each}
 
 <style>
+  .middle {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: var(--sp-3);
+    min-width: 0;
+    overflow: hidden;
+  }
+
   .no-avatar {
     flex: none;
   }
@@ -187,8 +199,8 @@
     line-height: 14px;
   }
 
-  /* Gives way after the branch labels, which never shrink; the right columns
-     never do, and past its room the graph area is cut instead. */
+  /* Gives way first; the branch labels never shrink, `.middle` cuts them at its edge, and
+     the right columns never move. */
   .summary {
     flex: 1 1 auto;
     min-width: 0;
