@@ -270,11 +270,11 @@
     overflow: hidden;
   }
 
-  /* Gives way after the field has: the title says the rest. */
+  /* Gives way before the field, down to its count: the title says the rest. */
   .badge {
     display: block;
-    flex: 0 1 auto;
-    min-width: 0;
+    flex: 0 100000 auto;
+    min-width: 64px;
     overflow: hidden;
     text-overflow: ellipsis;
     line-height: 20px;
