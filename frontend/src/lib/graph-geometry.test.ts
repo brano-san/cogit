@@ -393,6 +393,9 @@ describe("how big the graph is drawn", () => {
 
   it("leaves a gap between a ring and the one below it", () => {
     expect(GRAPH.rowHeight).toBeGreaterThan(GRAPH.ringRadius * 2 + GRAPH.ringStroke + 4);
+    // 2.5 read as a speck beside the rings; a little under a ring's outer edge.
+    expect(GRAPH.workingTreeRadius).toBeGreaterThanOrEqual(GRAPH.ringRadius);
+    expect(GRAPH.workingTreeRadius).toBeLessThan(GRAPH.ringRadius + GRAPH.ringStroke / 2);
   });
 
   it("leaves a gap between a ring and the one beside it", () => {
