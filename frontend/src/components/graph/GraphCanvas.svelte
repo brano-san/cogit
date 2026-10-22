@@ -45,6 +45,8 @@
     /** Where the Working Tree row is: the top, or right above HEAD when HEAD is further down. */
     headerRow?: number;
     headerLane?: number | null;
+    /** The Working Tree row's dot: green when clean, red when changed; none while unknown. */
+    workingTree?: "clean" | "changed" | null;
     /** A ring is filled with what is behind it: a stripe, a hovered or a selected row. */
     selectedRows?: readonly number[];
     hoverRow?: number | null;
@@ -66,6 +68,7 @@
     headLane = null,
     headerRow = 0,
     headerLane = null,
+    workingTree = null,
     selectedRows = [],
     hoverRow = null,
     focusLane = null,
@@ -193,6 +196,14 @@
       context.stroke();
       context.restore();
     }
+    // Over the dashed line's end, so the line starts at the dot's edge.
+    if (workingTree !== null) {
+      const { x, y } = nodeCentre(headerLane ?? headLane ?? 0, headerRow, scrollTop);
+      context.beginPath();
+      context.arc(x, y, GRAPH.workingTreeRadius, 0, Math.PI * 2);
+      context.fillStyle = token(workingTree === "clean" ? "--graph-working-tree-clean" : "--graph-working-tree-changed");
+      context.fill();
+    }
 
     // A commit no remote has is a dot in its own colour, the lines stopping just short of it;
     // a pushed one is a hollow ring, filled with what is behind it so no line shows through.
@@ -259,7 +270,7 @@
 
   $effect(() => {
     // Theme, lane width and colour change the picture without changing the data.
-    void [rows, scrollTop, width, height, dpr, headRow, headLane, headerRow, headerLane, selectedRows, hoverRow, focusLane];
+    void [rows, scrollTop, width, height, dpr, headRow, headLane, headerRow, headerLane, workingTree, selectedRows, hoverRow, focusLane];
     void [clipX, stripes, rowHeight];
     void [themeStore.version, settings.current.theme, settings.current.laneWidth, settings.current.graphColoring];
     if (drawsNow(drawnBox, canvasBox(width, height, dpr))) {

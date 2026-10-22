@@ -123,3 +123,20 @@ describe.each(Object.keys(THEMES))("bisect dots in the %s theme", (name) => {
     expect(colour("--graph-bisect-found")).toBe(colour("--c-deleted-bg"));
   });
 });
+
+// The Working Tree dot is smaller than a ring: it must stand out on plain and selected rows.
+describe.each(Object.keys(THEMES))("Working Tree dots in the %s theme", (name) => {
+  const colour = theme(name);
+  const dots = ["--graph-working-tree-clean", "--graph-working-tree-changed"];
+
+  it.each(["--c-bg-panel", "--surface-editor", "--c-bg-active"])("stand out 3:1 against %s", (background) => {
+    for (const token of dots) {
+      expect(contrast(colour(token), colour(background)), `${token} on ${background}`).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it("are told apart", () => {
+    expect(distance(colour(dots[0]!), colour(dots[1]!))).toBeGreaterThanOrEqual(25);
+  });
+});
+

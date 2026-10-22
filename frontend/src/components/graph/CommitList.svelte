@@ -57,7 +57,7 @@
   import { measurer } from "$lib/timing";
   import { anchoredScrollTop } from "$lib/graph-anchor";
   import { emptyHistory, showsWorkingTree } from "$lib/graph-panel";
-  import { workingTreeLabel } from "$lib/repo-state";
+  import { workingTreeChanged, workingTreeLabel } from "$lib/repo-state";
   import { bisectOf } from "$lib/bisect";
   import { bisectLooks, dotToken, rowToken } from "$lib/bisect-looks";
   import { reportTiming, type RebaseProgress, type RepoId } from "$lib/ipc";
@@ -420,7 +420,11 @@
     return selectedRefsOnly ? selectedLabels(all, ticks) : all;
   }
 
-  const headerLabel = $derived(workingTreeLabel(repository.current?.status, repository.current?.state));
+  const headerLabel = $derived(workingTreeLabel(repository.current?.status));
+  const workingTreeLook = $derived.by(() => {
+    const changed = workingTreeRow ? workingTreeChanged(repository.current?.status) : null;
+    return changed === null ? null : changed ? "changed" : "clean";
+  });
   /** Good, bad, skipped and the commit under test (F-566): a layer of its own over the rows.
       Two steps, so a status refresh, which keeps the state object, redraws nothing. */
   const bisect = $derived(bisectOf(repository.current?.state));
@@ -792,6 +796,7 @@
           {headLane}
           headerRow={wtAt}
           {headerLane}
+          workingTree={workingTreeLook}
           {selectedRows}
           {hoverRow}
           focusLane={focus}
@@ -1037,7 +1042,7 @@
   }
 
   .row.header .summary {
-    color: var(--status-modify);
+    font-weight: 600;
   }
 
   /* The Working Tree and rebase rows; a commit's row styles its own (CommitRow). */

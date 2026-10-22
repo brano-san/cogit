@@ -51,19 +51,15 @@ function interruptedDetail(kind: RepoState["kind"]): string {
   return "Resolve the conflicts and continue, or abort to go back.";
 }
 
-export function workingTreeLabel(status: RepoStatus | undefined, state: RepoState | undefined): string {
-  const parts: string[] = [];
-  if (status && status.staged > 0) parts.push(`${status.staged} staged`);
-  if (status && status.unstaged > 0) parts.push(`${status.unstaged} modified`);
-  if (status && status.untracked > 0) parts.push(`${status.untracked} untracked`);
-  if (status && status.conflicted > 0) parts.push(`${status.conflicted} conflicted`);
-  if (status && status.dirtySubmodules > 0) {
-    const noun = status.dirtySubmodules === 1 ? "submodule" : "submodules";
-    parts.push(`${status.dirtySubmodules} ${noun} with modifications`);
-  }
-  const counts = !status ? "Working Tree" : parts.length > 0 ? `Working Tree (${parts.join(", ")})` : "Working Tree — clean";
-  const ongoing = state ? ONGOING[state.kind] : undefined;
-  return ongoing ? `${counts}, ${ongoing}` : counts;
+/** Anything in the index or the working tree, untracked included; null until it is read. */
+export function workingTreeChanged(status: RepoStatus | undefined): boolean | null {
+  if (!status) return null;
+  return status.staged + status.unstaged + status.untracked + status.conflicted + status.dirtySubmodules > 0;
+}
+
+export function workingTreeLabel(status: RepoStatus | undefined): string {
+  const changed = workingTreeChanged(status);
+  return changed === null ? "Working Tree/Index" : `Working Tree/Index (${changed ? "changed" : "clean"})`;
 }
 
 export const STATE_TAG_HINT =

@@ -57,6 +57,8 @@
     "graph.lane.6": "#9a6700",
     "graph.lane.7": "#5f7d00",
     "graph.lane.neutral": "#818b98",
+    "graph.workingTree.clean": "#18732f",
+    "graph.workingTree.changed": "#b91c26",
     "badge.head.bg": "#0a5cc2",
     "badge.head.fg": "#ffffff",
     "badge.branch.bg": "#cfe3f7",

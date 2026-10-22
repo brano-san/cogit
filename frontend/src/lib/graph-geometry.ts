@@ -21,6 +21,8 @@ export const GRAPH = {
   leftPad: 10,
   ringRadius: 3.5,
   ringStroke: 1.5,
+  /** The Working Tree's dot: filled, no stroke, smaller than a commit's ring. */
+  workingTreeRadius: 2.5,
   /** Lines stop this short of a commit no remote has (R-761). */
   localGap: 1.5,
   lineWidth: 2,
