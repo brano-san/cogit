@@ -42,7 +42,32 @@ class WorktreesStore {
       panels it would read into belong to another repository by now. */
   #cleared = 0;
 
-  async refresh(repo: RepoId): Promise<void> {
+  /** The read in flight: asks for the same repository meanwhile become one read after it,
+      since each read is a status of every worktree (doc/12-risks.md, R-788). */
+  #reading: { repo: RepoId; again: boolean; done: Promise<void> } | null = null;
+
+  refresh(repo: RepoId): Promise<void> {
+    const reading = this.#reading;
+    if (reading?.repo === repo) {
+      reading.again = true;
+      return reading.done;
+    }
+    const next = { repo, again: false, done: Promise.resolve() };
+    this.#reading = next;
+    next.done = (async () => {
+      try {
+        do {
+          next.again = false;
+          await this.#read(repo);
+        } while (next.again && this.#reading === next);
+      } finally {
+        if (this.#reading === next) this.#reading = null;
+      }
+    })();
+    return next.done;
+  }
+
+  async #read(repo: RepoId): Promise<void> {
     const generation = ++this.#generation;
     this.repo = repo;
     const entries = await listWorktrees(repo).catch(() => []);
@@ -132,6 +157,7 @@ class WorktreesStore {
 
   clear(): void {
     this.#generation += 1;
+    this.#reading = null;
     this.entries = [];
     this.repo = null;
     this.selected = null;

@@ -38,3 +38,32 @@ describe("Repair", () => {
     expect(inform).not.toHaveBeenCalled();
   });
 });
+
+// The log of a large repository: a watcher burst asked for the list several times at once,
+// and every ask was a status of every worktree, ~400 ms each, side by side.
+describe("Refresh", () => {
+  it("reads once more after the read in flight, however many ask meanwhile", async () => {
+    let finish: (value: never[]) => void = () => {};
+    ipc.listWorktrees.mockReset();
+    ipc.listWorktrees.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)));
+    ipc.listWorktrees.mockResolvedValue([]);
+
+    const first = worktrees.refresh(A);
+    const asks = [worktrees.refresh(A), worktrees.refresh(A), worktrees.refresh(A)];
+    expect(ipc.listWorktrees).toHaveBeenCalledTimes(1);
+
+    finish([]);
+    await Promise.all([first, ...asks]);
+    expect(ipc.listWorktrees).toHaveBeenCalledTimes(2);
+  });
+
+  it("reads another repository at once instead of waiting for the one in flight", async () => {
+    ipc.listWorktrees.mockReset();
+    ipc.listWorktrees.mockImplementationOnce(() => new Promise(() => {}));
+    ipc.listWorktrees.mockResolvedValue([]);
+    void worktrees.refresh(A);
+    await worktrees.refresh(2 as never);
+    expect(ipc.listWorktrees).toHaveBeenLastCalledWith(2);
+    worktrees.clear();
+  });
+});
