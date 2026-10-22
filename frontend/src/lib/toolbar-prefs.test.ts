@@ -167,17 +167,6 @@ describe("remotePlan", () => {
     ]);
   });
 
-  // A branch that pushes to a fork counts `ahead` against the fork; Pull merges the upstream.
-  it("judges a pull by the upstream when the branch pushes elsewhere", () => {
-    const fork = { ...diverged, ahead: 3, upstreamAhead: 0, behind: 2 };
-    expect(remotePlan(["pull"], { ...facts, scope: "current", deleteMerged: false, branch: fork })).toEqual([
-      { kind: "pull", remote: "origin", ffOnly: true },
-    ]);
-    expect(() => remotePlan(["pull"], { ...facts, branch: { ...fork, ahead: 0, upstreamAhead: 1 } })).toThrow(
-      /(1 ahead, 2 behind)/,
-    );
-  });
-
   it("pulls a branch that is only behind, however Pull is set", () => {
     const behind = { ...diverged, ahead: 0, behind: 2 };
     expect(remotePlan(["pull"], { ...facts, scope: "current", deleteMerged: false, branch: behind })).toEqual([

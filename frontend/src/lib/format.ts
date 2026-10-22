@@ -148,8 +148,7 @@ export function refLabels(
     }
     if (lines.length === 0 && label.text !== branch.name) lines.push(branch.name);
     if (lines.length > 0) label.title = lines.join("\n");
-    // Against the upstream even when a push goes elsewhere and `ahead` counts against that.
-    const ahead = branch.upstreamAhead ?? branch.ahead;
+    const ahead = branch.ahead;
     if (branch.upstream !== null && ahead + branch.behind > 0) {
       const counts: [string, string][] = [];
       if (ahead > 0) counts.push([`+${ahead}`, `${ahead} ahead`]);

@@ -556,9 +556,8 @@ describe("refLabels counting a local branch against its upstream", () => {
   });
 
   it("counts against the upstream when a push goes elsewhere", () => {
-    const fork = { ...tracked(3, 0), pushTarget: "fork/master", upstreamAhead: 0 };
-    expect(divergence(fork)).toBeUndefined();
-    expect(divergence({ ...tracked(3, 1), pushTarget: "fork/master", upstreamAhead: 2 })).toBe("+2 -1");
+    const fork = { ...tracked(2, 1), pushTarget: "fork/master", pushAhead: 0, pushBehind: 0 };
+    expect(divergence(fork)).toBe("+2 -1");
   });
 
   it("names the upstream in the counter's tooltip", () => {

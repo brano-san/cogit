@@ -30,15 +30,17 @@ pub struct Branch {
     pub upstream: Option<String>,
     /// `branch.<name>.pushRemote`, else `remote.pushDefault`, else the upstream's remote.
     pub push_remote: Option<String>,
-    /// Where a push lands when that is not the upstream (a triangular workflow); `ahead`
-    /// then counts against it and `behind` against the upstream.
+    /// Where a push lands when that is not the upstream (a triangular workflow).
     pub push_target: Option<String>,
+    /// Against the upstream, as every view names them.
     pub ahead: u32,
     pub behind: u32,
-    /// `ahead` against the upstream, only while `push_target` has `ahead`: the graph's
-    /// ahead/behind counter compares with the upstream.
+    /// `ahead` and `behind` against `push_target`, only while there is one: what a push
+    /// would send, and whether it could.
     #[specta(optional)]
-    pub upstream_ahead: Option<u32>,
+    pub push_ahead: Option<u32>,
+    #[specta(optional)]
+    pub push_behind: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -306,9 +308,10 @@ impl RepoHandle {
             branch.ahead = ahead;
             branch.behind = behind;
         }
-        if let Some((ahead, _)) = pushed_id.and_then(|id| self.count_divergence(local_id, id)) {
-            branch.upstream_ahead = Some(branch.ahead);
-            branch.ahead = ahead;
+        if let Some((ahead, behind)) = pushed_id.and_then(|id| self.count_divergence(local_id, id))
+        {
+            branch.push_ahead = Some(ahead);
+            branch.push_behind = Some(behind);
         }
     }
 
@@ -408,7 +411,8 @@ fn collect<'a>(
             upstream: None,
             push_remote: None,
             push_target: None,
-            upstream_ahead: None,
+            push_ahead: None,
+            push_behind: None,
             ahead: 0,
             behind: 0,
         });

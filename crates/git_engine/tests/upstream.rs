@@ -190,10 +190,10 @@ fn the_list_without_divergence_is_the_same_list_but_for_ahead_and_behind() {
     }
 }
 
-// A fork workflow: pull from origin, push to the fork. What is unpushed is what the fork
-// lacks, not what origin lacks.
+// A fork workflow: pull from origin, push to the fork. Ahead and behind name the upstream,
+// as every view labels them; what the fork lacks is counted apart, for pushing.
 #[test]
-fn a_push_remote_other_than_the_upstream_counts_ahead_against_it() {
+fn a_push_remote_other_than_the_upstream_is_counted_apart() {
     let f = test_fixtures::with_remote().unwrap();
     f.git(&["remote", "add", "fork", "https://example.invalid/fork.git"])
         .unwrap();
@@ -205,18 +205,17 @@ fn a_push_remote_other_than_the_upstream_counts_ahead_against_it() {
 
     assert_eq!(branch.push_remote.as_deref(), Some("fork"));
     assert_eq!(branch.push_target.as_deref(), Some("fork/main"));
-    assert_eq!(branch.ahead, 0, "the fork already has every local commit");
-    assert_eq!(branch.behind, 1, "behind still counts against origin/main");
     let against_upstream: u32 = f
         .git(&["rev-list", "--count", "origin/main..HEAD"])
         .unwrap()
         .trim()
         .parse()
         .unwrap();
+    assert_eq!((branch.ahead, branch.behind), (against_upstream, 1));
     assert_eq!(
-        branch.upstream_ahead,
-        Some(against_upstream),
-        "the graph's counter compares with the upstream"
+        (branch.push_ahead, branch.push_behind),
+        (Some(0), Some(0)),
+        "the fork already has every local commit"
     );
 }
 
@@ -228,7 +227,8 @@ fn a_plain_upstream_is_also_the_push_target() {
     assert_eq!(branch.push_remote.as_deref(), Some("origin"));
     assert!(branch.push_target.is_none());
     assert_eq!(
-        branch.upstream_ahead, None,
-        "ahead is already against the upstream"
+        (branch.push_ahead, branch.push_behind),
+        (None, None),
+        "ahead and behind already say it"
     );
 }

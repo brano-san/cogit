@@ -61,6 +61,8 @@ export interface PullRequestBranch {
   name: string;
   upstream: string | null;
   ahead: number;
+  /** `ahead` against where a push lands, when that is not the upstream. */
+  pushAhead?: number | null;
 }
 
 export const NO_FORGE = "No GitHub, GitLab or Bitbucket remote";
@@ -82,7 +84,7 @@ export function pullRequestFor(input: {
 
 /** The form compares what the remote has: a branch never pushed is not there at all. */
 export function needsPush(branch: PullRequestBranch): boolean {
-  return branch.upstream === null || branch.ahead > 0;
+  return branch.upstream === null || (branch.pushAhead ?? branch.ahead) > 0;
 }
 
 /**

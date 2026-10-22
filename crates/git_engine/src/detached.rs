@@ -20,11 +20,16 @@ impl RepoHandle {
     fn pushable_branches(&self) -> Result<Vec<PushableBranch>> {
         let mut out = Vec::new();
         for branch in self.branches()? {
-            let behind = branch.push_target.is_none() && branch.behind > 0;
+            let ahead = branch.push_ahead.unwrap_or(branch.ahead);
+            // A push target the fork has no branch for yet lacks nothing of it.
+            let behind = match branch.push_target {
+                Some(_) => branch.push_behind.unwrap_or(0),
+                None => branch.behind,
+            };
             if branch.kind != BranchKind::Local
                 || branch.upstream.is_none()
-                || branch.ahead == 0
-                || behind
+                || ahead == 0
+                || behind > 0
             {
                 continue;
             }

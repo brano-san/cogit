@@ -943,18 +943,17 @@ export type Branch = {
 	upstream: string | null,
 	/**  `branch.<name>.pushRemote`, else `remote.pushDefault`, else the upstream's remote. */
 	pushRemote: string | null,
-	/**
-	 *  Where a push lands when that is not the upstream (a triangular workflow); `ahead`
-	 *  then counts against it and `behind` against the upstream.
-	 */
+	/**  Where a push lands when that is not the upstream (a triangular workflow). */
 	pushTarget: string | null,
+	/**  Against the upstream, as every view names them. */
 	ahead: number,
 	behind: number,
 	/**
-	 *  `ahead` against the upstream, only while `push_target` has `ahead`: the graph's
-	 *  ahead/behind counter compares with the upstream.
+	 *  `ahead` and `behind` against `push_target`, only while there is one: what a push
+	 *  would send, and whether it could.
 	 */
-	upstreamAhead?: number | null,
+	pushAhead?: number | null,
+	pushBehind?: number | null,
 };
 
 /**  What `git branch -d` came to. */

@@ -873,7 +873,7 @@
         message:
           tracked.upstream === null
             ? `${tracked.name} is not on the remote yet, so the form would have nothing to compare. Push it, then open the form?`
-            : `${tracked.name} has ${tracked.ahead} commit(s) the remote has not seen. Push them, then open the form?`,
+            : `${tracked.name} has ${tracked.pushAhead ?? tracked.ahead} commit(s) the remote has not seen. Push them, then open the form?`,
         confirm: "Push and Open",
       });
       if (!push) return;

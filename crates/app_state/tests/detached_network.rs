@@ -11,6 +11,13 @@ use git_engine::{NetworkStop, PullOutcome, Pushed};
 /// `synced` is level with its upstream, `solo` tracks nothing. `v1` is on the remote,
 /// `v2` is not. HEAD is detached.
 fn detached() -> (test_fixtures::Fixture, AppState, RepoId) {
+    detached_with(|_| {})
+}
+
+/// `detached`, with `prepare` run on the repository before it is opened.
+fn detached_with(
+    prepare: impl FnOnce(&test_fixtures::Fixture),
+) -> (test_fixtures::Fixture, AppState, RepoId) {
     let f = test_fixtures::with_remote().unwrap();
     f.git(&["config", "push.default", "simple"]).unwrap();
     f.git(&["switch", "-c", "synced", "origin/main"]).unwrap();
@@ -24,6 +31,7 @@ fn detached() -> (test_fixtures::Fixture, AppState, RepoId) {
     f.commit_file(51, "solo.txt", "solo\n").unwrap();
     f.git(&["tag", "v2"]).unwrap();
     f.git(&["switch", "--detach", "HEAD~1"]).unwrap();
+    prepare(&f);
     let state = AppState::new();
     let repo = state.open_repository(f.path()).unwrap().repo;
     (f, state, repo)
@@ -64,6 +72,50 @@ fn push_sends_the_branches_ahead_of_their_upstream_and_no_tags() {
             .unwrap()
             .trim(),
         "HEAD"
+    );
+}
+
+// `topic` pushes to a fork whose `topic` has a commit it lacks: only a forced push could
+// send it, whatever origin says.
+#[test]
+fn push_leaves_out_a_branch_diverged_from_its_push_target() {
+    let mut theirs = String::new();
+    let (f, state, repo) = detached_with(|f| {
+        // In `.git`, where it is no untracked file of the work tree.
+        let fork = f.path().join(".git").join("fork.git");
+        f.git(&["init", "--bare", &fork.to_string_lossy()]).unwrap();
+        f.git(&["remote", "add", "fork", &fork.to_string_lossy()])
+            .unwrap();
+        f.git(&["config", "branch.topic.pushRemote", "fork"])
+            .unwrap();
+        theirs = f
+            .git(&[
+                "commit-tree",
+                "topic~1^{tree}",
+                "-p",
+                "topic~1",
+                "-m",
+                "theirs",
+            ])
+            .unwrap()
+            .trim()
+            .to_owned();
+        f.git(&["push", "fork", &format!("{theirs}:refs/heads/topic")])
+            .unwrap();
+        f.git(&["fetch", "fork"]).unwrap();
+    });
+
+    let pushed = state
+        .push(repo, "fork", false, &NetworkStop::default(), None, |_| {})
+        .unwrap();
+
+    assert_eq!(pushed, Some(Pushed::default()));
+    assert_eq!(
+        f.git(&["ls-remote", "fork", "refs/heads/topic"])
+            .unwrap()
+            .split_whitespace()
+            .next(),
+        Some(theirs.as_str())
     );
 }
 

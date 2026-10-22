@@ -136,4 +136,9 @@ describe("needsPush", () => {
   it("is false for a branch the remote has in full", () => {
     expect(needsPush({ name: "topic", upstream: "origin/topic", ahead: 0 })).toBe(false);
   });
+
+  it("asks the fork a push goes to, not the upstream", () => {
+    expect(needsPush({ name: "topic", upstream: "origin/topic", ahead: 3, pushAhead: 0 })).toBe(false);
+    expect(needsPush({ name: "topic", upstream: "origin/topic", ahead: 0, pushAhead: 1 })).toBe(true);
+  });
 });

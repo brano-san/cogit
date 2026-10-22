@@ -205,6 +205,36 @@ fn a_pulse_that_contradicts_the_row_of_a_repository_not_watched_retires_it() {
     assert_eq!(state.rows_read(), read, "a pulse that agrees keeps the row");
 }
 
+// A branch that pushes to a fork: the row counted ahead against the fork, the pulse against
+// the upstream, so every pulse took the row for stale and read the whole status again.
+#[test]
+fn a_pulse_agrees_with_the_row_of_a_branch_that_pushes_elsewhere() {
+    let a = test_fixtures::with_remote().unwrap();
+    a.commit_file(
+        60, "mine.txt", "mine
+",
+    )
+    .unwrap();
+    a.git(&["remote", "add", "fork", "https://example.invalid/fork.git"])
+        .unwrap();
+    a.git(&["config", "remote.pushDefault", "fork"]).unwrap();
+    a.git(&["update-ref", "refs/remotes/fork/main", "HEAD"])
+        .unwrap();
+    let b = test_fixtures::linear(1).unwrap();
+    let state = AppState::new();
+    state.open_repository(a.path()).unwrap();
+    state.open_repository(b.path()).unwrap();
+    state.show_repository(None);
+    let _ = state.overviews();
+    let read = state.rows_read();
+
+    let pulse = state.pulse(a.path());
+    let _ = state.overviews();
+
+    assert!(pulse.ahead > 0, "origin lacks the new commit");
+    assert_eq!(state.rows_read(), read, "the row agrees and is kept");
+}
+
 // The pulse counts what the status counts now (R-540), so a clean one retires a dirty row:
 // the untracked file the row saw was deleted in another program.
 #[test]
