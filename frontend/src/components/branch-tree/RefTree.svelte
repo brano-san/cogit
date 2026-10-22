@@ -252,6 +252,7 @@
       />
 
       {#if node.kind === "folder"}<KindIcon kind="directory" title="Folder" />{/if}
+      {#if node.lead}<span class="lead">{node.lead}</span>{/if}
 
       <button
         type="button"
@@ -373,13 +374,14 @@
     font-weight: 600;
   }
 
-  .row.stash .label {
-    color: var(--status-stash);
-  }
-
   .row.lost .label {
     color: var(--text-secondary);
     font-family: var(--font-mono);
+  }
+
+  .lead {
+    flex: none;
+    color: var(--text-secondary);
   }
 
   .status {

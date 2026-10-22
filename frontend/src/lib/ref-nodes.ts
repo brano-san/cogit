@@ -1,5 +1,5 @@
 import type { Branch, CommitRow, Head, OtherRef, StashEntry, Tag, WorktreeEntry } from "$lib/ipc";
-import { shortDate, shortOid } from "$lib/format";
+import { shortOid } from "$lib/format";
 import { compareDated, compareNames, DEFAULT_REF_SORT, type RefSort } from "$lib/ref-sort";
 import { upstreamStatus } from "$lib/upstream-status";
 import { upstreamGone, worktreeMarks, type WorktreeMark } from "$lib/worktree-list";
@@ -28,6 +28,8 @@ export interface RefNode {
   /** The checked-out branch. */
   current?: boolean;
   detail?: string;
+  /** Gray, before the name: a stash's date and time. */
+  lead?: string;
   /** Gray, next to the name: how a local branch stands against its upstream. */
   status?: string;
   /** What the backend should walk from; absent on groups and folders. */
@@ -80,10 +82,13 @@ function matches(node: { label: string; oid?: string }, filter: string): boolean
   );
 }
 
-/** The date first: a long message is what the row cuts short. A stash keeps no timezone,
-    so it is this machine's. */
+/** `20/09/26 05:05 PM:`. A stash keeps no timezone, so it is this machine's. */
 function stashDate(timestamp: number): string {
-  return shortDate(timestamp, -new Date(timestamp * 1000).getTimezoneOffset());
+  const at = new Date(timestamp * 1000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const hour = at.getHours() % 12 || 12;
+  const half = at.getHours() < 12 ? "AM" : "PM";
+  return `${pad(at.getDate())}/${pad(at.getMonth() + 1)}/${pad(at.getFullYear() % 100)} ${pad(hour)}:${pad(at.getMinutes())} ${half}:`;
 }
 
 function upstreamRemote(branch: Branch): string | null {
@@ -307,10 +312,10 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
     .map<RefNode>((entry) => ({
       id: `stash:${entry.index}`,
       kind: "stash",
-      // The message beside its box, the date on the right: `stash@{n}` said nothing a user needs.
+      // Date, then message, both beside the box: `stash@{n}` said nothing a user needs.
       label: entry.message,
       depth: 1,
-      detail: stashDate(entry.timestamp),
+      lead: stashDate(entry.timestamp),
       rev: `stash@{${entry.index}}`,
       oid: entry.oid,
     }))
