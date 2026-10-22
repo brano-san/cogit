@@ -138,7 +138,11 @@
   /** Every node showing in any tree has marks of its own, read by its folder (R-542). */
   const moduleRoots = $derived(
     everyListed.flatMap((each) =>
-      pulsedRoots(each.root, ownsTree(each.overview) ? submodules.rows : moduleForest.rows(each.root)),
+      pulsedRoots(
+        each.root,
+        ownsTree(each.overview) ? submodules.rows : moduleForest.rows(each.root),
+        moduleMemory.openModules,
+      ),
     ),
   );
 
@@ -164,7 +168,8 @@
   $effect(() => {
     void submodules.children;
     const top = submodules.ownerRoot;
-    if (top !== null) untrack(() => repoPulse.again([top, ...pulsedRoots(top, submodules.rows)]));
+    if (top !== null)
+      untrack(() => repoPulse.again([top, ...pulsedRoots(top, submodules.rows, moduleMemory.openModules)]));
   });
 
   $effect(() => {
@@ -260,7 +265,8 @@
 
 <!-- The tree of the repository the panels own is read in full; every other one is the light
      outline, and a click there opens the submodule in one go (R-352). -->
-<!-- `opened`: the repository is open, and its submodules read bold like its own name. -->
+<!-- `opened`: the repository is open; a submodule of it reads bold like its name once it was
+     opened itself, closed until then like a repository at launch (R-791). -->
 {#snippet moduleTree(root: string, owned: boolean, depth: number, start: number, opened = true)}
   {@const children = owned ? submodules.children : (moduleForest.trees.get(root) ?? new Map())}
   {@const toggle = (node: ModuleRow) =>
@@ -275,7 +281,7 @@
     {@const sync = nodeSync(root, owned, node.key, inside.above.has(node.key))}
     <div
       class="row module {node.module.state}"
-      class:opened
+      class:opened={opened && moduleMemory.moduleOpen(nodeRoot)}
       class:striped={striped(start + index, stripes)}
       class:selected={owned && submodules.open === node.key}
       class:menu={repoMenuRow.key === nodeRoot}

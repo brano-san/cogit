@@ -1480,6 +1480,7 @@ ${event.error}`,
       forgetPanelsKeepingTheTree();
       worktrees.ownerRoot = null;
       submodules.open = row.key;
+      if (submodules.ownerRoot !== null) moduleMemory.openModule(moduleRoot(submodules.ownerRoot, row.key));
       repository.keep();
       repository.adopt(opened);
       refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));
@@ -2879,8 +2880,16 @@ ${event.error}`,
 
   /** The row stays in the list, closed; Remove is what takes it out. A submodule closes
       back to the repository it belongs to. */
+  /** Its submodules close with it: their background reads stop until one is opened again. */
+  function closeModulesOf(root: string) {
+    for (const each of moduleMemory.openModules) if (each.startsWith(`${root}/`)) repoPulse.forget(each);
+    moduleMemory.closeModulesUnder(root);
+  }
+
   async function closeListed(target: RepoMenuSubject) {
     if (target.kind === "submodule") {
+      moduleMemory.closeModule(target.root);
+      repoPulse.forget(target.root);
       await backToModuleOwner();
       return;
     }
@@ -2888,6 +2897,7 @@ ${event.error}`,
     if (!overview) return;
     repoList.closed(target.root);
     moduleMemory.setOpen(target.root, false);
+    closeModulesOf(target.root);
     const wasActive = holdsPanels(overview, panelsNow());
     const last = wasActive && repository.openRepos.every((entry) => entry.repo === overview.repo);
     if (wasActive) {
@@ -2937,6 +2947,7 @@ ${event.error}`,
     }
     repoList.forget(target.root);
     moduleMemory.forget(target.root);
+    moduleMemory.closeModulesUnder(target.root);
     repoPulse.forget(target.root);
     repoGroups.assign(target.root, UNGROUPED);
   }

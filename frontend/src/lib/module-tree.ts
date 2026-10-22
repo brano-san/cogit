@@ -35,10 +35,14 @@ export function moduleRoot(top: string, key: string): string {
   return `${top.replace(/[/\\]+$/, "")}/${key}`;
 }
 
-/** The folders whose pulse gives the nodes their marks; one not checked out has no
+/** The folders whose pulse gives the nodes their marks: only submodules opened since, the
+    rest are closed like a repository at launch (R-791); one not checked out has no
     repository to read (R-542). */
-export function pulsedRoots(top: string, rows: readonly ModuleRow[]): string[] {
-  return rows.filter((row) => row.module.state !== "notInitialised").map((row) => moduleRoot(top, row.key));
+export function pulsedRoots(top: string, rows: readonly ModuleRow[], opened: ReadonlySet<string>): string[] {
+  return rows
+    .filter((row) => row.module.state !== "notInitialised")
+    .map((row) => moduleRoot(top, row.key))
+    .filter((root) => opened.has(root));
 }
 
 /** Which nodes of a tree are in conflict, as `hit` says of each: `any` for the repository on top,

@@ -328,13 +328,25 @@ describe("the folders the marks of a tree are read from", () => {
     new Set(["vendor/lib"]),
   );
 
+  const every = new Set(["E:/w/app/vendor/lib", "E:/w/app/vendor/lib/deep/inner", "E:/w/app/docs"]);
+
   it("are the top's folder joined with each key, nested ones included", () => {
-    expect(pulsedRoots("E:/w/app", rows)).toEqual(["E:/w/app/vendor/lib", "E:/w/app/vendor/lib/deep/inner"]);
+    expect(pulsedRoots("E:/w/app", rows, every)).toEqual(["E:/w/app/vendor/lib", "E:/w/app/vendor/lib/deep/inner"]);
     expect(moduleRoot("E:/w/app/", "vendor/lib")).toBe("E:/w/app/vendor/lib");
   });
 
   it("leave out a module that is not checked out: there is no repository to read", () => {
-    expect(pulsedRoots("E:/w/app", rows)).not.toContain("E:/w/app/docs");
+    expect(pulsedRoots("E:/w/app", rows, every)).not.toContain("E:/w/app/docs");
+  });
+
+  // Opening a repository read every submodule it showed, in the background and on every
+  // focus, servers asked included: a submodule is closed until it is clicked, like a
+  // repository at launch.
+  it("are only those of the submodules opened since", () => {
+    expect(pulsedRoots("E:/w/app", rows, new Set())).toEqual([]);
+    expect(pulsedRoots("E:/w/app", rows, new Set(["E:/w/app/vendor/lib/deep/inner"]))).toEqual([
+      "E:/w/app/vendor/lib/deep/inner",
+    ]);
   });
 });
 
