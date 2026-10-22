@@ -533,3 +533,30 @@ describe("checkpoint refs", () => {
     expect(feature).toEqual({ text: "feature/a-very-long-branch-name", kind: "local" });
   });
 });
+
+describe("refLabels counting a local branch against its upstream", () => {
+  const tracked = (ahead: number, behind: number, upstream: string | null = "origin/master"): Branch => ({
+    ...branch("master", "local"),
+    fullName: "refs/heads/master",
+    upstream,
+    ahead,
+    behind,
+  });
+  const divergence = (b: Branch) => refLabels([b], [], null).get(b.oid)?.[0]?.divergence;
+
+  it("shows ahead, behind, or both", () => {
+    expect(divergence(tracked(2, 0))).toBe("+2");
+    expect(divergence(tracked(0, 3))).toBe("-3");
+    expect(divergence(tracked(2, 1))).toBe("+2 -1");
+  });
+
+  it("shows nothing when level or with no upstream", () => {
+    expect(divergence(tracked(0, 0))).toBeUndefined();
+    expect(divergence(tracked(2, 1, null))).toBeUndefined();
+  });
+
+  it("names the upstream in the counter's tooltip", () => {
+    const label = refLabels([tracked(2, 1)], [], null).get("a".repeat(40))?.[0];
+    expect(label?.divergenceTitle).toBe("origin/master: 2 ahead, 1 behind");
+  });
+});

@@ -65,6 +65,8 @@
     "badge.branch.fg": "#0550ae",
     "badge.remote.bg": "#d6dae0",
     "badge.remote.fg": "#3a4149",
+    "badge.divergence.bg": "#f2d3bb",
+    "badge.divergence.fg": "#8a3300",
     "badge.tag.bg": "#f2e8b0",
     "badge.tag.fg": "#6e4500",
     "badge.warning.bg": "#f2e8b0",

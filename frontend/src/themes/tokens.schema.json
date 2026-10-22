@@ -253,6 +253,14 @@
       "type": "color",
       "description": "A remote-branch badge: text."
     },
+    "badge.divergence.bg": {
+      "type": "color",
+      "description": "The ahead/behind counter beside a local branch badge (+2 -1): background, unlike the branch badge."
+    },
+    "badge.divergence.fg": {
+      "type": "color",
+      "description": "The ahead/behind counter beside a local branch badge: text and border."
+    },
     "badge.tag.bg": {
       "type": "color",
       "description": "A tag badge: background."

@@ -140,3 +140,14 @@ describe.each(Object.keys(THEMES))("Working Tree dots in the %s theme", (name) =
   });
 });
 
+// The ahead/behind counter reads as text and shows apart from the branch badge it sits on.
+describe.each(Object.keys(THEMES))("the ahead/behind counter in the %s theme", (name) => {
+  const colour = theme(name);
+
+  it("is legible and unlike the branch and HEAD badges", () => {
+    expect(contrast(colour("--badge-divergence-fg"), colour("--badge-divergence-bg"))).toBeGreaterThanOrEqual(4.5);
+    for (const badge of ["--badge-branch-bg", "--badge-head-bg"]) {
+      expect(distance(colour("--badge-divergence-bg"), colour(badge)), badge).toBeGreaterThanOrEqual(15);
+    }
+  });
+});
