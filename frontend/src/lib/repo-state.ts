@@ -73,8 +73,8 @@ export function repoStateTag(state: RepoState | null | undefined, submodule = fa
   return ongoing ? `<${ongoing}>` : null;
 }
 
-/** `submodule` changes one thing: a detached HEAD there is how submodules work, not a
-    situation to be rescued from (doc/12-risks.md, R-130). */
+/** `submodule`: a detached HEAD there is how submodules work, so no loss text and no Create
+    Branch (doc/12-risks.md, R-130); it is still a warning strip (R-786). */
 export function stateBanner(
   state: RepoState,
   indexLock: string | null,
@@ -109,7 +109,7 @@ export function stateBanner(
       return {
         title: "Detached HEAD",
         detail: `On commit ${shortOid(state.oid)}, the one the parent repository records.`,
-        severity: "info",
+        severity: "warning",
         actions: [],
       };
     }

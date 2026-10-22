@@ -46,12 +46,15 @@
     background: var(--surface-raised);
   }
 
+  /* The edge says it in every theme: the dark warning background alone hardly shows. */
   .banner.warning {
     background: var(--c-modified-bg);
+    box-shadow: inset 3px 0 0 var(--status-modify);
   }
 
   .banner.error {
     background: var(--c-deleted-bg);
+    box-shadow: inset 3px 0 0 var(--status-delete);
   }
 
   .title {

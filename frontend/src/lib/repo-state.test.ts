@@ -84,11 +84,11 @@ describe("a detached HEAD inside a submodule", () => {
     expect(shown?.detail).toContain("easy to lose");
   });
 
-  // A submodule is detached because its parent records one commit. That is how submodules
-  // work, and "commits are easy to lose" is a warning about nothing.
-  it("says what it is without the warning when the repository is a submodule", () => {
+  // A submodule is detached because its parent records one commit: no "easy to lose", but
+  // the strip still stands out as a warning, as the user asked (R-786).
+  it("says what it is as a warning, without the loss text, when the repository is a submodule", () => {
     const shown = stateBanner(detached, null, true);
-    expect(shown?.severity).toBe("info");
+    expect(shown?.severity).toBe("warning");
     expect(shown?.detail).not.toContain("easy to lose");
     expect(shown?.detail).toContain("452e800");
   });
