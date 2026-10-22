@@ -11,8 +11,8 @@ pub struct RepoStatus {
     pub unstaged: u32,
     pub untracked: u32,
     pub conflicted: u32,
-    /// Submodules changed in the tree: moved, or with edits or new files inside (`S<c><m><u>`).
-    /// A moved one is also in `unstaged`; `is_clean` ignores the rest.
+    /// Submodules with edits or new files inside at their recorded commit (`S.<m><u>`). A
+    /// moved one is in `unstaged` and not here; `is_clean` ignores these.
     pub dirty_submodules: u32,
 }
 

@@ -357,15 +357,17 @@ pub(crate) fn inert(item: &Item) -> bool {
     }
 }
 
-/// A submodule moved or with edits or new files inside: `S<c><m><u>` with a worktree change
-/// in `git status`, which already left out what `submodule.<name>.ignore` and
+/// A submodule with edits or new files inside at its recorded commit: `S.<m><u>` with a
+/// worktree change in `git status`, which already left out what `submodule.<name>.ignore` and
 /// `diff.ignoreSubmodules` ignore.
 pub(crate) fn changed_submodule(item: &Item) -> bool {
     let Item::IndexWorktree(WorktreeItem::Modification { status, .. }) = item else {
         return false;
     };
+    // A moved one is already a change of this repository: counting it again read as a
+    // second change for the same submodule.
     submodule_change(status)
-        .is_some_and(|change| change.new_commits || change.modified || change.untracked)
+        .is_some_and(|change| !change.new_commits && (change.modified || change.untracked))
 }
 
 fn submodule_change(

@@ -2316,6 +2316,8 @@ export type RepoOverview = {
 	name: string,
 	root: string,
 	branch: string | null,
+	/**  On a detached HEAD, a branch whose tip it is: the row names it instead of nothing. */
+	branchAt: string | null,
 	ahead: number,
 	behind: number,
 	dirty: boolean,
@@ -2328,6 +2330,8 @@ export type RepoOverview = {
 export type RepoPulse = {
 	missing: boolean,
 	branch: string | null,
+	/**  On a detached HEAD, a branch whose tip it is (`RepoHandle::branch_at`). */
+	branchAt: string | null,
 	/**  HEAD's branch has an upstream and its remote-tracking ref exists locally. */
 	tracked: boolean,
 	ahead: number,
@@ -2375,8 +2379,8 @@ export type RepoStatus = {
 	untracked: number,
 	conflicted: number,
 	/**
-	 *  Submodules changed in the tree: moved, or with edits or new files inside (`S<c><m><u>`).
-	 *  A moved one is also in `unstaged`; `is_clean` ignores the rest.
+	 *  Submodules with edits or new files inside at their recorded commit (`S.<m><u>`). A
+	 *  moved one is in `unstaged` and not here; `is_clean` ignores these.
 	 */
 	dirtySubmodules: number,
 };
@@ -2650,6 +2654,8 @@ export type Submodule = {
 	branch: string | null,
 	/**  First line of the commit it sits on, for the row that has no branch to show. */
 	subject: string | null,
+	/**  Detached, a branch whose tip it sits on: the row names it rather than the commit. */
+	branchAt: string | null,
 	/**
 	 *  Whether it holds submodules of its own. Answered here so the tree can decide
 	 *  before drawing whether the row opens at all (doc/12-risks.md, R-148).

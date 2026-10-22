@@ -639,10 +639,11 @@ mod unstaged {
                     }
                     let xy = entry.split(' ').nth(1).unwrap();
                     // `S<c><m><u>`: a submodule changed in the tree, moved or dirty inside.
-                    // Only a moved one is also a change of this repository.
+                    // A moved one is a change of this repository and only that; one dirty
+                    // inside at its recorded commit is counted apart.
                     let sub = entry.split(' ').nth(2).unwrap().as_bytes();
                     if sub[0] == b'S' {
-                        git.dirty_submodules += u32::from(&xy[1..2] != ".");
+                        git.dirty_submodules += u32::from(&xy[1..2] != "." && sub[1] == b'.');
                         if sub[1] == b'.' {
                             continue;
                         }
@@ -709,7 +710,7 @@ mod unstaged {
     }
 
     #[test]
-    fn a_moved_submodule_is_a_change_and_one_with_modifications() {
+    fn a_moved_submodule_is_a_change_not_one_with_modifications() {
         let f = test_fixtures::with_submodule().unwrap();
         let module = f.path().join("vendor/lib");
         std::fs::write(module.join("file0.txt"), "moved\n").unwrap();
@@ -724,7 +725,7 @@ mod unstaged {
         std::fs::write(module.join("file0.txt"), "and dirty\n").unwrap();
 
         let (ours, git) = counters(&f);
-        assert_eq!((git.unstaged, git.dirty_submodules), (1, 1), "{git:?}");
+        assert_eq!((git.unstaged, git.dirty_submodules), (1, 0), "{git:?}");
         assert_eq!(ours, git);
     }
 
