@@ -157,8 +157,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: calc(var(--h-button-sm) - 2px);
-    height: calc(var(--h-button-sm) - 2px);
+    width: calc(var(--h-panel-field) - 2px);
+    height: calc(var(--h-panel-field) - 2px);
     padding: 0;
     background: none;
     color: var(--text-secondary);

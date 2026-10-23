@@ -262,8 +262,9 @@
     display: flex;
     align-items: center;
     gap: var(--sp-1);
-    height: 26px;
-    flex: 0 0 26px;
+    /* The panel header's rule: the same gaps around the field (app.css). */
+    height: var(--h-panel-hdr);
+    flex: 0 0 var(--h-panel-hdr);
     padding: 0 var(--sp-3);
     border-bottom: 1px solid var(--divider);
     background: var(--surface-panel);
@@ -301,7 +302,7 @@
     flex: 1 1000 auto;
     min-width: 72px;
     max-width: 260px;
-    height: 22px;
+    height: var(--h-panel-field);
     padding: 0 var(--sp-2) 0 var(--sp-3);
     background: var(--surface-input);
     border: 1px solid var(--field-border);

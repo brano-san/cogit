@@ -24,7 +24,7 @@ describe("uiMetrics", () => {
     expect(base.css["--fs-ui"]).toBe("13px");
     expect(base.css["--h-row"]).toBe("19px");
     expect([uiMetrics(14, 14).listRow, uiMetrics(14, 14).denseRow]).toEqual([20, 19]);
-    expect([base.css["--h-panel-hdr"], uiMetrics(16, 14).css["--h-panel-hdr"]]).toEqual(["22px", "25px"]);
+    expect([base.css["--h-panel-field"], uiMetrics(16, 14).css["--h-panel-field"]]).toEqual(["18px", "22px"]);
   });
 
   it("grows the rows with the font, so a larger font is never cut", () => {

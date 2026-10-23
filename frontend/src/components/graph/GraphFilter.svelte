@@ -132,7 +132,7 @@
   input {
     flex: 1 1 auto;
     min-width: 0;
-    height: calc(var(--h-button-sm) - 2px);
+    height: calc(var(--h-panel-field) - 2px);
     padding: 0 var(--sp-3) 0 var(--sp-2);
     background: none;
     color: var(--text-primary);

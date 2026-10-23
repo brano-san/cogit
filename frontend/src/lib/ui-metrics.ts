@@ -74,8 +74,9 @@ export function uiMetrics(fontPx: number, diffPx: number): UiMetrics {
       "--lh-dense": px(scaled(18, fontPx)),
       "--h-row": px(listRow),
       "--h-row-dense": px(denseRow),
-      // Room for the 20 px fields and buttons a header holds, never less.
-      "--h-panel-hdr": px(Math.max(22, scaled(20, fontPx))),
+      // The header around it is derived in app.css (`--h-panel-hdr`); never below the 20 px
+      // buttons a header holds less its two gaps.
+      "--h-panel-field": px(Math.max(18, scaled(18, fontPx))),
     },
   };
 }

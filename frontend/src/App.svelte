@@ -4643,7 +4643,7 @@ ${event.error}`,
     flex: 0 1 var(--w-panel-filter);
     width: var(--w-panel-filter);
     min-width: var(--w-panel-filter-min);
-    height: var(--h-button-sm);
+    height: var(--h-panel-field);
     padding: 0 var(--sp-3);
     background: var(--surface-input);
     color: var(--text-primary);
