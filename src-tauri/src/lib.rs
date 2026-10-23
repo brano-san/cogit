@@ -636,6 +636,10 @@ pub fn dispatch_menu_command(app: &tauri::AppHandle, id: &str) {
     if child_window::on_menu(app, id) {
         return;
     }
+    #[cfg(target_os = "linux")]
+    if menu::native_command(app, id) {
+        return;
+    }
     if id == "copy-diagnostics" {
         copy_diagnostics(app);
         return;
