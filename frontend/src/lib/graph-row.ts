@@ -102,3 +102,17 @@ export function rightCells(columns: readonly GraphColumn[], overlap: boolean): (
 export function avatarShown(changedOnly: boolean, email: string, above: string | undefined): boolean {
   return !changedOnly || above?.toLowerCase() !== email.toLowerCase();
 }
+
+type Author = { authorName: string; authorEmail: string };
+
+/** One author by address, or by name when either has none. */
+function sameAuthor(a: Author, b: Author): boolean {
+  const [x, y] = [a.authorEmail.toLowerCase(), b.authorEmail.toLowerCase()];
+  return x !== "" && y !== "" ? x === y : a.authorName === b.authorName;
+}
+
+/** "Author only on the last commit of a run": the name and face on the bottom (oldest) row of a
+    run by one author. `below` is the next row, undefined at the end or while not loaded. */
+export function authorShown(lastOnly: boolean, author: Author, below: Author | undefined): boolean {
+  return !lastOnly || below === undefined || !sameAuthor(author, below);
+}

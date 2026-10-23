@@ -87,6 +87,7 @@
     density={settings.current.graphDensity}
     stripes={settings.current.graphStripes}
     avatarsChangedOnly={settings.current.graphAvatarsChangedOnly}
+    authorLastOnly={settings.current.graphAuthorLastOnly}
     longLinkRows={settings.current.graphLongLinkRows}
     highlightChecked={settings.current.graphHighlightChecked}
     firstParent={settings.current.graphFirstParent}

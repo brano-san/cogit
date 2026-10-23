@@ -28,6 +28,7 @@
     folds: boolean;
     cells: readonly (GraphColumn | "overlap")[];
     timeFormat: GraphTimeFormat;
+    author?: boolean;
     avatar?: boolean;
     /** What relative times count from. */
     now: number;
@@ -46,6 +47,7 @@
     folds,
     cells,
     timeFormat,
+    author = true,
     avatar = true,
     now,
     clipX,
@@ -108,7 +110,7 @@
 </span>
 {#each cells as cell, at (cell)}
   {#if cell === "author"}
-    <span class="author truncate" style:max-width="{COLUMN_WIDTH.author}px">{entry.commit.authorName}</span>
+    <span class="author truncate" style:max-width="{COLUMN_WIDTH.author}px">{author ? entry.commit.authorName : ""}</span>
   {:else if cell === "avatar"}
     {#if avatar}
       <Avatar name={entry.commit.authorName} email={entry.commit.authorEmail} />
