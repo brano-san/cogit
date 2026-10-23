@@ -231,8 +231,21 @@
   }
 
   .tabs button {
+    padding: var(--sp-2) var(--sp-5);
+    background: var(--surface-input);
     border: 0;
     border-radius: 0;
+    color: var(--text-secondary);
+    font: inherit;
+    cursor: default;
+  }
+
+  .tabs button:hover:not(:disabled) {
+    background: var(--state-hover);
+  }
+
+  .tabs button:disabled {
+    color: var(--fg-disabled);
   }
 
   .tabs button + button {
