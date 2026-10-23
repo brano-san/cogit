@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FileEntry } from "$lib/ipc";
-import { changeCount, emptyText, filesPanelList, mergedSide, mergeIndex, searchesEveryFile, selectAllKeys, sameLists, stagedShown, type FilesPanelInput } from "./files-panel";
+import { changeCount, emptyText, filesPanelList, mergedSide, mergeIndex, pairMemo, searchesEveryFile, selectAllKeys, sameLists, stagedShown, type FilesPanelInput } from "./files-panel";
 
 const base: FilesPanelInput = {
   content: true,
@@ -157,5 +157,17 @@ describe("changeCount", () => {
     ] as const;
     expect(changeCount(files)).toBe(2);
     expect(changeCount([files[1]])).toBe(0);
+  });
+});
+
+describe("pairMemo", () => {
+  it("gives back the same value for the same two lists, and builds again when one changes", () => {
+    const join = pairMemo((a: number[], b: number[]) => [...b, ...a]);
+    const a = [1];
+    const b = [2];
+    const first = join(a, b);
+    expect(join(a, b)).toBe(first);
+    expect(join(a, [2])).not.toBe(first);
+    expect(join([1], b)).not.toBe(first);
   });
 });

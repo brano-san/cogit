@@ -4,7 +4,7 @@
   import { ContentSearch } from "$lib/content-search.svelte";
   import { rowActionBlocked, type RowAction } from "$lib/file-menu";
   import { withUnchanged } from "$lib/file-switches";
-  import { emptyText, filesPanelList, mergedSide, mergeIndex, searchesEveryFile, stagedShown } from "$lib/files-panel";
+  import { emptyText, filesPanelList, mergedSide, mergeIndex, pairMemo, searchesEveryFile, stagedShown } from "$lib/files-panel";
   import type { FileView } from "$lib/file-view";
   import type { FileEntry } from "$lib/ipc";
   import { effective, shortcutOf } from "$lib/keymap";
@@ -134,22 +134,16 @@
     untrack(() => void worktree.searchEveryFile(on, id));
   });
   $effect(() => () => void worktree.searchEveryFile(false, null));
-  /** What the search found is listed with the changes, never counted or staged as one. The
-      same two lists give back the same rows, so Files does not sort them again (R-823). */
-  const joined = new WeakMap<readonly FileEntry[], { unstaged: readonly FileEntry[]; rows: FileEntry[] }>();
-  function withFound(unstaged: FileEntry[], found: FileEntry[]): FileEntry[] {
-    if (found.length === 0) return unstaged;
-    const kept = joined.get(found);
-    if (kept?.unstaged === unstaged) return kept.rows;
-    const rows = [...unstaged, ...found];
-    joined.set(found, { unstaged, rows });
-    return rows;
-  }
-  const unstagedRows = $derived(withFound(worktree.unstaged, worktree.found));
+  /** What the search found is listed with the changes, never counted or staged as one. */
+  const withFound = pairMemo((found: FileEntry[], unstaged: FileEntry[]) => [...unstaged, ...found]);
+  const unstagedRows = $derived(
+    worktree.found.length > 0 ? withFound(worktree.found, worktree.unstaged) : worktree.unstaged,
+  );
+  const mergedRows = pairMemo(mergeIndex);
 
   /** Unstaged and Staged, or one list of both while the index is not shown apart (#32). */
   const separate = $derived(filesView.current.separateIndex);
-  const merged = $derived(separate ? [] : mergeIndex(unstagedRows, worktree.staged));
+  const merged = $derived(separate ? [] : mergedRows(unstagedRows, worktree.staged));
 
   /** A row button off where the Files menu has its item off (#40). */
   const rowBlocked = (action: RowAction) => (file: FileEntry) => rowActionBlocked(action, file);

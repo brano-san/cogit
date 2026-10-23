@@ -99,3 +99,16 @@ export function changeCount(shown: readonly Pick<FileEntry, "status">[]): number
   for (const file of shown) if (file.status !== "unchanged") changes += 1;
   return changes;
 }
+
+/** `make(a, b)`, built again only when `a` or `b` is another list than last time for that
+    `a`: the same lists give back the same rows, so Files does not sort them again (R-823). */
+export function pairMemo<A extends object, B, T>(make: (a: A, b: B) => T): (a: A, b: B) => T {
+  const memo = new WeakMap<A, { b: B; value: T }>();
+  return (a, b) => {
+    const hit = memo.get(a);
+    if (hit && hit.b === b) return hit.value;
+    const value = make(a, b);
+    memo.set(a, { b, value });
+    return value;
+  };
+}
