@@ -3,8 +3,25 @@ export function branchNameProblem(name: string, taken: readonly string[]): strin
   const trimmed = name.trim();
   if (trimmed === "") return "Enter a name.";
   if (taken.includes(trimmed)) return `${trimmed} already exists.`;
-  if (/[\s~^:?*\[\\]/.test(trimmed)) return "A branch name cannot contain spaces or ~^:?*[\\.";
-  if (trimmed.startsWith("-") || trimmed.endsWith(".lock")) return "Git will refuse that name.";
+  return refNameProblem(trimmed);
+}
+
+/** `git check-ref-format` for the short name of a branch or tag (`refs/heads/<name>`,
+    `refs/tags/<name>`), plus the leading `-` that `git branch` and `git tag` refuse. The
+    backend asks git again on submit; this is the same rule shown while typing. */
+export function refNameProblem(name: string): string | null {
+  if (/[\x00-\x20\x7f~^:?*[\\]/.test(name)) return "A name cannot contain spaces, control characters or ~ ^ : ? * [ \\.";
+  if (name === "@") return "The name cannot be @.";
+  if (name.includes("@{")) return "A name cannot contain @{.";
+  if (name.includes("..")) return "A name cannot contain two dots in a row.";
+  if (name.startsWith("-")) return "A name cannot start with -.";
+  if (name.startsWith("/") || name.endsWith("/") || name.includes("//"))
+    return "A name cannot start or end with /, or have // in it.";
+  if (name.endsWith(".")) return "A name cannot end with a dot.";
+  for (const part of name.split("/")) {
+    if (part.startsWith(".")) return "No part of a name between slashes can start with a dot.";
+    if (part.endsWith(".lock")) return "No part of a name between slashes can end with .lock.";
+  }
   return null;
 }
 

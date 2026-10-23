@@ -96,11 +96,14 @@
       </button>
     </div>
 
-    <h3 id="welcome-recent">Recent repositories</h3>
-
     {#if rows.length === 0}
-      <p class="empty">No repository has been opened yet.</p>
+      <!-- The third way in, inactive while there is nothing to reopen: its hint sits under it. -->
+      <div class="recent off" aria-disabled="true">
+        <h3 id="welcome-recent">Recent repositories</h3>
+        <p class="hint">No repository has been opened yet.</p>
+      </div>
     {:else}
+      <h3 id="welcome-recent">Recent repositories</h3>
       {#if filtering}
         <input
           bind:this={field}
@@ -216,6 +219,21 @@
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
+  }
+
+  .recent {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+  }
+
+  .recent.off h3 {
+    color: var(--text-disabled);
+  }
+
+  .hint {
+    margin: 0;
+    color: var(--text-secondary);
   }
 
   .empty {

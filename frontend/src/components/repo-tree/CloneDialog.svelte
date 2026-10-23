@@ -222,7 +222,8 @@
 
   .steps {
     display: flex;
-    gap: var(--sp-6);
+    flex-wrap: wrap;
+    gap: var(--sp-2) var(--sp-6);
     margin: 0;
     padding: 0;
     list-style: none;
@@ -271,22 +272,21 @@
     gap: var(--sp-3);
   }
 
+  /* The label, the field, the unit and the info mark are one wrapping row: a wider font
+     (WSLg) moves the controls under the words instead of pushing them past the edge. */
   .limit-line {
-    display: flex;
-    flex: 0 1 auto;
-    align-items: center;
-    gap: var(--sp-3);
-    min-width: 0;
+    display: contents;
   }
 
   .limit-label {
+    flex: 0 1 auto;
     min-width: 0;
   }
 
   .unit {
     display: inline-flex;
-    flex: 0 0 76px;
-    min-width: 0;
+    flex: 0 1 76px;
+    min-width: 56px;
   }
 
   .unit :global(.select) {
@@ -320,9 +320,9 @@
   }
 
   .limit .size {
-    flex: 0 0 100px;
+    flex: 0 1 100px;
     width: 100px;
-    min-width: 0;
+    min-width: 6ch;
     text-align: right;
   }
 

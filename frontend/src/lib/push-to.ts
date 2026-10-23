@@ -9,15 +9,19 @@ export interface PushSource {
 
 export type PushTarget = { mode: "tracked" } | { mode: "custom"; ref: string };
 
-/** Where "Delete from remote" reaches: a branch's upstream, a tag's primary remote. */
+/** Where "Delete from remote" reaches: a branch's upstream while its remote-tracking ref
+    (`refs/remotes/<upstream>`, short names in `tracking`) exists, a tag's primary remote.
+    An upstream left in the config after the branch went from the server offers nothing. */
 export function remoteCopy(
   source: PushSource,
   remotes: readonly string[],
   primary: string | null,
+  tracking: readonly string[],
 ): { remote: string; name: string } | null {
   if (source.kind === "tag") return primary ? { remote: primary, name: source.name } : null;
-  const split = source.upstream ? splitUpstream(source.upstream, remotes) : null;
-  return split && source.upstream ? { remote: split.remote, name: source.upstream } : null;
+  if (!source.upstream || !tracking.includes(source.upstream)) return null;
+  const split = splitUpstream(source.upstream, remotes);
+  return split ? { remote: split.remote, name: source.upstream } : null;
 }
 
 /** `origin/feature/x` split at the longest remote name that prefixes it: remote names may

@@ -40,7 +40,8 @@ fn a_config_file_that_is_there_is_not_reported_missing() {
 
     let after = state.presets_for(repo).unwrap();
     let same = after.iter().find(|p| p.id == wanted.id).unwrap();
-    assert!(!same.missing_config.contains(&wanted.config_files[0]));
+    // The names are alternatives: one of them present satisfies the preset.
+    assert!(same.missing_config.is_empty());
 }
 
 #[test]

@@ -81,7 +81,7 @@
   import { publishedOrAssume } from "$lib/published";
   import { resetChoice } from "$lib/reset-modes";
   import { baseBefore, fullMessage, modifyPlan, rewordPlan, squashPlan } from "$lib/rewrite-plans";
-  import { tagPushRemote, tagRequest } from "$lib/tag-dialog";
+  import { tagNameHint, tagPushRemote, tagRequest } from "$lib/tag-dialog";
   import { signedIn } from "$stores/sign-in.svelte";
   import { successToast } from "$stores/success-toast.svelte";
   import { branchRevision, headPushSource } from "$lib/toolbar";
@@ -901,7 +901,12 @@
       const remote = splitUpstream(ref.name, network.remotes)?.remote ?? ref.name.split("/")[0] ?? "origin";
       const go = await confirmation.ask({
         title: "Delete Remote Branch",
-        message: `Delete ${ref.name} on ${remote}? This runs on the server, and Undo cannot reach it.`,
+        message: "Delete remote branch?",
+        fields: [
+          ["Remote", remote],
+          ["Branch", ref.name.startsWith(`${remote}/`) ? ref.name.slice(remote.length + 1) : ref.name],
+        ],
+        note: "This runs on the server, and Undo cannot reach it.",
         confirm: "Delete",
         warning: true,
       });
@@ -922,6 +927,7 @@
       { kind: ref.kind === "tag" ? "tag" : "branch", name: ref.name, upstream },
       network.remotes,
       network.primary,
+      repository.remoteBranches.map((entry) => entry.name),
     );
     let forceDeclined = false;
     const { yes, checked } = await confirmation.askWithOption({
@@ -970,7 +976,10 @@
       confirm: "Rename",
       validate:
         ref.kind === "tag"
-          ? textProblem
+          ? (value) =>
+              value.trim() === ref.name
+                ? null
+                : tagNameHint(value, (repository.current?.tags ?? []).map((tag) => tag.name))
           : (value) =>
               value.trim() === ref.name
                 ? null
@@ -1067,6 +1076,8 @@
     confirm={confirmation.open.confirm}
     warning={confirmation.open.warning}
     items={confirmation.open.items}
+    fields={confirmation.open.fields}
+    note={confirmation.open.note}
     option={confirmation.open.option}
     choice={confirmation.open.choice}
     onanswer={(yes, checked, choice) => confirmation.answer(yes, checked, choice)}

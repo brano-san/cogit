@@ -2082,8 +2082,9 @@ export type PresetStatus = {
 	slow: boolean,
 	configFiles: string[],
 	/**
-	 *  The declared config files this repository does not have. A preset installed
-	 *  without them runs a tool that will pick up someone else's defaults.
+	 *  The declared config files, alternatives to one another, when this repository has
+	 *  none of them; empty when it has one. A preset installed without one runs a tool that
+	 *  will pick up someone else's defaults.
 	 */
 	missingConfig: string[],
 	tool: string | null,

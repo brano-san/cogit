@@ -3,6 +3,10 @@ export interface ConfirmRequest {
   message: string;
   confirm: string;
   warning?: boolean;
+  /** Label and value pairs under the message, the value in monospace: what is acted on. */
+  fields?: readonly (readonly [string, string])[];
+  /** A caution of its own under the rest, with a warning mark, in the muted color. */
+  note?: string;
   /** Listed under the message in a scrollable box, with no cap: what is about to be deleted. */
   items?: readonly string[];
   /** Label of an unchecked checkbox; its state comes back from `askWithOption`. */

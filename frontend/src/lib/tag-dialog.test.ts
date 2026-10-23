@@ -10,8 +10,18 @@ describe("tagNameHint", () => {
     expect(tagNameHint("v1.0 ", ["v1.0"])).toBe("A tag named 'v1.0' already exists.");
   });
 
-  it("leaves everything else to git check-ref-format", () => {
-    expect(tagNameHint("v1..0", ["v1.0"])).toBeNull();
+  it("refuses what git check-ref-format refuses for refs/tags/<name>", () => {
+    const refused = [
+      "release/", "release.", "v1.lock", "a/b.lock/c", "-v1", "/v1", "v1..0", "a//b", "v@{1}", "@",
+      ".hidden", "a/.b", "v 1", "v\t1", "v\x7f", "v~1", "v^1", "v:1", "v?", "v*", "v[1", "v\\1",
+    ];
+    for (const name of refused) expect(tagNameHint(name, []), name).not.toBeNull();
+  });
+
+  it("accepts ordinary tag names", () => {
+    for (const name of ["v1.0", "release/2026-10", "v1.0-rc.1", "a@b", "feature/x.y"]) {
+      expect(tagNameHint(name, []), name).toBeNull();
+    }
   });
 });
 
