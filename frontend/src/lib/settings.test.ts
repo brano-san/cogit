@@ -83,8 +83,8 @@ describe("merge", () => {
   });
 
   it("rejects an unknown enum value", () => {
-    expect(merge({ pullMode: "rebase-and-pray" } as never).pullMode).toBe(
-      DEFAULT_SETTINGS.pullMode,
+    expect(merge({ diffLayout: "rebase-and-pray" } as never).diffLayout).toBe(
+      DEFAULT_SETTINGS.diffLayout,
     );
   });
 

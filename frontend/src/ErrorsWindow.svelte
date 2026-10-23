@@ -92,8 +92,8 @@
     });
   }
 
-  async function showConflicts(entry: ErrorEntry) {
-    await sendErrorsAction("showConflicts", entry.id);
+  async function act(entry: ErrorEntry, action: "showConflicts" | "pull") {
+    await sendErrorsAction(action, entry.id);
     await focusMainWindow().catch(() => {});
   }
 
@@ -144,8 +144,10 @@
           {#if logProblem}<p class="note">{logProblem}</p>{/if}
           <div class="buttons">
             <Button onclick={() => void openLog()} title={logPath}>Open log</Button>
-            {#if current.kind === "warning"}
-              <Button variant="primary" onclick={() => void showConflicts(current)}>Show conflicts</Button>
+            {#if current.offer === "showConflicts"}
+              <Button variant="primary" onclick={() => void act(current, "showConflicts")}>Show conflicts</Button>
+            {:else if current.offer === "pull"}
+              <Button variant="primary" onclick={() => void act(current, "pull")}>Pull</Button>
             {/if}
             {#if entries.length > 1}
               <Button onclick={() => dismiss(current)} title="Remove this entry from the list">Dismiss</Button>
@@ -162,8 +164,10 @@
         onclose={() => void closeThisWindow()}
       >
         {#snippet actions()}
-          {#if current.kind === "warning"}
-            <Button variant="primary" onclick={() => void showConflicts(current)}>Show conflicts</Button>
+          {#if current.offer === "showConflicts"}
+            <Button variant="primary" onclick={() => void act(current, "showConflicts")}>Show conflicts</Button>
+          {:else if current.offer === "pull"}
+            <Button variant="primary" onclick={() => void act(current, "pull")}>Pull</Button>
           {/if}
           {#if entries.length > 1}
             <Button onclick={() => dismiss(current)} title="Remove this entry from the list">Dismiss</Button>

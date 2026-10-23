@@ -1,10 +1,13 @@
-import type { ErrorEntry, GitOutput } from "$lib/ipc";
+import type { ErrorEntry, ErrorOffer, GitOutput } from "$lib/ipc";
 
 export type { ErrorEntry };
 export { repoNameOf } from "$lib/notices";
 
 /** What a finished command tells: enough to title it and to find its record again. */
-type Run = Pick<GitOutput, "id" | "repo" | "operation" | "command" | "summary" | "stoppedOnConflicts">;
+type Run = Pick<
+  GitOutput,
+  "id" | "repo" | "operation" | "command" | "summary" | "stoppedOnConflicts" | "expected"
+>;
 
 /** The output of an entry: what the journal has, else what was received while it had it,
     else `"gone"`. Never a record made up from the entry: the journal keeps 100 commands. */
@@ -12,23 +15,32 @@ export function outputToShow(found: GitOutput | null, cached: GitOutput | undefi
   return found ?? cached ?? "gone";
 }
 
-/** What did not work; a command that went as far as it could and left conflicts is named
-    for what it did, not for failing. */
+/** What did not work; a command that went as far as it could and left conflicts, or failed
+    for an ordinary state of things (R-840), is named for what happened, not for failing. */
 export function titleOf(run: Run): string {
+  if (run.expected === "upstreamGone") return "Upstream branch is gone";
+  if (run.expected === "pushBehind") return "Push rejected";
   if (!run.stoppedOnConflicts) return `${run.operation} failed`;
   if (/\bgit\b.*\bstash\b/.test(run.command)) return "Stash applied with conflicts";
+  if (/\bgit\b.*\bpull\b.*\s--rebase\b/.test(run.command)) return "Rebase stopped with conflicts";
   return `${run.operation} stopped with conflicts`;
+}
+
+function offerOf(run: Run): ErrorOffer | null {
+  if (run.stoppedOnConflicts) return "showConflicts";
+  return run.expected === "pushBehind" ? "pull" : null;
 }
 
 export function entryOf(run: Run): ErrorEntry {
   return {
     id: run.id,
-    kind: run.stoppedOnConflicts ? "warning" : "error",
+    kind: run.stoppedOnConflicts || run.expected !== null ? "warning" : "error",
     title: titleOf(run),
     operation: run.operation,
     repo: run.repo,
     command: run.command,
     summary: run.summary,
+    offer: offerOf(run),
     repeats: 1,
   };
 }

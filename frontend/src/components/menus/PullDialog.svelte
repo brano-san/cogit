@@ -33,7 +33,7 @@
     }
   });
 
-  const command = $derived(pullCommandLine(remote, choice, request.ffOnly));
+  const command = $derived(pullCommandLine(remote, choice, request.fastForward));
   const url = $derived(urls[remote] ?? "");
 </script>
 

@@ -165,8 +165,17 @@ pub(crate) fn forward_repo_changes(app: tauri::AppHandle, state: &Arc<AppState>)
 pub enum ErrorKind {
     /// The command failed.
     Error,
-    /// The command stopped halfway on conflicts: the user has work to do, nothing is broken.
+    /// The command stopped halfway on conflicts, or failed for an ordinary state of things
+    /// (`git_engine::Expected`): the user has work to do, nothing is broken.
     Warning,
+}
+
+/// The button of an entry that leads on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum ErrorOffer {
+    ShowConflicts,
+    Pull,
 }
 
 /// One command that ended badly, as the Errors window lists it. The output itself stays in
@@ -181,6 +190,7 @@ pub struct ErrorEntry {
     pub repo: String,
     pub command: String,
     pub summary: String,
+    pub offer: Option<ErrorOffer>,
     /// The same failure again collapses into this entry rather than growing the list.
     pub repeats: u32,
 }
@@ -209,6 +219,8 @@ pub enum ErrorAction {
     Closed,
     /// Take the main window to the conflicted files of the entry `id`.
     ShowConflicts,
+    /// Pull the repository of the entry `id`, as the toolbar's Pull does.
+    Pull,
 }
 
 /// From the Errors window to the main one.

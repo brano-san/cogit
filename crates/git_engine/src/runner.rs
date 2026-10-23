@@ -52,6 +52,9 @@ pub struct GitOutput {
     /// rebase, cherry-pick, revert, pull or am that went as far as it could and handed the
     /// rest to the user. Set when the record is journaled, from the index.
     pub stopped_on_conflicts: bool,
+    /// A failure that is an ordinary state, told as a warning; `summary` then explains it.
+    /// Set when the record is journaled, from the repository's state as well as the output.
+    pub expected: Option<crate::Expected>,
     /// A refusal the app turned into its own question (`branch -d` of an unmerged branch):
     /// journaled as git said it, but no error notice.
     pub answered: bool,
@@ -98,6 +101,7 @@ impl GitOutput {
             stderr,
             duration_ms,
             stopped_on_conflicts: false,
+            expected: None,
             answered: false,
             credential_trouble: if exit_code == Some(0) {
                 None
@@ -259,6 +263,10 @@ impl RepoHandle {
     fn journal_entry_over(&self, mut entry: GitOutput, conflicted_before: bool) {
         if let Some(sink) = self.journal() {
             entry.stopped_on_conflicts = !conflicted_before && self.stopped_on_conflicts(&entry);
+            if let Some((expected, summary)) = self.expected_failure(&entry) {
+                entry.expected = Some(expected);
+                entry.summary = summary;
+            }
             sink(entry);
         }
     }

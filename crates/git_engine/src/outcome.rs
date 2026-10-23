@@ -16,6 +16,44 @@ pub enum Severity {
     Failure,
 }
 
+/// A failure that is an ordinary state of things: the Errors window shows it as a warning,
+/// with the whole output still (R-840).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum Expected {
+    /// A pull fetched, but the upstream of the branch is gone from the remote: nothing merged.
+    UpstreamGone,
+    /// The remote has commits the pushed branch lacks: pull first.
+    PushBehind,
+}
+
+/// What `git pull` says when the upstream it was told to merge was not fetched.
+pub(crate) const NO_SUCH_REF: &str = "no such ref was fetched";
+
+pub(crate) const PUSH_BEHIND: &str = "Remote has commits you don't have \u{2014} pull first.";
+
+/// Every ref a push names was refused only for being behind the remote, and one of them is
+/// not notes, which `push_options` settles itself. Read with `LC_ALL=C`.
+#[must_use]
+pub fn push_behind(command_line: &str, stderr: &str) -> bool {
+    if subcommand_of(command_line).0.as_deref() != Some("push") {
+        return false;
+    }
+    let refused: Vec<&str> = stderr
+        .lines()
+        .map(str::trim)
+        .filter(|line| line.starts_with("! ["))
+        .collect();
+    refused.iter().all(|line| {
+        line.starts_with("! [rejected]")
+            && (line.ends_with("(fetch first)") || line.ends_with("(non-fast-forward)"))
+    }) && refused.iter().any(|line| !line.contains("refs/notes/"))
+}
+
+pub(crate) fn is_pull(command_line: &str) -> bool {
+    subcommand_of(command_line).0.as_deref() == Some("pull")
+}
+
 /// What git says, with exit code 0 and no `warning:`, when `--autostash` (or
 /// `rebase.autoStash`, `merge.autoStash`) could not put the work back cleanly: the files
 /// are left conflicted and the work waits in the stash.

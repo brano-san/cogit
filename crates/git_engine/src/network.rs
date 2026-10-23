@@ -293,6 +293,57 @@ impl RepoHandle {
         remote.is_none() || merge.is_none()
     }
 
+    /// HEAD's branch and its upstream as `<remote>/<branch>`, when the branch tracks one whose
+    /// remote-tracking ref is not there: after `fetch --prune`, deleted on the remote.
+    fn gone_upstream(&self) -> Option<(String, String)> {
+        let name = self.repo.head_name().ok()??;
+        if self.head_tracks_nothing() {
+            return None;
+        }
+        let tracking = self
+            .repo
+            .branch_remote_tracking_ref_name(name.as_ref(), gix::remote::Direction::Fetch)?
+            .ok()?;
+        if self
+            .repo
+            .try_find_reference(tracking.as_ref())
+            .ok()?
+            .is_some()
+        {
+            return None;
+        }
+        let short = tracking.shorten().to_string();
+        Some((name.shorten().to_string(), short))
+    }
+
+    /// A pull that failed only because the upstream it merges is gone: what to say instead.
+    /// git's words (read with `LC_ALL=C`) and the refs must both agree (R-840).
+    pub(crate) fn upstream_gone_after(&self, command_line: &str, stderr: &str) -> Option<String> {
+        if !crate::outcome::is_pull(command_line) || !stderr.contains(crate::outcome::NO_SUCH_REF) {
+            return None;
+        }
+        let (local, upstream) = self.gone_upstream()?;
+        Some(format!(
+            "Fetch completed. Upstream branch {upstream} no longer exists on remote, so nothing \
+             was merged; local branch {local} is unchanged."
+        ))
+    }
+
+    /// A failed command that is an ordinary state of things, and the line that says so.
+    pub(crate) fn expected_failure(&self, entry: &GitOutput) -> Option<(crate::Expected, String)> {
+        if matches!(entry.exit_code, Some(0) | None) {
+            return None;
+        }
+        if crate::outcome::push_behind(&entry.command, &entry.stderr) {
+            return Some((
+                crate::Expected::PushBehind,
+                crate::outcome::PUSH_BEHIND.to_owned(),
+            ));
+        }
+        self.upstream_gone_after(&entry.command, &entry.stderr)
+            .map(|said| (crate::Expected::UpstreamGone, said))
+    }
+
     /// The credential of the URL this direction contacts, not of the push URL for all (R-410),
     /// as the environment git reads it from: an argument sits in the process list.
     pub(crate) fn auth_env(

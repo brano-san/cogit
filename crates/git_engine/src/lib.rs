@@ -147,7 +147,7 @@ pub use origin_search::{
     DeeperTarget, Likelihood, LineMatch, OriginCandidate, OriginKind, OriginQuery, OriginReport,
     OriginText,
 };
-pub use outcome::Severity;
+pub use outcome::{Expected, Severity};
 pub use overlap::{Overlap, OverlapRow, overlap_of, shared_paths};
 pub use presets::{
     Preset, PresetTool, builtin_presets, find_tool, parse_preset, preset_toml, tool_search_places,

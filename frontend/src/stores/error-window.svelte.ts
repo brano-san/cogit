@@ -26,6 +26,12 @@ interface Reported {
   stoppedOnConflicts?: boolean;
 }
 
+/** What the main window does for an entry's button. */
+export interface ErrorOffers {
+  showConflicts(repo: string): void;
+  pull(repo: string): void;
+}
+
 /** Failed git commands, and the ones that stopped on conflicts, in the Errors window: one
     window, one list (doc/12-risks.md, R-639). The main window owns the queue; every other
     page reports into it. What the taskbar shows reads `errorCount`, `unviewed` and
@@ -62,11 +68,11 @@ class ErrorWindowStore {
   }
 
   /** The main window calls this once. The returned function stops listening. */
-  async own(showConflicts: (repo: string) => void): Promise<() => void> {
+  async own(offers: ErrorOffers): Promise<() => void> {
     this.#owner = true;
     const stops = await Promise.all([
       onErrorReported((entry) => this.add(entry)),
-      onErrorsAction((action, id) => this.#act(action, id, showConflicts)),
+      onErrorsAction((action, id) => this.#act(action, id, offers)),
     ]);
     return () => {
       this.#owner = false;
@@ -89,6 +95,7 @@ class ErrorWindowStore {
     const entry = entryOf({
       command: "",
       stoppedOnConflicts: false,
+      expected: null,
       ...run,
       ...(record ?? {}),
     });
@@ -113,13 +120,13 @@ class ErrorWindowStore {
       .finally(() => (this.#opening = null));
   }
 
-  /** Warnings of a repository whose conflicts are all resolved go away with them. */
+  /** Conflict warnings of a repository whose conflicts are all resolved go away with them. */
   conflictsResolved(repo: string): void {
     const now = Date.now();
     // The journal names the root with the OS's slashes, the repository list with `/`.
     const same = (a: string, b: string) => a.replace(/\\/g, "/") === b.replace(/\\/g, "/");
     const stale = (entry: ErrorEntry) =>
-      entry.kind === "warning" &&
+      entry.offer === "showConflicts" &&
       same(entry.repo, repo) &&
       now - (this.#born.get(entry.id) ?? 0) > FRESH_MS;
     if (!this.entries.some(stale)) return;
@@ -127,7 +134,7 @@ class ErrorWindowStore {
     this.#publish();
   }
 
-  #act(action: ErrorAction, id: number | null, showConflicts: (repo: string) => void): void {
+  #act(action: ErrorAction, id: number | null, offers: ErrorOffers): void {
     if (action === "ready") return this.#publish();
     if (action === "closed") {
       // What the window had is seen and goes; an entry that came in while it was closing
@@ -147,7 +154,8 @@ class ErrorWindowStore {
     const entry = this.entries.find((held) => held.id === id);
     this.entries = this.entries.filter((held) => held.id !== id);
     this.#publish();
-    if (action === "showConflicts" && entry) showConflicts(entry.repo);
+    if (action === "showConflicts" && entry) offers.showConflicts(entry.repo);
+    if (action === "pull" && entry) offers.pull(entry.repo);
   }
 
   #publish(): void {

@@ -7,9 +7,9 @@ use git_engine::{GitOutput, PullOptions, RepoHandle};
 
 type Log = Arc<Mutex<Vec<GitOutput>>>;
 
-fn merge(ff_only: bool) -> PullOptions {
+fn merge() -> PullOptions {
     PullOptions {
-        ff_only,
+        method: git_engine::PullMethod::Merge,
         ..PullOptions::default()
     }
 }
@@ -174,7 +174,7 @@ fn a_pull_that_stops_on_conflicts_is_marked() {
     let (repo, log) = journaled(&f);
 
     assert!(
-        repo.pull_options("origin", merge(false), |_| None, |_| {})
+        repo.pull_options("origin", merge(), |_| None, |_| {})
             .is_err()
     );
 

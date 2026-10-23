@@ -9,6 +9,7 @@ const run = (id: number, over: Partial<Parameters<typeof entryOf>[0]> = {}) => (
   summary: "error: failed to push some refs",
   severity: "failure" as const,
   stoppedOnConflicts: false,
+  expected: null,
   ...over,
 });
 
@@ -36,6 +37,35 @@ describe("titleOf", () => {
     expect(titleOf(run(1, { operation: "Rebase", stoppedOnConflicts: true }))).toBe(
       "Rebase stopped with conflicts",
     );
+  });
+
+  // R-841: a diverged Pull rebases, and its stop is the rebase's, not a failed pull.
+  it("calls a pull that stopped mid-rebase a rebase, and a merging pull a pull", () => {
+    const pull = { operation: "Pull (rebase)", stoppedOnConflicts: true };
+    expect(titleOf(run(1, { ...pull, command: "git pull --progress --prune --rebase origin" }))).toBe(
+      "Rebase stopped with conflicts",
+    );
+    expect(
+      titleOf(run(1, { ...pull, operation: "Pull", command: "git pull --progress --prune --no-rebase origin" })),
+    ).toBe("Pull stopped with conflicts");
+  });
+});
+
+// R-840: an ordinary state of things is a warning with the whole output, never red.
+describe("an expected failure", () => {
+  it("is a warning about a gone upstream, with nothing to offer", () => {
+    const entry = entryOf(run(1, { operation: "Pull", command: "git pull --ff-only origin", expected: "upstreamGone" }));
+    expect(entry).toMatchObject({ kind: "warning", title: "Upstream branch is gone", offer: null });
+  });
+
+  it("offers Pull for a push the remote refused as behind", () => {
+    const entry = entryOf(run(1, { expected: "pushBehind" }));
+    expect(entry).toMatchObject({ kind: "warning", title: "Push rejected", offer: "pull" });
+  });
+
+  it("offers the conflicts of a command that stopped on them, and nothing for an error", () => {
+    expect(entryOf(run(1, { stoppedOnConflicts: true })).offer).toBe("showConflicts");
+    expect(entryOf(run(1)).offer).toBeNull();
   });
 });
 

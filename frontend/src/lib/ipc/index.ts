@@ -65,6 +65,7 @@ export type {
   Pushed,
   ErrorEntry,
   ErrorKind,
+  ErrorOffer,
   Flash,
   Progress,
   TaskbarSignals,
@@ -852,12 +853,11 @@ export async function fetchRemote(repo: RepoId, remote: string, onLine: (line: s
 export async function pullRemote(
   repo: RepoId,
   remote: string,
-  ffOnly: boolean,
   autostash: boolean,
   onLine: (line: string) => void,
   credential: SignIn | null = null,
 ) {
-  return unwrap(await commands.pull(repo, remote, ffOnly, autostash, credential, progressChannel(onLine)));
+  return unwrap(await commands.pull(repo, remote, autostash, credential, progressChannel(onLine)));
 }
 
 export async function pushRemote(

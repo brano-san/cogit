@@ -5,7 +5,7 @@ import type { Branch } from "$lib/ipc";
 import type { FetchOptions, NetworkDefaults, PullMethod, PullOptions, PushOptions, TagsMode } from "$lib/ipc/network-dialogs";
 
 export const EMPTY_DEFAULTS: NetworkDefaults = {
-  pullMethod: "merge",
+  pullMethod: "rebase",
   pullTags: false,
   pullNotes: false,
   pushTags: "none",
@@ -43,11 +43,9 @@ export function fetchOptionsOf(choice: PullChoice): FetchOptions {
   return { tags: choice.tags, notes: choice.notes };
 }
 
-/** `ffOnly` is Preferences ▸ Pull; it only shapes a merge. */
-export function pullOptionsOf(choice: PullChoice, ffOnly: boolean): PullOptions {
+export function pullOptionsOf(choice: PullChoice): PullOptions {
   return {
     method: choice.method,
-    ffOnly: choice.method === "merge" && ffOnly,
     fetch: fetchOptionsOf(choice),
     autostash: false,
   };
@@ -55,11 +53,11 @@ export function pullOptionsOf(choice: PullChoice, ffOnly: boolean): PullOptions 
 
 const notesFetch = (remote: string) => `git fetch +refs/notes/*:refs/notes-remote/${remote}/*`;
 
-export function pullCommandLine(remote: string, choice: PullChoice, ffOnly: boolean): string {
-  const options = pullOptionsOf(choice, ffOnly);
+/** `fastForward`: the branch has no commits of its own, so the method does not matter (R-841). */
+export function pullCommandLine(remote: string, choice: PullChoice, fastForward: boolean): string {
   const flags = ["pull", "--progress", "--prune"];
   if (choice.tags) flags.push("--tags", "--force");
-  flags.push(options.method === "rebase" ? "--rebase" : options.ffOnly ? "--ff-only" : "--no-rebase", remote);
+  flags.push(fastForward ? "--ff-only" : choice.method === "rebase" ? "--rebase" : "--no-rebase", remote);
   const pull = `git ${flags.join(" ")}`;
   return choice.notes ? `${notesFetch(remote)}; ${pull}` : pull;
 }

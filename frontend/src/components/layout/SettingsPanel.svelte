@@ -103,11 +103,6 @@
     ["compact", "Compact (each side its own lines)"],
   ] as const;
 
-  const PULL_MODES = [
-    ["ffOnly", "Refuse and let me decide"],
-    ["merge", "Merge the remote branch in"],
-  ] as const;
-
   const LOG_LEVELS = ["error", "warn", "info", "debug", "trace"] as const;
 
   const AVATARS = [
@@ -381,15 +376,6 @@
                     <Radio name="dateFormat" checked={draft.dateFormat === id} onchange={() => set("dateFormat", id)}>
                       <span class="mono">{example}</span>
                     </Radio>
-                  {/each}
-                </div>
-              </div>
-            {:else if field.key === "pullMode"}
-              <div class="row choice" role="radiogroup" aria-label={field.label}>
-                <span>{field.label}</span>
-                <div class="options">
-                  {#each PULL_MODES as [id, title] (id)}
-                    <Radio name="pullMode" checked={draft.pullMode === id} onchange={() => set("pullMode", id)} label={title} />
                   {/each}
                 </div>
               </div>

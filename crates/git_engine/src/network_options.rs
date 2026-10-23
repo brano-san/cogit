@@ -7,8 +7,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum PullMethod {
-    #[default]
     Merge,
+    /// As SmartGit: own commits go on top of the upstream's (R-841).
+    #[default]
     Rebase,
 }
 
@@ -33,9 +34,9 @@ pub struct FetchOptions {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PullOptions {
+    /// How a branch with commits of its own takes the upstream's; one without them only
+    /// fast-forwards (R-841).
     pub method: PullMethod,
-    /// With `Merge`: refuse a merge commit (Preferences ▸ Pull).
-    pub ff_only: bool,
     pub fetch: FetchOptions,
     /// `--autostash`: the answer to `Pulled::stash_needed`.
     pub autostash: bool,
@@ -48,6 +49,11 @@ pub struct PullOptions {
 pub struct Pulled {
     pub notes: NotesFetch,
     pub stash_needed: bool,
+    /// How the branch took the upstream's commits; `None` for a fast-forward or a fetch only.
+    pub integrated: Option<PullMethod>,
+    /// Fetched, but the upstream is gone from the remote and nothing was merged; the
+    /// journal's warning says so (R-840).
+    pub upstream_gone: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
@@ -255,18 +261,18 @@ pub fn fetch_args(remote: &str, tags: bool) -> Vec<&str> {
     args
 }
 
-/// A merge says `--no-rebase`: without it `pull.rebase` rebases, and with no `pull.*` set
-/// git refuses diverged branches.
+/// `fast_forward`: the branch has no commits of its own. A merge says `--no-rebase`:
+/// without it `pull.rebase` rebases, and with no `pull.*` set git refuses diverged branches.
 #[must_use]
-pub fn pull_args<'a>(remote: &'a str, options: &PullOptions) -> Vec<&'a str> {
+pub fn pull_args<'a>(remote: &'a str, options: &PullOptions, fast_forward: bool) -> Vec<&'a str> {
     let mut args = vec!["pull", "--progress", "--prune"];
     if options.fetch.tags {
         args.extend(["--tags", "--force"]);
     }
-    args.push(match (options.method, options.ff_only) {
-        (PullMethod::Rebase, _) => "--rebase",
-        (PullMethod::Merge, true) => "--ff-only",
-        (PullMethod::Merge, false) => "--no-rebase",
+    args.push(match (fast_forward, options.method) {
+        (true, _) => "--ff-only",
+        (false, PullMethod::Rebase) => "--rebase",
+        (false, PullMethod::Merge) => "--no-rebase",
     });
     if options.autostash {
         args.push("--autostash");
@@ -356,23 +362,38 @@ impl RepoHandle {
             NotesFetch::default()
         };
         let auth = self.auth_for_fetch(remote, &credential);
+        let mut pulled = Pulled {
+            notes,
+            ..Pulled::default()
+        };
         if !options.autostash && self.has_tracked_changes()? {
             self.stream(&auth, &fetch_args(remote, options.fetch.tags), &mut on_line)?;
-            let stash_needed = self.head_behind() != Some(0);
-            return Ok(Pulled {
-                notes,
-                stash_needed,
-            });
+            pulled.stash_needed = self.head_divergence().map(|(_, behind)| behind) != Some(0);
+            return Ok(pulled);
         }
-        self.stream(&auth, &pull_args(remote, &options), &mut on_line)?;
-        Ok(Pulled {
-            notes,
-            stash_needed: false,
-        })
+        // Judged before the fetch: commits of its own stay its own whatever arrives.
+        let fast_forward = self.head_divergence().map(|(ahead, _)| ahead) == Some(0);
+        let args = pull_args(remote, &options, fast_forward);
+        match self.stream(&auth, &args, &mut on_line) {
+            Ok(()) => {
+                pulled.integrated = (!fast_forward).then_some(options.method);
+                Ok(pulled)
+            }
+            Err(GitError::Command(failure))
+                if self
+                    .upstream_gone_after(&failure.command, &failure.stderr)
+                    .is_some() =>
+            {
+                pulled.upstream_gone = true;
+                Ok(pulled)
+            }
+            Err(err) => Err(err),
+        }
     }
 
-    /// Commits HEAD's upstream has that HEAD lacks; `None` when that cannot be told.
-    fn head_behind(&self) -> Option<u32> {
+    /// Commits HEAD has that its upstream lacks, and the other way round; `None` when that
+    /// cannot be told.
+    fn head_divergence(&self) -> Option<(u32, u32)> {
         let name = self.repo.head_name().ok()??;
         let tracking = self
             .repo
@@ -386,7 +407,6 @@ impl RepoHandle {
             .ok()?;
         let head = self.repo.head_id().ok()?;
         self.count_divergence(head.detach(), upstream.detach())
-            .map(|(_, behind)| behind)
     }
 
     /// One `git push` for the branch, its tags and notes, so `--atomic`, `--dry-run` and the
@@ -776,10 +796,10 @@ impl RepoHandle {
     pub fn network_defaults(&self) -> Result<NetworkDefaults> {
         let mut defaults = NetworkDefaults::default();
         if let Some(value) = self.local_choice("cogit.pullMethod") {
-            defaults.pull_method = if value == "rebase" {
-                PullMethod::Rebase
-            } else {
+            defaults.pull_method = if value == "merge" {
                 PullMethod::Merge
+            } else {
+                PullMethod::Rebase
             };
         }
         if let Some(value) = self.local_choice("cogit.pullTags") {
@@ -942,12 +962,12 @@ mod tests {
     #[test]
     fn pull_picks_one_way_to_integrate() {
         let mut options = PullOptions::default();
-        assert!(pull_args("o", &options).contains(&"--no-rebase"));
-        options.ff_only = true;
-        assert!(pull_args("o", &options).contains(&"--ff-only"));
-        options.method = PullMethod::Rebase;
-        let args = pull_args("o", &options);
-        assert!(args.contains(&"--rebase") && !args.contains(&"--ff-only"));
+        assert!(pull_args("o", &options, false).contains(&"--rebase"));
+        assert!(pull_args("o", &options, true).contains(&"--ff-only"));
+        options.method = PullMethod::Merge;
+        assert!(pull_args("o", &options, false).contains(&"--no-rebase"));
+        let args = pull_args("o", &options, true);
+        assert!(args.contains(&"--ff-only") && !args.contains(&"--no-rebase"));
     }
 
     #[test]
@@ -965,7 +985,7 @@ mod tests {
             },
             ..PullOptions::default()
         };
-        assert!(pull_args("o", &options).contains(&"--force"));
+        assert!(pull_args("o", &options, false).contains(&"--force"));
     }
 
     #[test]

@@ -125,15 +125,7 @@ fn a_pull_on_a_branch_without_upstream_fetches_every_remote() {
     let undo_before = state.safety_log().len();
 
     state
-        .pull(
-            repo,
-            "origin",
-            true,
-            false,
-            &NetworkStop::default(),
-            None,
-            |_| {},
-        )
+        .pull(repo, "origin", false, &NetworkStop::default(), None, |_| {})
         .unwrap();
 
     assert!(branch(&state, repo, BranchKind::Remote, "origin/main").is_some());

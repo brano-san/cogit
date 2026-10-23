@@ -18,7 +18,7 @@ const pushOptions = {
 
 function fakes(over: Partial<NetworkApi> = {}, answer = true) {
   const api: NetworkApi = {
-    pullWith: vi.fn(async () => ({ notes: none, stashNeeded: false })),
+    pullWith: vi.fn(async () => ({ notes: none, stashNeeded: false, integrated: null, upstreamGone: false })),
     fetchWith: vi.fn(async () => none),
     pushWith: vi.fn(async () => ({ notesRejected: null })),
     pushNotes: vi.fn(async () => ({ notesRejected: null })),
@@ -53,46 +53,46 @@ describe("diverged notes", () => {
 describe("pull and fetch only", () => {
   it("Pull goes through pull, Fetch Only through fetch", async () => {
     const { api, ui } = fakes();
-    await pullFlow(api, ui, 1, "origin", { method: "merge", ffOnly: false, fetch: { tags: false, notes: true }, autostash: false });
+    await pullFlow(api, ui, 1, "origin", { method: "merge", fetch: { tags: false, notes: true }, autostash: false });
     await pullFlow(api, ui, 1, "origin", { fetchOnly: { tags: true, notes: true } });
     expect(api.pullWith).toHaveBeenCalledTimes(1);
     expect(api.fetchWith).toHaveBeenCalledWith(1, "origin", { tags: true, notes: true });
   });
 
   it("offers the merge for what the pull found", async () => {
-    const { api, ui } = fakes({ pullWith: vi.fn(async () => ({ notes: { remote: "origin", diverged: ["commits"] }, stashNeeded: false })) });
-    await pullFlow(api, ui, 1, "origin", { method: "rebase", ffOnly: false, fetch: { tags: false, notes: true }, autostash: false });
+    const { api, ui } = fakes({ pullWith: vi.fn(async () => ({ notes: { remote: "origin", diverged: ["commits"] }, stashNeeded: false, integrated: null, upstreamGone: false })) });
+    await pullFlow(api, ui, 1, "origin", { method: "rebase", fetch: { tags: false, notes: true }, autostash: false });
     expect(api.mergeNotes).toHaveBeenCalledWith(1, "origin", "commits");
   });
 
   it("asks before stashing local changes in the way, then pulls with them stashed", async () => {
     const pullWith = vi
       .fn()
-      .mockResolvedValueOnce({ notes: none, stashNeeded: true })
-      .mockResolvedValueOnce({ notes: none, stashNeeded: false });
+      .mockResolvedValueOnce({ notes: none, stashNeeded: true, integrated: null, upstreamGone: false })
+      .mockResolvedValueOnce({ notes: none, stashNeeded: false, integrated: null, upstreamGone: false });
     const { api, ui } = fakes({ pullWith });
-    const options = { method: "rebase", ffOnly: false, fetch: { tags: false, notes: false }, autostash: false } as const;
+    const options = { method: "rebase", fetch: { tags: false, notes: false }, autostash: false } as const;
 
-    expect(await pullFlow(api, ui, 1, "origin", options)).toBe(true);
+    expect(await pullFlow(api, ui, 1, "origin", options)).toMatchObject({ stashNeeded: false });
 
     expect(ui.ask).toHaveBeenCalledWith(STASH_AND_PULL);
     expect(pullWith).toHaveBeenLastCalledWith(1, "origin", { ...options, autostash: true });
   });
 
   it("pulls nothing more when the local changes stay where they are", async () => {
-    const pullWith = vi.fn(async () => ({ notes: none, stashNeeded: true }));
+    const pullWith = vi.fn(async () => ({ notes: none, stashNeeded: true, integrated: null, upstreamGone: false }));
     const { api, ui } = fakes({ pullWith }, false);
 
     expect(
-      await pullFlow(api, ui, 1, "origin", { method: "rebase", ffOnly: false, fetch: { tags: false, notes: false }, autostash: false }),
-    ).toBe(false);
+      await pullFlow(api, ui, 1, "origin", { method: "rebase", fetch: { tags: false, notes: false }, autostash: false }),
+    ).toBeNull();
     expect(pullWith).toHaveBeenCalledTimes(1);
   });
 
   it("lets a failing pull fail without asking anything", async () => {
     const { api, ui } = fakes({ pullWith: vi.fn(async () => Promise.reject(new Error("conflict"))) });
     await expect(
-      pullFlow(api, ui, 1, "origin", { method: "merge", ffOnly: false, fetch: { tags: false, notes: true }, autostash: false }),
+      pullFlow(api, ui, 1, "origin", { method: "merge", fetch: { tags: false, notes: true }, autostash: false }),
     ).rejects.toThrow("conflict");
     expect(ui.ask).not.toHaveBeenCalled();
   });

@@ -71,15 +71,7 @@ fn a_branch_the_remote_deleted_goes_after_a_pull() {
     let (state, repo) = open(&f);
 
     state
-        .pull(
-            repo,
-            "origin",
-            true,
-            false,
-            &NetworkStop::default(),
-            None,
-            |_| {},
-        )
+        .pull(repo, "origin", false, &NetworkStop::default(), None, |_| {})
         .unwrap();
 
     assert_eq!(state.delete_merged_branches(repo).unwrap(), ["topic"]);

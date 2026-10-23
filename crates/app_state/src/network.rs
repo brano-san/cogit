@@ -89,16 +89,12 @@ impl AppState {
 
     /// On a branch that tracks nothing there is nothing to merge: Pull fetches every
     /// remote and says nothing more (R-552). On a detached HEAD it only fetches `remote`
-    /// and never moves HEAD (F-710).
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "one IPC command's arguments, passed through as they came"
-    )]
+    /// and never moves HEAD (F-710). Own commits are merged or rebased as the repository
+    /// remembers for the Pull dialog (R-841).
     pub fn pull(
         &self,
         repo: RepoId,
         remote: &str,
-        ff_only: bool,
         autostash: bool,
         stop: &NetworkStop,
         sign_in: Option<&SignIn>,
@@ -120,8 +116,15 @@ impl AppState {
                 .wants_new_submodules()
                 .then(|| handle.submodule_paths());
             let before = handle.head()?;
+            let method = handle
+                .network_defaults()
+                .map(|defaults| defaults.pull_method)
+                .inspect_err(|err| {
+                    tracing::error!(error = ?err, context = "pull method unreadable, rebasing");
+                })
+                .unwrap_or_default();
             let options = git_engine::PullOptions {
-                ff_only,
+                method,
                 autostash,
                 ..git_engine::PullOptions::default()
             };
@@ -133,13 +136,14 @@ impl AppState {
                 format!("Pull from {remote}"),
                 &result,
             );
-            if result?.stash_needed {
-                return Ok(PullOutcome::StashNeeded);
+            let outcome = PullOutcome::from(&result?);
+            if outcome == PullOutcome::StashNeeded {
+                return Ok(outcome);
             }
             if let Some(known) = known {
                 handle.init_submodules_added_since(&known)?;
             }
-            Ok(PullOutcome::Pulled)
+            Ok(outcome)
         })
     }
 

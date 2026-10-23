@@ -3473,9 +3473,18 @@ ${event.error}`,
     if (first) await openWorktreeDiff(first);
   }
 
+  /** The Errors window's Pull, after a push the remote refused as behind: the toolbar's Pull. */
+  async function pullFromErrors(root: string) {
+    if (repository.current?.root !== root) return;
+    await networkActions?.pullNow();
+  }
+
   // The Errors window sends its choices here; failed commands anywhere reach its queue.
   $effect(() => {
-    const pending = errorWindow.own((root) => void showConflictsOf(root));
+    const pending = errorWindow.own({
+      showConflicts: (root) => void showConflictsOf(root),
+      pull: (root) => void pullFromErrors(root),
+    });
     return () => void pending.then((stop) => stop());
   });
 

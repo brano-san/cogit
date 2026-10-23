@@ -143,15 +143,7 @@ fn pull_on_a_detached_head_only_fetches() {
         .unwrap();
 
     let outcome = state
-        .pull(
-            repo,
-            "origin",
-            false,
-            false,
-            &NetworkStop::default(),
-            None,
-            |_| {},
-        )
+        .pull(repo, "origin", false, &NetworkStop::default(), None, |_| {})
         .unwrap();
 
     assert_eq!(outcome, PullOutcome::FetchedDetached);
@@ -171,15 +163,7 @@ fn pull_on_a_branch_still_pulls() {
     f.git(&["switch", "synced"]).unwrap();
 
     let outcome = state
-        .pull(
-            repo,
-            "origin",
-            true,
-            false,
-            &NetworkStop::default(),
-            None,
-            |_| {},
-        )
+        .pull(repo, "origin", false, &NetworkStop::default(), None, |_| {})
         .unwrap();
 
     assert_eq!(outcome, PullOutcome::Pulled);

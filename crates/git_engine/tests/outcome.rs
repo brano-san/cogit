@@ -3,7 +3,36 @@
 
 //! How a finished git command is classified and summed up for the error window.
 
-use git_engine::outcome::{Severity, operation_label, severity_of, summarise};
+use git_engine::outcome::{Severity, operation_label, push_behind, severity_of, summarise};
+
+#[test]
+fn a_push_refused_only_for_being_behind_is_told_apart() {
+    let push = "git -c 'core.sshCommand=ssh -o BatchMode=yes' push --progress origin";
+    let behind = "To ../origin.git\n ! [rejected]        master -> master (fetch first)\nerror: failed to push some refs to '../origin.git'\n";
+    assert!(push_behind(push, behind));
+    assert!(push_behind(
+        push,
+        &behind.replace("fetch first", "non-fast-forward")
+    ));
+    // Another refusal, a stale lease, a hook, notes alone, or not a push at all: an error.
+    assert!(!push_behind(
+        push,
+        &behind.replace("[rejected]", "[remote rejected]")
+    ));
+    assert!(!push_behind(
+        push,
+        &behind.replace("(fetch first)", "(stale info)")
+    ));
+    assert!(!push_behind(
+        push,
+        "error: failed to push some refs to 'x'\n"
+    ));
+    assert!(!push_behind(
+        push,
+        " ! [rejected] refs/notes/commits -> refs/notes/commits (fetch first)\n"
+    ));
+    assert!(!push_behind("git pull origin", behind));
+}
 
 #[test]
 fn a_non_zero_exit_is_a_failure() {

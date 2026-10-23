@@ -12,8 +12,8 @@ vi.mock("$lib/ipc", () => {
     fetchRemote: vi.fn((repo: unknown, remote: unknown, onLine: (text: string) => void) =>
       later("fetch")(repo, remote, null, onLine),
     ),
-    pullRemote: vi.fn((repo: unknown, remote: unknown, ffOnly: unknown, _autostash: unknown, onLine: (text: string) => void) =>
-      later("pull")(repo, remote, ffOnly, onLine),
+    pullRemote: vi.fn((repo: unknown, remote: unknown, autostash: unknown, onLine: (text: string) => void) =>
+      later("pull")(repo, remote, autostash, onLine),
     ),
     pushRemote: vi.fn(later("push")),
     listCredentials: vi.fn(async () => ({ persistent: true, known: [] })),
@@ -64,7 +64,7 @@ describe("two network operations at once", () => {
 
   it("shows another repository's pull only as its own", async () => {
     const fetching = network.fetch(A, "origin");
-    const pulling = network.pull(B, "origin", true);
+    const pulling = network.pull(B, "origin");
     op("pull:2").finish();
     await pulling;
 
@@ -80,15 +80,15 @@ describe("a pull with local changes in the way", () => {
     vi.mocked(ipc.pullRemote).mockResolvedValueOnce("stashNeeded").mockResolvedValueOnce("pulled");
     ask.mockResolvedValueOnce(true);
 
-    expect(await network.pull(A, "origin", false)).toBe("pulled");
-    expect(ipc.pullRemote).toHaveBeenLastCalledWith(A, "origin", false, true, expect.any(Function), null);
+    expect(await network.pull(A, "origin")).toBe("pulled");
+    expect(ipc.pullRemote).toHaveBeenLastCalledWith(A, "origin", true, expect.any(Function), null);
   });
 
   it("pulls nothing more on a no", async () => {
     vi.mocked(ipc.pullRemote).mockClear().mockResolvedValueOnce("stashNeeded");
     ask.mockResolvedValueOnce(false);
 
-    expect(await network.pull(A, "origin", false)).toBe("stashNeeded");
+    expect(await network.pull(A, "origin")).toBe("stashNeeded");
     expect(ipc.pullRemote).toHaveBeenCalledTimes(1);
   });
 });
