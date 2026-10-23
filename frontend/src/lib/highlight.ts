@@ -20,6 +20,7 @@ const EXTRA_EXTENSIONS: Record<string, string> = {
   sc: "scala",
   gvy: "groovy",
   svelte: "svelte",
+  mdx: "markdown",
 };
 
 /** The grammar name for a path, as `@codemirror/language-data` knows it. */

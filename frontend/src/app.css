@@ -498,3 +498,22 @@ input.tick-box:disabled {
 .tok-propertyName {
   color: var(--c-lane-4);
 }
+
+/* Markup (Markdown): weight and slant carry the meaning, colour only for headings and links. */
+.tok-heading {
+  color: var(--c-lane-5);
+  font-weight: 600;
+}
+
+.tok-strong {
+  font-weight: 600;
+}
+
+.tok-emphasis {
+  font-style: italic;
+}
+
+.tok-link,
+.tok-url {
+  color: var(--c-lane-4);
+}

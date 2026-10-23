@@ -119,6 +119,17 @@ describe("highlightLines", () => {
     expect(() => highlightLines(["!!! not rust @@@"], "rust")).not.toThrow();
   });
 
+  it("marks Markdown headings, emphasis, strong text and links (styled in app.css)", () => {
+    const line = "*em* **strong** [link](http://x.y)";
+    const tokens = highlightLines(["# Title", line], "markdown");
+    const at = (text: string) => tokens[1]!.find((t) => t.start === line.indexOf(text))?.cls;
+    expect(classesOf(tokens, 0)).toContain("tok-heading");
+    expect(at("em")).toBe("tok-emphasis");
+    expect(at("strong")).toBe("tok-strong");
+    expect(at("link")).toBe("tok-link");
+    expect(at("http")).toBe("tok-link tok-url");
+  });
+
   // DF-053: without the JSX dialect `</div>` opened a regular expression and the colours
   // after the tag were wrong.
   it("reads JSX tags in .tsx and .jsx as tags, not as a regular expression", () => {
@@ -165,6 +176,8 @@ describe("highlightLines", () => {
       expect(languageOf("style.scss")).toBe("scss");
       expect(languageOf("style.sass")).toBe("sass");
       expect(languageOf("README.md")).toBe("markdown");
+      expect(languageOf("notes.markdown")).toBe("markdown");
+      expect(languageOf("page.mdx")).toBe("markdown");
       expect(languageOf("App.svelte")).toBe("svelte");
       expect(languageOf("App.vue")).toBe("vue");
       expect(languageOf("CMakeLists.txt")).toBe("cmake");
