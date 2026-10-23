@@ -110,7 +110,7 @@
     display: inline-flex;
     align-items: center;
     height: 16px;
-    padding: 0 var(--sp-2);
+    padding: 0 var(--sp-3);
     white-space: nowrap;
     color: var(--badge-divergence-fg);
     background: var(--badge-divergence-bg);
@@ -153,6 +153,7 @@
   /* `origin=feature/x`: the remotes in the remote colours, the branch in its own. */
   .joined {
     padding: 0;
+    overflow: hidden;
   }
 
   .prefix,
@@ -167,18 +168,19 @@
     background: var(--badge-equal-bg);
   }
 
-  .prefix {
-    padding-left: var(--sp-3);
-  }
-
-  .eq {
-    padding: 0 var(--sp-1);
-  }
-
+  /* Every part padded alike, a hairline of the outline between them. */
+  .prefix,
+  .eq,
   .branch {
     display: inline-flex;
     align-items: center;
-    padding: 0 var(--sp-3) 0 var(--sp-2);
+    align-self: stretch;
+    padding: 0 var(--sp-3);
+  }
+
+  .eq,
+  .branch {
+    border-left: 1px solid var(--badge-border);
   }
 
   /* The Worktrees panel's icon, in the label's own colour so it shows on a filled HEAD. */
