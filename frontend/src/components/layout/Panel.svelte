@@ -108,14 +108,17 @@
     gap: var(--sp-4);
     height: var(--h-panel-hdr);
     flex: 0 0 var(--h-panel-hdr);
-    padding: 0 var(--sp-5);
+    /* The bottom 1 px is the active line's, not the field's gap (app.css, --h-panel-hdr). */
+    padding: 0 var(--sp-5) 1px;
     background: var(--surface-base);
     border-bottom: 1px solid var(--divider);
   }
 
-  /* The panel that has the keyboard: a 2px line under its header, over the border. */
+  /* The panel that has the keyboard: a 2px line under its header, the border and the 1 px
+     kept above it, so the gaps around a filter field stay equal. */
   .panel-header.active {
-    box-shadow: inset 0 -2px 0 var(--panel-active-header);
+    border-bottom-color: var(--panel-active-header);
+    box-shadow: inset 0 -1px 0 var(--panel-active-header);
   }
 
   .panel-header.active .panel-title {

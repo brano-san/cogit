@@ -47,11 +47,11 @@
   --h-toolbar: 46px;
   --h-statusbar: 24px;
   /* A filter field in a panel header or bar, and the space above and below it: the header is
-     the field, its two gaps and the 1 px border under it, so the field never meets the border
-     at any size or display scale (R-800). */
+     the field, its two gaps, 1 px kept for the active panel's 2 px line and the 1 px border
+     under it, so the field never meets either at any size or display scale (R-820). */
   --h-panel-field: 18px;
   --panel-field-gap: 2px;
-  --h-panel-hdr: calc(var(--h-panel-field) + 2 * var(--panel-field-gap) + 1px);
+  --h-panel-hdr: calc(var(--h-panel-field) + 2 * var(--panel-field-gap) + 2px);
   --h-input: 26px;
   /* The small buttons that live in panel bars, next to a dense row. */
   --h-button-sm: 20px;

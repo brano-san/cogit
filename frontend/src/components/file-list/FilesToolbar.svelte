@@ -262,9 +262,10 @@
     display: flex;
     align-items: center;
     gap: var(--sp-1);
-    /* The panel header's rule: the same gaps around the field (app.css). */
-    height: var(--h-panel-hdr);
-    flex: 0 0 var(--h-panel-hdr);
+    /* The panel header's rule: the same gaps around the field (app.css), less the 1 px a
+       header keeps for its active line, which this bar has not. */
+    height: calc(var(--h-panel-hdr) - 1px);
+    flex: 0 0 calc(var(--h-panel-hdr) - 1px);
     padding: 0 var(--sp-3);
     border-bottom: 1px solid var(--divider);
     background: var(--surface-panel);
