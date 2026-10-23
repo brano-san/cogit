@@ -927,6 +927,7 @@
       { kind: ref.kind === "tag" ? "tag" : "branch", name: ref.name, upstream },
       network.remotes,
       network.primary,
+      repository.remoteBranches.map((entry) => entry.name),
     );
     let forceDeclined = false;
     const { yes, checked } = await confirmation.askWithOption({

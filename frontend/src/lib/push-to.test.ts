@@ -153,16 +153,23 @@ describe("choosesRemote", () => {
 
 describe("remoteCopy", () => {
   it("reaches a branch's upstream on its own remote", () => {
-    expect(remoteCopy(tracked, remotes, "origin")).toEqual({ remote: "origin", name: "origin/feature/topic" });
+    expect(remoteCopy(tracked, remotes, "origin", ["origin/feature/topic"])).toEqual({
+      remote: "origin",
+      name: "origin/feature/topic",
+    });
   });
 
   it("offers nothing for a branch without an upstream", () => {
-    expect(remoteCopy(untracked, remotes, "origin")).toBeNull();
+    expect(remoteCopy(untracked, remotes, "origin", ["origin/feature/topic"])).toBeNull();
+  });
+
+  it("offers nothing when the upstream's remote-tracking ref is gone", () => {
+    expect(remoteCopy(tracked, remotes, "origin", ["origin/main"])).toBeNull();
   });
 
   it("reaches a tag on the primary remote, or nowhere without one", () => {
-    expect(remoteCopy(tag, remotes, "origin")).toEqual({ remote: "origin", name: "v1.0" });
-    expect(remoteCopy(tag, [], null)).toBeNull();
+    expect(remoteCopy(tag, remotes, "origin", [])).toEqual({ remote: "origin", name: "v1.0" });
+    expect(remoteCopy(tag, [], null, [])).toBeNull();
   });
 });
 
