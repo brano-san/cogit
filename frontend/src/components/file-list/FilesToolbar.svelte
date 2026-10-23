@@ -253,10 +253,10 @@
     overflow: hidden;
   }
 
-  /* Gives way before the field, down to its count and an ellipsis: the title says the rest. */
+  /* Gives way after the field has, down to its count and an ellipsis: the title says the rest. */
   .note {
     display: flex;
-    flex: 0 100000 auto;
+    flex: 0 1 auto;
     min-width: 0;
     line-height: 20px;
     height: 20px;
