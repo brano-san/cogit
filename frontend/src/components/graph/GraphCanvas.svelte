@@ -205,8 +205,8 @@
       context.fill();
     }
 
-    // A commit no remote has is a dot in its own colour, the lines stopping just short of it;
-    // a pushed one is a hollow ring, filled with what is behind it so no line shows through.
+    // A commit no remote has is a dot in its own colour, the lines meeting its edge as at any
+    // other ring (#5); a pushed one is a hollow ring, filled with what is behind it so no line shows through.
     // A stash is a square in the stash colour (#19).
     const stash = token("--status-stash");
     const fills = new Map<string, string>();
@@ -220,12 +220,6 @@
     for (const row of rows) {
       const local = !row.stash && row.unpushed === true;
       const behind = nodeFill(row.listRow, selectedRows, hoverRow, stripes, row.bisect?.tint ?? null);
-      if (local) {
-        const { x, y } = nodeCentre(row.layout.lane, row.listRow, scrollTop);
-        context.beginPath();
-        context.arc(x, y, GRAPH.ringRadius + GRAPH.ringStroke / 2 + GRAPH.localGap, 0, Math.PI * 2);
-        fillBehind(behind);
-      }
       context.beginPath();
       if (row.stash) {
         const square = nodeSquare(row.layout.lane, row.listRow, scrollTop);

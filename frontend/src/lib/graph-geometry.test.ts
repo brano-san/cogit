@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   GRAPH,
-  LANE_WIDTH,
   canvasPixelSize,
   arrowStub,
   segmentCurve,
@@ -485,13 +484,6 @@ describe("segmentCurve", () => {
   it("follows the scroll", () => {
     const curve = segmentCurve(seg(0, 0, "through"), 10, GRAPH.rowHeight * 10)!;
     expect(curve.y1).toBe(0);
-  });
-});
-
-describe("the gap around a local commit", () => {
-  it("is there, and stays clear of the next lane at the narrowest width", () => {
-    expect(GRAPH.localGap).toBeGreaterThan(0);
-    expect(GRAPH.ringRadius + GRAPH.ringStroke / 2 + GRAPH.localGap).toBeLessThan(LANE_WIDTH.min / 2);
   });
 });
 
