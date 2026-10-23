@@ -94,7 +94,8 @@ export function searchesEveryFile(mask: string, status: RepoStatus | undefined):
 }
 
 /** A list's heading counts its changes: an unchanged file is listed, never counted. */
-export function changeCount(paths: readonly string[], files: readonly Pick<FileEntry, "path" | "status">[]): number {
-  const unchanged = new Set(files.filter((file) => file.status === "unchanged").map((file) => file.path));
-  return paths.filter((path) => !unchanged.has(path)).length;
+export function changeCount(shown: readonly Pick<FileEntry, "status">[]): number {
+  let changes = 0;
+  for (const file of shown) if (file.status !== "unchanged") changes += 1;
+  return changes;
 }

@@ -131,12 +131,25 @@
     context = "worktree",
   }: Props = $props();
 
+  const FILTER_DELAY_MS = 150;
   const NO_HITS: ReadonlyMap<string, number> = new Map();
   const NO_MARKS: ReadonlySet<string> = new Set();
 
   /** Keyed by section and path (`rowKey`), not by path alone. */
   let marked = $state.raw<FileSelection>(EMPTY_SELECTION);
+  /** What the field shows. */
   let mask = $state("");
+  /** What the rows are filtered by: the typed text once typing pauses, so a keystroke over a
+      clean tree searched across every file (thousands of rows) costs nothing (R-823). */
+  let applied = $state("");
+  let typing: ReturnType<typeof setTimeout> | undefined;
+  function onfilter(text: string) {
+    mask = text;
+    clearTimeout(typing);
+    if (text.trim() === "") applied = text;
+    else typing = setTimeout(() => (applied = text), FILTER_DELAY_MS);
+  }
+  $effect(() => () => clearTimeout(typing));
   /** The section last clicked or focused: Ctrl+A stays inside it. */
   let touched = $state<number | null>(null);
   let bar: ReturnType<typeof FilesToolbar> | undefined = $state();
@@ -161,7 +174,7 @@
   });
 
   $effect(() => {
-    onmask?.(mask);
+    onmask?.(applied);
   });
 
   $effect(() => {
@@ -189,8 +202,8 @@
   const active = $derived(view ?? DEFAULT_VIEW);
   /** What the rows are gated by; the toolbar keeps showing the switches as they are. */
   const gates = $derived(unchanged ? { ...active, unchanged: true } : active);
-  const pattern = $derived(compile(mask, active.regex));
-  const query = $derived(contents ? contentQuery(gates, mask) : null);
+  const pattern = $derived(compile(applied, active.regex));
+  const query = $derived(contents ? contentQuery(gates, applied) : null);
   /** Until the first answer, a content search shows nothing rather than name matches. */
   const hits = $derived(query === null ? null : (contents?.hits ?? NO_HITS));
 
@@ -226,15 +239,29 @@
     }
   }
 
+  /** Sorted and indexed once per list, switches and sort: a keystroke only filters this,
+      and the order a filter keeps is the order it had (R-823). A reload or another
+      repository brings new lists, and with them a new sort. */
+  const prepared = $derived(
+    shownSections(sections).map((section) => ({
+      section,
+      index: sections.indexOf(section),
+      sorted: sortRows(visibleFiles(section.files, gates), filesView.sort, active.directories, (path) =>
+        remoteOps.lfsState(path),
+      ),
+      byPath: new Map(section.files.map((file) => [file.path, file])),
+    })),
+  );
+
   const groups = $derived(
-    shownSections(sections).map((section) => {
-      const index = sections.indexOf(section);
-      const kept = visibleFiles(section.files, gates).filter((file) => keepFile(file, pattern, hits, sideOf(section)));
-      const files = sortRows(kept, filesView.sort, active.directories, (path) => remoteOps.lfsState(path));
+    prepared.map(({ section, index, sorted, byPath }) => {
+      const side = sideOf(section);
+      const files = pattern.test === null && hits === null ? sorted : sorted.filter((file) => keepFile(file, pattern, hits, side));
       const paths = files.map((file) => file.path);
       return {
         section,
         index,
+        byPath,
         files,
         paths,
         keys: paths.map((path) => rowKey(index, path)),
@@ -278,7 +305,13 @@
   const shownCount = $derived(groups.reduce((n, group) => n + group.files.length, 0));
   const order = $derived(groups.flatMap((group) => group.keys));
   const came = $derived(sections.flatMap((section) => section.files));
-  const hidden = $derived(hiddenCount(came, gates, (file) => keepFile(file, pattern, hits)));
+  /** The rows the filter kept, so counting the hidden ones does not filter a second time. */
+  const kept = $derived.by(() => {
+    const rows = new Set<FileEntry>();
+    for (const group of groups) for (const file of group.files) rows.add(file);
+    return rows;
+  });
+  const hidden = $derived(hiddenCount(came, gates, (file) => kept.has(file)));
   const hiding = $derived(hidingSwitches(came, gates));
   const visibleMarks = $derived(shownMarks(marked, order));
   const marks = $derived(markedRows(visibleMarks.paths));
@@ -286,7 +319,7 @@
   /** The rows marked in another section are not this section's to act on. */
   function scoped(group: Group, actions: readonly Action[]): PaneAction[] {
     const marked = () => marks.bySection.get(group.index) ?? NO_MARKS;
-    const byPath = new Map(group.section.files.map((file) => [file.path, file]));
+    const byPath = group.byPath;
     return actions.map((action) => {
       const blocked = action.blocked;
       return {
@@ -374,7 +407,7 @@
     view={active}
     onview={(next) => onview?.(next)}
     filter={mask}
-    onfilter={(text) => (mask = text)}
+    {onfilter}
     {hidden}
     {hiding}
     broken={pattern.broken}
@@ -453,7 +486,7 @@
                 rows={group.rows}
                 title={group.section.title}
                 paths={group.paths}
-                count={changeCount(group.paths, group.section.files)}
+                count={changeCount(group.files)}
                 actions={scoped(group, group.section.actions ?? [])}
                 {columns}
                 nested={active.directories}
@@ -477,7 +510,7 @@
                   rows={group.rows}
                   title={layout.titled ? group.section.title : undefined}
                   paths={group.paths}
-                  count={changeCount(group.paths, group.section.files)}
+                  count={changeCount(group.files)}
                   actions={scoped(group, group.section.actions ?? [])}
                   {columns}
                   nested={active.directories}

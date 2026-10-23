@@ -155,7 +155,7 @@ describe("changeCount", () => {
       { path: "b", status: "unchanged" },
       { path: "c", status: "untracked" },
     ] as const;
-    expect(changeCount(["a", "b", "c"], files)).toBe(2);
-    expect(changeCount(["b"], files)).toBe(0);
+    expect(changeCount(files)).toBe(2);
+    expect(changeCount([files[1]])).toBe(0);
   });
 });
