@@ -13,8 +13,9 @@ pub struct PresetStatus {
     pub description: String,
     pub slow: bool,
     pub config_files: Vec<String>,
-    /// The declared config files this repository does not have. A preset installed
-    /// without them runs a tool that will pick up someone else's defaults.
+    /// The declared config files, alternatives to one another, when this repository has
+    /// none of them; empty when it has one. A preset installed without one runs a tool that
+    /// will pick up someone else's defaults.
     pub missing_config: Vec<String>,
     pub tool: Option<String>,
     pub install_hint: Option<String>,
@@ -26,12 +27,16 @@ pub struct PresetStatus {
 }
 
 pub fn status_for(preset: Preset, root: &Path, user: bool) -> PresetStatus {
-    let missing_config = preset
+    // The names are alternatives (`rustfmt.toml` or `.rustfmt.toml`): one present is enough.
+    let missing_config = if preset
         .config_files
         .iter()
-        .filter(|name| !root.join(name).exists())
-        .cloned()
-        .collect();
+        .any(|name| root.join(name).exists())
+    {
+        Vec::new()
+    } else {
+        preset.config_files.clone()
+    };
 
     PresetStatus {
         tool_path: preset

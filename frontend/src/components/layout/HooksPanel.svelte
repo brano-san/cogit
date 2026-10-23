@@ -1,7 +1,7 @@
 <script lang="ts">
   import Dialog from "$components/common/Dialog.svelte";
   import type { Bypass, Hook, HookOverview, HookRun, PresetStatus } from "$lib/ipc";
-  import { missingToolNote } from "$lib/preset-tool";
+  import { presetProblems } from "$lib/preset-tool";
 
   interface Props {
     overview: HookOverview | null;
@@ -68,18 +68,20 @@
   onclose={() => (inEditor ? oncancel() : onclose())}
   dirty={inEditor && dirty}
   width="min(760px, 92vw)"
-  height="min(720px, 84vh)"
+  height={showPresets ? undefined : "min(720px, 84vh)"}
   flush
 >
   {#if overview}
-    <p class="source">
-      Git runs hooks from <code>{overview.activeDir}</code>
-      {#if overview.source === "hooksPath"}
-        (<code>core.hooksPath = {overview.configuredPath}</code>)
-      {:else}
-        (this clone only — <code>.git/hooks</code> is never cloned)
-      {/if}
-    </p>
+    <div class="source">
+      <div>Git runs hooks from <code>{overview.activeDir}</code></div>
+      <div class="note">
+        {#if overview.source === "hooksPath"}
+          Set by <code>core.hooksPath = {overview.configuredPath}</code>
+        {:else}
+          This clone only — <code>.git/hooks</code> is never cloned
+        {/if}
+      </div>
+    </div>
 
     {#if overview.availablePath}
       <div class="offer">
@@ -102,27 +104,46 @@
   {/if}
 
   {#if showPresets}
-    <div class="list">
+    <!-- One grid, rows on its columns (subgrid): the header sticks while the rows scroll, and
+         only Description gives way when the window narrows. -->
+    <div class="list presets" role="table" aria-label="Hook presets">
+      <div class="prow head" role="row">
+        <span role="columnheader">Preset</span>
+        <span role="columnheader">Hook</span>
+        <span role="columnheader">Description</span>
+        <span role="columnheader">Requirements</span>
+        <span role="columnheader" aria-label="Actions"></span>
+      </div>
       {#each presets as entry (entry.id)}
-        <div class="row preset">
-          <span class="name">{entry.name}</span>
-          <span class="detail truncate">{entry.description}</span>
-          <span class="badge">{entry.hook}</span>
-          {#if entry.user}<span class="badge mine">yours</span>{/if}
-          {#if entry.tool && entry.toolPath === null}
-            <span class="warn" title={missingToolNote(entry)}>{entry.tool} not found</span>
-          {/if}
-          {#if entry.missingConfig.length > 0}
-            <span
-              class="warn"
-              title="Without it the tool falls back to its own defaults, which are not this project's."
-              >no {entry.missingConfig.join(", ")}</span
-            >
-          {/if}
-          <button type="button" class="btn" onclick={() => oninstall(entry.id)}>Install</button>
-          {#if entry.user}
-            <button type="button" class="btn" onclick={() => onremovepreset(entry.id)}>Remove</button>
-          {/if}
+        {@const problems = presetProblems(entry)}
+        <div class="prow" role="row">
+          <span class="pname" role="cell">
+            {entry.name}
+            {#if entry.user}<span class="badge mine">yours</span>{/if}
+          </span>
+          <span role="cell"><span class="badge hook">{entry.hook}</span></span>
+          <span class="clamp" role="cell" title={entry.description}>{entry.description}</span>
+          <span class="reqs" role="cell">
+            {#each problems as problem (problem.text)}
+              <span class="badge problem" title={problem.tip}>
+                <svg viewBox="0 0 16 16" aria-hidden="true">
+                  <path d="M8 2 14.5 13.5h-13Z" />
+                  <path d="M8 6.5v3.5M8 11.8v.2" />
+                </svg>
+                {problem.text}
+              </span>
+            {:else}
+              <svg class="ok" viewBox="0 0 16 16" role="img" aria-label="Ready">
+                <path d="M3.5 8.5 6.5 11.5 12.5 4.5" />
+              </svg>
+            {/each}
+          </span>
+          <span class="acts" role="cell">
+            <button type="button" class="btn" onclick={() => oninstall(entry.id)}>Install</button>
+            {#if entry.user}
+              <button type="button" class="btn" onclick={() => onremovepreset(entry.id)}>Remove</button>
+            {/if}
+          </span>
         </div>
       {/each}
     </div>
@@ -233,11 +254,16 @@
   }
 
   .source {
-    margin: 0;
+    flex: 0 0 auto;
     padding: var(--sp-4) var(--sp-5);
-    color: var(--text-secondary);
+    color: var(--text-primary);
     font-size: var(--fs-dense);
     border-bottom: 1px solid var(--divider);
+  }
+
+  .source .note {
+    margin-top: var(--sp-1);
+    color: var(--text-secondary);
   }
 
   .offer {
@@ -292,13 +318,117 @@
     background: var(--state-hover);
   }
 
+  .presets {
+    display: grid;
+    grid-template-columns: fit-content(16em) max-content minmax(0, 1fr) max-content max-content;
+    align-content: start;
+    font-size: var(--fs-dense);
+  }
+
+  .prow {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    align-items: center;
+    column-gap: var(--sp-5);
+    /* Two lines of description plus padding: every row is as tall as the tallest can be. */
+    min-height: calc(2lh + 2 * var(--sp-3));
+    padding: var(--sp-3) var(--sp-5);
+    border-bottom: 1px solid var(--divider);
+  }
+
+  .prow:not(.head):hover {
+    background: var(--state-hover);
+  }
+
+  .prow.head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    min-height: 0;
+    padding-block: var(--sp-3);
+    background: var(--surface-raised);
+    color: var(--text-secondary);
+    font-size: var(--fs-header);
+    font-weight: 600;
+  }
+
+  .pname {
+    min-width: 0;
+    color: var(--text-primary);
+  }
+
+  .clamp {
+    display: -webkit-box;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-secondary);
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: 0 var(--sp-3);
+    border: 1px solid var(--divider);
+    border-radius: var(--r-sm);
+    font-size: var(--fs-header);
+    white-space: nowrap;
+  }
+
+  .badge.hook {
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+  }
+
   .badge.mine {
+    margin-left: var(--sp-2);
     color: var(--status-ref);
     border-color: var(--status-ref);
   }
 
-  .row.preset .name {
-    flex: 0 0 190px;
+  .reqs {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--sp-1);
+  }
+
+  .badge.problem {
+    background: var(--badge-warning-bg);
+    color: var(--badge-warning-fg);
+    border-color: transparent;
+  }
+
+  .reqs svg {
+    flex: none;
+    width: 12px;
+    height: 12px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .reqs .ok {
+    width: 14px;
+    height: 14px;
+    color: var(--text-secondary);
+  }
+
+  .acts {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--sp-3);
+  }
+
+  .acts .btn {
+    min-width: 76px;
+    justify-content: center;
   }
 
   .name {
