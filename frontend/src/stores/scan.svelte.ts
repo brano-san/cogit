@@ -42,8 +42,9 @@ class ScanStore {
         depth,
         (hit) => {
           if (generation !== this.#generation) return;
+          // Nothing ticked until the user ticks it: a search of a whole drive found dozens
+          // and one click opened them all (R-821).
           this.hits = [...this.hits, hit];
-          if (!hit.alreadyOpen) this.chosen = new Set([...this.chosen, hit.root]);
         },
         (id) => {
           if (generation === this.#generation) this.#walking = id;

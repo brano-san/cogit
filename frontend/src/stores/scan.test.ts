@@ -55,17 +55,19 @@ describe("scan store", () => {
     expect(scan.hits).toHaveLength(2);
   });
 
-  it("preselects everything that is not open yet", async () => {
+  it("ticks nothing until the user does", async () => {
     findsBackend([hit("/w/alpha"), hit("/w/open-one", true)]);
     await scan.run("/w", 6);
-    expect([...scan.chosen]).toEqual(["/w/alpha"]);
+    expect(scan.chosen.size).toBe(0);
   });
 
   it("toggles one repository without touching the rest", async () => {
     findsBackend([hit("/w/alpha"), hit("/w/beta")]);
     await scan.run("/w", 6);
     scan.toggle("/w/alpha");
-    expect([...scan.chosen]).toEqual(["/w/beta"]);
+    expect([...scan.chosen]).toEqual(["/w/alpha"]);
+    scan.toggle("/w/alpha");
+    expect(scan.chosen.size).toBe(0);
   });
 
   it("never selects one that is already open", async () => {
@@ -75,13 +77,13 @@ describe("scan store", () => {
     expect(scan.chosen.size).toBe(0);
   });
 
-  it("clears the selection when everything is already selected", async () => {
+  it("selects all, then clears the selection when everything is selected", async () => {
     findsBackend([hit("/w/alpha"), hit("/w/beta")]);
     await scan.run("/w", 6);
     scan.toggleAll();
-    expect(scan.chosen.size).toBe(0);
-    scan.toggleAll();
     expect(scan.chosen.size).toBe(2);
+    scan.toggleAll();
+    expect(scan.chosen.size).toBe(0);
   });
 
   it("is done and idle once the walk finishes", async () => {
@@ -147,9 +149,12 @@ describe("selecting everything with a filter on", () => {
     await scan.run("/w", 6);
 
     scan.toggleAll(["/w/alpha"]);
-    expect([...scan.chosen].sort()).toEqual(["/w/beta", "/w/gamma"]);
+    expect([...scan.chosen]).toEqual(["/w/alpha"]);
 
-    scan.toggleAll(["/w/alpha"]);
-    expect([...scan.chosen].sort()).toEqual(["/w/alpha", "/w/beta", "/w/gamma"]);
+    scan.toggleAll(["/w/alpha", "/w/beta"]);
+    expect([...scan.chosen].sort()).toEqual(["/w/alpha", "/w/beta"]);
+
+    scan.toggleAll(["/w/alpha", "/w/beta"]);
+    expect(scan.chosen.size).toBe(0);
   });
 });
