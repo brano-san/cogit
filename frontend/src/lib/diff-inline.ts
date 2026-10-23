@@ -22,7 +22,8 @@ export const INLINE_MAX_TOKENS = 60_000;
 /** Edit distance cap of the token diff; a block this different is a rewrite. */
 const MAX_EDITS = 1500;
 /** More changed words (identifiers, numbers; punctuation does not count) than this share
-    of a line: background only. */
+    of a line: background only, unless a line it shares unchanged words with stays under it.
+    Paired lines decide together, so one side never keeps its words alone. */
 const LINE_THRESHOLD = 0.5;
 /** An unchanged token this short between two changes is absorbed into them. */
 const SHORT_TOKEN = 3;
@@ -116,13 +117,14 @@ function myers(a: Int32Array, b: Int32Array): { da: Uint8Array; db: Uint8Array; 
   return { da, db, pair };
 }
 
-function lineRanges(
-  toks: readonly Token[],
-  changed: Uint8Array,
-  lines: number,
-  indent: boolean,
-): Range[][] {
-  const out: Range[][] = Array.from({ length: lines }, () => []);
+interface LineMarks {
+  ranges: Range[];
+  /** Over `LINE_THRESHOLD` on its own. */
+  over: boolean;
+}
+
+function lineRanges(toks: readonly Token[], changed: Uint8Array, lines: number, indent: boolean): LineMarks[] {
+  const out: LineMarks[] = Array.from({ length: lines }, () => ({ ranges: [], over: false }));
   let i = 0;
   while (i < toks.length) {
     const line = toks[i]!.line;
@@ -136,7 +138,7 @@ function lineRanges(
   return out;
 }
 
-function oneLine(toks: readonly Token[], changed: Uint8Array, from: number, end: number, indent: boolean): Range[] {
+function oneLine(toks: readonly Token[], changed: Uint8Array, from: number, end: number, indent: boolean): LineMarks {
   let words = 0;
   let hit = 0;
   for (let i = from; i < end; i++) {
@@ -144,7 +146,6 @@ function oneLine(toks: readonly Token[], changed: Uint8Array, from: number, end:
     words++;
     if (changed[i]) hit++;
   }
-  if (words > 0 && hit / words > LINE_THRESHOLD) return [];
 
   const ranges: Range[] = [];
   for (let i = from; i < end; ) {
@@ -165,7 +166,7 @@ function oneLine(toks: readonly Token[], changed: Uint8Array, from: number, end:
     }
     i = stop;
   }
-  return ranges;
+  return { ranges, over: words > 0 && hit / words > LINE_THRESHOLD };
 }
 
 /** `null` when the block is too big or too different: only line backgrounds then. */
@@ -197,8 +198,27 @@ export function blockInline(
     }
   }
   const indent = opts.indent ?? false;
+  const lm = lineRanges(lt, da, left.length, indent);
+  const rm = lineRanges(rt, db, right.length, indent);
+
+  // Lines linked by an unchanged token form a group (left `i`, right `left.length + j`); a
+  // group shows its words if any of its lines is under the threshold.
+  const root = Int32Array.from({ length: left.length + right.length }, (_, i) => i);
+  const find = (x: number): number => {
+    while (root[x] !== x) x = root[x] = root[root[x]!]!;
+    return x;
+  };
+  for (let i = 0; i < a.length; i++) {
+    const j = pair[i]!;
+    if (j >= 0 && lt[i]!.start >= 0) root[find(lt[i]!.line)] = find(left.length + rt[j]!.line);
+  }
+  const shown = new Uint8Array(root.length);
+  [...lm, ...rm].forEach((m, k) => {
+    if (!m.over) shown[find(k)] = 1;
+  });
+  const pick = (m: LineMarks, k: number) => (shown[find(k)] ? m.ranges : []);
   return {
-    left: lineRanges(lt, da, left.length, indent),
-    right: lineRanges(rt, db, right.length, indent),
+    left: lm.map((m, i) => pick(m, i)),
+    right: rm.map((m, j) => pick(m, left.length + j)),
   };
 }

@@ -48,6 +48,28 @@ describe("blockInline", () => {
     expect(out.right[0]).toEqual([]);
   });
 
+  it("marks the changed word on both sides of a pair", () => {
+    const out = blockInline(["x = mktime(a)"], ["x = time(a)"])!;
+    expect(slice("x = mktime(a)", out.left[0]!)).toEqual(["mktime"]);
+    expect(slice("x = time(a)", out.right[0]!)).toEqual(["time"]);
+  });
+
+  it("marks several fragments, each side its own", () => {
+    const l = "let total = sum(items) + tax * rate;";
+    const r = "let total = add(items) + fee * rate;";
+    const out = blockInline([l], [r])!;
+    expect(slice(l, out.left[0]!)).toEqual(["sum", "tax"]);
+    expect(slice(r, out.right[0]!)).toEqual(["add", "fee"]);
+  });
+
+  it("keeps the new side's words when only the old side is under the threshold", () => {
+    const l = "Convert the date with mktime before storing it.";
+    const r = "Convert the date with timegm (UTC, no local zone, no DST surprises) before storing it.";
+    const out = blockInline([l], [r])!;
+    expect(slice(l, out.left[0]!)).toEqual(["mktime"]);
+    expect(slice(r, out.right[0]!).join(" ")).toBe("timegm (UTC, no local zone, no DST surprises)");
+  });
+
   it("trims whitespace from the ranges", () => {
     const out = blockInline(["a b c d e f x y"], ["a b c d e f  z y"])!;
     expect(slice("a b c d e f  z y", out.right[0]!)).toEqual(["z"]);
