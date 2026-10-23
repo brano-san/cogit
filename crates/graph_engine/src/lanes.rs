@@ -1,26 +1,32 @@
 use crate::{Above, CommitNode, GraphRow, Lane, LayoutCursor, LongLink, NodeKind, Segment, Span};
 
-/// One row per commit, unless the cursor cuts long links: then as [`push`].
+/// The top commit's line: it keeps column 0 down its first parents (07 §3).
+const TRUNK: u64 = 0;
+
+/// One row per commit, unless the cursor looks ahead: then as [`push`].
 #[must_use]
 pub fn layout(commits: &[CommitNode], cursor: &mut LayoutCursor) -> Vec<GraphRow> {
-    if cursor.long_links == 0 {
+    if cursor.lookahead == 0 {
         return commits.iter().map(|node| place(node, cursor)).collect();
     }
     push(commits.to_vec(), cursor)
 }
 
-/// Streams a chunk. Cutting long links needs `long_links` commits of lookahead, so that
+/// Streams a chunk. Knowing how long a line is needs `lookahead` commits ahead, so that
 /// many stay back until the next chunk or [`finish`].
 #[must_use]
 pub fn push(commits: Vec<CommitNode>, cursor: &mut LayoutCursor) -> Vec<GraphRow> {
-    if cursor.long_links == 0 {
+    if cursor.lookahead == 0 {
         return commits.iter().map(|node| place(node, cursor)).collect();
     }
     let mut rows = Vec::with_capacity(commits.len());
     for node in commits {
-        cursor.ahead.insert(node.oid.clone());
+        let row = cursor
+            .next_row
+            .saturating_add(u32::try_from(cursor.pending.len()).unwrap_or(u32::MAX));
+        cursor.ahead.insert(node.oid.clone(), row);
         cursor.pending.push_back(node);
-        while cursor.pending.len() > cursor.long_links {
+        while cursor.pending.len() > cursor.lookahead {
             rows.extend(place_pending(cursor));
         }
     }
@@ -52,7 +58,7 @@ fn column(index: usize) -> u16 {
 }
 
 fn waits_for(lane: &Lane, oid: &str) -> bool {
-    lane.waits.as_deref() == Some(oid)
+    lane.waits == oid
 }
 
 fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
@@ -69,17 +75,10 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
     above.extend(cursor.lanes.iter().map(|lane| Above {
         id: lane.id,
         color: lane.color,
-        drawn: lane.drawn,
         primary: lane.primary,
     }));
-    for lane in cursor.lanes.iter_mut().filter(|lane| lane.ended) {
-        *lane = Lane::free(lane.id);
-    }
-    while cursor.lanes.last().is_some_and(Lane::is_free) {
-        cursor.lanes.pop();
-    }
 
-    // 1. The node: the leftmost lane waiting for it, or a new one for a branch tip.
+    // 1. The node: on the leftmost line waiting for it, or a new one for a branch tip.
     let across = if cursor.cut_colour.is_empty() {
         None
     } else {
@@ -96,15 +95,10 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
         .position(|lane| waits_for(lane, &node.oid));
     let node_id = match waited {
         Some(at) => cursor.lanes[at].id,
-        None => open_tip(node, cursor, across),
+        None => open_tip(node, cursor, across, row),
     };
-    let mut node_at = cursor
-        .lanes
-        .iter()
-        .position(|lane| lane.id == node_id)
-        .unwrap_or(0);
 
-    // 2. Every other lane waiting for it ends in it.
+    // 2. Every other line waiting for it ends in it; the lines right of it close up.
     converging.extend(
         cursor
             .lanes
@@ -112,90 +106,99 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
             .filter(|lane| lane.id != node_id && waits_for(lane, &node.oid))
             .map(|lane| lane.id),
     );
-    for lane in cursor
+    if !converging.is_empty() {
+        cursor.lanes.retain(|lane| !converging.contains(&lane.id));
+    }
+    let node_at = cursor
         .lanes
-        .iter_mut()
-        .filter(|lane| converging.contains(&lane.id))
-    {
-        *lane = Lane::free(lane.id);
-    }
-    // A line moves left only here, bending into its own node: a free column left of it is
-    // taken back at the ring, never by a line passing a row (R-765).
-    if waited.is_some()
-        && let Some(free) = find_from(&cursor.lanes, 0, Lane::is_free).filter(|&at| at < node_at)
-    {
-        let id = cursor.take_id();
-        let lane = std::mem::replace(&mut cursor.lanes[node_at], Lane::free(id));
-        cursor.lanes[free] = lane;
-        node_at = free;
-    }
+        .iter()
+        .position(|lane| lane.id == node_id)
+        .unwrap_or(0);
+    let color = cursor.lanes.get(node_at).map_or(0, |lane| lane.color);
     middle.extend(cursor.lanes.iter().map(|lane| lane.id));
 
-    // 3. The first parent continues the lane; the others join a lane already waiting for
-    // them or take the first free column right of the node, in parent order.
+    // 3. The first parent goes on in the node's line. Lines to one commit become one as
+    // soon as both exist: the right one turns into the left one in the gap under the node.
     let shown = |parent: &String| !node.hidden.contains(parent);
     // The main line is never cut: it is the one line the eye follows all the way down.
     let cut_first = !on_main
         && node
             .parents
             .first()
-            .is_some_and(|parent| shown(parent) && far(cursor, parent));
-    // A parent other lanes wait for too is still this lane's: the lines meet at the parent's
-    // ring, never by one turning into another's column on the way.
+            .is_some_and(|parent| shown(parent) && far(cursor, parent, row));
     let first = node
         .parents
         .first()
         .filter(|parent| shown(parent) && !cut_first)
         .cloned();
-    let node_index = node_at;
-    let continues = first.is_some();
-    {
-        let lane = &mut cursor.lanes[node_index];
-        lane.waits = first;
-        lane.drawn = continues;
-        lane.ended = !continues;
-        lane.primary = on_main;
+    // The node's own line below it, and the line its first parent goes on in.
+    let mut own_at = None;
+    let mut first_into = None;
+    let mut merged = None;
+    match first {
+        None => {
+            cursor.lanes.remove(node_at);
+        }
+        Some(parent) => {
+            let other = cursor
+                .lanes
+                .iter()
+                .position(|lane| lane.id != node_id && waits_for(lane, &parent));
+            match other {
+                Some(left) if left < node_at => {
+                    cursor.lanes[left].primary |= on_main;
+                    first_into = Some(cursor.lanes[left].id);
+                    cursor.lanes.remove(node_at);
+                }
+                other => {
+                    let ends = ends_of(cursor, &parent);
+                    let mut primary = on_main;
+                    if let Some(right) = other {
+                        primary |= cursor.lanes[right].primary;
+                        merged = Some(cursor.lanes.remove(right).id);
+                    }
+                    let lane = &mut cursor.lanes[node_at];
+                    lane.waits = parent;
+                    lane.ends = ends;
+                    lane.primary = primary;
+                    own_at = Some(node_at);
+                    first_into = Some(node_id);
+                }
+            }
+        }
     }
-    if continues {
-        leaving.push(node_id);
-    }
-    let mut insert_at = node_index + 1;
+    leaving.extend(first_into);
+
+    // The other parents join a line already waiting for them, else get a new one right of
+    // the node, past the lines that end before theirs.
+    let mut insert_at = own_at.map_or(node_at, |at| at + 1);
     let mut cut_later = Vec::new();
     for parent in node.parents.iter().skip(1).filter(|parent| shown(parent)) {
-        if let Some(lane) = cursor.lanes.iter_mut().find(|lane| waits_for(lane, parent)) {
-            if lane.id != node_id {
-                leaving.push(lane.id);
-            }
+        if let Some(lane) = cursor.lanes.iter().find(|lane| waits_for(lane, parent)) {
+            leaving.push(lane.id);
             continue;
         }
-        // A lane already on its way costs nothing more; only a new one is worth cutting.
-        if far(cursor, parent) {
+        // A line already on its way costs nothing more; only a new one is worth cutting.
+        if far(cursor, parent, row) {
             cut_later.push(parent);
             continue;
         }
         let lane = Lane {
             id: cursor.take_id(),
-            waits: Some(parent.clone()),
+            waits: parent.clone(),
             color: cursor.take_color(),
-            drawn: true,
             primary: false,
-            ended: false,
+            ends: ends_of(cursor, parent),
         };
         leaving.push(lane.id);
         insert_at = settle(cursor, insert_at, lane) + 1;
     }
 
-    // 4. What moved is what gets drawn. Only the node's own lines turn; a lane passing it
-    // keeps its column (R-765).
-    let below = |id: u64, lanes: &[Lane]| lanes.iter().position(|lane| lane.id == id);
-    // Lanes keep their order from row to row, so `above` is met in the order of `middle` and
-    // of the lanes below: each search goes on from the last hit, not from the start.
+    // 4. Each line's column at the top edge, at the node and at the bottom edge: a line
+    // passing the row moves between them in the gaps, a turn spanning the gap (07 §5).
     let (mut mid_from, mut to_from) = (0, 0);
     let mut segments = Vec::with_capacity(above.len() + leaving.len());
     for (index, lane) in above.iter().enumerate() {
-        if !lane.drawn {
-            continue;
-        }
         let line = |from: usize, to: usize, span: Span| Segment {
             from: column(from),
             to: column(to),
@@ -208,13 +211,19 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
             segments.push(line(index, node_at, Span::Top));
             continue;
         }
-        let (Some(mid), Some(to)) = (
-            find_from(&middle, mid_from, |id| *id == lane.id),
-            find_from(&cursor.lanes, to_from, |other| other.id == lane.id),
-        ) else {
+        let Some(mid) = find_from(&middle, mid_from, |id| *id == lane.id) else {
             continue;
         };
-        (mid_from, to_from) = (mid + 1, to + 1);
+        mid_from = mid + 1;
+        let to = if merged == Some(lane.id) {
+            node_at
+        } else {
+            let Some(to) = find_from(&cursor.lanes, to_from, |other| other.id == lane.id) else {
+                continue;
+            };
+            to_from = to + 1;
+            to
+        };
         if index == mid && mid == to {
             segments.push(line(index, to, Span::Through));
         } else {
@@ -223,24 +232,19 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
         }
     }
     for &id in &leaving {
-        if let Some(to) = below(id, &cursor.lanes) {
-            let lane = &cursor.lanes[to];
+        if let Some(to) = cursor.lanes.iter().position(|lane| lane.id == id) {
             segments.push(Segment {
                 from: column(node_at),
                 to: column(to),
                 span: Span::Bottom,
                 // A side commit joining the main line is still a side line.
-                primary: on_main && id == node_id,
-                color: lane.color,
+                primary: on_main && first_into == Some(id),
+                color: cursor.lanes[to].color,
                 arrow: false,
             });
         }
     }
 
-    let color = above.iter().find(|lane| lane.id == node_id).map_or_else(
-        || cursor.lanes.get(node_index).map_or(0, |lane| lane.color),
-        |lane| lane.color,
-    );
     // Straight down for the first parent; a later one's stub leans right, off that line.
     let first_hidden = node.parents.first().is_some_and(|parent| !shown(parent));
     let later_hidden = node.parents.iter().skip(1).any(|parent| !shown(parent));
@@ -350,48 +354,56 @@ fn find_from<T>(items: &[T], from: usize, is: impl Fn(&T) -> bool) -> Option<usi
     items.get(from..)?.iter().position(is).map(|at| at + from)
 }
 
-fn far(cursor: &LayoutCursor, parent: &str) -> bool {
-    cursor.long_links > 0 && !cursor.ahead.contains(parent)
+/// The row of a commit within the lookahead, else `u32::MAX`.
+fn ends_of(cursor: &LayoutCursor, oid: &str) -> u32 {
+    cursor.ahead.get(oid).copied().unwrap_or(u32::MAX)
 }
 
-/// A commit nobody was waiting for starts a lane of its own in the first free column right
-/// of the lane its first parent is already on, else the first free one. Below a
-/// cut first-parent link it takes the colour of the child above the cut, `across`.
-fn open_tip(node: &CommitNode, cursor: &mut LayoutCursor, across: Option<u8>) -> u64 {
-    let beside = node
+fn far(cursor: &LayoutCursor, parent: &str, row: u32) -> bool {
+    cursor.long_links > 0
+        && cursor.ahead.get(parent).is_none_or(|&at| {
+            usize::try_from(at.saturating_sub(row)).unwrap_or(usize::MAX) > cursor.long_links
+        })
+}
+
+/// A commit nobody was waiting for. Its first parent already awaited: right beside that
+/// line, the lines beyond stepping aside for the row, and its own line turns into that one
+/// under it. Otherwise past the lines that end before its line does. Below a cut
+/// first-parent link it takes the colour of the child above the cut, `across`.
+fn open_tip(node: &CommitNode, cursor: &mut LayoutCursor, across: Option<u8>, row: u32) -> u64 {
+    let parent = node
         .parents
         .first()
-        .filter(|parent| !node.hidden.contains(parent))
-        .and_then(|parent| cursor.lanes.iter().position(|lane| waits_for(lane, parent)));
-    let at = beside.map_or(0, |lane| lane + 1);
+        .filter(|parent| !node.hidden.contains(parent));
+    let beside =
+        parent.and_then(|parent| cursor.lanes.iter().position(|lane| waits_for(lane, parent)));
     // Taken either way, so the lanes after it keep their colours.
     let next = cursor.take_color();
     let lane = Lane {
         id: cursor.take_id(),
-        waits: Some(node.oid.clone()),
+        waits: node.oid.clone(),
         color: across.unwrap_or(next),
-        drawn: true,
         primary: false,
-        ended: false,
+        ends: parent.map_or(row, |parent| ends_of(cursor, parent)),
     };
     let id = lane.id;
-    settle(cursor, at, lane);
+    match beside {
+        Some(at) => cursor.lanes.insert(at + 1, lane),
+        None => {
+            let from = usize::from(cursor.lanes.first().is_some_and(|lane| lane.id == TRUNK));
+            settle(cursor, from, lane);
+        }
+    }
     id
 }
 
-/// The first free column at or right of `from`, else a new one at the right: a new lane
-/// never pushes a line that goes on out of its column. Returns the column.
+/// Puts a new line at `from` or right of it, past the lines that end no later than it;
+/// those that go on longer step aside. Returns the column.
 fn settle(cursor: &mut LayoutCursor, from: usize, lane: Lane) -> usize {
-    match find_from(&cursor.lanes, from, Lane::is_free) {
-        Some(at) => {
-            cursor.lanes[at] = lane;
-            at
-        }
-        None => {
-            cursor.lanes.push(lane);
-            cursor.lanes.len() - 1
-        }
-    }
+    let at = find_from(&cursor.lanes, from, |other| other.ends > lane.ends)
+        .unwrap_or(cursor.lanes.len());
+    cursor.lanes.insert(at, lane);
+    at
 }
 
 /// A commit a filter leaves out of a graph drawn with lines (F-561): every line waiting for
@@ -406,7 +418,7 @@ pub fn pass_through(cursor: &mut LayoutCursor, oid: &str, first_parent: Option<&
     }
     for lane in &mut cursor.lanes {
         if waits_for(lane, oid) {
-            lane.waits = Some(parent.to_owned());
+            parent.clone_into(&mut lane.waits);
         }
     }
 }

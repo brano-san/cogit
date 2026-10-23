@@ -6,7 +6,9 @@
 //! or a lane moves into it at its own node; a line never turns between nodes (R-765). Lane 0 is the
 //! top commit's first parents; HEAD reserves nothing.
 
-use graph_engine::{CommitNode, GraphRow, LayoutCursor, NodeKind, Span, layout, mainline_tip};
+use graph_engine::{
+    CommitNode, GraphRow, LayoutCursor, NodeKind, Span, finish, layout, mainline_tip,
+};
 
 fn commits(spec: &[(&str, &[&str])]) -> Vec<CommitNode> {
     spec.iter()
@@ -50,7 +52,7 @@ fn a_linear_history_is_one_lane_of_vertical_segments() {
 }
 
 #[test]
-fn a_branch_merged_back_has_two_lanes_while_it_lives_and_the_main_one_never_moves() {
+fn a_branch_merged_back_joins_the_main_line_as_soon_as_both_wait_for_its_fork() {
     let rows = run(
         &[
             ("m4", &["m3"]),
@@ -64,7 +66,7 @@ fn a_branch_merged_back_has_two_lanes_while_it_lives_and_the_main_one_never_move
     );
 
     let widths: Vec<u16> = rows.iter().map(|row| row.width).collect();
-    assert_eq!(widths, vec![1, 2, 2, 2, 2, 1]);
+    assert_eq!(widths, vec![1, 2, 2, 2, 1, 1]);
     assert_eq!(
         segs(&rows[1], Span::Bottom),
         vec![(0, 0), (0, 1)],
@@ -72,9 +74,9 @@ fn a_branch_merged_back_has_two_lanes_while_it_lives_and_the_main_one_never_move
     );
     assert_eq!(rows[2].lane, 1, "the branch sits right of the main line");
     assert_eq!(
-        segs(&rows[4], Span::Top),
+        segs(&rows[3], Span::Bottom),
         vec![(0, 0), (1, 0)],
-        "and curves into its fork"
+        "and turns into the main line under m2, which waits for m1 too"
     );
     for row in &rows {
         for seg in row.segments.iter().filter(|seg| seg.primary) {
@@ -89,7 +91,7 @@ fn a_branch_merged_back_has_two_lanes_while_it_lives_and_the_main_one_never_move
 }
 
 #[test]
-fn a_lane_ending_in_the_middle_leaves_its_column_to_the_next_node_right_of_it() {
+fn a_lane_ending_moves_the_lines_right_of_it_left_in_the_gap() {
     let rows = run(
         &[
             ("m3", &["m2", "a1", "b2"]),
@@ -103,19 +105,14 @@ fn a_lane_ending_in_the_middle_leaves_its_column_to_the_next_node_right_of_it() 
         Some("m3"),
     );
 
-    let m1 = &rows[4];
+    let m2 = &rows[3];
     assert_eq!(
-        segs(m1, Span::Top),
-        vec![(0, 0), (1, 0)],
-        "a's lane ends in m1"
+        segs(m2, Span::Bottom),
+        vec![(0, 0), (1, 0), (2, 1)],
+        "a's line joins the main line under m2, b's moves into its column"
     );
-    assert_eq!(
-        segs(m1, Span::Through),
-        vec![(2, 2)],
-        "b passes straight by"
-    );
-    assert_eq!(rows[5].lane, 1, "and takes the column at its own node");
-    assert_eq!(segs(&rows[5], Span::Top), vec![(2, 1)]);
+    assert_eq!(rows[4].width, 2);
+    assert_eq!(rows[5].lane, 1);
 }
 
 #[test]
@@ -144,7 +141,10 @@ fn an_octopus_opens_its_new_lanes_right_of_the_node_in_parent_order() {
     );
     assert_eq!(segs(m, Span::Through), vec![(1, 1)]);
     assert_eq!(rows[4].lane, 2, "b takes the first new column");
-    assert_eq!(rows[5].lane, 3, "c the second");
+    assert_eq!(
+        rows[5].lane, 2,
+        "c the second, moved left once b's line is gone"
+    );
 }
 
 /// On any history column 0 is the top commit's first-parent chain, unbroken, and nothing
@@ -157,7 +157,7 @@ fn the_main_line_holds_column_zero_on_random_histories() {
         usize::try_from(seed >> 33).unwrap() % bound
     };
 
-    for _ in 0..300 {
+    for round in 0..300 {
         let count = 3 + next(40);
         let names: Vec<String> = (0..count).map(|i| format!("c{i}")).collect();
         let mut spec: Vec<(String, Vec<String>)> = Vec::new();
@@ -184,8 +184,10 @@ fn the_main_line_holds_column_zero_on_random_histories() {
                 hidden: Vec::new(),
             })
             .collect();
-        let mut cursor = LayoutCursor::with_mainline(Some(names[0].clone()));
-        let rows = layout(&nodes, &mut cursor);
+        let mut cursor =
+            LayoutCursor::with_mainline(Some(names[0].clone())).with_lookahead(round % 2 * 8);
+        let mut rows = layout(&nodes, &mut cursor);
+        rows.extend(finish(&mut cursor));
 
         let mut chain = vec![0_usize];
         while let Some(parent) = spec[*chain.last().unwrap()].1.first() {
@@ -225,7 +227,7 @@ fn random_layouts() -> Vec<(Vec<CommitNode>, Vec<GraphRow>)> {
     };
 
     (0..300)
-        .map(|_| {
+        .map(|round| {
             let count = 3 + next(40);
             let names: Vec<String> = (0..count).map(|i| format!("c{i}")).collect();
             let nodes: Vec<CommitNode> = (0..count)
@@ -250,14 +252,17 @@ fn random_layouts() -> Vec<(Vec<CommitNode>, Vec<GraphRow>)> {
                 })
                 .collect();
             let primary = (next(2) == 0).then(|| names[next(count)].clone());
-            let rows = layout(&nodes, &mut LayoutCursor::with_mainline(primary));
+            // Every other history knows how long its lines are, as the app's does.
+            let mut cursor = LayoutCursor::with_mainline(primary).with_lookahead(round % 2 * 8);
+            let mut rows = layout(&nodes, &mut cursor);
+            rows.extend(finish(&mut cursor));
             (nodes, rows)
         })
         .collect()
 }
 
-/// Only the node's own lines reach its ring: every other line keeps out of its column at
-/// the top edge, the bottom edge and halfway down, where the ring is.
+/// Only the node's own lines reach its ring: every other line keeps out of its column
+/// halfway down, where the ring is; it may take the column over in the gaps.
 #[test]
 fn no_line_but_its_own_reaches_a_ring_on_random_histories() {
     for (nodes, rows) in random_layouts() {
@@ -279,18 +284,8 @@ fn no_line_but_its_own_reaches_a_ring_on_random_histories() {
                 row.segments
             );
             for seg in &row.segments {
-                let passes_by = match seg.span {
-                    Span::Through => seg.from == row.lane || seg.to == row.lane,
-                    Span::Bottom => seg.to == row.lane && seg.from != row.lane,
-                    Span::Top => false,
-                };
+                let passes_by = seg.span == Span::Through && seg.from == row.lane;
                 assert!(!passes_by, "row {}: {seg:?} in {:?}", row.row, row.segments);
-                if seg.arrow && seg.from == seg.to {
-                    let under = row.segments.iter().filter(|other| {
-                        other.span != Span::Top && !other.arrow && other.to == row.lane
-                    });
-                    assert_eq!(under.count(), 0, "row {}: {:?}", row.row, row.segments);
-                }
             }
         }
     }
@@ -343,8 +338,8 @@ fn the_width_of_a_row_counts_both_edges_and_the_node() {
     assert_eq!(rows[0].width, 2, "the branch leaves in the lower half only");
     assert_eq!(rows[2].width, 2, "runs down its own column");
     assert_eq!(
-        rows[3].width, 2,
-        "and bends into its parent in the upper half"
+        rows[3].width, 1,
+        "and joins the line to its parent under its own commit"
     );
 }
 
@@ -369,7 +364,7 @@ fn a_parent_the_list_does_not_show_ends_in_an_arrow() {
 // --- the rest of the model -------------------------------------------------------------
 
 #[test]
-fn a_tip_opens_in_the_first_free_column_right_of_the_lane_it_will_join() {
+fn a_tip_opens_right_beside_the_line_it_will_join() {
     let rows = run(
         &[
             ("m2", &["m1", "x0", "z1"]),
@@ -381,14 +376,14 @@ fn a_tip_opens_in_the_first_free_column_right_of_the_lane_it_will_join() {
         Some("m2"),
     );
     assert_eq!(
-        rows[1].lane, 3,
-        "y1 ends in x0; column 2 beside x0's lane is taken, so the next free one"
+        rows[1].lane, 2,
+        "y1 ends in x0: beside x0's line, the line there stepping aside"
     );
 }
 
-/// A tip takes a free column; the lanes already there go on straight.
+/// A tip beside the line it joins moves the lines right of it over for its row only.
 #[test]
-fn a_tip_never_pushes_a_lane_aside() {
+fn a_tip_moves_the_lines_right_of_it_over_for_its_row() {
     let rows = run(
         &[
             ("m2", &["m1", "x0", "z1"]),
@@ -402,14 +397,15 @@ fn a_tip_never_pushes_a_lane_aside() {
     let y1 = &rows[1];
     assert_eq!(
         segs(y1, Span::Through),
-        vec![(0, 0), (1, 1), (2, 2)],
+        vec![(0, 0), (1, 1)],
         "{:?}",
         y1.segments
     );
+    assert_eq!(segs(y1, Span::Top), vec![(2, 3)]);
+    assert!(segs(y1, Span::Bottom).contains(&(3, 2)));
 }
 
-/// A root frees its column, not under its ring: the next lane moves in a row later, at its
-/// own node.
+/// The lines right of a root move left in the gap under it.
 #[test]
 fn a_root_frees_its_column_for_the_next_node() {
     let rows = run(
@@ -425,18 +421,14 @@ fn a_root_frees_its_column_for_the_next_node() {
     );
     let br = &rows[3];
     assert_eq!(br.lane, 1);
-    assert_eq!(
-        segs(br, Span::Through),
-        vec![(0, 0), (2, 2)],
-        "{:?}",
-        br.segments
-    );
-    assert_eq!(rows[4].lane, 1, "c moves over at its node");
-    assert_eq!(segs(&rows[4], Span::Top), vec![(2, 1)]);
+    assert_eq!(segs(br, Span::Through), vec![(0, 0)], "{:?}", br.segments);
+    assert_eq!(segs(br, Span::Bottom), vec![(2, 1)], "{:?}", br.segments);
+    assert_eq!(rows[4].lane, 1);
+    assert_eq!(segs(&rows[4], Span::Top), vec![(1, 1)]);
 }
 
 #[test]
-fn the_arrow_of_a_hidden_parent_has_its_column_to_itself() {
+fn a_line_moves_into_the_column_of_a_hidden_parents_arrow_below_it() {
     let mut nodes = commits(&[("t", &["b"]), ("u", &["up"]), ("b", &["h"]), ("up", &[])]);
     nodes[2].hidden = vec!["h".to_owned()];
     let mut cursor = LayoutCursor::with_mainline(None);
@@ -445,7 +437,12 @@ fn the_arrow_of_a_hidden_parent_has_its_column_to_itself() {
 
     let b = &rows[2];
     assert!(b.segments.iter().any(|seg| seg.arrow && seg.from == 0));
-    assert_eq!(segs(b, Span::Through), vec![(1, 1)], "{:?}", b.segments);
+    assert_eq!(
+        segs(b, Span::Bottom),
+        vec![(0, 0), (1, 0)],
+        "{:?}",
+        b.segments
+    );
 }
 
 /// Straight down is the first parent's line; an arrow drawn over it would say that parent
@@ -464,10 +461,9 @@ fn a_hidden_second_parent_points_away_from_the_line_that_goes_on() {
     assert_eq!(rows[0].width, 1, "a stub is shorter than a column");
 }
 
-/// A column a root gave back is taken by the next node that reaches it, bending into its
-/// ring; the line passing beside it goes on straight.
+/// A column a root gave back is taken by the line next to it in the gap under the root.
 #[test]
-fn a_freed_column_is_taken_back_at_a_node() {
+fn a_freed_column_is_taken_back_in_the_gap() {
     let rows = run(
         &[
             ("a", &["ar"]),
@@ -478,21 +474,21 @@ fn a_freed_column_is_taken_back_at_a_node() {
         ],
         None,
     );
+    assert_eq!(segs(&rows[3], Span::Bottom), vec![(1, 0), (2, 1)]);
     let np = &rows[4];
-    assert_eq!(np.lane, 0);
-    assert_eq!(segs(np, Span::Through), vec![(1, 1)], "{:?}", np.segments);
-    assert_eq!(segs(np, Span::Top), vec![(2, 0)]);
+    assert_eq!(np.lane, 1);
+    assert_eq!(segs(np, Span::Through), vec![(0, 0)], "{:?}", np.segments);
 }
 
 #[test]
-fn a_branch_bends_into_its_parent_not_below_its_last_commit() {
+fn a_branch_joins_the_line_to_its_parent_under_its_last_commit() {
     let rows = run(
         &[("m", &["a", "b"]), ("a", &["r"]), ("b", &["r"]), ("r", &[])],
         Some("m"),
     );
     assert_eq!(rows[3].lane, 0);
-    assert_eq!(segs(&rows[2], Span::Bottom), vec![(1, 1)]);
-    assert_eq!(segs(&rows[3], Span::Top), vec![(0, 0), (1, 0)]);
+    assert_eq!(segs(&rows[2], Span::Bottom), vec![(1, 0)]);
+    assert_eq!(segs(&rows[3], Span::Top), vec![(0, 0)]);
 }
 
 #[test]
@@ -686,16 +682,16 @@ fn a_stash_is_three_nodes_each_line_bending_into_its_parent() {
     assert_eq!(rows.len(), 5);
     assert_eq!(
         segs(&rows[1], Span::Bottom),
-        vec![(1, 1)],
+        vec![(1, 0), (2, 1)],
         "{:?}",
         rows[1].segments
     );
     assert_eq!(rows[2].kind, NodeKind::Root);
-    assert_eq!(segs(&rows[3], Span::Top), vec![(0, 0), (1, 0)]);
+    assert_eq!(segs(&rows[3], Span::Top), vec![(0, 0)]);
 }
 
 #[test]
-fn branches_off_one_parent_run_down_their_own_columns_into_it() {
+fn branches_off_one_parent_join_its_line_under_their_own_commits() {
     let rows = run(
         &[
             ("m", &["p"]),
@@ -708,40 +704,25 @@ fn branches_off_one_parent_run_down_their_own_columns_into_it() {
     );
     assert_eq!(
         segs(&rows[2], Span::Bottom),
-        vec![(2, 2)],
+        vec![(1, 0), (2, 1)],
         "{:?}",
         rows[2].segments
     );
     assert_eq!(
         segs(&rows[3], Span::Bottom),
-        vec![(1, 1)],
+        vec![(1, 0)],
         "{:?}",
         rows[3].segments
     );
-    assert_eq!(segs(&rows[4], Span::Top), vec![(0, 0), (1, 0), (2, 0)]);
+    assert_eq!(segs(&rows[4], Span::Top), vec![(0, 0)]);
 }
 
-// --- invariants 2–4 of the fork task: straight, one bend at a node, no stray kinks ---------
+// --- every edge reaches its parent, through the gaps and the lines it joins ----------------
 
-/// Every visible edge, traced from the child's row down to the parent's: straight in one
-/// column, or bending once, into or out of a node; a later parent's edge may bend twice, both
-/// times at a node. A line passing a row never turns.
+/// Every visible edge, traced from the child's row down: through the rows it passes, at
+/// the column its `Bottom` reaches in each gap, into the line it joins, until it ends in a
+/// node; that node is one of the child's parents, and every parent is reached.
 fn assert_edges(nodes: &[CommitNode], rows: &[GraphRow]) {
-    for row in rows {
-        for seg in row.segments.iter().filter(|seg| !seg.arrow) {
-            let at_node = match seg.span {
-                Span::Top => seg.to == row.lane,
-                Span::Bottom => seg.from == row.lane,
-                Span::Through => false,
-            };
-            assert!(
-                seg.from == seg.to || at_node,
-                "row {}: a turn away from the node: {seg:?} in {:?}",
-                row.row,
-                row.segments
-            );
-        }
-    }
     for (index, (row, node)) in rows.iter().zip(nodes).enumerate() {
         let visible: Vec<&String> = node
             .parents
@@ -754,8 +735,7 @@ fn assert_edges(nodes: &[CommitNode], rows: &[GraphRow]) {
             .iter()
             .filter(|seg| seg.span == Span::Bottom && !seg.arrow && seg.from == row.lane)
         {
-            let column = start.to;
-            let mut bends = u8::from(column != row.lane);
+            let mut column = start.to;
             let mut parent = None;
             for (below, next) in rows.iter().enumerate().skip(index + 1) {
                 let Some(seg) = next
@@ -768,22 +748,23 @@ fn assert_edges(nodes: &[CommitNode], rows: &[GraphRow]) {
                 if seg.span == Span::Through {
                     continue;
                 }
-                bends += u8::from(column != next.lane);
-                parent = Some(&nodes[below].oid);
-                break;
+                if seg.to == next.lane {
+                    parent = Some(&nodes[below].oid);
+                    break;
+                }
+                let Some(down) = next
+                    .segments
+                    .iter()
+                    .find(|down| !down.arrow && down.span == Span::Bottom && down.from == seg.to)
+                else {
+                    panic!("row {}: the line at column {} stops", next.row, seg.to);
+                };
+                column = down.to;
             }
-            let parent = parent.expect("the line reaches a node");
-            // A later parent whose column a first-parent line holds is entered with a second
-            // turn, at its ring (R-765).
-            let most = if node.parents.first() == Some(parent) {
-                1
-            } else {
-                2
-            };
-            assert!(bends <= most, "{} -> {parent}: {bends} bends", node.oid);
-            reached.push(parent);
+            reached.push(parent.expect("the line reaches a node"));
         }
         reached.sort();
+        reached.dedup();
         let mut wanted = visible.clone();
         wanted.sort();
         assert_eq!(reached, wanted, "the edges of {}", node.oid);
@@ -804,10 +785,11 @@ fn a_commit_forked_from_goes_on_straight_up_to_its_main_child() {
     assert_eq!((rows[0].lane, rows[2].lane), (0, 0));
     assert_eq!(rows[1].lane, 1);
     assert_eq!(
-        segs(&rows[2], Span::Top),
-        vec![(0, 0), (1, 0)],
-        "side bends out of merge"
+        segs(&rows[1], Span::Bottom),
+        vec![(1, 0)],
+        "side joins the line to merge under itself"
     );
+    assert_eq!(segs(&rows[2], Span::Top), vec![(0, 0)]);
 }
 
 /// The real case: HEAD elsewhere, so neither child is on column 0, and the merge's first
@@ -895,10 +877,9 @@ fn an_octopus_bends_each_line_out_of_its_node() {
     assert_edges(&commits(spec), &run(spec, Some("o")));
 }
 
-/// Invariant 5: a column freed left of a line that goes on stays empty; the line does not
-/// slide into it between nodes.
+/// A column freed left of a line that goes on is taken by it in the gap.
 #[test]
-fn a_column_closing_left_of_a_line_leaves_that_line_where_it_is() {
+fn a_column_closing_left_of_a_line_takes_that_line_over() {
     let spec: &[(&str, &[&str])] = &[
         ("m2", &["m1", "a1"]),
         ("b2", &["b1"]),
@@ -910,11 +891,11 @@ fn a_column_closing_left_of_a_line_leaves_that_line_where_it_is() {
     ];
     let rows = run(spec, Some("m2"));
     assert_edges(&commits(spec), &rows);
-    assert_eq!(rows[1].lane, rows[4].lane, "b keeps its column");
+    assert_eq!((rows[1].lane, rows[4].lane), (2, 1), "b moves left");
 }
 
 #[test]
-fn every_edge_is_straight_or_bends_once_at_a_node_on_random_histories() {
+fn every_edge_reaches_its_parent_on_random_histories() {
     for (nodes, rows) in random_layouts() {
         assert_edges(&nodes, &rows);
     }

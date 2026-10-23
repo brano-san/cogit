@@ -1,7 +1,7 @@
 //! Timing of the lane layout on a real history: `COGIT_BENCH_LOG=<file> cargo test -p
 //! graph_engine --release --test layout_bench -- --ignored --nocapture`, the file being
 //! `git log --date-order --format="%H %P"` of the repository (doc/15-benchmark.md).
-#![allow(clippy::unwrap_used, clippy::print_stdout)]
+#![allow(clippy::unwrap_used, clippy::print_stdout, clippy::cast_precision_loss)]
 
 use graph_engine::{CommitNode, LayoutCursor, finish, push};
 use std::time::{Duration, Instant};
@@ -73,20 +73,28 @@ fn layout_of_a_history() {
     let log = std::fs::read_to_string(path).unwrap();
     for long_links in [0, 40] {
         let mut samples = Vec::new();
-        let mut width = 0;
+        let mut widths = Vec::new();
         for _ in 0..7 {
             let commits = nodes(&log);
             let started = Instant::now();
-            let mut cursor = LayoutCursor::default().with_long_links(long_links);
+            let mut cursor = LayoutCursor::default()
+                .with_long_links(long_links)
+                .with_lookahead(40);
             let mut rows = push(commits, &mut cursor);
             rows.extend(finish(&mut cursor));
             samples.push(started.elapsed());
-            width = rows.iter().map(|row| row.width).max().unwrap_or(0);
+            widths = rows.iter().map(|row| row.width).collect();
         }
+        let mean = widths.iter().map(|&w| f64::from(w)).sum::<f64>() / widths.len().max(1) as f64;
+        widths.sort_unstable();
+        let at = |share: usize| widths.get(widths.len() * share / 100).copied().unwrap_or(0);
         println!(
-            "long_links {long_links}: {:?} for {} rows, widest {width}",
+            "long_links {long_links}: {:?} for {} rows, width mean {mean:.2} p50 {} p90 {} max {}",
             median(samples),
-            log.lines().count()
+            log.lines().count(),
+            at(50),
+            at(90),
+            widths.last().copied().unwrap_or(0)
         );
     }
 }

@@ -46,15 +46,11 @@ fn a_merged_line_goes_on_through_the_commits_left_out() {
         rows[1]
             .segments
             .iter()
-            .any(|s| s.span == Span::Bottom && s.from == rows[1].lane && s.to == rows[1].lane),
-        "t runs down its own column: {:?}",
+            .any(|s| s.span == Span::Bottom && s.from == rows[1].lane && s.to == 0),
+        "t joins the main line, which waits for x too, under itself: {:?}",
         rows[1]
     );
-    assert_eq!(
-        into_node(&rows[2]),
-        2,
-        "and bends into x beside the main line"
-    );
+    assert_eq!(into_node(&rows[2]), 1, "so one line enters x");
 }
 
 #[test]

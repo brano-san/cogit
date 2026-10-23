@@ -46,7 +46,7 @@ struct Trace {
     groups: Vec<Group>,
     joins: Vec<(u32, u32, bool)>,
     /// A merge line into a lane already bound for its parent: its own colour, not the lane's.
-    join_segments: Vec<(usize, u32)>,
+    join_segments: Vec<(usize, u32, bool)>,
     node_lane: Vec<u32>,
     segment_first: Vec<u32>,
     segment_group: Vec<u32>,
@@ -195,20 +195,26 @@ fn trace(
                     }
                 }
                 group
-            } else if !own_done {
-                own_done = true;
-                let group = trace.open(node_lane, r, true);
-                put(&mut below, s.to, group);
-                group
             } else {
+                // The first parent turning into a line already bound for it ends there; one
+                // going straight on is the line that line turns into.
+                let own = !own_done;
+                own_done = true;
                 let joined = at(&below, s.to);
-                if joined == NONE {
+                if own && (joined == NONE || s.from == s.to) {
+                    let group = trace.open(node_lane, r, true);
+                    put(&mut below, s.to, group);
+                    group
+                } else if joined == NONE {
                     let group = trace.open(fresh(), r, false);
                     put(&mut below, s.to, group);
                     group
                 } else {
-                    trace.joins.push((joined, r, false));
-                    trace.join_segments.push((first + i, r));
+                    // A first parent turning into the line below keeps that line's colour.
+                    if !own {
+                        trace.joins.push((joined, r, false));
+                    }
+                    trace.join_segments.push((first + i, r, own));
                     joined
                 }
             };
@@ -457,9 +463,9 @@ pub fn paint(
             slot | dim(lit)
         })
         .collect();
-    for &(segment, child) in &trace.join_segments {
+    for &(segment, child, own) in &trace.join_segments {
         let end = trace.groups[trace.segment_group[segment] as usize].end;
-        let (slot, lit) = edge(child, false, end);
+        let (slot, lit) = edge(child, own, end);
         segment_style[segment] = slot | dim(lit);
     }
     Paint {

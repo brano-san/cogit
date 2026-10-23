@@ -171,8 +171,8 @@ fn a_branch_stops_where_it_meets_a_line_already_coloured() {
     sorted.sort_unstable();
     assert_eq!(
         sorted,
-        vec![1, 2],
-        "a2 and b1 each bring their colour into a1"
+        vec![1],
+        "b1 joins a2's line under itself, so one line enters a1, a2's"
     );
     let b1_fork: Vec<u8> = painted
         .segments()
@@ -205,8 +205,8 @@ fn a_branch_goes_on_through_a_line_nobody_ticked() {
     into_s1.sort_unstable();
     assert_eq!(
         into_s1,
-        vec![0, 4],
-        "b1 runs into s1 in its colour, s2 plain beside it"
+        vec![4],
+        "s2 joins b1's line under itself, which runs into s1"
     );
     for (row, s, style, _) in painted.segments() {
         if row == 4 && s.span == Span::Bottom {
@@ -238,8 +238,8 @@ fn a_branch_stops_at_history_the_main_line_merged() {
     into_s1.sort_unstable();
     assert_eq!(
         into_s1,
-        vec![0, 4],
-        "b1's line runs into s1 in its colour, s2 plain"
+        vec![0],
+        "b1's line joins s2's, the main line's history, under s2: one plain line enters s1"
     );
     for (row, s, style, _) in painted.segments() {
         if row == 4 && s.span == Span::Bottom {
@@ -338,7 +338,9 @@ fn ancestry_dims_what_is_neither_ancestor_nor_descendant() {
     assert_eq!(dimmed, vec![false, false, false, true, false]);
     let side = painted.paint.node_lane[3];
     for (row, s, style, lane) in painted.segments() {
-        assert_eq!(style & PAINT_DIM != 0, lane == side, "row {row}: {s:?}");
+        // c joins b's line under itself; that segment is still c's.
+        let of_side = lane == side || (row == 3 && s.from == painted.rows[3].lane);
+        assert_eq!(style & PAINT_DIM != 0, of_side, "row {row}: {s:?}");
     }
 }
 
@@ -456,7 +458,8 @@ fn a_node_goes_on_in_its_own_lane_on_random_histories() {
                     && s.span == Span::Bottom
                     && s.from == row.lane
                     && (s.to == row.lane || !s.arrow)
-                    && lane == painted.paint.node_lane[r]
+                    // or the line it joins, the one to its first parent
+                    && (lane == painted.paint.node_lane[r] || (!s.arrow && s.to != row.lane))
             });
             assert!(own, "row {r}: {:?}\n{history:?}", row.segments);
         }

@@ -207,6 +207,11 @@ const turnsDown = (segments: readonly Drawn[] | undefined, lane: number) =>
   segments?.find((s) => !s.arrow && s.span === "bottom" && s.to === lane && s.from !== lane);
 const turnsUp = (segments: readonly Drawn[] | undefined, lane: number) =>
   segments?.find((s) => !s.arrow && s.span === "top" && s.from === lane && s.to !== lane);
+/** A line arriving at `lane` from above that some other line's turn ends in too: one line
+    joining another in the gap. The straight one goes on drawing its own way down. */
+const arrivesTurning = (segments: readonly Drawn[] | undefined, lane: number) =>
+  turnsDown(segments, lane) &&
+  !segments?.some((s) => !s.arrow && s.span !== "top" && s.from === lane && s.to === lane);
 
 /** A segment of row `listRow` (counting the header rows), or `null` when a turn drawn by a
     neighbouring row covers it. A turn reaches half a row into the next row, so that row's
@@ -227,12 +232,12 @@ export function segmentCurve(
       return transition({ x: laneX(segment.from), y: centre }, laneX(next ? next.to : segment.to), "down");
     }
     // Two turns in a row, out of one node and into the next: the row above draws it whole.
-    if (turnsDown(above, segment.from)) return null;
+    if (arrivesTurning(above, segment.from)) return null;
     return transition({ x: laneX(segment.to), y: centre }, laneX(segment.from), "up");
   }
   let y1 = segment.span === "bottom" ? centre : top;
   let y2 = segment.span === "top" ? centre : bottom;
-  if (y1 === top && turnsDown(above, segment.from)) y1 = centre;
+  if (y1 === top && arrivesTurning(above, segment.from)) y1 = centre;
   if (y2 === bottom && turnsUp(below, segment.to)) y2 = centre;
   if (y1 >= y2) return null;
   const x1 = laneX(segment.from);

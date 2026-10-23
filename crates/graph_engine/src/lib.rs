@@ -7,7 +7,7 @@ pub use paint::{PAINT_DIM, PAINT_SLOT, Paint, PaintSpec, paint};
 pub use view::{Fold, ViewFilter};
 
 use serde::Serialize;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 
 const LANE_COLORS: u8 = 8;
 
@@ -75,37 +75,19 @@ pub struct LongLink {
 pub(crate) struct Above {
     pub(crate) id: u64,
     pub(crate) color: u8,
-    pub(crate) drawn: bool,
     pub(crate) primary: bool,
 }
 
+/// A line on its way down to the commit it waits for. Lines sit side by side without
+/// holes: a column is a line's for one gap between two rows, not for its whole life.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Lane {
     pub(crate) id: u64,
-    pub(crate) waits: Option<String>,
+    pub(crate) waits: String,
     pub(crate) color: u8,
-    pub(crate) drawn: bool,
     pub(crate) primary: bool,
-    /// Ended at its node; the column is given back on the next row, clear of the ring.
-    pub(crate) ended: bool,
-}
-
-impl Lane {
-    /// A column nobody uses any more, kept so the lines right of it stay where they are.
-    pub(crate) fn free(id: u64) -> Self {
-        Self {
-            id,
-            waits: None,
-            color: 0,
-            drawn: false,
-            primary: false,
-            ended: false,
-        }
-    }
-
-    pub(crate) fn is_free(&self) -> bool {
-        self.waits.is_none() && !self.drawn && !self.ended
-    }
+    /// The row of the commit it waits for, `u32::MAX` past the lookahead.
+    pub(crate) ends: u32,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -122,9 +104,11 @@ pub struct LayoutCursor {
     pub(crate) middle: Vec<u64>,
     /// Links longer than this many rows are cut into two stubs; 0 draws every link whole.
     pub(crate) long_links: usize,
-    /// The next `long_links` commits, not placed yet: they decide whether a link is long.
+    /// Commits held back before they are placed: how long a new line is, is known within them.
+    pub(crate) lookahead: usize,
+    /// The next `lookahead` commits, not placed yet, with the row each will get.
     pub(crate) pending: VecDeque<CommitNode>,
-    pub(crate) ahead: HashSet<String>,
+    pub(crate) ahead: HashMap<String, u32>,
     /// A parent whose links were cut, and the children at their upper ends.
     pub(crate) cut_into: HashMap<String, Vec<String>>,
     /// A parent whose first-parent link was cut, and the colour of the child: the line goes
@@ -147,6 +131,17 @@ impl LayoutCursor {
     #[must_use]
     pub fn with_long_links(mut self, rows: u32) -> Self {
         self.long_links = usize::try_from(rows).unwrap_or(usize::MAX);
+        self.lookahead = self.lookahead.max(self.long_links);
+        self
+    }
+
+    /// Holds `rows` commits back so a new line knows how long it is (07 §3); rows then come
+    /// out that many commits late. Without it every new line counts as long.
+    #[must_use]
+    pub fn with_lookahead(mut self, rows: u32) -> Self {
+        self.lookahead = usize::try_from(rows)
+            .unwrap_or(usize::MAX)
+            .max(self.long_links);
         self
     }
 

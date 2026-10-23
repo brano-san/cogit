@@ -473,9 +473,25 @@ describe("segmentCurve", () => {
     expect(segmentCurve(seg(1, 2, "top"), 4, 0, { above: [seg(0, 1, "bottom")] })).toBeNull();
   });
 
+  // A line joining another in a gap ends where that one goes on; the one it joins keeps
+  // its own way down, so no half row of it goes missing.
+  it("keeps the line another one joins whole across the gap", () => {
+    const joined = [seg(2, 1, "bottom"), seg(1, 1, "bottom")];
+    expect(segmentCurve(seg(1, 1, "through"), 5, 0, { above: joined })).toMatchObject({ y1: top(5), y2: top(6) });
+    const turning = segmentCurve(seg(1, 0, "top"), 5, 0, { above: joined })!;
+    expect([turning.x1, turning.y1, turning.x2, turning.y2]).toEqual([laneX(0), centre(5), laneX(1), centre(4)]);
+  });
+
   it("follows the scroll", () => {
     const curve = segmentCurve(seg(0, 0, "through"), 10, GRAPH.rowHeight * 10)!;
     expect(curve.y1).toBe(0);
+  });
+});
+
+describe("the gap around a local commit", () => {
+  it("is there, and stays clear of the next lane at the narrowest width", () => {
+    expect(GRAPH.localGap).toBeGreaterThan(0);
+    expect(GRAPH.ringRadius + GRAPH.ringStroke / 2 + GRAPH.localGap).toBeLessThan(LANE_WIDTH.min / 2);
   });
 });
 
@@ -723,12 +739,6 @@ describe("a list taller than the layout limit", () => {
   });
 });
 
-describe("the gap around a local commit", () => {
-  it("is there, and stays clear of the next lane at the narrowest width", () => {
-    expect(GRAPH.localGap).toBeGreaterThan(0);
-    expect(GRAPH.ringRadius + GRAPH.ringStroke / 2 + GRAPH.localGap).toBeLessThan(LANE_WIDTH.min / 2);
-  });
-});
 
 // The Working Tree row above HEAD further down: HEAD's lines are drawn on across it. A turn
 // from the commit above ends at that row's centre, and the line drawn from its top beside

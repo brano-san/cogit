@@ -270,11 +270,7 @@ fn cut_links_pair_up_and_leave_the_main_line_alone_on_random_histories() {
                 );
             }
             for seg in &row.segments {
-                let passes_by = match seg.span {
-                    Span::Through => seg.from == row.lane || seg.to == row.lane,
-                    Span::Bottom => seg.to == row.lane && seg.from != row.lane,
-                    Span::Top => false,
-                };
+                let passes_by = seg.span == Span::Through && seg.from == row.lane;
                 assert!(!passes_by, "row {index}: {seg:?} reaches the ring");
             }
             for link in &row.links {

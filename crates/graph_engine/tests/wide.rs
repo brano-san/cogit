@@ -70,12 +70,20 @@ fn many_open_lines_are_laid_out_as_they_always_were() {
             assert!(row.links.is_empty());
         }
     }
-    // The last commits are roots: each line ends at its node and the columns close up
-    // onto column 0.
+    // The last commits are roots: each line ends at its node in column 0, and the lines
+    // right of it move one column left in the gap under it.
     for branch in 0..BRANCHES {
         let row = &rows[(DEPTH - 1) * BRANCHES + branch];
         assert_eq!(row.kind, NodeKind::Root, "row {}", row.row);
         assert_eq!(row.lane, 0, "row {}", row.row);
     }
-    assert_eq!(rows[(DEPTH - 1) * BRANCHES].segments.len(), BRANCHES);
+    let first_root = &rows[(DEPTH - 1) * BRANCHES];
+    assert_eq!(first_root.segments.len(), 1 + 2 * (BRANCHES - 1));
+    assert!(
+        first_root
+            .segments
+            .iter()
+            .filter(|seg| seg.span == Span::Bottom)
+            .all(|seg| seg.to + 1 == seg.from)
+    );
 }
