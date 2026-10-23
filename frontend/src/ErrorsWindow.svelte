@@ -161,6 +161,7 @@
         {logPath}
         heading={current.title}
         warned={current.kind === "warning"}
+        note={current.kind === "warning" ? current.summary : undefined}
         onclose={() => void closeThisWindow()}
       >
         {#snippet actions()}

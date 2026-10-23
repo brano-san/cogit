@@ -30,11 +30,13 @@
     /** Title and accent when the record is not simply a failure ("Stash applied with conflicts"). */
     heading?: string | undefined;
     warned?: boolean | undefined;
+    /** What the record means, above the raw output ("Remote has commits you don't have…"). */
+    note?: string | undefined;
     /** Buttons of the caller, in the footer before Copy output. */
     actions?: Snippet | undefined;
   }
 
-  let { entry, logPath, onretry, docked = false, onclose, heading: given, warned: accent, actions }: Props =
+  let { entry, logPath, onretry, docked = false, onclose, heading: given, warned: accent, note, actions }: Props =
     $props();
 
   function close() {
@@ -236,6 +238,9 @@
         <dd class="tabular">{new Date(entry.startedAtMs).toLocaleString()}</dd>
       </dl>
 
+      {#if note}
+        <p class="advice" role="note">{note}</p>
+      {/if}
       {#if noPrompt}
         <p class="advice" role="note">{NO_PROMPT_ADVICE}</p>
       {/if}
