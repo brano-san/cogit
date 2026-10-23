@@ -32,6 +32,16 @@ function swallowNextClick(): void {
   setTimeout(() => window.removeEventListener("click", swallow, true), 0);
 }
 
+/** A press on a list selects no text until it is released, even once it moves over a selectable
+    pane: Chromium starts a selection there from a `user-select: none` press. */
+function holdSelection(): void {
+  const held = new AbortController();
+  const options = { capture: true, signal: held.signal };
+  window.addEventListener("selectstart", (event) => event.preventDefault(), options);
+  window.addEventListener("pointerup", () => held.abort(), options);
+  window.addEventListener("pointercancel", () => held.abort(), options);
+}
+
 /** Drags rows of one list onto each other on pointer events rather than HTML5
     drag-and-drop, which never reaches the page in WebView2 (R-450). `Esc` cancels. */
 export function pointerDrag(node: HTMLElement, options: PointerDragOptions | null): ActionReturn<PointerDragOptions | null> {
@@ -105,8 +115,9 @@ export function pointerDrag(node: HTMLElement, options: PointerDragOptions | nul
   }
 
   function ondown(event: PointerEvent) {
-    if (!current || drag || event.button !== 0) return;
-    if ((event.target as Element | null)?.closest(KEEPS_PRESS)) return;
+    if (event.button !== 0 || (event.target as Element | null)?.closest(KEEPS_PRESS)) return;
+    holdSelection();
+    if (!current || drag) return;
     const source = sourceAt(event);
     if (source === null) return;
     drag = pressDrag(source, event.clientX, event.clientY);
