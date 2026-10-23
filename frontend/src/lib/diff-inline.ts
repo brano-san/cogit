@@ -22,8 +22,7 @@ export const INLINE_MAX_TOKENS = 60_000;
 /** Edit distance cap of the token diff; a block this different is a rewrite. */
 const MAX_EDITS = 1500;
 /** More changed words (identifiers, numbers; punctuation does not count) than this share
-    of a line: background only, unless a line it shares unchanged words with stays under it.
-    Paired lines decide together, so one side never keeps its words alone. */
+    of a line: background only, unless it is the rewrite of a line under it (`blockInline`). */
 const LINE_THRESHOLD = 0.5;
 /** An unchanged token this short between two changes is absorbed into them. */
 const SHORT_TOKEN = 3;
@@ -121,10 +120,11 @@ interface LineMarks {
   ranges: Range[];
   /** Over `LINE_THRESHOLD` on its own. */
   over: boolean;
+  words: number;
 }
 
 function lineRanges(toks: readonly Token[], changed: Uint8Array, lines: number, indent: boolean): LineMarks[] {
-  const out: LineMarks[] = Array.from({ length: lines }, () => ({ ranges: [], over: false }));
+  const out: LineMarks[] = Array.from({ length: lines }, () => ({ ranges: [], over: false, words: 0 }));
   let i = 0;
   while (i < toks.length) {
     const line = toks[i]!.line;
@@ -166,7 +166,7 @@ function oneLine(toks: readonly Token[], changed: Uint8Array, from: number, end:
     }
     i = stop;
   }
-  return { ranges, over: words > 0 && hit / words > LINE_THRESHOLD };
+  return { ranges, over: words > 0 && hit / words > LINE_THRESHOLD, words };
 }
 
 /** `null` when the block is too big or too different: only line backgrounds then. */
@@ -201,24 +201,26 @@ export function blockInline(
   const lm = lineRanges(lt, da, left.length, indent);
   const rm = lineRanges(rt, db, right.length, indent);
 
-  // Lines linked by an unchanged token form a group (left `i`, right `left.length + j`); a
-  // group shows its words if any of its lines is under the threshold.
-  const root = Int32Array.from({ length: left.length + right.length }, (_, i) => i);
-  const find = (x: number): number => {
-    while (root[x] !== x) x = root[x] = root[root[x]!]!;
-    return x;
-  };
+  // A line over the threshold keeps its words beside the line it was rewritten from: one
+  // under it with at least half of its words unchanged in this one. `mktime` →
+  // `timegm (UTC, …)` marked the left word alone; a new comment sharing one word does not.
+  const shared = new Map<number, number>();
   for (let i = 0; i < a.length; i++) {
     const j = pair[i]!;
-    if (j >= 0 && lt[i]!.start >= 0) root[find(lt[i]!.line)] = find(left.length + rt[j]!.line);
+    if (j < 0 || lt[i]!.start < 0 || !WORD.test(lt[i]!.text)) continue;
+    const key = lt[i]!.line * right.length + rt[j]!.line;
+    shared.set(key, (shared.get(key) ?? 0) + 1);
   }
-  const shown = new Uint8Array(root.length);
-  [...lm, ...rm].forEach((m, k) => {
-    if (!m.over) shown[find(k)] = 1;
-  });
-  const pick = (m: LineMarks, k: number) => (shown[find(k)] ? m.ranges : []);
+  const leftShown = lm.map((m) => !m.over);
+  const rightShown = rm.map((m) => !m.over);
+  for (const [key, count] of shared) {
+    const i = Math.floor(key / right.length);
+    const j = key % right.length;
+    if (!lm[i]!.over && count * 2 >= lm[i]!.words) rightShown[j] = true;
+    if (!rm[j]!.over && count * 2 >= rm[j]!.words) leftShown[i] = true;
+  }
   return {
-    left: lm.map((m, i) => pick(m, i)),
-    right: rm.map((m, j) => pick(m, left.length + j)),
+    left: lm.map((m, i) => (leftShown[i] ? m.ranges : [])),
+    right: rm.map((m, j) => (rightShown[j] ? m.ranges : [])),
   };
 }
