@@ -8,8 +8,6 @@ use crate::GraphChunk;
 /// whole tips, never a commit from inside a surviving lineage (R-51). Show Graph While
 /// Filtering draws the lines anyway, down first parents through what the filter left out
 /// (F-561, R-575).
-const LOOKAHEAD: u32 = 40;
-
 pub(crate) fn lay_out(
     handle: &git_engine::RepoHandle,
     query: &git_engine::CommitQuery,
@@ -31,11 +29,9 @@ pub(crate) fn lay_out(
     } else {
         query.long_link_rows.unwrap_or(0)
     };
-    // How long a new line is decides its column (07 §3), so the rows come out this many
-    // commits late; a line passed through left-out commits is placed as they come.
+    // The long-link window is also how far a new line's length is known (07 §3).
     let mut cursor = graph_engine::LayoutCursor::with_mainline(mainline_of(handle, query))
-        .with_long_links(long_links)
-        .with_lookahead(if lines { 0 } else { LOOKAHEAD });
+        .with_long_links(long_links);
     let mut cancelled = false;
     let mut view = graph_view(handle, query, flat)?;
     // A shallow boundary or an unreadable parent: a line to it ends in an arrow (07 §4).
