@@ -10,12 +10,14 @@
     confirm: string;
     warning?: boolean;
     items?: readonly string[];
+    fields?: readonly (readonly [string, string])[];
+    note?: string;
     option?: string;
     choice?: ConfirmChoice;
     onanswer: (yes: boolean, checked: boolean, choice?: string) => void;
   }
 
-  let { title, message, confirm, warning = false, items, option, choice, onanswer }: Props = $props();
+  let { title, message, confirm, warning = false, items, fields, note, option, choice, onanswer }: Props = $props();
   let checked = $state(false);
   // svelte-ignore state_referenced_locally
   let picked = $state(choice?.value);
@@ -25,9 +27,17 @@
   {title}
   onclose={() => onanswer(false, false)}
   onconfirm={() => onanswer(true, checked, picked)}
-  width="min(460px, 90vw)"
+  width={fields ? "min(500px, 90vw)" : "min(460px, 90vw)"}
 >
   <p class="message">{message}</p>
+  {#if fields && fields.length > 0}
+    <dl class="fields">
+      {#each fields as [label, value] (label)}
+        <dt>{label}:</dt>
+        <dd class="mono">{value}</dd>
+      {/each}
+    </dl>
+  {/if}
   {#if items && items.length > 0}
     <ul class="items mono">
       {#each items as item (item)}<li>{item}</li>{/each}
@@ -41,6 +51,15 @@
   {/if}
   {#if option}
     <div class="option"><Checkbox bind:checked label={option} /></div>
+  {/if}
+  {#if note}
+    <p class="note">
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M8 2 14.5 13.5h-13Z" />
+        <path d="M8 6.5v3.5M8 11.8v.2" />
+      </svg>
+      <span>{note}</span>
+    </p>
   {/if}
 
   {#snippet footer()}
@@ -81,6 +100,42 @@
     border-radius: var(--r-sm);
     overflow-wrap: anywhere;
     user-select: text;
+  }
+  .fields {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: var(--sp-2) var(--sp-4);
+    margin: var(--sp-5) 0 0;
+    font-size: var(--fs-dense);
+  }
+  .fields dt {
+    color: var(--text-secondary);
+  }
+  .fields dd {
+    margin: 0;
+    color: var(--text-primary);
+    overflow-wrap: anywhere;
+    user-select: text;
+  }
+  .note {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--sp-3);
+    margin: var(--sp-5) 0 0;
+    color: var(--text-secondary);
+    font-size: var(--fs-dense);
+    line-height: 1.5;
+  }
+  .note svg {
+    flex: none;
+    width: 14px;
+    height: 14px;
+    margin-top: max(calc((1lh - 14px) / 2), 0px);
+    fill: none;
+    stroke: var(--status-modify);
+    stroke-width: 1.3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
   .option {
     display: flex;

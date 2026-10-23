@@ -901,7 +901,12 @@
       const remote = splitUpstream(ref.name, network.remotes)?.remote ?? ref.name.split("/")[0] ?? "origin";
       const go = await confirmation.ask({
         title: "Delete Remote Branch",
-        message: `Delete ${ref.name} on ${remote}? This runs on the server, and Undo cannot reach it.`,
+        message: "Delete remote branch?",
+        fields: [
+          ["Remote", remote],
+          ["Branch", ref.name.startsWith(`${remote}/`) ? ref.name.slice(remote.length + 1) : ref.name],
+        ],
+        note: "This runs on the server, and Undo cannot reach it.",
         confirm: "Delete",
         warning: true,
       });
@@ -1067,6 +1072,8 @@
     confirm={confirmation.open.confirm}
     warning={confirmation.open.warning}
     items={confirmation.open.items}
+    fields={confirmation.open.fields}
+    note={confirmation.open.note}
     option={confirmation.open.option}
     choice={confirmation.open.choice}
     onanswer={(yes, checked, choice) => confirmation.answer(yes, checked, choice)}
