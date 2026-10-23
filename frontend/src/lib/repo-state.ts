@@ -51,15 +51,21 @@ function interruptedDetail(kind: RepoState["kind"]): string {
   return "Resolve the conflicts and continue, or abort to go back.";
 }
 
-/** Anything in the index or the working tree, untracked included; null until it is read. */
+/** Entries in the index and the working tree, untracked included; a partly staged file counts
+    in both, as the Files panel lists it twice. */
+export function workingTreeCount(status: RepoStatus): number {
+  return status.staged + status.unstaged + status.untracked + status.conflicted + status.dirtySubmodules;
+}
+
+/** Anything in the index or the working tree; null until it is read. */
 export function workingTreeChanged(status: RepoStatus | undefined): boolean | null {
-  if (!status) return null;
-  return status.staged + status.unstaged + status.untracked + status.conflicted + status.dirtySubmodules > 0;
+  return status ? workingTreeCount(status) > 0 : null;
 }
 
 export function workingTreeLabel(status: RepoStatus | undefined): string {
-  const changed = workingTreeChanged(status);
-  return changed === null ? "Working Tree/Index" : `Working Tree/Index (${changed ? "changed" : "clean"})`;
+  if (!status) return "Working Tree/Index";
+  const count = workingTreeCount(status);
+  return `Working Tree/Index (${count > 0 ? `${count} changed` : "clean"})`;
 }
 
 export const STATE_TAG_HINT =

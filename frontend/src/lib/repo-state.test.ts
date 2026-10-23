@@ -135,10 +135,12 @@ describe("workingTreeLabel", () => {
     expect(workingTreeLabel(none)).toBe("Working Tree/Index (clean)");
   });
 
-  it("says changed for anything in either, untracked and submodules included", () => {
+  it("counts what changed in either, untracked and submodules included", () => {
     for (const key of Object.keys(none)) {
-      expect(workingTreeLabel({ ...none, [key]: 1 }), key).toBe("Working Tree/Index (changed)");
+      expect(workingTreeLabel({ ...none, [key]: 1 }), key).toBe("Working Tree/Index (1 changed)");
     }
+    const status = { staged: 1, unstaged: 2, untracked: 3, conflicted: 4, dirtySubmodules: 5 };
+    expect(workingTreeLabel(status)).toBe("Working Tree/Index (15 changed)");
   });
 
   it("says neither before the status is read", () => {

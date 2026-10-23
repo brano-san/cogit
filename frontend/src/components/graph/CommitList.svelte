@@ -52,6 +52,7 @@
     type GraphColumn,
     type GraphDensity,
     type GraphTimeFormat,
+    authorShown,
     avatarShown,
   } from "$lib/graph-row";
   import { measurer } from "$lib/timing";
@@ -138,6 +139,8 @@
     density?: GraphDensity;
     stripes?: boolean;
     avatarsChangedOnly?: boolean;
+    /** Author and avatar only on the oldest row of a run by one author (`graphAuthorLastOnly`). */
+    authorLastOnly?: boolean;
     /** Links longer than this many rows are two stubs (R-330); 0 draws every link whole. */
     longLinkRows?: number;
   }
@@ -168,6 +171,7 @@
     density = GRAPH_DENSITY,
     stripes = GRAPH_STRIPES,
     avatarsChangedOnly = false,
+    authorLastOnly = false,
     longLinkRows = LONG_LINK_ROWS,
   }: Props = $props();
 
@@ -447,7 +451,12 @@
       if (!entry) continue;
       const aboveRow = toCommitRow(listRow - 1, headerRows, wtAt);
       const above = aboveRow === null ? undefined : graph.rowAt(aboveRow)?.commit.authorEmail;
-      rows.push({ listRow, entry, avatar: avatarShown(avatarsChangedOnly, entry.commit.authorEmail, above) });
+      // The row below may sit in a block not loaded yet: the author stays until it arrives.
+      const belowRow = toCommitRow(listRow + 1, headerRows, wtAt);
+      const below = belowRow === null ? undefined : graph.rowAt(belowRow)?.commit;
+      const author = authorShown(authorLastOnly, entry.commit, below);
+      const avatar = authorLastOnly ? author : avatarShown(avatarsChangedOnly, entry.commit.authorEmail, above);
+      rows.push({ listRow, entry, author, avatar });
     }
     return rows;
   });
@@ -867,6 +876,7 @@
               folds={modes.collapseMerged && filterless}
               {cells}
               {timeFormat}
+              author={item.author}
               avatar={item.avatar}
               {now}
               {clipX}

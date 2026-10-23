@@ -163,23 +163,7 @@ impl RepoHandle {
         let mut tips = tips_under("refs/heads/");
         tips.extend(self.repo.head_id().ok().map(gix::Id::detach));
         let hidden = tips_under("refs/remotes/");
-        let walk = match self.repo.rev_walk(tips).with_hidden(hidden).all() {
-            Ok(walk) => walk,
-            Err(err) => {
-                tracing::error!(error = ?err, context = "unpushed commits of a submodule");
-                return (0, Vec::new());
-            }
-        };
-        let mut total = 0_u32;
-        let mut commits = Vec::new();
-        let mailmap = self.mailmap();
-        for info in walk.filter_map(std::result::Result::ok) {
-            total = total.saturating_add(1);
-            if commits.len() < NAMED {
-                commits.push(crate::network_options::push_commit(&info, &mailmap));
-            }
-        }
-        (total, commits)
+        self.push_commits(&self.only_reachable(tips, hidden), NAMED)
     }
 }
 

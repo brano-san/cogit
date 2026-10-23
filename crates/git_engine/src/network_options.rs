@@ -135,11 +135,8 @@ fn notes_mirror(remote: &str) -> String {
 }
 
 /// A row of a list of commits to push; what cannot be read stays empty.
-pub(crate) fn push_commit(
-    info: &gix::revision::walk::Info<'_>,
-    mailmap: &crate::Mailmap,
-) -> PushCommit {
-    let commit = info.object().ok();
+fn push_commit(repo: &gix::Repository, id: gix::ObjectId, mailmap: &crate::Mailmap) -> PushCommit {
+    let commit = repo.find_commit(id).ok();
     let summary = commit
         .as_ref()
         .and_then(|commit| commit.message().ok().map(|m| m.summary().to_string()))
@@ -150,7 +147,7 @@ pub(crate) fn push_commit(
         .map(|sig| crate::commit::signature(sig, mailmap))
         .unwrap_or_default();
     PushCommit {
-        oid: info.id.to_string(),
+        oid: id.to_string(),
         summary,
         author,
     }
@@ -680,19 +677,22 @@ impl RepoHandle {
                 .filter_map(|(_, id)| self.resolve_commit(id).ok())
                 .collect();
         }
-        let Ok(walk) = self.repo.rev_walk(Some(tip)).with_hidden(hidden).all() else {
-            return (0, Vec::new());
-        };
-        let mut total = 0_u32;
-        let mut commits = Vec::new();
+        self.push_commits(&self.only_reachable(Some(tip), hidden), limit)
+    }
+
+    /// The count and the first `limit` rows of a list of commits to push.
+    pub(crate) fn push_commits(
+        &self,
+        ids: &[gix::ObjectId],
+        limit: usize,
+    ) -> (u32, Vec<PushCommit>) {
         let mailmap = self.mailmap();
-        for info in walk.filter_map(std::result::Result::ok) {
-            total = total.saturating_add(1);
-            if commits.len() < limit {
-                commits.push(push_commit(&info, &mailmap));
-            }
-        }
-        (total, commits)
+        let commits = ids
+            .iter()
+            .take(limit)
+            .map(|id| push_commit(&self.repo, *id, &mailmap))
+            .collect();
+        (u32::try_from(ids.len()).unwrap_or(u32::MAX), commits)
     }
 
     fn count_notes_unpushed(

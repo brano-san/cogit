@@ -108,19 +108,34 @@ impl RepoHandle {
         tips.extend(self.repo.head_id().ok().map(gix::Id::detach));
         let hidden = peeled(platform.remote_branches().map_err(|e| internal(&e))?);
         let started = std::time::Instant::now();
-        let found: crate::Result<Vec<String>> = self
-            .repo
-            .rev_walk(tips)
-            .with_hidden(hidden)
-            .all()
-            .map_err(|e| internal(&e))?
-            .map(|info| {
-                info.map(|info| info.id.to_string())
-                    .map_err(|e| internal(&e))
-            })
+        let found: Vec<String> = self
+            .only_reachable(tips, hidden)
+            .iter()
+            .map(ToString::to_string)
             .collect();
-        tracing::info!(elapsed = ?started.elapsed(), count = found.as_ref().map_or(0, Vec::len), "unpushed commits");
-        found
+        tracing::info!(elapsed = ?started.elapsed(), count = found.len(), "unpushed commits");
+        Ok(found)
+    }
+
+    /// `git rev-list <tips> --not <hidden>`, newest first, the way git's `limit_list` walks:
+    /// a commit found hidden late hides what was walked below it, and the walk goes on while
+    /// something queued is newer than the oldest commit kept, then `SLOP` commits more. gix's
+    /// `with_hidden` stopped at the first all-hidden queue, so a commit dated after its own
+    /// children (a clock running ahead) counted as unpushed although a remote branch had it.
+    pub(crate) fn only_reachable(
+        &self,
+        tips: impl IntoIterator<Item = ObjectId>,
+        hidden: impl IntoIterator<Item = ObjectId>,
+    ) -> Vec<ObjectId> {
+        let reader = crate::graph_walk::CommitReader::new(&self.repo);
+        let mut walk = Exclusion::default();
+        for id in hidden {
+            walk.add(&reader, id, true);
+        }
+        for id in tips {
+            walk.add(&reader, id, false);
+        }
+        walk.run(&reader)
     }
 
     pub(crate) fn commit_of(&self, rev: &str) -> Option<ObjectId> {
@@ -174,6 +189,81 @@ impl RepoHandle {
                 .map(|reference| reference.name().as_bstr().to_string())
                 .collect(),
         )
+    }
+}
+
+/// git's `SLOP`: commits walked past the point where only hidden ones are queued.
+const SLOP: u32 = 5;
+
+struct Node {
+    hidden: bool,
+    parents: Vec<ObjectId>,
+}
+
+#[derive(Default)]
+struct Exclusion {
+    nodes: HashMap<ObjectId, Node>,
+    queue: std::collections::BinaryHeap<(i64, ObjectId)>,
+}
+
+impl Exclusion {
+    fn add(&mut self, reader: &crate::graph_walk::CommitReader<'_>, id: ObjectId, hidden: bool) {
+        if let Some(node) = self.nodes.get(&id) {
+            if hidden && !node.hidden {
+                self.hide(id);
+            }
+            return;
+        }
+        let Some((time, parents)) = reader.read(id) else {
+            return;
+        };
+        self.nodes.insert(id, Node { hidden, parents });
+        self.queue.push((time, id));
+    }
+
+    /// `mark_parents_uninteresting`: everything already known below `id` is hidden too.
+    fn hide(&mut self, id: ObjectId) {
+        let mut stack = vec![id];
+        while let Some(id) = stack.pop() {
+            if let Some(node) = self.nodes.get_mut(&id)
+                && !node.hidden
+            {
+                node.hidden = true;
+                stack.extend(node.parents.iter().copied());
+            }
+        }
+    }
+
+    fn run(mut self, reader: &crate::graph_walk::CommitReader<'_>) -> Vec<ObjectId> {
+        let mut kept = Vec::new();
+        let mut oldest_kept = i64::MAX;
+        let mut slop = SLOP;
+        while let Some((time, id)) = self.queue.pop() {
+            let Some(node) = self.nodes.get(&id) else {
+                continue;
+            };
+            let (hidden, parents) = (node.hidden, node.parents.clone());
+            for parent in parents {
+                self.add(reader, parent, hidden);
+            }
+            if !hidden {
+                kept.push(id);
+                oldest_kept = time;
+                continue;
+            }
+            // ponytail: scans the queue per hidden commit, as wide as the open lanes.
+            let interesting = self
+                .queue
+                .iter()
+                .any(|(_, id)| self.nodes.get(id).is_some_and(|node| !node.hidden));
+            let newer = self.queue.peek().is_some_and(|&(t, _)| oldest_kept <= t);
+            slop = if interesting || newer { SLOP } else { slop - 1 };
+            if slop == 0 {
+                break;
+            }
+        }
+        kept.retain(|id| self.nodes.get(id).is_some_and(|node| !node.hidden));
+        kept
     }
 }
 
