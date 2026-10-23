@@ -77,9 +77,7 @@ fn layout_of_a_history() {
         for _ in 0..7 {
             let commits = nodes(&log);
             let started = Instant::now();
-            let mut cursor = LayoutCursor::default()
-                .with_long_links(long_links)
-                .with_lookahead(40);
+            let mut cursor = LayoutCursor::default().with_long_links(long_links);
             let mut rows = push(commits, &mut cursor);
             rows.extend(finish(&mut cursor));
             samples.push(started.elapsed());
