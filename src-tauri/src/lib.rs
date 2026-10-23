@@ -435,8 +435,7 @@ pub fn run() -> anyhow::Result<()> {
     #[cfg(windows)]
     webview2_check::require();
 
-    // Before GTK starts: the Wayland app_id and the X11 WM_CLASS follow the program name,
-    // and the shell matches them to `cogit.desktop` for the icon.
+    // Before GTK starts: the Wayland app_id follows the program name.
     #[cfg(target_os = "linux")]
     gtk::glib::set_prgname(Some(desktop_entry::APP_NAME));
 
@@ -457,6 +456,21 @@ pub fn run() -> anyhow::Result<()> {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init());
+    // The X11 WM_CLASS follows the program class, which GTK's start sets to the program name
+    // capitalized ("Cogit"). WSLg looks for `<class>.desktop` case-sensitively, and found
+    // none (a penguin). A plugin's setup is the one step after GTK starts and before the
+    // config's windows exist: in the app's own setup they already have their class.
+    #[cfg(target_os = "linux")]
+    {
+        builder = builder.plugin(
+            tauri::plugin::Builder::<tauri::Wry>::new("program-class")
+                .setup(|_, _| {
+                    gtk::gdk::set_program_class(desktop_entry::APP_NAME);
+                    Ok(())
+                })
+                .build(),
+        );
+    }
     // Both write to the system's folders (the plugin creates the config folder when it
     // saves; an update replaces the installed binary): a portable build has its own.
     if portable.is_none() {
@@ -620,6 +634,10 @@ pub fn run() -> anyhow::Result<()> {
 /// the window took back from the webview (problem 3).
 pub fn dispatch_menu_command(app: &tauri::AppHandle, id: &str) {
     if child_window::on_menu(app, id) {
+        return;
+    }
+    #[cfg(target_os = "linux")]
+    if menu::native_command(app, id) {
         return;
     }
     if id == "copy-diagnostics" {

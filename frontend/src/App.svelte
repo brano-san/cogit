@@ -3660,6 +3660,7 @@ ${event.error}`,
   <div class="workspace" bind:clientWidth={workspaceWidth}>
     {#if emptyStateVisible(repository.phase, repository.ready)}
       <StartScreen
+        listed={listedRepos(repository.openRepos, repoList.list).length}
         onopen={() => void pickRepository()}
         onclone={() => void openCloneWizard()}
       />

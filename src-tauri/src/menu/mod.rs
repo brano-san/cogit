@@ -3,8 +3,7 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use tauri::menu::{
-    CheckMenuItem, CheckMenuItemBuilder, Menu, MenuItem, MenuItemBuilder, PredefinedMenuItem,
-    Submenu, SubmenuBuilder,
+    CheckMenuItem, CheckMenuItemBuilder, Menu, MenuItem, MenuItemBuilder, Submenu, SubmenuBuilder,
 };
 use tauri::{AppHandle, Manager as _, Runtime};
 
@@ -525,10 +524,29 @@ pub fn build<R: Runtime>(
     let help = section("Help", HELP)?;
 
     // Edit and Window are the OS's own items: the webview needs real clipboard entries
-    // for Ctrl+C to work inside an input, and muda gives them native behaviour.
-    let clipboard = SubmenuBuilder::new(app, "Edit")
-        .undo()
-        .redo()
+    // for Ctrl+C to work inside an input, and muda gives them native behaviour. GTK has no
+    // Undo, Redo, Minimize, Maximize or Close of its own: muda drew them disabled, so Linux
+    // gets plain items that `native_command` answers.
+    let clipboard = SubmenuBuilder::new(app, "Edit");
+    #[cfg(target_os = "linux")]
+    let clipboard = clipboard
+        .item(&MenuItem::with_id(
+            app,
+            EDIT_UNDO,
+            "Undo",
+            true,
+            None::<&str>,
+        )?)
+        .item(&MenuItem::with_id(
+            app,
+            EDIT_REDO,
+            "Redo",
+            true,
+            None::<&str>,
+        )?);
+    #[cfg(not(target_os = "linux"))]
+    let clipboard = clipboard.undo().redo();
+    let clipboard = clipboard
         .separator()
         .cut()
         .copy()
@@ -538,9 +556,26 @@ pub fn build<R: Runtime>(
         .item(&MenuItem::with_id(app, "select-all", "Select All", true, None::<&str>)?)
         .separator();
     let edit = fill(app, clipboard, EDIT, overrides, &mut collected)?.build()?;
-    let window = SubmenuBuilder::new(app, "Window")
-        .minimize()
-        .maximize()
+    let window = SubmenuBuilder::new(app, "Window");
+    #[cfg(target_os = "linux")]
+    let window = window
+        .item(&MenuItem::with_id(
+            app,
+            WINDOW_MINIMIZE,
+            "Minimize",
+            true,
+            Some("Ctrl+M"),
+        )?)
+        .item(&MenuItem::with_id(
+            app,
+            WINDOW_MAXIMIZE,
+            "Maximize",
+            true,
+            None::<&str>,
+        )?);
+    #[cfg(not(target_os = "linux"))]
+    let window = window.minimize().maximize();
+    let window = window
         .separator()
         .item(&MenuItem::with_id(
             app,
@@ -549,9 +584,21 @@ pub fn build<R: Runtime>(
             true,
             None::<&str>,
         )?)
-        .separator()
-        .item(&PredefinedMenuItem::close_window(app, Some("Close"))?)
-        .build()?;
+        .separator();
+    #[cfg(target_os = "linux")]
+    let window = window.item(&MenuItem::with_id(
+        app,
+        WINDOW_CLOSE,
+        "Close",
+        true,
+        Some("Alt+F4"),
+    )?);
+    #[cfg(not(target_os = "linux"))]
+    let window = window.item(&tauri::menu::PredefinedMenuItem::close_window(
+        app,
+        Some("Close"),
+    )?);
+    let window = window.build()?;
 
     let menu = Menu::with_items(
         app,
@@ -570,6 +617,49 @@ pub fn build<R: Runtime>(
     )?;
 
     Ok((menu, collected))
+}
+
+#[cfg(target_os = "linux")]
+const EDIT_UNDO: &str = "edit-undo";
+#[cfg(target_os = "linux")]
+const EDIT_REDO: &str = "edit-redo";
+#[cfg(target_os = "linux")]
+const WINDOW_MINIMIZE: &str = "window-minimize";
+#[cfg(target_os = "linux")]
+const WINDOW_MAXIMIZE: &str = "window-maximize";
+#[cfg(target_os = "linux")]
+const WINDOW_CLOSE: &str = "window-close";
+
+/// The Linux stand-ins for muda's predefined items, on the main window (the one with this
+/// bar). `false`: not one of them.
+#[cfg(target_os = "linux")]
+pub fn native_command<R: Runtime>(app: &AppHandle<R>, id: &str) -> bool {
+    if ![
+        EDIT_UNDO,
+        EDIT_REDO,
+        WINDOW_MINIMIZE,
+        WINDOW_MAXIMIZE,
+        WINDOW_CLOSE,
+    ]
+    .contains(&id)
+    {
+        return false;
+    }
+    let Some(window) = app.get_webview_window(crate::child_window::MAIN) else {
+        return true;
+    };
+    let done = match id {
+        EDIT_UNDO => window.eval("document.execCommand('undo')"),
+        EDIT_REDO => window.eval("document.execCommand('redo')"),
+        WINDOW_MINIMIZE => window.minimize(),
+        WINDOW_MAXIMIZE if window.is_maximized().unwrap_or(false) => window.unmaximize(),
+        WINDOW_MAXIMIZE => window.maximize(),
+        _ => window.close(),
+    };
+    if let Err(err) = done {
+        tracing::error!(error = ?err, id, context = "menu item on the main window");
+    }
+    true
 }
 
 impl<R: Runtime> From<Collected<R>> for MenuItems<R> {

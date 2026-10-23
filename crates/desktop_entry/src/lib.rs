@@ -104,6 +104,27 @@ pub fn data_home(xdg: Option<OsString>, home: Option<OsString>) -> Option<PathBu
     })
 }
 
+/// Where the entry goes: the user's data home, or `/usr/local/share` for root (`sudo`).
+/// WSLg reads launcher entries only from the system folders, never from a home.
+pub fn target_dir(root: bool, xdg: Option<OsString>, home: Option<OsString>) -> Option<PathBuf> {
+    if root {
+        return Some(PathBuf::from("/usr/local/share"));
+    }
+    data_home(xdg, home)
+}
+
+#[cfg(unix)]
+fn running_as_root() -> bool {
+    use std::os::unix::fs::MetadataExt as _;
+    // `/proc/self` belongs to the effective user.
+    std::fs::metadata("/proc/self").is_ok_and(|meta| meta.uid() == 0)
+}
+
+#[cfg(not(unix))]
+fn running_as_root() -> bool {
+    false
+}
+
 /// Everything the installer owns, relative to the data home.
 fn payload(exe: &Path, comment: &str) -> Vec<(PathBuf, Vec<u8>)> {
     let mut files = vec![(
@@ -161,7 +182,7 @@ fn refresh_caches(data_home: &Path) {
 
 const HELP: &str = "Usage: cogit [OPTIONS] [PATH]\n\n\
     Options:\n  \
-    --install-desktop-entry    Add the launcher entry and icons to the user's data directory (Linux)\n  \
+    --install-desktop-entry    Add the launcher entry and icons to the user's data directory, or /usr/local/share as root (Linux)\n  \
     --uninstall-desktop-entry  Remove them again (Linux)\n  \
     -V, --version              Print the version and exit\n  \
     -h, --help                 Print this help and exit\n";
@@ -196,7 +217,11 @@ fn manage(action: &Action, comment: &str, out: &mut dyn Write, err: &mut dyn Wri
         let _ = writeln!(err, "cogit: desktop entries exist on Linux only");
         return 1;
     }
-    let Some(home) = data_home(std::env::var_os("XDG_DATA_HOME"), std::env::var_os("HOME")) else {
+    let Some(home) = target_dir(
+        running_as_root(),
+        std::env::var_os("XDG_DATA_HOME"),
+        std::env::var_os("HOME"),
+    ) else {
         let _ = writeln!(
             err,
             "cogit: neither XDG_DATA_HOME nor HOME is an absolute path"

@@ -31,6 +31,10 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>, dark: bool, background: &str) {
         return;
     };
     BACKGROUND.store(rgb, Ordering::Relaxed);
+    #[cfg(target_os = "linux")]
+    if let Err(err) = app.run_on_main_thread(move || paint_title_bars(rgb)) {
+        tracing::error!(error = ?err, context = "title bar color for the theme");
+    }
     for window in app.webview_windows().values() {
         if let Err(err) = window.set_background_color(Some(self::background())) {
             tracing::error!(error = ?err, context = "window background for the theme");
@@ -82,6 +86,49 @@ pub fn use_adwaita(taken: Option<&str>) {
         "native theme: what GTK had, before Adwaita"
     );
     settings.set_gtk_theme_name(Some("Adwaita"));
+    // WSLg has no settings daemon: GTK's own default leaves the header bar only Close.
+    if under_wsl() {
+        settings.set_gtk_decoration_layout(Some("menu:minimize,maximize,close"));
+    }
+    paint_title_bars(BACKGROUND.load(Ordering::Relaxed));
+}
+
+/// `WSL_DISTRO_NAME` in a WSL shell; the interop entry when started another way.
+#[cfg(target_os = "linux")]
+fn under_wsl() -> bool {
+    std::env::var_os("WSL_DISTRO_NAME").is_some()
+        || std::path::Path::new("/proc/sys/fs/binfmt_misc/WSLInterop").exists()
+}
+
+/// On the main thread: GTK's header bar (Wayland, WSLg included, draws one on every
+/// window) in the theme's background, as the menu bar under it; Adwaita's own is a gray
+/// of its own in each variant. One style sheet, replaced on each theme change.
+#[cfg(target_os = "linux")]
+fn paint_title_bars(rgb: u32) {
+    use gtk::prelude::CssProviderExt;
+    thread_local! {
+        static SHEET: std::cell::OnceCell<gtk::CssProvider> = const { std::cell::OnceCell::new() };
+    }
+    SHEET.with(|cell| {
+        let sheet = cell.get_or_init(|| {
+            let sheet = gtk::CssProvider::new();
+            if let Some(screen) = gtk::gdk::Screen::default() {
+                gtk::StyleContext::add_provider_for_screen(
+                    &screen,
+                    &sheet,
+                    gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+                );
+            }
+            sheet
+        });
+        let css = format!(
+            ".titlebar {{ background: #{rgb:06x}; border-color: #{rgb:06x}; box-shadow: none; }}\n\
+             menubar > menuitem:backdrop {{ color: @theme_fg_color; }}"
+        );
+        if let Err(err) = sheet.load_from_data(css.as_bytes()) {
+            tracing::error!(error = ?err, context = "title bar style sheet");
+        }
+    });
 }
 
 /// For a window being built: it opens in the theme the others already have.
