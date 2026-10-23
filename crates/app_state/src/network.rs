@@ -1,6 +1,6 @@
 //! The commands that talk to a remote, signed in as `signed_in` decides (F-082).
 
-use crate::{AppState, RepoId, SignIn, credential_host, host_input};
+use crate::{AppState, RepoId, SignIn, credential_target, host_input};
 use git_engine::{
     AuthRequired, Credential, CredentialTrouble, GitError, NetworkStop, PullOutcome, Pushed,
 };
@@ -256,19 +256,23 @@ impl AppState {
     ) -> Result<T, GitError> {
         let typed = sign_in.and_then(|sign_in| Some((host_input(&sign_in.host)?, sign_in)));
         // Each host asked, with the username sent there.
-        let asked: RefCell<Vec<(String, Option<String>)>> = RefCell::new(Vec::new());
+        let asked: RefCell<Vec<Asked>> = RefCell::new(Vec::new());
         let used_typed = Cell::new(false);
         let credential = |url: &str| {
-            let host = credential_host(url)?;
+            let (host, ssh) = credential_target(url)?;
             let credential = match &typed {
-                Some((typed_host, sign_in)) if *typed_host == host => {
+                Some((typed_host, sign_in)) if *typed_host == host && sign_in.is_ssh() == ssh => {
                     used_typed.set(true);
                     Some(sign_in.credential())
                 }
                 _ => self.stored_credential(url),
             };
             let username = credential.as_ref().and_then(|c| c.username.clone());
-            asked.borrow_mut().push((host, username));
+            asked.borrow_mut().push(Asked {
+                host,
+                username,
+                ssh,
+            });
             credential
         };
         SIGNING_IN.set(true);
@@ -299,10 +303,13 @@ impl AppState {
 
 /// The host git quotes in its refusal (`fetch --all` asks several), else the last one asked;
 /// `None` for a host Cogit cannot sign in to (plain http to another machine, ssh).
-fn auth_required(
-    failure: &git_engine::GitCommandError,
-    asked: &[(String, Option<String>)],
-) -> Option<AuthRequired> {
+struct Asked {
+    host: String,
+    username: Option<String>,
+    ssh: bool,
+}
+
+fn auth_required(failure: &git_engine::GitCommandError, asked: &[Asked]) -> Option<AuthRequired> {
     let text = format!("{}\n{}", failure.stderr, failure.stdout);
     if !matches!(
         git_engine::credential_trouble(&text),
@@ -310,16 +317,20 @@ fn auth_required(
     ) {
         return None;
     }
-    let host = match git_engine::refused_url(&text) {
-        Some(url) => credential_host(&url)?,
-        None => asked.last()?.0.clone(),
+    let (host, ssh) = match git_engine::refused_url(&text) {
+        Some(url) => credential_target(&url)?,
+        None => asked.last().map(|last| (last.host.clone(), last.ssh))?,
     };
     let username = asked
         .iter()
         .rev()
-        .find(|(asked_host, _)| *asked_host == host)
-        .and_then(|(_, username)| username.clone());
-    Some(AuthRequired { host, username })
+        .find(|a| a.host == host && a.ssh == ssh)
+        .and_then(|a| a.username.clone());
+    Some(AuthRequired {
+        host,
+        username,
+        ssh,
+    })
 }
 
 #[cfg(test)]

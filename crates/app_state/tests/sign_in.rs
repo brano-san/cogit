@@ -1,8 +1,11 @@
 //! F-082 end to end: a server that wants Basic auth, git without any way to ask, and the
-//! Sign in dialog's retry, Remember and Remove as the backend sees them.
-#![allow(clippy::unwrap_used, clippy::expect_used)]
+//! Sign in dialog's retry, Remember and Remove as the backend sees them. The sign-in reaches
+//! git through Cogit's credential helper (R-891), which is the running executable: this
+//! test is its own `main` (no libtest harness) so that, started by git as the helper, it
+//! answers as Cogit does.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::print_stdout)]
 
-use app_state::{AppState, MemoryStore, SignIn};
+use app_state::{AppState, SignIn};
 use git_engine::{GitError, NetworkStop};
 use std::io::{BufRead as _, BufReader, Read as _, Write as _};
 use std::net::{TcpListener, TcpStream};
@@ -16,11 +19,8 @@ const PASSWORD: &str = "pw";
 fn serve(root: PathBuf) -> u16 {
     let server = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = server.local_addr().unwrap().port();
-    let wanted = git_engine::basic_header(&git_engine::Credential {
-        username: Some(USER.to_owned()),
-        secret: PASSWORD.to_owned(),
-    });
-    let wanted = wanted.trim_start_matches("Authorization: ").to_owned();
+    // base64("ann:pw")
+    let wanted = "Basic YW5uOnB3".to_owned();
     std::thread::spawn(move || {
         for socket in server.incoming().flatten() {
             let (root, wanted) = (root.clone(), wanted.clone());
@@ -105,7 +105,12 @@ fn answer(mut socket: TcpStream, root: &Path, wanted: &str) {
 
 /// A clone whose origin is served over HTTP behind Basic auth. No credential helper: the
 /// developer's own (Git Credential Manager) would open its window in the middle of a test.
-fn repository() -> (test_fixtures::Fixture, AppState, app_state::RepoId) {
+fn repository() -> (
+    test_fixtures::Fixture,
+    tempfile::TempDir,
+    AppState,
+    app_state::RepoId,
+) {
     let f = test_fixtures::with_remote().unwrap();
     let origin = PathBuf::from(f.git(&["remote", "get-url", "origin"]).unwrap().trim());
     let port = serve(origin.parent().unwrap().to_path_buf());
@@ -118,9 +123,12 @@ fn repository() -> (test_fixtures::Fixture, AppState, app_state::RepoId) {
     ])
     .unwrap();
     f.git(&["config", "credential.helper", ""]).unwrap();
-    let state = AppState::new().with_secrets(Box::new(MemoryStore::default()));
+    let store = tempfile::tempdir().unwrap();
+    let state = AppState::new();
+    state.use_password_store(store.path().join("passwords.json"));
+    state.create_credential_store(Some("master")).unwrap();
     let repo = state.open_repository(f.path()).unwrap().repo;
-    (f, state, repo)
+    (f, store, state, repo)
 }
 
 fn fetch(
@@ -136,6 +144,7 @@ fn sign_in(password: &str, remember: bool) -> SignIn {
         host: "127.0.0.1".to_owned(),
         username: Some(USER.to_owned()),
         secret: password.to_owned(),
+        key_path: None,
         remember,
     }
 }
@@ -149,55 +158,50 @@ fn auth_required(result: Result<(), GitError>) -> git_engine::AuthRequired {
     }
 }
 
-#[test]
 fn a_refusal_asks_a_retry_signs_in_and_remember_keeps_it() {
-    let (_f, state, repo) = repository();
+    let (_f, _store, state, repo) = repository();
 
     let asked = auth_required(fetch(&state, repo, None));
     assert_eq!(asked.host, "127.0.0.1");
     assert_eq!(asked.username, None);
 
     fetch(&state, repo, Some(&sign_in(PASSWORD, true))).unwrap();
-    let known = state.list_credentials().known;
+    let known = state.credential_store().unwrap().known;
     assert_eq!(known.len(), 1);
     assert_eq!(known[0].username.as_deref(), Some(USER));
 
     fetch(&state, repo, None).unwrap();
 }
 
-#[test]
 fn a_wrong_password_asks_again_with_its_username_and_is_not_kept() {
-    let (_f, state, repo) = repository();
+    let (_f, _store, state, repo) = repository();
 
     let asked = auth_required(fetch(&state, repo, Some(&sign_in("wrong", true))));
 
     assert_eq!(asked.username.as_deref(), Some(USER));
-    assert!(state.list_credentials().known.is_empty());
+    assert!(state.credential_store().unwrap().known.is_empty());
 }
 
-#[test]
 fn without_remember_the_retry_works_once_and_the_next_fetch_asks() {
-    let (_f, state, repo) = repository();
+    let (_f, _store, state, repo) = repository();
 
     fetch(&state, repo, Some(&sign_in(PASSWORD, false))).unwrap();
 
     auth_required(fetch(&state, repo, None));
 }
 
-#[test]
 fn a_removed_sign_in_is_asked_for_again() {
-    let (_f, state, repo) = repository();
+    let (_f, _store, state, repo) = repository();
     fetch(&state, repo, Some(&sign_in(PASSWORD, true))).unwrap();
 
-    state.forget_credential("127.0.0.1").unwrap();
+    state.forget_credential("127.0.0.1", false).unwrap();
 
     auth_required(fetch(&state, repo, None));
 }
 
 // A sign-in typed for one host must never reach another, here the push URL's.
-#[test]
 fn a_sign_in_goes_only_to_its_host() {
-    let (f, state, repo) = repository();
+    let (f, _store, state, repo) = repository();
     let elsewhere = SignIn {
         host: "git.example".to_owned(),
         ..sign_in(PASSWORD, true)
@@ -206,6 +210,51 @@ fn a_sign_in_goes_only_to_its_host() {
     let asked = auth_required(fetch(&state, repo, Some(&elsewhere)));
 
     assert_eq!(asked.host, "127.0.0.1");
-    assert!(state.list_credentials().known.is_empty());
+    assert!(state.credential_store().unwrap().known.is_empty());
     drop(f);
+}
+
+fn main() {
+    if let Some(code) = git_engine::run_as_helper() {
+        std::process::exit(code);
+    }
+    let tests: [(&str, fn()); 5] = [
+        (
+            "a_refusal_asks_a_retry_signs_in_and_remember_keeps_it",
+            a_refusal_asks_a_retry_signs_in_and_remember_keeps_it,
+        ),
+        (
+            "a_wrong_password_asks_again_with_its_username_and_is_not_kept",
+            a_wrong_password_asks_again_with_its_username_and_is_not_kept,
+        ),
+        (
+            "without_remember_the_retry_works_once_and_the_next_fetch_asks",
+            without_remember_the_retry_works_once_and_the_next_fetch_asks,
+        ),
+        (
+            "a_removed_sign_in_is_asked_for_again",
+            a_removed_sign_in_is_asked_for_again,
+        ),
+        (
+            "a_sign_in_goes_only_to_its_host",
+            a_sign_in_goes_only_to_its_host,
+        ),
+    ];
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    // nextest lists in libtest's terse format, then runs one name at a time.
+    if args.iter().any(|a| a == "--list") {
+        if !args.iter().any(|a| a == "--ignored") {
+            for (name, _) in tests {
+                println!("{name}: test");
+            }
+        }
+        return;
+    }
+    let wanted: Vec<&String> = args.iter().filter(|a| !a.starts_with('-')).collect();
+    for (name, test) in tests {
+        if wanted.is_empty() || wanted.iter().any(|w| name.contains(w.as_str())) {
+            test();
+            println!("{name} ... ok");
+        }
+    }
 }

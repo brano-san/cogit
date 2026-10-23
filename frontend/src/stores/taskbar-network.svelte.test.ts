@@ -9,6 +9,7 @@ const commands = {
   writeSetting: vi.fn(),
   commandOutcome: vi.fn(),
   repositoryHealth: vi.fn(),
+  credentialStore: vi.fn(async () => ({ status: "ok", data: { state: "missing", masterPassword: false, known: [] } })),
 };
 
 vi.mock("@tauri-apps/api/core", () => ({ Channel: class {} }));

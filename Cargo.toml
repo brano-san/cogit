@@ -110,7 +110,13 @@ ureq = "3.4"
 md-5 = "0.11"
 
 # --- system ---
+# Only to move sign-ins kept before Cogit's own password store into it (R-891).
 keyring = "4.2"
+# Cogit's password store (R-891): XChaCha20-Poly1305 under an Argon2id key.
+chacha20poly1305 = "0.10"
+argon2 = "0.5"
+getrandom = "0.3"
+zeroize = "1.8"
 # Working set of the WebView2 child processes, for the `kind=procmem` probe. Only the
 # `system` feature: disks, networks, components and users are never read. A safe API was
 # required — the workspace denies `unsafe_code`, so raw Win32 was not an option (R-86).

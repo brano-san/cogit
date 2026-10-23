@@ -1,58 +1,9 @@
 // clippy.toml's allow-unwrap-in-tests does not reach helpers beside `#[test]` fns.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use app_state::{AppState, MemoryStore, SecretStore, SignIn, credential_host, host_of};
-
-#[test]
-fn a_stored_secret_comes_back() {
-    let store = MemoryStore::default();
-    store.set("github.com", "ghp_token").unwrap();
-
-    assert_eq!(store.get("github.com").as_deref(), Some("ghp_token"));
-}
-
-#[test]
-fn an_unknown_key_has_no_secret() {
-    assert!(MemoryStore::default().get("github.com").is_none());
-}
-
-#[test]
-fn storing_twice_replaces_the_secret() {
-    let store = MemoryStore::default();
-    store.set("github.com", "first").unwrap();
-    store.set("github.com", "second").unwrap();
-
-    assert_eq!(store.get("github.com").as_deref(), Some("second"));
-}
-
-#[test]
-fn deleting_removes_the_secret() {
-    let store = MemoryStore::default();
-    store.set("github.com", "token").unwrap();
-    store.delete("github.com").unwrap();
-
-    assert!(store.get("github.com").is_none());
-}
-
-#[test]
-fn deleting_a_key_that_was_never_set_is_not_an_error() {
-    assert!(MemoryStore::default().delete("nothing.example").is_ok());
-}
-
-#[test]
-fn keys_do_not_leak_into_each_other() {
-    let store = MemoryStore::default();
-    store.set("github.com", "a").unwrap();
-    store.set("gitlab.com", "b").unwrap();
-
-    assert_eq!(store.get("github.com").as_deref(), Some("a"));
-    assert_eq!(store.get("gitlab.com").as_deref(), Some("b"));
-}
-
-#[test]
-fn an_empty_secret_is_refused_rather_than_stored() {
-    assert!(MemoryStore::default().set("github.com", "").is_err());
-}
+use app_state::{
+    AppState, SignIn, StoreState, credential_host, credential_target, host_of, ssh_host,
+};
 
 #[test]
 fn the_host_of_an_https_remote_is_its_domain() {
@@ -145,11 +96,19 @@ fn the_edges_of_a_url_have_one_answer() {
     assert_eq!(host("https://é").as_deref(), Some("é"));
 }
 
+fn state_with_store() -> (tempfile::TempDir, AppState) {
+    let dir = tempfile::tempdir().unwrap();
+    let state = AppState::new();
+    state.use_password_store(dir.path().join("passwords.json"));
+    state.create_credential_store(None).unwrap();
+    (dir, state)
+}
+
 // Save through the door the Authentication page uses, read through the one network runs
 // use: both must land on the same key, whatever the URL looks like.
 #[test]
 fn a_sign_in_saved_for_a_url_is_the_one_a_network_run_reads() {
-    let state = AppState::new().with_secrets(Box::new(MemoryStore::default()));
+    let (_dir, state) = state_with_store();
     for url in [
         "https://github.com/o/r.git",
         "https://me@gitlab.com:8443/o/r.git",
@@ -164,14 +123,14 @@ fn a_sign_in_saved_for_a_url_is_the_one_a_network_run_reads() {
             Some("tok"),
             "{url}"
         );
-        state.forget_credential(url).unwrap();
+        state.forget_credential(url, false).unwrap();
         assert_eq!(state.stored_credential(url), None, "{url}");
     }
 }
 
 #[test]
-fn a_sign_in_never_goes_over_plain_http_or_ssh() {
-    let state = AppState::new().with_secrets(Box::new(MemoryStore::default()));
+fn a_login_never_goes_over_plain_http_or_ssh() {
+    let (_dir, state) = state_with_store();
     state
         .store_credential(&sign_in("github.com", None, "x"))
         .unwrap();
@@ -201,23 +160,32 @@ fn a_sign_in_never_goes_over_plain_http_or_ssh() {
     assert_eq!(state.stored_credential("https://evil/x"), None);
 }
 
-/// A store that says it survives a restart, as the OS keyring does.
-#[derive(Default)]
-struct Keyring(MemoryStore);
+#[test]
+fn an_ssh_key_is_kept_beside_a_login_of_the_same_host() {
+    let (_dir, state) = state_with_store();
+    state
+        .store_credential(&sign_in("github.com", Some("ann"), "pw"))
+        .unwrap();
+    state
+        .store_credential(&SignIn {
+            key_path: Some("C:\\Users\\ann\\.ssh\\id_ed25519".to_owned()),
+            ..sign_in("git@github.com:o/r.git", Some("ignored"), "")
+        })
+        .unwrap();
 
-impl SecretStore for Keyring {
-    fn get(&self, key: &str) -> Option<String> {
-        self.0.get(key)
-    }
-    fn set(&self, key: &str, secret: &str) -> Result<(), app_state::SecretError> {
-        self.0.set(key, secret)
-    }
-    fn delete(&self, key: &str) -> Result<(), app_state::SecretError> {
-        self.0.delete(key)
-    }
-    fn persistent(&self) -> bool {
-        true
-    }
+    let key = state
+        .stored_credential("ssh://git@GitHub.com/o/r.git")
+        .unwrap();
+    assert_eq!(key.key.as_deref(), Some("C:\\Users\\ann\\.ssh\\id_ed25519"));
+    assert_eq!((key.username, key.secret.as_str()), (None, ""));
+    let login = state
+        .stored_credential("https://github.com/o/r.git")
+        .unwrap();
+    assert_eq!((login.username.as_deref(), login.key), (Some("ann"), None));
+
+    state.forget_credential("github.com", true).unwrap();
+    assert!(state.stored_credential("git@github.com:o/r.git").is_none());
+    assert!(state.stored_credential("https://github.com/x").is_some());
 }
 
 fn sign_in(host: &str, username: Option<&str>, secret: &str) -> SignIn {
@@ -225,49 +193,14 @@ fn sign_in(host: &str, username: Option<&str>, secret: &str) -> SignIn {
         host: host.to_owned(),
         username: username.map(str::to_owned),
         secret: secret.to_owned(),
+        key_path: None,
         remember: true,
     }
 }
 
 #[test]
-fn a_token_stored_before_sign_ins_reads_as_one_without_a_username() {
-    let store = Keyring::default();
-    store.set("gitlab.example", "glpat-old").unwrap();
-    let state = AppState::new().with_secrets(Box::new(store));
-
-    let credential = state
-        .stored_credential("https://gitlab.example/o/r.git")
-        .unwrap();
-
-    assert_eq!(credential.username, None);
-    assert_eq!(credential.secret, "glpat-old");
-    let known = state.list_credentials().known;
-    assert_eq!(known.len(), 1);
-    assert_eq!(known[0].host, "gitlab.example");
-}
-
-#[test]
-fn a_sign_in_keeps_its_username_beside_the_secret() {
-    let state = AppState::new().with_secrets(Box::new(Keyring::default()));
-
-    state
-        .store_credential(&sign_in("https://Cdb.Example/o/r.git", Some("ann"), "pw"))
-        .unwrap();
-
-    let credential = state
-        .stored_credential("https://cdb.example/x.git")
-        .unwrap();
-    assert_eq!(credential.username.as_deref(), Some("ann"));
-    assert_eq!(credential.secret, "pw");
-}
-
-#[test]
 fn the_list_names_hosts_and_users_and_never_a_secret() {
-    let dir = tempfile::tempdir().unwrap();
-    let file = dir.path().join("credentials.json");
-    let state = AppState::new().with_secrets(Box::new(Keyring::default()));
-    state.use_credential_list(file.clone());
-
+    let (dir, state) = state_with_store();
     state
         .store_credential(&sign_in("b.example", Some("bob"), "secret-b"))
         .unwrap();
@@ -275,28 +208,28 @@ fn the_list_names_hosts_and_users_and_never_a_secret() {
         .store_credential(&sign_in("a.example", None, "secret-a"))
         .unwrap();
 
-    let list = state.list_credentials();
-    assert!(list.persistent);
+    let list = state.credential_store().unwrap();
+    assert_eq!(list.state, StoreState::Unlocked);
     let shown: Vec<_> = list
         .known
         .iter()
         .map(|k| (k.host.as_str(), k.username.as_deref()))
         .collect();
     assert_eq!(shown, [("a.example", None), ("b.example", Some("bob"))]);
-    let written = std::fs::read_to_string(&file).unwrap();
+    let written = std::fs::read_to_string(dir.path().join("passwords.json")).unwrap();
     assert!(
-        written.contains("b.example") && !written.contains("secret"),
+        !written.contains("b.example") && !written.contains("secret"),
         "{written}"
     );
 
-    let reopened = AppState::new().with_secrets(Box::new(Keyring::default()));
-    reopened.use_credential_list(file);
-    assert_eq!(reopened.list_credentials().known.len(), 2);
+    let reopened = AppState::new();
+    reopened.use_password_store(dir.path().join("passwords.json"));
+    assert_eq!(reopened.credential_store().unwrap().known.len(), 2);
 }
 
 #[test]
-fn forgetting_all_empties_the_keyring_and_the_list() {
-    let state = AppState::new().with_secrets(Box::new(Keyring::default()));
+fn forgetting_all_empties_the_store() {
+    let (_dir, state) = state_with_store();
     state
         .store_credential(&sign_in("a.example", None, "x"))
         .unwrap();
@@ -304,31 +237,67 @@ fn forgetting_all_empties_the_keyring_and_the_list() {
         .store_credential(&sign_in("b.example", None, "y"))
         .unwrap();
 
-    state.forget_credential("a.example").unwrap();
+    state.forget_credential("a.example", false).unwrap();
     assert!(state.stored_credential("https://a.example/r").is_none());
-    assert_eq!(state.list_credentials().known.len(), 1);
+    assert_eq!(state.credential_store().unwrap().known.len(), 1);
 
     state.forget_all_credentials().unwrap();
     assert!(state.stored_credential("https://b.example/r").is_none());
-    assert!(state.list_credentials().known.is_empty());
+    assert!(state.credential_store().unwrap().known.is_empty());
 }
 
-// Without Secret Service a sign-in lasts until Cogit exits; a list on disk would name it
-// after it is gone.
+// A store behind a master password holds nothing until it is unlocked: a background probe
+// reads nothing and a Remember is refused, rather than either asking or failing loudly.
 #[test]
-fn without_an_os_store_the_list_is_not_written() {
+fn a_locked_store_reads_nothing_and_keeps_nothing_until_unlocked() {
     let dir = tempfile::tempdir().unwrap();
-    let file = dir.path().join("credentials.json");
-    let state = AppState::new().with_secrets(Box::new(MemoryStore::default()));
-    state.use_credential_list(file.clone());
-
-    state
+    let path = dir.path().join("passwords.json");
+    let first = AppState::new();
+    first.use_password_store(path.clone());
+    first.create_credential_store(Some("master")).unwrap();
+    first
         .store_credential(&sign_in("a.example", None, "x"))
         .unwrap();
 
-    assert!(!state.list_credentials().persistent);
-    assert_eq!(state.list_credentials().known.len(), 1);
-    assert!(!file.exists());
+    let state = AppState::new();
+    state.use_password_store(path);
+    let locked = state.credential_store().unwrap();
+    assert_eq!(
+        (locked.state, locked.master_password),
+        (StoreState::Locked, true)
+    );
+    assert!(locked.known.is_empty());
+    assert!(state.stored_credential("https://a.example/r").is_none());
+    assert!(
+        state
+            .store_credential(&sign_in("b.example", None, "y"))
+            .is_err()
+    );
+
+    assert!(!state.unlock_credentials("wrong").unwrap());
+    assert!(state.unlock_credentials("master").unwrap());
+    assert_eq!(
+        state
+            .stored_credential("https://a.example/r")
+            .map(|c| c.secret)
+            .as_deref(),
+        Some("x")
+    );
+}
+
+#[test]
+fn without_a_store_nothing_is_read_and_a_remember_says_why() {
+    let dir = tempfile::tempdir().unwrap();
+    let state = AppState::new();
+    state.use_password_store(dir.path().join("passwords.json"));
+
+    assert_eq!(state.credential_store().unwrap().state, StoreState::Missing);
+    assert!(state.stored_credential("https://a.example/r").is_none());
+    assert!(
+        state
+            .store_credential(&sign_in("a.example", None, "x"))
+            .is_err()
+    );
 }
 
 #[test]
@@ -349,26 +318,61 @@ fn plain_http_gets_a_sign_in_only_on_this_machine() {
     assert_eq!(app_state::host_input("git example"), None);
 }
 
-// A token stored before F-082 is listed when the Authentication page opens, not only after
-// a fetch has read it: otherwise Remove All left it in the keyring and in use.
 #[test]
-fn an_old_token_of_an_open_repository_is_listed_and_removed_with_the_rest() {
-    let f = test_fixtures::linear(1).unwrap();
-    f.git(&["remote", "add", "origin", "https://old.example/o/r.git"])
-        .unwrap();
-    let store = Keyring::default();
-    store.set("old.example", "glpat-old").unwrap();
-    let state = AppState::new().with_secrets(Box::new(store));
-    state.open_repository(f.path()).unwrap();
-
-    let known = state.list_credentials().known;
-    assert_eq!(known.len(), 1);
-    assert_eq!(known[0].host, "old.example");
-
-    state.forget_all_credentials().unwrap();
-    assert!(
-        state
-            .stored_credential("https://old.example/o/r.git")
-            .is_none()
+fn the_host_of_an_ssh_remote_is_found_in_every_spelling() {
+    for url in [
+        "git@GitHub.com:o/r.git",
+        "ssh://git@github.com:2222/o/r.git",
+        "git+ssh://github.com/o/r.git",
+        "github.com:o/r.git",
+    ] {
+        assert_eq!(ssh_host(url).as_deref(), Some("github.com"), "{url}");
+        assert_eq!(
+            credential_target(url),
+            Some(("github.com".to_owned(), true)),
+            "{url}"
+        );
+    }
+    for url in [
+        "C:/work/repo",
+        "C:\\work\\repo",
+        "./a:b",
+        "/srv/r.git",
+        "https://github.com/o/r.git",
+    ] {
+        assert_eq!(ssh_host(url), None, "{url}");
+    }
+    assert_eq!(
+        credential_target("https://github.com/o/r.git"),
+        Some(("github.com".to_owned(), false))
     );
+}
+
+#[test]
+fn only_private_keys_are_offered_the_standard_names_first() {
+    let dir = tempfile::tempdir().unwrap();
+    let write = |name: &str, text: &str| std::fs::write(dir.path().join(name), text).unwrap();
+    let key = "-----BEGIN OPENSSH PRIVATE KEY-----\nb3Blbg==\n";
+    write("id_rsa", "-----BEGIN RSA PRIVATE KEY-----\nx\n");
+    write("id_ed25519", key);
+    write("work_key", key);
+    write("id_ed25519.pub", "ssh-ed25519 AAAA ann@host\n");
+    write("known_hosts", "github.com ssh-ed25519 AAAA\n");
+    write("config", "Host *\n  IdentityFile ~/.ssh/work_key\n");
+    write("authorized_keys", "ssh-rsa AAAA\n");
+    std::fs::create_dir(dir.path().join("id_ecdsa")).unwrap();
+
+    let names: Vec<String> = app_state::private_keys(dir.path())
+        .iter()
+        .map(|path| {
+            std::path::Path::new(path)
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+
+    assert_eq!(names, ["id_ed25519", "id_rsa", "work_key"]);
+    assert!(app_state::private_keys(&dir.path().join("missing")).is_empty());
 }

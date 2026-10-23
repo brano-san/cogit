@@ -56,7 +56,9 @@ import type {
 
 export type {
   AuthRequired,
-  CredentialList,
+  CredentialStore,
+  StoreState,
+  SshKeys,
   CredentialTrouble,
   KnownCredential,
   SignIn,
@@ -994,17 +996,41 @@ export async function setMenuState(disabled: string[], checked: string[]) {
 }
 
 /** The three below take the remote URL: which host a token belongs to is the backend's rule. */
-/** Hosts and usernames with a stored sign-in; never a secret (F-082). */
-export async function listCredentials() {
-  return unwrap(await commands.listCredentials());
+/** Cogit's password store: locked or not, and the sign-ins in it; never a secret (R-891). */
+export async function credentialStore() {
+  return unwrap(await commands.credentialStore());
+}
+
+/** `false`: not the master password. */
+export async function unlockCredentials(password: string) {
+  return unwrap(await commands.unlockCredentials(password));
+}
+
+/** `null`: no master password. */
+export async function createCredentialStore(password: string | null) {
+  return unwrap(await commands.createCredentialStore(password));
+}
+
+/** `false`: `current` is not the master password; nothing changed. */
+export async function changeMasterPassword(current: string, next: string | null) {
+  return unwrap(await commands.changeMasterPassword(current, next));
+}
+
+/** A forgotten master password: a new one, and every stored sign-in is deleted. */
+export async function resetCredentialStore(password: string | null) {
+  return unwrap(await commands.resetCredentialStore(password));
+}
+
+export async function sshKeys() {
+  return unwrap(await commands.sshKeys());
 }
 
 export async function storeCredential(credential: SignIn) {
   return unwrap(await commands.storeCredential(credential));
 }
 
-export async function forgetCredential(host: string) {
-  return unwrap(await commands.forgetCredential(host));
+export async function forgetCredential(host: string, ssh: boolean) {
+  return unwrap(await commands.forgetCredential(host, ssh));
 }
 
 export async function forgetAllCredentials() {

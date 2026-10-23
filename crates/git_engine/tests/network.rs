@@ -52,13 +52,12 @@ fn commands_of(repo: RepoHandle) -> (RepoHandle, Lines) {
 
 /// What git makes of one config entry handed over in the environment, for a URL, as a
 /// submodule's fetch would see it.
-fn header_git_sends(config: &(String, String), url: &str) -> String {
+/// The credential helpers git would ask for `url`, last one last.
+fn helpers_for(env: &[(String, String)], url: &str) -> String {
     let f = test_fixtures::linear(1).unwrap();
     let output = test_fixtures::git_command_in(f.path())
-        .env("GIT_CONFIG_COUNT", "1")
-        .env("GIT_CONFIG_KEY_0", &config.0)
-        .env("GIT_CONFIG_VALUE_0", &config.1)
-        .args(["config", "--get-urlmatch", "http.extraheader", url])
+        .envs(env.iter().map(|(k, v)| (k, v)))
+        .args(["config", "--get-urlmatch", "credential.helper", url])
         .output()
         .unwrap();
     String::from_utf8_lossy_owned(output.stdout)
@@ -474,67 +473,30 @@ fn a_token_reaches_git_as_a_header_but_not_the_journal() {
     assert!(lines.contains("fetch"), "{lines}");
     assert!(!lines.contains("extraHeader"), "{lines}");
     assert!(!lines.contains("s3cr3t"), "{lines}");
-    assert!(
-        !lines.contains(&git_engine::basic_header(&token("s3cr3t"))),
-        "{lines}"
-    );
-}
-
-// An argument is in the process list for as long as git runs; the environment is not.
-#[test]
-fn a_token_reaches_the_server_though_it_is_in_no_argument() {
-    let f = test_fixtures::with_remote().unwrap();
-    let server = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let port = server.local_addr().unwrap().port();
-    f.git(&[
-        "remote",
-        "set-url",
-        "origin",
-        &format!("http://127.0.0.1:{port}/o/r.git"),
-    ])
-    .unwrap();
-    let request = std::thread::spawn(move || {
-        use std::io::{Read as _, Write as _};
-        let (mut socket, _) = server.accept().unwrap();
-        let mut buffer = [0_u8; 4096];
-        let read = socket.read(&mut buffer).unwrap();
-        let _ = socket.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
-        String::from_utf8_lossy(&buffer[..read]).into_owned()
-    });
-    let (repo, log) = commands_of(open(&f));
-
-    let _ = repo.fetch("origin", |_| Some(token("s3cr3t")), |_| {});
-
-    let sent = request.join().unwrap();
-    assert!(
-        sent.contains(&git_engine::basic_header(&token("s3cr3t"))),
-        "git did not send the token: {sent}"
-    );
-    assert!(!seen(&log).join("\n").contains("s3cr3t"));
 }
 
 // Git hands its config to the git processes it starts (GIT_CONFIG_PARAMETERS), a
-// submodule's fetch among them: a bare `http.extraHeader` sent the token to whatever host
-// the submodule lives on.
+// submodule's fetch among them: Cogit's helper must answer for the remote's host only.
 #[test]
 fn a_token_is_sent_only_to_the_host_of_the_remote() {
-    let arg =
-        git_engine::credential_config("https://github.com/o/r.git", &token("s3cr3t")).unwrap();
+    let env =
+        git_engine::credential_env(&[("https://github.com/o/r.git".to_owned(), token("s3cr3t"))]);
 
-    assert_eq!(
-        header_git_sends(&arg, "https://github.com/o/r.git").trim(),
-        git_engine::basic_header(&token("s3cr3t"))
+    assert!(
+        helpers_for(&env, "https://github.com/o/r.git").contains("cogit-credential 0"),
+        "{env:?}"
     );
-    assert_eq!(
-        header_git_sends(&arg, "https://git.example.org/team/sub.git").trim(),
-        ""
+    assert!(
+        !helpers_for(&env, "https://git.example.org/team/sub.git").contains("cogit-credential"),
+        "{env:?}"
     );
 }
 
 #[test]
 fn a_remote_that_is_not_http_gets_no_token() {
-    assert!(git_engine::credential_config("git@github.com:o/r.git", &token("s3cr3t")).is_none());
-    assert!(git_engine::credential_config("/srv/git/r.git", &token("s3cr3t")).is_none());
+    for url in ["git@github.com:o/r.git", "/srv/git/r.git"] {
+        assert!(git_engine::credential_env(&[(url.to_owned(), token("s3cr3t"))]).is_empty());
+    }
 }
 
 #[test]
@@ -935,5 +897,6 @@ fn token(secret: &str) -> git_engine::Credential {
     git_engine::Credential {
         username: None,
         secret: secret.to_owned(),
+        key: None,
     }
 }

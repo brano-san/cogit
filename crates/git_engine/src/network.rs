@@ -138,15 +138,16 @@ impl RepoHandle {
         credential: impl Fn(&str) -> Option<crate::Credential>,
         on_line: impl FnMut(&str),
     ) -> Result<()> {
-        let mut pairs: Vec<(String, String)> = Vec::new();
-        for remote in self.remotes()? {
-            let pair = self.auth_pair(&remote, gix::remote::Direction::Fetch, &credential);
-            // One header per host: two remotes on one host would send it twice.
-            if let Some(pair) = pair.filter(|(key, _)| pairs.iter().all(|(k, _)| k != key)) {
-                pairs.push(pair);
-            }
-        }
-        let auth = config_env(&pairs);
+        let signed: Vec<(String, crate::Credential)> = self
+            .remotes()?
+            .iter()
+            .filter_map(|remote| {
+                let url = self.url_of(remote, gix::remote::Direction::Fetch)?;
+                let found = credential(&url)?;
+                Some((url, found))
+            })
+            .collect();
+        let auth = crate::credentials::credential_env(&signed);
         self.run_streaming(&["fetch", "--progress", "--prune", "--all"], &auth, on_line)
     }
 
@@ -352,22 +353,13 @@ impl RepoHandle {
         direction: gix::remote::Direction,
         credential: impl FnOnce(&str) -> Option<crate::Credential>,
     ) -> Vec<(String, String)> {
-        config_env(
-            &self
-                .auth_pair(remote, direction, credential)
-                .into_iter()
-                .collect::<Vec<_>>(),
-        )
-    }
-
-    fn auth_pair(
-        &self,
-        remote: &str,
-        direction: gix::remote::Direction,
-        credential: impl FnOnce(&str) -> Option<crate::Credential>,
-    ) -> Option<(String, String)> {
-        let url = self.url_of(remote, direction)?;
-        crate::credentials::credential_config(&url, &credential(&url)?)
+        let Some(url) = self.url_of(remote, direction) else {
+            return Vec::new();
+        };
+        match credential(&url) {
+            Some(found) => crate::credentials::credential_env(&[(url, found)]),
+            None => Vec::new(),
+        }
     }
 
     pub(crate) fn run_streaming(

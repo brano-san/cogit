@@ -1,12 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SignIn } from "$lib/ipc/bindings";
-import { signedIn, type SignInRequest } from "./sign-in";
+import { keyFileProblem, signedIn, type SignInRequest } from "./sign-in";
+
+describe("an ssh key file", () => {
+  it("is refused when its name says it is no private key", () => {
+    expect(keyFileProblem("C:\\Users\\ann\\.ssh\\id_ed25519")).toBeNull();
+    expect(keyFileProblem("/home/ann/.ssh/work key")).toBeNull();
+    expect(keyFileProblem("/home/ann/.ssh/id_ed25519.pub")).toMatch(/public key/);
+    expect(keyFileProblem("C:\\Users\\ann\\.ssh\\known_hosts")).toMatch(/no key/);
+    expect(keyFileProblem("~/.ssh/config")).toMatch(/no key/);
+  });
+});
 
 function refusal(username: string | null, stderr = "fatal: could not read Username: terminal prompts disabled") {
   return {
     detail: {
       kind: "command",
-      data: { stderr, stdout: "", authRequired: { host: "cdb.example", username } },
+      data: { stderr, stdout: "", authRequired: { host: "cdb.example", username, ssh: false } },
     },
   };
 }
@@ -28,7 +38,7 @@ describe("signedIn", () => {
     const ask = vi.fn(async () => typed("pw"));
 
     expect(await signedIn(operation, ask)).toBe("done");
-    expect(ask).toHaveBeenCalledWith({ host: "cdb.example", username: null, error: null });
+    expect(ask).toHaveBeenCalledWith({ host: "cdb.example", username: null, error: null, ssh: false });
     expect(operation).toHaveBeenLastCalledWith(typed("pw"));
   });
 
@@ -45,7 +55,7 @@ describe("signedIn", () => {
     });
 
     expect(await signedIn(operation, ask)).toBe("done");
-    expect(asked[1]).toEqual({ host: "cdb.example", username: "ann", error: "fatal: Authentication failed" });
+    expect(asked[1]).toEqual({ host: "cdb.example", username: "ann", error: "fatal: Authentication failed", ssh: false });
   });
 
   // Closing the dialog is the user's cancel, not a failure: no Errors window for it.

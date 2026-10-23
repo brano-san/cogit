@@ -16,7 +16,7 @@ vi.mock("$lib/ipc", () => {
       later("pull")(repo, remote, autostash, onLine),
     ),
     pushRemote: vi.fn(later("push")),
-    listCredentials: vi.fn(async () => ({ persistent: true, known: [] })),
+    credentialStore: vi.fn(async () => ({ state: "missing", masterPassword: false, known: [] })),
   };
 });
 
@@ -31,6 +31,9 @@ const { signIn } = await import("./sign-in.svelte");
 
 const A = 1 as never;
 const B = 2 as never;
+
+/** The command starts once the password store has been looked at (R-891). */
+const started = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 function op(key: string) {
   const found = running.get(key);
@@ -49,6 +52,7 @@ describe("two network operations at once", () => {
   it("keeps showing the one still running when the other finishes", async () => {
     const fetching = network.fetch(A, "origin");
     const pushing = network.push(A, "origin", false);
+    await started();
     op("fetch:1").line("Receiving objects:  40%");
 
     op("push:1").finish();
@@ -65,6 +69,7 @@ describe("two network operations at once", () => {
   it("shows another repository's pull only as its own", async () => {
     const fetching = network.fetch(A, "origin");
     const pulling = network.pull(B, "origin");
+    await started();
     op("pull:2").finish();
     await pulling;
 
@@ -96,6 +101,7 @@ describe("a pull with local changes in the way", () => {
 describe("leaving the repository", () => {
   it("stops a running operation's progress from reaching the next one's status bar", async () => {
     const fetching = network.fetch(A, "origin");
+    await started();
     network.clear();
 
     op("fetch:1").line("Receiving objects:  90%");
@@ -113,6 +119,7 @@ describe("leaving the repository", () => {
       line = onLine;
       return new Promise<string>((resolve) => (finish = resolve));
     });
+    await started();
     network.clear();
 
     line("Receiving objects:  30%");
@@ -128,9 +135,9 @@ describe("leaving the repository", () => {
 
 describe("a remote that wants a sign-in", () => {
   it("asks in the Sign in dialog and fetches again with what was typed", async () => {
-    const refusal = { detail: { kind: "command", data: { stderr: "", stdout: "", authRequired: { host: "h", username: null } } } };
+    const refusal = { detail: { kind: "command", data: { stderr: "", stdout: "", authRequired: { host: "h", username: null, ssh: false } } } };
     vi.mocked(ipc.fetchRemote).mockRejectedValueOnce(refusal).mockResolvedValueOnce(null);
-    const typed = { host: "h", username: "ann", secret: "pw", remember: true };
+    const typed = { host: "h", username: "ann", secret: "pw", keyPath: null, remember: false };
 
     const done = network.fetch(A, "origin");
     await vi.waitFor(() => expect(signIn.open?.host).toBe("h"));

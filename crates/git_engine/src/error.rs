@@ -24,12 +24,14 @@ pub struct GitCommandError {
     pub auth_required: Option<AuthRequired>,
 }
 
-/// The host an HTTPS remote wants a sign-in for, and the username last tried there.
+/// The host a remote wants a sign-in for, and the username last tried there.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthRequired {
     pub host: String,
     pub username: Option<String>,
+    /// An ssh remote: the Sign in dialog opens on its SSH key tab.
+    pub ssh: bool,
 }
 
 impl GitCommandError {

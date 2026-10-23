@@ -374,7 +374,12 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::clone::init_repository,
             commands::clone::clipboard_repository_url,
             commands::clone::clone_repository,
-            commands::network::list_credentials,
+            commands::network::credential_store,
+            commands::network::unlock_credentials,
+            commands::network::create_credential_store,
+            commands::network::change_master_password,
+            commands::network::reset_credential_store,
+            commands::network::ssh_keys,
             commands::network::store_credential,
             commands::network::forget_credential,
             commands::network::forget_all_credentials,
@@ -550,7 +555,14 @@ pub fn run() -> anyhow::Result<()> {
 
             let state = Arc::new(AppState::new());
             state.use_preset_dir(config_dir.join("presets"));
-            state.use_credential_list(config_dir.join("credentials.json"));
+            state.use_password_store(config_dir.join("passwords.json"));
+            {
+                // The keychain may be slow to answer (Secret Service over D-Bus): not on
+                // the thread that opens the window.
+                let state = Arc::clone(&state);
+                let list = config_dir.join("credentials.json");
+                std::thread::spawn(move || state.move_keychain_sign_ins(&list));
+            }
             app.manage(AppContext {
                 state: Arc::clone(&state),
                 log_path,

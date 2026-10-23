@@ -169,14 +169,96 @@ pub async fn remote_url(
     blocking("remote_url", move || app_state.remote_url(repo, &name)).await
 }
 
-/// Hosts and usernames Cogit holds a sign-in for; never a secret (F-082).
+fn store_error(err: app_state::SecretError) -> GitError {
+    GitError::InvalidState(err.to_string())
+}
+
+/// Cogit's password store: locked or not, and the sign-ins in it; never a secret (R-891).
 #[tauri::command]
 #[specta::specta]
-pub async fn list_credentials(
+pub async fn credential_store(
     state: tauri::State<'_, crate::AppContext>,
-) -> Result<app_state::CredentialList, GitError> {
+) -> Result<app_state::CredentialStore, GitError> {
     let app_state = state.state.clone();
-    blocking("list_credentials", move || Ok(app_state.list_credentials())).await
+    blocking("credential_store", move || {
+        app_state.credential_store().map_err(store_error)
+    })
+    .await
+}
+
+/// `false`: not the master password.
+#[tauri::command]
+#[specta::specta]
+pub async fn unlock_credentials(
+    state: tauri::State<'_, crate::AppContext>,
+    password: String,
+) -> Result<bool, GitError> {
+    let app_state = state.state.clone();
+    let password = zeroize::Zeroizing::new(password);
+    blocking("unlock_credentials", move || {
+        app_state.unlock_credentials(&password).map_err(store_error)
+    })
+    .await
+}
+
+/// The first store; `null`: no master password.
+#[tauri::command]
+#[specta::specta]
+pub async fn create_credential_store(
+    state: tauri::State<'_, crate::AppContext>,
+    password: Option<String>,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    let password = password.map(zeroize::Zeroizing::new);
+    blocking("create_credential_store", move || {
+        app_state
+            .create_credential_store(password.as_deref().map(String::as_str))
+            .map_err(store_error)
+    })
+    .await
+}
+
+/// `false`: `current` is not the master password. `next` `null`: none from now on.
+#[tauri::command]
+#[specta::specta]
+pub async fn change_master_password(
+    state: tauri::State<'_, crate::AppContext>,
+    current: String,
+    next: Option<String>,
+) -> Result<bool, GitError> {
+    let app_state = state.state.clone();
+    let current = zeroize::Zeroizing::new(current);
+    let next = next.map(zeroize::Zeroizing::new);
+    blocking("change_master_password", move || {
+        app_state
+            .change_master_password(&current, next.as_deref().map(String::as_str))
+            .map_err(store_error)
+    })
+    .await
+}
+
+/// A forgotten master password: a new one, and every stored sign-in is deleted.
+#[tauri::command]
+#[specta::specta]
+pub async fn reset_credential_store(
+    state: tauri::State<'_, crate::AppContext>,
+    password: Option<String>,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    let password = password.map(zeroize::Zeroizing::new);
+    blocking("reset_credential_store", move || {
+        app_state
+            .reset_credential_store(password.as_deref().map(String::as_str))
+            .map_err(store_error)
+    })
+    .await
+}
+
+/// The Sign in dialog's SSH key tab: `~/.ssh` and the private keys in it.
+#[tauri::command]
+#[specta::specta]
+pub async fn ssh_keys() -> Result<app_state::SshKeys, GitError> {
+    blocking("ssh_keys", || Ok(app_state::ssh_keys())).await
 }
 
 /// Preferences ▸ Authentication ▸ Add…: kept without asking the server.
@@ -188,24 +270,22 @@ pub async fn store_credential(
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
     blocking("store_credential", move || {
-        app_state
-            .store_credential(&credential)
-            .map_err(|err| GitError::InvalidState(err.to_string()))
+        app_state.store_credential(&credential).map_err(store_error)
     })
     .await
 }
 
+/// `ssh`: the host's ssh key, else its login.
 #[tauri::command]
 #[specta::specta]
 pub async fn forget_credential(
     state: tauri::State<'_, crate::AppContext>,
     host: String,
+    ssh: bool,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
     blocking("forget_credential", move || {
-        app_state
-            .forget_credential(&host)
-            .map_err(|err| GitError::InvalidState(err.to_string()))
+        app_state.forget_credential(&host, ssh).map_err(store_error)
     })
     .await
 }
@@ -217,9 +297,7 @@ pub async fn forget_all_credentials(
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
     blocking("forget_all_credentials", move || {
-        app_state
-            .forget_all_credentials()
-            .map_err(|err| GitError::InvalidState(err.to_string()))
+        app_state.forget_all_credentials().map_err(store_error)
     })
     .await
 }

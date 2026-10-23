@@ -664,38 +664,47 @@
 
         {#if current.id === "auth"}
           <p class="lead" id="sign-ins-title">
-            Hosts Cogit signs in to over https:// when Git has no credential helper that answers. Each goes only to its own
-            host; the password or token stays in the system keychain.
+            Logins for https:// remotes and ssh keys for ssh remotes, each used only for its own host. Cogit keeps them in
+            its own encrypted password store, protected by a master password if you set one.
           </p>
-          {#if !credentials.persistent}
-            <p class="hint wide">No system keychain on this computer: sign-ins are kept until Cogit exits.</p>
-          {/if}
-          {#if credentials.known.length === 0}
+          {#if credentials.state === "locked"}
+            <p class="hint wide">The password store is locked: unlock it to see what it holds.</p>
+          {:else if credentials.known.length === 0}
             <p class="hint wide">Nothing stored yet. Cogit asks when a remote wants a sign-in, or add one here.</p>
           {:else}
             <ul class="suppressed" aria-labelledby="sign-ins-title">
-              <li class="head"><span class="grow">Host</span><span class="user">User</span><span class="action"></span></li>
-              {#each credentials.known as known (known.host)}
+              <li class="head"><span class="grow">Host</span><span class="user">User or key</span><span class="action"></span></li>
+              {#each credentials.known as known (known.host + (known.keyPath ?? ""))}
+                {@const who = known.keyPath ?? known.username ?? "(token)"}
                 <li>
                   <span class="grow truncate mono" title={known.host}>{known.host}</span>
-                  <span class="user truncate" title={known.username ?? "Access token"}>{known.username ?? "(token)"}</span>
+                  <span class="user truncate" class:mono={known.keyPath !== null} title={known.keyPath ?? known.username ?? "Access token"}
+                    >{who}</span
+                  >
                   <button
                     type="button"
                     class="btn action"
                     aria-label={`Remove the sign-in for ${known.host}`}
-                    onclick={() => void credentials.remove(known.host)}>Remove</button
+                    onclick={() => void credentials.remove(known)}>Remove</button
                   >
                 </li>
               {/each}
             </ul>
           {/if}
           <div class="reset-all">
-            <button type="button" class="btn" onclick={() => void credentials.add()}>Add…</button>
-            <button
-              type="button"
-              class="btn"
-              disabled={credentials.known.length === 0}
-              onclick={() => void credentials.removeAll()}>Remove All</button
+            {#if credentials.state === "locked"}
+              <button type="button" class="btn" onclick={() => void credentials.unlock()}>Unlock…</button>
+            {:else}
+              <button type="button" class="btn" onclick={() => void credentials.add()}>Add…</button>
+              <button
+                type="button"
+                class="btn"
+                disabled={credentials.known.length === 0}
+                onclick={() => void credentials.removeAll()}>Remove All</button
+              >
+            {/if}
+            <button type="button" class="btn" onclick={() => void credentials.changeMasterPassword()}
+              >{credentials.state === "missing" ? "Set Master Password…" : "Change Master Password…"}</button
             >
           </div>
         {/if}

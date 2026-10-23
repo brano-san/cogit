@@ -7,6 +7,8 @@ export interface SignInRequest {
   host: string;
   username: string | null;
   error: string | null;
+  /** An ssh remote refused: the dialog opens on its SSH key tab. */
+  ssh: boolean;
 }
 
 export type AskSignIn = (request: SignInRequest) => Promise<SignIn | null>;
@@ -38,6 +40,7 @@ export async function signedIn<T>(operation: (credential: SignIn | null) => Prom
         host: refused.host,
         username: refused.username ?? credential?.username ?? null,
         error: credential === null ? null : gitText(err),
+        ssh: refused.ssh,
       });
       if (answer === null) {
         const detail = (err as { detail?: GitError } | null)?.detail;
@@ -46,4 +49,14 @@ export async function signedIn<T>(operation: (credential: SignIn | null) => Prom
       credential = answer;
     }
   }
+}
+
+const NOT_KEYS = ["known_hosts", "known_hosts.old", "config", "authorized_keys", "authorized_keys2"];
+
+/** What is wrong with `path` as an ssh private key, as far as its name tells; `null`: nothing. */
+export function keyFileProblem(path: string): string | null {
+  const name = path.trim().split(/[\\/]/).pop() ?? "";
+  if (name.endsWith(".pub")) return "That is the public key: choose the file without .pub.";
+  if (NOT_KEYS.includes(name)) return `${name} is no key: choose a private key file.`;
+  return null;
 }

@@ -1,7 +1,7 @@
 //! Repository ▸ Clone… (F-575): what the server has, asked without writing anything, then
 //! the clone itself through the system git.
 
-use crate::network::{NetworkStop, SILENCE, Streamed, config_env};
+use crate::network::{NetworkStop, SILENCE, Streamed};
 use crate::pulse::{BATCH_SSH, STALL_LIMITS, askpass_refusal};
 use crate::{CommandSink, Credential, GitError, GitOutput, Result};
 use serde::{Deserialize, Serialize};
@@ -41,11 +41,12 @@ fn login_command(source: &str, credential: Option<&Credential>) -> Command {
     let mut process = outside_any_repository();
     process.env_remove("GCM_INTERACTIVE");
     process.env("GIT_ASKPASS", "");
-    let pairs: Vec<(String, String)> = credential
-        .and_then(|credential| crate::credential_config(source, credential))
-        .into_iter()
-        .collect();
-    process.envs(config_env(&pairs));
+    if let Some(credential) = credential {
+        process.envs(crate::credential_env(&[(
+            source.to_owned(),
+            credential.clone(),
+        )]));
+    }
     process
 }
 
@@ -441,6 +442,7 @@ mod tests {
         let login = Credential {
             username: Some("ann".to_owned()),
             secret: "s3cret".to_owned(),
+            key: None,
         };
         let process = login_command("https://example.com/team/app.git", Some(&login));
         let envs: Vec<(String, Option<String>)> = process
@@ -464,13 +466,10 @@ mod tests {
                 .any(|(k, v)| k == "GCM_INTERACTIVE" && v.is_none())
         );
         assert_eq!(
-            get("GIT_CONFIG_KEY_0").as_deref(),
-            Some("http.https://example.com/.extraHeader")
+            get("GIT_CONFIG_KEY_1").as_deref(),
+            Some("credential.https://example.com.helper")
         );
-        assert_eq!(
-            get("GIT_CONFIG_VALUE_0").as_deref(),
-            Some("Authorization: Basic YW5uOnMzY3JldA==")
-        );
+        assert_eq!(get("COGIT_CREDENTIAL_0_SECRET").as_deref(), Some("s3cret"));
         assert!(!format!("{login:?}").contains("s3cret"));
         assert!(
             process

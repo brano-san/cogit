@@ -178,7 +178,10 @@ export const commands = {
 	host: string,
 	/**  `None` or blank: `secret` is a token. */
 	username: string | null,
+	/**  The password or token; with `key_path`, the key's passphrase (may be empty). */
 	secret: string,
+	/**  An ssh private key: the sign-in is for the host's ssh remotes. */
+	keyPath?: string | null,
 	/**  Kept once a command has succeeded with it. */
 	remember: boolean,
 } | null) => typedError<null, GitError>(__TAURI_INVOKE("delete_remote_tag", { repo, remote, name, credential })),
@@ -205,7 +208,10 @@ export const commands = {
 	host: string,
 	/**  `None` or blank: `secret` is a token. */
 	username: string | null,
+	/**  The password or token; with `key_path`, the key's passphrase (may be empty). */
 	secret: string,
+	/**  An ssh private key: the sign-in is for the host's ssh remotes. */
+	keyPath?: string | null,
 	/**  Kept once a command has succeeded with it. */
 	remember: boolean,
 } | null, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("push_to", { repo, remote, refspec, track, credential, onProgress })),
@@ -215,7 +221,10 @@ export const commands = {
 	host: string,
 	/**  `None` or blank: `secret` is a token. */
 	username: string | null,
+	/**  The password or token; with `key_path`, the key's passphrase (may be empty). */
 	secret: string,
+	/**  An ssh private key: the sign-in is for the host's ssh remotes. */
+	keyPath?: string | null,
 	/**  Kept once a command has succeeded with it. */
 	remember: boolean,
 } | null, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("fetch", { repo, remote, credential, onProgress })),
@@ -224,7 +233,10 @@ export const commands = {
 	host: string,
 	/**  `None` or blank: `secret` is a token. */
 	username: string | null,
+	/**  The password or token; with `key_path`, the key's passphrase (may be empty). */
 	secret: string,
+	/**  An ssh private key: the sign-in is for the host's ssh remotes. */
+	keyPath?: string | null,
 	/**  Kept once a command has succeeded with it. */
 	remember: boolean,
 } | null, onProgress: Channel<string>) => typedError<PullOutcome, GitError>(__TAURI_INVOKE("pull", { repo, remote, autostash, credential, onProgress })),
@@ -233,7 +245,10 @@ export const commands = {
 	host: string,
 	/**  `None` or blank: `secret` is a token. */
 	username: string | null,
+	/**  The password or token; with `key_path`, the key's passphrase (may be empty). */
 	secret: string,
+	/**  An ssh private key: the sign-in is for the host's ssh remotes. */
+	keyPath?: string | null,
 	/**  Kept once a command has succeeded with it. */
 	remember: boolean,
 } | null, onProgress: Channel<string>) => typedError<{
@@ -245,7 +260,10 @@ export const commands = {
 	host: string,
 	/**  `None` or blank: `secret` is a token. */
 	username: string | null,
+	/**  The password or token; with `key_path`, the key's passphrase (may be empty). */
 	secret: string,
+	/**  An ssh private key: the sign-in is for the host's ssh remotes. */
+	keyPath?: string | null,
 	/**  Kept once a command has succeeded with it. */
 	remember: boolean,
 } | null, onProgress: Channel<string>) => typedError<NotesFetch, GitError>(__TAURI_INVOKE("fetch_with", { repo, remote, options, credential, onProgress })),
@@ -254,7 +272,10 @@ export const commands = {
 	host: string,
 	/**  `None` or blank: `secret` is a token. */
 	username: string | null,
+	/**  The password or token; with `key_path`, the key's passphrase (may be empty). */
 	secret: string,
+	/**  An ssh private key: the sign-in is for the host's ssh remotes. */
+	keyPath?: string | null,
 	/**  Kept once a command has succeeded with it. */
 	remember: boolean,
 } | null, onProgress: Channel<string>) => typedError<Pulled, GitError>(__TAURI_INVOKE("pull_with", { repo, remote, options, credential, onProgress })),
@@ -263,7 +284,10 @@ export const commands = {
 	host: string,
 	/**  `None` or blank: `secret` is a token. */
 	username: string | null,
+	/**  The password or token; with `key_path`, the key's passphrase (may be empty). */
 	secret: string,
+	/**  An ssh private key: the sign-in is for the host's ssh remotes. */
+	keyPath?: string | null,
 	/**  Kept once a command has succeeded with it. */
 	remember: boolean,
 } | null, onProgress: Channel<string>) => typedError<PushOutcome, GitError>(__TAURI_INVOKE("push_with", { repo, options, credential, onProgress })),
@@ -272,7 +296,10 @@ export const commands = {
 	host: string,
 	/**  `None` or blank: `secret` is a token. */
 	username: string | null,
+	/**  The password or token; with `key_path`, the key's passphrase (may be empty). */
 	secret: string,
+	/**  An ssh private key: the sign-in is for the host's ssh remotes. */
+	keyPath?: string | null,
 	/**  Kept once a command has succeeded with it. */
 	remember: boolean,
 } | null, onProgress: Channel<string>) => typedError<PushOutcome, GitError>(__TAURI_INVOKE("push_notes", { repo, remote, credential, onProgress })),
@@ -288,7 +315,10 @@ export const commands = {
 	host: string,
 	/**  `None` or blank: `secret` is a token. */
 	username: string | null,
+	/**  The password or token; with `key_path`, the key's passphrase (may be empty). */
 	secret: string,
+	/**  An ssh private key: the sign-in is for the host's ssh remotes. */
+	keyPath?: string | null,
 	/**  Kept once a command has succeeded with it. */
 	remember: boolean,
 } | null, onProgress: Channel<string>) => typedError<GitOutput, GitError>(__TAURI_INVOKE("push_dry_run", { repo, options, credential, onProgress })),
@@ -309,7 +339,10 @@ export const commands = {
 	host: string,
 	/**  `None` or blank: `secret` is a token. */
 	username: string | null,
+	/**  The password or token; with `key_path`, the key's passphrase (may be empty). */
 	secret: string,
+	/**  An ssh private key: the sign-in is for the host's ssh remotes. */
+	keyPath?: string | null,
 	/**  Kept once a command has succeeded with it. */
 	remember: boolean,
 } | null, onProgress: Channel<string>) => typedError<boolean, GitError>(__TAURI_INVOKE("fetch_more", { repo, remote, credential, onProgress })),
@@ -318,7 +351,10 @@ export const commands = {
 	host: string,
 	/**  `None` or blank: `secret` is a token. */
 	username: string | null,
+	/**  The password or token; with `key_path`, the key's passphrase (may be empty). */
 	secret: string,
+	/**  An ssh private key: the sign-in is for the host's ssh remotes. */
+	keyPath?: string | null,
 	/**  Kept once a command has succeeded with it. */
 	remember: boolean,
 } | null, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("fetch_depth", { repo, remote, depth, credential, onProgress })),
@@ -399,7 +435,10 @@ export const commands = {
 	host: string,
 	/**  `None` or blank: `secret` is a token. */
 	username: string | null,
+	/**  The password or token; with `key_path`, the key's passphrase (may be empty). */
 	secret: string,
+	/**  An ssh private key: the sign-in is for the host's ssh remotes. */
+	keyPath?: string | null,
 	/**  Kept once a command has succeeded with it. */
 	remember: boolean,
 } | null) => typedError<RemoteDeletion, GitError>(__TAURI_INVOKE("delete_remote_branch", { repo, remote, branch, credential })),
@@ -462,7 +501,10 @@ export const commands = {
 	host: string,
 	/**  `None` or blank: `secret` is a token. */
 	username: string | null,
+	/**  The password or token; with `key_path`, the key's passphrase (may be empty). */
 	secret: string,
+	/**  An ssh private key: the sign-in is for the host's ssh remotes. */
+	keyPath?: string | null,
 	/**  Kept once a command has succeeded with it. */
 	remember: boolean,
 } | null) => typedError<RefDeletionReport, GitError>(__TAURI_INVOKE("delete_refs", { repo, request, credential })),
@@ -669,7 +711,10 @@ export const commands = {
 	host: string,
 	/**  `None` or blank: `secret` is a token. */
 	username: string | null,
+	/**  The password or token; with `key_path`, the key's passphrase (may be empty). */
 	secret: string,
+	/**  An ssh private key: the sign-in is for the host's ssh remotes. */
+	keyPath?: string | null,
 	/**  Kept once a command has succeeded with it. */
 	remember: boolean,
 } | null) => typedError<RemoteBranches, GitError>(__TAURI_INVOKE("remote_branches", { source, credential })),
@@ -685,15 +730,29 @@ export const commands = {
 	host: string,
 	/**  `None` or blank: `secret` is a token. */
 	username: string | null,
+	/**  The password or token; with `key_path`, the key's passphrase (may be empty). */
 	secret: string,
+	/**  An ssh private key: the sign-in is for the host's ssh remotes. */
+	keyPath?: string | null,
 	/**  Kept once a command has succeeded with it. */
 	remember: boolean,
 } | null, onProgress: Channel<string>) => typedError<string, GitError>(__TAURI_INVOKE("clone_repository", { request, credential, onProgress })),
-	/**  Hosts and usernames Cogit holds a sign-in for; never a secret (F-082). */
-	listCredentials: () => typedError<CredentialList, GitError>(__TAURI_INVOKE("list_credentials")),
+	/**  Cogit's password store: locked or not, and the sign-ins in it; never a secret (R-891). */
+	credentialStore: () => typedError<CredentialStore, GitError>(__TAURI_INVOKE("credential_store")),
+	/**  `false`: not the master password. */
+	unlockCredentials: (password: string) => typedError<boolean, GitError>(__TAURI_INVOKE("unlock_credentials", { password })),
+	/**  The first store; `null`: no master password. */
+	createCredentialStore: (password: string | null) => typedError<null, GitError>(__TAURI_INVOKE("create_credential_store", { password })),
+	/**  `false`: `current` is not the master password. `next` `null`: none from now on. */
+	changeMasterPassword: (current: string, next: string | null) => typedError<boolean, GitError>(__TAURI_INVOKE("change_master_password", { current, next })),
+	/**  A forgotten master password: a new one, and every stored sign-in is deleted. */
+	resetCredentialStore: (password: string | null) => typedError<null, GitError>(__TAURI_INVOKE("reset_credential_store", { password })),
+	/**  The Sign in dialog's SSH key tab: `~/.ssh` and the private keys in it. */
+	sshKeys: () => typedError<SshKeys, GitError>(__TAURI_INVOKE("ssh_keys")),
 	/**  Preferences ▸ Authentication ▸ Add…: kept without asking the server. */
 	storeCredential: (credential: SignIn) => typedError<null, GitError>(__TAURI_INVOKE("store_credential", { credential })),
-	forgetCredential: (host: string) => typedError<null, GitError>(__TAURI_INVOKE("forget_credential", { host })),
+	/**  `ssh`: the host's ssh key, else its login. */
+	forgetCredential: (host: string, ssh: boolean) => typedError<null, GitError>(__TAURI_INVOKE("forget_credential", { host, ssh })),
 	forgetAllCredentials: () => typedError<null, GitError>(__TAURI_INVOKE("forget_all_credentials")),
 	listHooks: (repo: RepoId) => typedError<HookOverview, GitError>(__TAURI_INVOKE("list_hooks", { repo })),
 	readHook: (repo: RepoId, name: string) => typedError<string, GitError>(__TAURI_INVOKE("read_hook", { repo, name })),
@@ -827,10 +886,12 @@ export type AppInfo = {
 	displays: DisplayInfo[],
 };
 
-/**  The host an HTTPS remote wants a sign-in for, and the username last tried there. */
+/**  The host a remote wants a sign-in for, and the username last tried there. */
 export type AuthRequired = {
 	host: string,
 	username: string | null,
+	/**  An ssh remote: the Sign in dialog opens on its SSH key tab. */
+	ssh: boolean,
 };
 
 export type Author = {
@@ -1202,9 +1263,11 @@ export type ContextItem = {
 	children?: ContextItem[],
 };
 
-export type CredentialList = {
-	/**  `false`: no OS credential store, so a sign-in lasts until Cogit exits. */
-	persistent: boolean,
+export type CredentialStore = {
+	state: StoreState,
+	/**  `false` also while there is no store yet. */
+	masterPassword: boolean,
+	/**  Empty while locked: the list is inside the encrypted file. */
 	known: KnownCredential[],
 };
 
@@ -1826,10 +1889,12 @@ export type KeyBinding = {
 	onBar: boolean,
 };
 
-/**  A host Cogit holds a sign-in for. Never the secret: that stays in the keyring. */
+/**  A sign-in Cogit holds. Never the secret. */
 export type KnownCredential = {
 	host: string,
 	username: string | null,
+	/**  An ssh key's path: the sign-in is for the host's ssh remotes. */
+	keyPath: string | null,
 };
 
 /**  A file `.gitattributes` puts in Git LFS; `lock` is the owner from the local lock cache. */
@@ -2572,7 +2637,10 @@ export type SignIn = {
 	host: string,
 	/**  `None` or blank: `secret` is a token. */
 	username: string | null,
+	/**  The password or token; with `key_path`, the key's passphrase (may be empty). */
 	secret: string,
+	/**  An ssh private key: the sign-in is for the host's ssh remotes. */
+	keyPath?: string | null,
 	/**  Kept once a command has succeeded with it. */
 	remember: boolean,
 };
@@ -2646,6 +2714,12 @@ export type SolverRegion = {
 /**  The part of its row a segment covers: the upper half, the lower half or all of it. */
 export type Span = "top" | "bottom" | "through";
 
+/**  `~/.ssh` and the private keys in it, for the Sign in dialog's SSH key tab. */
+export type SshKeys = {
+	dir: string,
+	keys: string[],
+};
+
 /**
  *  The three things `git stash` puts away, each readable without touching the working tree.
  *  A stash is a commit: `^1` is HEAD at the time, `^2` the index, `^3` the untracked files.
@@ -2694,6 +2768,10 @@ export type StashOptions = {
 	includeUntracked: boolean,
 	keepIndex: boolean,
 };
+
+export type StoreState = 
+/**  Nothing stored yet: the first Remember sets the master password (or none). */
+"missing" | "locked" | "unlocked";
 
 export type Submodule = {
 	name: string,

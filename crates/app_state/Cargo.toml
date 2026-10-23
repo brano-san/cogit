@@ -18,6 +18,10 @@ fs_watcher.workspace = true
 tokio = { workspace = true, features = ["sync"] }
 parking_lot.workspace = true
 keyring.workspace = true
+chacha20poly1305.workspace = true
+argon2.workspace = true
+getrandom.workspace = true
+zeroize.workspace = true
 thiserror.workspace = true
 chrono.workspace = true
 tracing.workspace = true
@@ -34,6 +38,11 @@ windows-registry.workspace = true
 [dev-dependencies]
 test_fixtures.workspace = true
 tempfile.workspace = true
+
+# Its own main: git starts the test binary as Cogit's credential helper.
+[[test]]
+name = "sign_in"
+harness = false
 
 [lints]
 workspace = true

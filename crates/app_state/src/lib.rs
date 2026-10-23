@@ -21,6 +21,7 @@ pub mod logging;
 pub mod merge_tool;
 mod network;
 mod network_dialogs;
+mod password_store;
 mod presets;
 mod queue;
 mod reads;
@@ -51,13 +52,14 @@ mod staging;
 
 pub use avatars::{Author, AvatarRow, Avatars};
 pub use credentials::{
-    CredentialList, KeyringStore, KnownCredential, MemoryStore, SecretError, SecretStore, SignIn,
-    credential_host, host_input, host_of, platform_store,
+    CredentialStore, KnownCredential, SecretError, SignIn, SshKeys, credential_host,
+    credential_target, host_input, host_of, private_keys, ssh_host, ssh_keys,
 };
 pub use diffing::FileContent;
 pub use graph_cache::{GraphProgress, GraphWindow, PROGRESS_EVERY, throttled};
 pub use journal::{CommandNotice, CommandRow, command_log_text, command_rows, is_warning, record};
 pub use network::NetworkRun;
+pub use password_store::{StoreError, StoreState};
 pub use presets::PresetStatus;
 pub use queue::{Operation, OperationKind, OperationPermit, OperationPhase, Queue};
 pub use reads::{Cancel, ReadRun};
@@ -213,8 +215,7 @@ pub struct AppState {
     journal: Arc<RwLock<std::collections::VecDeque<git_engine::GitOutput>>>,
     safety: RwLock<Vec<safety::Undoable>>,
     next_entry_id: AtomicU32,
-    secrets: Box<dyn SecretStore>,
-    known_hosts: parking_lot::Mutex<credentials::KnownHosts>,
+    passwords: RwLock<Option<password_store::PasswordStore>>,
     pictures: RwLock<Option<Avatars>>,
     preset_dir: RwLock<Option<std::path::PathBuf>>,
     /// The newest diff batch asked for per repository. An older answer never displaces
@@ -270,8 +271,7 @@ impl AppState {
             ))),
             safety: RwLock::new(Vec::new()),
             next_entry_id: AtomicU32::new(1),
-            secrets: platform_store(),
-            known_hosts: parking_lot::Mutex::default(),
+            passwords: RwLock::new(None),
             pictures: RwLock::new(None),
             preset_dir: RwLock::new(None),
             newest_diff: RwLock::new(HashMap::new()),
@@ -344,13 +344,6 @@ impl AppState {
         if let Some(service) = self.pictures.read().as_ref() {
             service.drain();
         }
-    }
-
-    /// Replaces the credential store; tests hand in a `MemoryStore`.
-    #[must_use]
-    pub fn with_secrets(mut self, secrets: Box<dyn SecretStore>) -> Self {
-        self.secrets = secrets;
-        self
     }
 
     #[must_use]

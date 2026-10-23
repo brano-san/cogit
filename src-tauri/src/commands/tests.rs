@@ -269,7 +269,12 @@ fn the_repository_list_is_read_off_the_async_workers() {
 fn the_keyring_is_reached_off_the_async_workers() {
     let all = all_commands();
     let inline: Vec<&str> = [
-        "list_credentials",
+        "credential_store",
+        "unlock_credentials",
+        "create_credential_store",
+        "change_master_password",
+        "reset_credential_store",
+        "ssh_keys",
         "store_credential",
         "forget_credential",
         "forget_all_credentials",

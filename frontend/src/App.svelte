@@ -82,6 +82,7 @@
   import { cloneRepository, type CloneRequest } from "$lib/ipc/clone";
   import PromptDialog from "$components/layout/PromptDialog.svelte";
   import SignInDialog from "$components/layout/SignInDialog.svelte";
+  import MasterPasswordDialog from "$components/layout/MasterPasswordDialog.svelte";
   import { signedIn } from "$stores/sign-in.svelte";
   import StashDialogs from "$components/layout/StashDialogs.svelte";
   import GitMissingDialog from "$components/layout/GitMissingDialog.svelte";
@@ -4345,6 +4346,7 @@ ${event.error}`,
   {/if}
 
   <SignInDialog />
+  <MasterPasswordDialog />
 
   {#if prompt.open}
     <PromptDialog
