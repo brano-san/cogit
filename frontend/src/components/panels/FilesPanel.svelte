@@ -15,6 +15,7 @@
   import { compareView } from "$stores/compare-view.svelte";
   import { diff } from "$stores/diff.svelte";
   import { errors } from "$stores/errors.svelte";
+  import { fileTotal } from "$stores/file-total.svelte";
   import { filesView } from "$stores/files-view.svelte";
   import { layout } from "$stores/layout.svelte";
   import { repository } from "$stores/repository.svelte";
@@ -119,6 +120,26 @@
 
   $effect(() => oncount?.(shown.count));
 
+  /** The revision the list is of, for "N files hidden"; the index is read again whenever the
+      working tree's lists are. */
+  $effect(() => {
+    const repo = repository.current?.repo;
+    const kind = shown.kind;
+    const rev =
+      kind === "commit"
+        ? commit.oid
+        : kind === "stash"
+          ? (stashView.contents?.worktreeRev ?? null)
+          : kind === "compare"
+            ? compareView.to
+            : null;
+    if (kind === "worktree") void [worktree.staged, worktree.unstaged];
+    untrack(() => {
+      if (repo === undefined || kind === "none" || (kind !== "worktree" && rev === null)) fileTotal.clear();
+      else void fileTotal.read(repo, rev);
+    });
+  });
+
   /** The working tree list's filter: over a clean tree it looks through every file. Another
       list in the panel has a filter of its own, so this one starts empty again. */
   let mask = $state("");
@@ -165,6 +186,7 @@
     {@const parts = stashView.contents}
     <FileList
       {activePanel}
+      revisionFiles={fileTotal.value}
       context="stash"
       view={filesView.commit}
       onview={(next) => filesView.setCommit(next)}
@@ -197,6 +219,7 @@
   {:else if shown.kind === "compare"}
     <FileList
       {activePanel}
+      revisionFiles={fileTotal.value}
       context="compare"
       view={filesView.commit}
       onview={(next) => filesView.setCommit(next)}
@@ -218,6 +241,7 @@
   {:else if shown.kind === "worktree"}
     <FileList
       {activePanel}
+      revisionFiles={fileTotal.value}
       view={filesView.current}
       onview={onviewchange}
       {contents}
@@ -287,6 +311,7 @@
   {:else}
     <FileList
       {activePanel}
+      revisionFiles={fileTotal.value}
       context="commit"
       view={filesView.commit}
       onview={(next) => filesView.setCommit(next)}

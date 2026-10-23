@@ -290,3 +290,21 @@ fn a_submodule_is_listed_as_one_entry() {
         "{files:?}"
     );
 }
+
+#[test]
+fn the_file_count_of_a_commit_is_its_tree_and_of_the_working_tree_its_index() {
+    let f = test_fixtures::Fixture::init().unwrap();
+    f.commit_file(0, "top.txt", "a\n").unwrap();
+    let oid = f.commit_file(1, "src/deep/inner.rs", "b\n").unwrap();
+    f.write_file("staged.txt", "c\n").unwrap();
+    f.git(&["add", "staged.txt"]).unwrap();
+    f.write_file("untracked.txt", "d\n").unwrap();
+    let repo = open(&f);
+
+    assert_eq!(repo.file_count(Some(&oid)).unwrap(), 2);
+    assert_eq!(
+        repo.file_count(None).unwrap(),
+        3,
+        "untracked files are not in the index"
+    );
+}

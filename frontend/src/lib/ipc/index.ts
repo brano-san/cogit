@@ -391,6 +391,11 @@ export async function commitTreeFiles(repo: RepoId, rev: string) {
   return unwrap(await commands.commitTreeFiles(repo, rev));
 }
 
+/** Files in a commit's tree, or in the index for `null`. */
+export async function fileCount(repo: RepoId, rev: string | null) {
+  return unwrap(await commands.fileCount(repo, rev));
+}
+
 export async function commitDetails(repo: RepoId, rev: string) {
   return unwrap(await commands.commitDetails(repo, rev));
 }

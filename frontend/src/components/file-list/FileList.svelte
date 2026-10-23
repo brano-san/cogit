@@ -19,8 +19,7 @@
     DEFAULT_VIEW,
     foldersOf,
     groupByDirectory,
-    hiddenCount,
-    hidingSwitches,
+    hiddenFiles,
     paneLayout,
     shownSections,
     visibleFiles,
@@ -107,6 +106,8 @@
     /** Unchanged rows are shown whatever the switch says: a filter over a clean tree. */
     unchanged?: boolean;
     context?: ListContext;
+    /** Files of the revision shown (commit tree, or the index), for "N files hidden". */
+    revisionFiles?: number | null;
   }
 
   let {
@@ -129,6 +130,7 @@
     contents,
     unchanged = false,
     context = "worktree",
+    revisionFiles = null,
   }: Props = $props();
 
   const FILTER_DELAY_MS = 150;
@@ -319,8 +321,7 @@
     for (const group of groups) for (const file of group.files) rows.add(file);
     return rows;
   });
-  const hidden = $derived(hiddenCount(came, gates, (file) => kept.has(file)));
-  const hiding = $derived(hidingSwitches(came, gates));
+  const hidden = $derived(disabled || revisionFiles === null ? null : hiddenFiles(revisionFiles, came, kept, context === "worktree"));
   const visibleMarks = $derived(shownMarks(marked, order));
   const marks = $derived(markedRows(visibleMarks.paths));
 
@@ -417,7 +418,6 @@
     filter={mask}
     {onfilter}
     {hidden}
-    {hiding}
     broken={pattern.broken}
     {disabled}
     contentsReady={contents !== undefined}

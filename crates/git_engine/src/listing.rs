@@ -22,6 +22,32 @@ pub const PREVIEW_CHARS: usize = 200;
 /// repository starts filling the panel while it is still running.
 pub const BATCH: usize = 100;
 
+/// Counts the files of a tree walk without building a path for any of them.
+struct FileCounter(usize);
+
+impl gix::traverse::tree::Visit for FileCounter {
+    fn pop_back_tracked_path_and_set_current(&mut self) {}
+    fn pop_front_tracked_path_and_set_current(&mut self) {}
+    fn push_back_tracked_path_component(&mut self, _: &gix::bstr::BStr) {}
+    fn push_path_component(&mut self, _: &gix::bstr::BStr) {}
+    fn pop_path_component(&mut self) {}
+
+    fn visit_tree(
+        &mut self,
+        _: &gix::objs::tree::EntryRef<'_>,
+    ) -> gix::traverse::tree::visit::Action {
+        std::ops::ControlFlow::Continue(true)
+    }
+
+    fn visit_nontree(
+        &mut self,
+        _: &gix::objs::tree::EntryRef<'_>,
+    ) -> gix::traverse::tree::visit::Action {
+        self.0 += 1;
+        std::ops::ControlFlow::Continue(true)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ContentMatch {
@@ -144,6 +170,37 @@ impl RepoHandle {
             .collect();
         paths.sort();
         Ok(paths)
+    }
+
+    /// How many files `rev`'s tree holds, or the index without `rev`: the Files bar's "N
+    /// files hidden". Counted, not listed; a conflicted path and a submodule are one each.
+    pub fn file_count(&self, rev: Option<&str>) -> Result<u32> {
+        let count = match rev {
+            None if self.repo.is_bare() => 0,
+            None => {
+                let index = self.current_index()?;
+                let mut last = None;
+                index
+                    .entries()
+                    .iter()
+                    .filter(|entry| {
+                        let path = entry.path(&index);
+                        last.replace(path) != Some(path)
+                    })
+                    .count()
+            }
+            Some(rev) => {
+                let tree = self.find_commit(rev)?.tree().map_err(|err| {
+                    GitError::Internal(format!("cannot read the tree of {rev}: {err}"))
+                })?;
+                let mut counter = FileCounter(0);
+                tree.traverse().breadthfirst(&mut counter).map_err(|err| {
+                    GitError::Internal(format!("cannot walk the tree of {rev}: {err}"))
+                })?;
+                counter.0
+            }
+        };
+        Ok(u32::try_from(count).unwrap_or(u32::MAX))
     }
 
     /// Looks inside files for `query`, handing over matches in batches.

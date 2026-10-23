@@ -24,6 +24,10 @@ impl AppState {
         self.handle(repo)?.tree_files(rev)
     }
 
+    pub fn file_count(&self, repo: RepoId, rev: Option<&str>) -> Result<u32, git_engine::GitError> {
+        self.handle(repo)?.file_count(rev)
+    }
+
     /// Looks inside files, handing matches over in batches as they are found.
     pub fn search_contents(
         &self,

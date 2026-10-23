@@ -56,6 +56,21 @@ pub async fn commit_tree_files(
     .await
 }
 
+/// How many files a commit's tree holds, or the index without `rev`: "N files hidden".
+#[tauri::command]
+#[specta::specta]
+pub async fn file_count(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    rev: Option<String>,
+) -> Result<u32, GitError> {
+    let app_state = state.state.clone();
+    blocking("file_count", move || {
+        app_state.file_count(repo, rev.as_deref())
+    })
+    .await
+}
+
 /// An unchanged or ignored file shown whole in the Diff panel; `limit` is Show anyway's.
 #[tauri::command]
 #[specta::specta]

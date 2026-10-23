@@ -81,30 +81,22 @@ export function visibleFiles<F extends FileEntry>(files: readonly F[], view: Fil
   return shown;
 }
 
-/** Rows that came and are not shown. The sources `renameSources` adds are not rows that
-    came, so they cannot make up for hidden ones. */
-export function hiddenCount(
-  files: readonly FileEntry[],
-  view: FileView,
-  keep: (file: FileEntry) => boolean,
+/** "N files hidden" (R-871): the files of the revision less the ones the list shows.
+    `total` is a commit's tree, or the working tree's index, to which its untracked files
+    are added. A shown row of a file outside them (ignored; deleted by a commit) does not
+    count, so the answer is never below zero. */
+export function hiddenFiles(
+  total: number,
+  came: readonly FileEntry[],
+  shown: Iterable<FileEntry>,
+  worktree: boolean,
 ): number {
-  let hidden = 0;
-  for (const file of files) {
-    const gate = GATED[file.status];
-    if ((gate && !view[gate]) || !keep(file)) hidden += 1;
+  const untracked = worktree ? new Set(came.filter((f) => f.status === "untracked").map((f) => f.path)).size : 0;
+  const inside = new Set<string>();
+  for (const file of shown) {
+    if (file.status !== "ignored" && (worktree || file.status !== "deleted")) inside.add(file.path);
   }
-  return hidden;
-}
-
-/** The switches keeping rows that came out of sight. Unchanged and ignored rows only come
-    while their switch is on, so those two are never among them. */
-export function hidingSwitches(files: readonly FileEntry[], view: FileView): (keyof FileView)[] {
-  const keys = new Set<keyof FileView>();
-  for (const file of files) {
-    const gate = GATED[file.status];
-    if (gate && !view[gate]) keys.add(gate);
-  }
-  return [...keys];
+  return Math.max(0, total + untracked - inside.size);
 }
 
 /** A row of the list: the one working-tree list also says how much of it is staged (#32). */

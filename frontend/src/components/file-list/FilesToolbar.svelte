@@ -13,10 +13,8 @@
     onview: (next: FileView) => void;
     filter: string;
     onfilter: (text: string) => void;
-    /** How many rows the switches and the filter are keeping out of sight. */
-    hidden: number;
-    /** The switches among them that hid rows; only these go on to show them. */
-    hiding?: readonly (keyof FileView)[];
+    /** Files of the revision the list does not show (R-871); `null` while unknown. */
+    hidden: number | null;
     /** The filter text is not a valid expression; the field says so quietly. */
     broken?: boolean;
     /** No repository behind the list. */
@@ -33,7 +31,6 @@
     filter,
     onfilter,
     hidden,
-    hiding = [],
     broken = false,
     disabled = false,
     contentsReady = false,
@@ -89,30 +86,14 @@
   /** Customize View (#34): the columns of the table. On a
       commit the sources of renames are the Missing switch; the working tree has them here. */
   const columnMenu = $derived(columnItems(filesView.columns, view.directories));
-
-  /** The hidden rows come back: the filter text goes and the switches that hid them go on.
-      The rest stay as they are — Unchanged or Ignored would read the whole tree. */
-  function showHidden() {
-    onfilter("");
-    const live = new Set(switches.filter((item) => item.reason === null).map((item) => item.key));
-    const turned = hiding.filter((key) => live.has(key) && !view[key]);
-    if (turned.length === 0) return;
-    const next = { ...view };
-    for (const key of turned) next[key] = true;
-    onview(next);
-  }
 </script>
 
 <div class="bar" role="toolbar" aria-label="File list options">
-  {#if hidden > 0}
-    <button
-      type="button"
-      class="badge"
-      title="Show the hidden files: clear the filter and turn on the switches hiding them"
-      onclick={showHidden}
-    >
-      ✕ {hidden} file{hidden === 1 ? "" : "s"} hidden
-    </button>
+  {#if hidden !== null}
+    {@const said = `${hidden} file${hidden === 1 ? "" : "s"} hidden`}
+    <span class="note" title="{said}: files of this revision the list does not show">
+      <span class="count tabular">{hidden}</span><span class="words truncate">&nbsp;file{hidden === 1 ? "" : "s"} hidden</span>
+    </span>
   {/if}
 
   <div class="field" class:broken>
@@ -272,27 +253,25 @@
     overflow: hidden;
   }
 
-  /* Gives way before the field, down to its count: the title says the rest. */
-  .badge {
-    display: block;
+  /* Gives way before the field, down to its count and an ellipsis: the title says the rest. */
+  .note {
+    display: flex;
     flex: 0 100000 auto;
-    min-width: 64px;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    min-width: 0;
     line-height: 20px;
     height: 20px;
     padding: 0 var(--sp-3);
-    background: var(--state-hover);
     color: var(--text-secondary);
-    border: 0;
-    border-radius: var(--r-sm);
     font-size: var(--fs-header);
     white-space: nowrap;
-    cursor: default;
   }
 
-  .badge:hover {
-    color: var(--text-primary);
+  .note .count {
+    flex: none;
+  }
+
+  .note .words {
+    min-width: 1ch;
   }
 
   .field {

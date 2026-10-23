@@ -346,6 +346,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::log_from_frontend,
             commands::closing_ping,
             commands::commit_tree_files,
+            commands::file_count,
             commands::search_file_contents,
             commands::list_submodules,
             commands::repo_rows::submodule_outline,

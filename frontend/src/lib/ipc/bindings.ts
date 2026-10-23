@@ -596,6 +596,8 @@ export const commands = {
 	closingPing: () => __TAURI_INVOKE<void>("closing_ping"),
 	/**  Every file of a commit's tree: the Files panel's Unchanged switch on a commit. */
 	commitTreeFiles: (repo: RepoId, rev: string) => typedError<string[], GitError>(__TAURI_INVOKE("commit_tree_files", { repo, rev })),
+	/**  How many files a commit's tree holds, or the index without `rev`: "N files hidden". */
+	fileCount: (repo: RepoId, rev: string | null) => typedError<number, GitError>(__TAURI_INVOKE("file_count", { repo, rev })),
 	/**
 	 *  Searches inside files, streaming matches as they are found.
 	 * 
