@@ -1,11 +1,13 @@
 import type { TagRequest } from "./ipc";
+import { refNameProblem } from "./names";
 import { splitUpstream } from "./push-to";
 
+/** Shown under the field while typing; the create buttons stay off while there is one. */
 export function tagNameHint(name: string, taken: readonly string[]): string | null {
   const trimmed = name.trim();
   if (trimmed === "") return "Enter a name.";
   if (taken.includes(trimmed)) return `A tag named '${trimmed}' already exists.`;
-  return null;
+  return refNameProblem(trimmed);
 }
 
 export function tagRequest(name: string, message: string, target: string): TagRequest {

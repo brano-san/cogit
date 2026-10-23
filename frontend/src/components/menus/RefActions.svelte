@@ -81,7 +81,7 @@
   import { publishedOrAssume } from "$lib/published";
   import { resetChoice } from "$lib/reset-modes";
   import { baseBefore, fullMessage, modifyPlan, rewordPlan, squashPlan } from "$lib/rewrite-plans";
-  import { tagPushRemote, tagRequest } from "$lib/tag-dialog";
+  import { tagNameHint, tagPushRemote, tagRequest } from "$lib/tag-dialog";
   import { signedIn } from "$stores/sign-in.svelte";
   import { successToast } from "$stores/success-toast.svelte";
   import { branchRevision, headPushSource } from "$lib/toolbar";
@@ -975,7 +975,10 @@
       confirm: "Rename",
       validate:
         ref.kind === "tag"
-          ? textProblem
+          ? (value) =>
+              value.trim() === ref.name
+                ? null
+                : tagNameHint(value, (repository.current?.tags ?? []).map((tag) => tag.name))
           : (value) =>
               value.trim() === ref.name
                 ? null
