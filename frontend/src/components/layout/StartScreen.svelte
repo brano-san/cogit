@@ -3,17 +3,25 @@
       (`emptyStateVisible`). The panels themselves stay blank. Recent repositories are listed
       in Repositories and, at startup, in the Welcome dialog. */
   interface Props {
+    /** Rows in Repositories: the last session's come back closed (R-770), so the window
+        says how to open one rather than that there is none. */
+    listed?: number;
     onopen: () => void;
     onclone: () => void;
   }
 
-  let { onopen, onclone }: Props = $props();
+  let { listed = 0, onopen, onclone }: Props = $props();
 </script>
 
 <div class="layer">
   <div class="empty" role="status">
-    <h2>No repository open</h2>
-    <p class="lead">Open a repository, clone one, or drop a folder on the window.</p>
+    {#if listed > 0}
+      <h2>No repository selected</h2>
+      <p class="lead">Double-click a repository in Repositories, open another one, or clone one.</p>
+    {:else}
+      <h2>No repository open</h2>
+      <p class="lead">Open a repository, clone one, or drop a folder on the window.</p>
+    {/if}
     <div class="buttons">
       <button type="button" class="primary" onclick={onopen}>Open…</button>
       <button type="button" onclick={onclone}>Clone…</button>
