@@ -57,14 +57,16 @@ fn data_home_honors_xdg_only_when_absolute() {
 
 #[test]
 fn root_installs_into_the_system_folder_wslg_reads() {
-    let home = Some(OsString::from("/home/u"));
+    // Absolute on every platform: the suite runs on Windows too.
+    let abs = std::env::temp_dir();
+    let home = Some(abs.clone().into_os_string());
     assert_eq!(
         target_dir(true, None, home.clone()),
         Some(PathBuf::from("/usr/local/share"))
     );
     assert_eq!(
         target_dir(false, None, home),
-        Some(PathBuf::from("/home/u/.local/share"))
+        Some(abs.join(".local/share"))
     );
 }
 
