@@ -196,3 +196,15 @@ export function mergeTable(stored: unknown): { columns: FileColumns; sort: FileS
   }
   return { columns, sort, widths };
 }
+
+const listMemo = new WeakMap<object, { key: string; value: unknown }>();
+
+/** What `make` built for this very list under this key, built again when either changed;
+    a null key always builds. Held weakly: a list nobody shows any more takes it along. */
+export function onceForList<T>(list: object, key: string | null, make: () => T): T {
+  const hit = key === null ? undefined : listMemo.get(list);
+  if (hit && hit.key === key) return hit.value as T;
+  const value = make();
+  if (key !== null) listMemo.set(list, { key, value });
+  return value;
+}

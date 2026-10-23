@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { FileEntry } from "$lib/ipc";
 import { groupByDirectory } from "./file-view";
 import {
+  onceForList,
   DEFAULT_COLUMNS,
   DEFAULT_SORT,
   columnItems,
@@ -188,5 +189,19 @@ describe("the extension and LFS columns", () => {
   it("are hidden by default", () => {
     expect(DEFAULT_COLUMNS.extension).toBe(false);
     expect(DEFAULT_COLUMNS.lfs).toBe(false);
+  });
+});
+
+describe("onceForList", () => {
+  it("builds once per list and key, again for another key, always without one", () => {
+    const list: string[] = [];
+    let built = 0;
+    const make = () => ++built;
+    expect(onceForList(list, "a", make)).toBe(1);
+    expect(onceForList(list, "a", make)).toBe(1);
+    expect(onceForList([], "a", make)).toBe(2);
+    expect(onceForList(list, "b", make)).toBe(3);
+    expect(onceForList(list, null, make)).toBe(4);
+    expect(onceForList(list, "b", make)).toBe(3);
   });
 });

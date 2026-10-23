@@ -11,7 +11,7 @@
   import { compile } from "$lib/file-search";
   import type { ListContext } from "$lib/file-switches";
   import Caret from "$components/common/Caret.svelte";
-  import { COLUMN_LABELS, DEFAULT_COLUMN_WIDTHS, gridColumns, nextSort, tableWidth, shownColumns, sortRows, type ColumnKey } from "$lib/file-columns";
+  import { COLUMN_LABELS, DEFAULT_COLUMN_WIDTHS, gridColumns, nextSort, tableWidth, shownColumns, onceForList, sortRows, type ColumnKey } from "$lib/file-columns";
   import { filesView } from "$stores/files-view.svelte";
   import { remoteOps } from "$stores/remote-ops.svelte";
   import { repository } from "$stores/repository.svelte";
@@ -249,19 +249,16 @@
       ...sortedOnce(section.files),
     })),
   );
-  /** The last sort of each list: a list that comes back unchanged (a search over a clean
-      tree typed again) is not sorted again. The LFS column reads state that moves on its
-      own, so it always sorts afresh. */
-  const sortCache = new WeakMap<readonly FileEntry[], { key: string; sorted: FileEntry[]; byPath: Map<string, FileEntry> }>();
+  /** A list that comes back unchanged (a search over a clean tree typed again, the list
+      mounted anew) is not sorted again. The LFS column reads state that moves on its own,
+      so it always sorts afresh. */
   function sortedOnce(files: readonly FileEntry[]) {
     const sort = filesView.sort;
     const key = sort.key === "lfs" ? null : JSON.stringify([gates, sort, active.directories]);
-    const hit = key === null ? undefined : sortCache.get(files);
-    if (hit && hit.key === key) return hit;
-    const sorted = sortRows(visibleFiles(files, gates), sort, active.directories, (path) => remoteOps.lfsState(path));
-    const made = { key: key ?? "", sorted, byPath: new Map(files.map((file) => [file.path, file])) };
-    if (key !== null) sortCache.set(files, made);
-    return made;
+    return onceForList(files, key, () => ({
+      sorted: sortRows(visibleFiles(files, gates), sort, active.directories, (path) => remoteOps.lfsState(path)),
+      byPath: new Map(files.map((file) => [file.path, file])),
+    }));
   }
 
   const groups = $derived(
