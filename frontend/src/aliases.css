@@ -45,6 +45,7 @@
   --status-ref: var(--accent);
   --status-tag: var(--badge-tag-fg);
   --indicator-changes: var(--status-warning);
+  --indicator-repo-changes: var(--status-danger);
   --indicator-synced: var(--status-success);
   --indicator-push: var(--status-warning);
   --indicator-pull: var(--status-success);

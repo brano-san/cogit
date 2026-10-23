@@ -210,12 +210,11 @@
   };
 </script>
 
-<!-- Push and pull sit on the corners of the icon; the changes dot has
-     a slot of its own in every row, so the names start on one line (R-353). -->
+<!-- Push and pull sit on the corners of the icon; uncommitted changes fill it red (R-353). -->
 {#snippet repoMarks(sync: RowSync, kind: "repository" | "submodule" = "repository")}
   {@const tip = syncTooltip(sync)}
   <span class="repo-icon">
-    <KindIcon {kind} title={tip || undefined} />
+    <KindIcon {kind} title={tip || undefined} changed={sync.dirty === true} />
     {#if sync.conflicted}<FileStateIcon state="conflicted" overlayOnly label="Unresolved merge conflicts" />{/if}
     {#if sync.ahead > 0}
       <svg class="arrow push" viewBox="0 0 8 8" role="img" aria-label="Commits to push"
@@ -232,13 +231,6 @@
       >
     {/if}
   </span>
-  <span
-    class="changes"
-    class:dirty={sync.dirty === true && !sync.conflicted}
-    role={sync.dirty && !sync.conflicted ? "img" : undefined}
-    title={sync.dirty && !sync.conflicted ? tip : undefined}
-    aria-label={sync.dirty && !sync.conflicted ? "Uncommitted changes" : undefined}
-  ></span>
 {/snippet}
 
 {#snippet topDisclosure(root: string, owned: boolean, closed = false)}
@@ -602,7 +594,7 @@
 
   /* A corner each, so any two show at once: pull (or `?`) top left, push top right, the
      conflict badge bottom right. The arrows reach past the icon's edges; the margins keep
-     them off the disclosure triangle and the changes dot. */
+     them off the disclosure triangle and the name. */
   .repo-icon {
     /* Larger than the 14 px of other kinds: the state badge is a quarter of its box and
        at 8 px a conflict's circle and exclamation mark ran together. 20 px of badge box
@@ -673,28 +665,6 @@
     font-size: var(--sync-arrow);
     font-weight: 700;
     line-height: 1;
-  }
-
-  .changes {
-    flex: 0 0 6px;
-    align-self: center;
-    margin-right: 2px;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-  }
-
-  .changes.dirty {
-    position: relative;
-    background: var(--indicator-changes);
-  }
-
-  /* 6 px was too small to hover: the tooltip answers the row's height and reaches into the
-     icon, whose tooltip is the same, but not into the name. */
-  .changes.dirty::before {
-    content: "";
-    position: absolute;
-    inset: -8px -2px -8px -6px;
   }
 
   .branch {

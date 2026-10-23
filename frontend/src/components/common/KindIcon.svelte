@@ -25,17 +25,25 @@
     kind: Kind;
     /** Replaces the kind's name in the tooltip. */
     title?: string;
+    /** A repository or submodule with uncommitted changes: the icon fills red (F-451). */
+    changed?: boolean;
   }
 
-  let { kind, title }: Props = $props();
+  let { kind, title, changed = false }: Props = $props();
 </script>
 
-<span class="kind {kind}" title={title ?? KIND_LABELS[kind]} role="img" aria-label={KIND_LABELS[kind]}>
+<span
+  class="kind {kind}"
+  class:changed
+  title={title ?? KIND_LABELS[kind]}
+  role="img"
+  aria-label={changed ? `${KIND_LABELS[kind]} with uncommitted changes` : KIND_LABELS[kind]}
+>
   <svg viewBox="0 0 16 16" aria-hidden="true">
     {#if kind === "repository" || kind === "submodule"}
       <!-- A stack of three disks, as SmartGit draws a repository; a submodule is one too. -->
-      <rect x="1.75" y="2.25" width="12.5" height="11.5" rx="1.5" />
-      <path d="M1.75 6.1h12.5M1.75 9.9h12.5" />
+      <rect class="body" x="1.75" y="2.25" width="12.5" height="11.5" rx="1.5" />
+      <path class="disks" d="M1.75 6.1h12.5M1.75 9.9h12.5" />
     {:else if kind === "worktree"}
       <circle cx="4.5" cy="3.5" r="1.5" />
       <circle cx="4.5" cy="12.5" r="1.5" />
@@ -85,5 +93,17 @@
   .submodule,
   .worktree {
     color: var(--status-ref);
+  }
+
+  .kind.changed {
+    color: var(--indicator-repo-changes);
+  }
+
+  .changed .body {
+    fill: currentColor;
+  }
+
+  .changed .disks {
+    stroke: var(--text-on-accent);
   }
 </style>
