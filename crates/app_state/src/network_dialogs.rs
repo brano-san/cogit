@@ -43,7 +43,7 @@ impl AppState {
                 let notes = handle.fetch_options(remote, options.fetch, credential, on_line)?;
                 return Ok(Pulled {
                     notes,
-                    stash_needed: false,
+                    ..Pulled::default()
                 });
             }
             let known = handle

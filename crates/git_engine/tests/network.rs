@@ -8,11 +8,15 @@ fn open(f: &test_fixtures::Fixture) -> RepoHandle {
     RepoHandle::open(f.path()).unwrap()
 }
 
-fn merge(ff_only: bool) -> PullOptions {
+fn merge() -> PullOptions {
     PullOptions {
-        ff_only,
+        method: git_engine::PullMethod::Merge,
         ..PullOptions::default()
     }
+}
+
+fn rebase() -> PullOptions {
+    PullOptions::default()
 }
 
 type Lines = Arc<Mutex<Vec<String>>>;
@@ -271,44 +275,118 @@ fn a_forced_push_never_drops_a_remote_commit_the_branch_never_had() {
 fn pull_fast_forwards_when_nothing_is_local() {
     let f = test_fixtures::with_remote().unwrap();
     f.git(&["reset", "--hard", "origin/main~1"]).unwrap();
-    let repo = open(&f);
-    let (_, on_line) = collector();
+    let (repo, log) = journalled(open(&f));
 
-    repo.pull_options("origin", merge(true), no_token, on_line)
+    let pulled = repo
+        .pull_options("origin", merge(), no_token, |_| {})
         .unwrap();
 
     assert_eq!(
         f.oid("HEAD").unwrap(),
         f.oid("refs/remotes/origin/main").unwrap()
     );
+    assert_eq!(pulled.integrated, None);
+    let ran = log.lock().unwrap().last().unwrap().command.clone();
+    assert!(ran.contains("--ff-only"), "{ran}");
+}
+
+// R-841: a branch 2 ahead and 1 behind its upstream took the --ff-only of Preferences and
+// failed; as SmartGit, own commits go on top of the upstream's, and nothing is pushed.
+#[test]
+fn a_diverged_pull_rebases_own_commits_onto_the_upstream() {
+    let f = test_fixtures::with_remote().unwrap();
+    let upstream = f.oid("refs/remotes/origin/main").unwrap();
+    let (repo, log) = journalled(open(&f));
+
+    let pulled = repo
+        .pull_options("origin", rebase(), no_token, |_| {})
+        .unwrap();
+
+    assert_eq!(pulled.integrated, Some(git_engine::PullMethod::Rebase));
+    assert_eq!(f.oid("HEAD~2").unwrap(), upstream);
+    assert_eq!(
+        f.git(&["rev-list", "--count", "HEAD", "^origin/main"])
+            .unwrap()
+            .trim(),
+        "2"
+    );
+    let ran = log.lock().unwrap().last().unwrap().command.clone();
+    assert!(ran.contains("--rebase"), "{ran}");
+    let server = f.git(&["remote", "get-url", "origin"]).unwrap();
+    let on_server = f
+        .git_in(std::path::Path::new(server.trim()), &["rev-parse", "main"])
+        .unwrap();
+    assert_eq!(on_server.trim(), upstream, "a pull never pushes");
 }
 
 #[test]
-fn a_pull_that_cannot_fast_forward_is_refused_rather_than_merging_silently() {
+fn a_diverged_pull_that_conflicts_stops_mid_rebase_as_a_warning() {
     let f = test_fixtures::with_remote().unwrap();
-    let repo = open(&f);
-    let (_, on_line) = collector();
-    let before = f.oid("HEAD").unwrap();
+    f.commit_file(22, "from-remote.txt", "mine\n").unwrap();
+    let (repo, log) = journalled(open(&f));
 
-    let err = repo
-        .pull_options("origin", merge(true), no_token, on_line)
-        .unwrap_err();
-
-    // Without `--ff-only` a bare `git pull` fails too ("Need to specify how to reconcile"),
-    // so only git's own reason proves which refusal this is.
-    match err {
-        git_engine::GitError::Command(details) => assert!(
-            details.stderr.contains("Not possible to fast-forward"),
-            "INV-05: {:?}",
-            details.stderr
-        ),
-        other => panic!("expected git's refusal, got {other:?}"),
-    }
-    assert_eq!(
-        f.oid("HEAD").unwrap(),
-        before,
-        "diverged history must not be merged behind the user's back"
+    assert!(
+        repo.pull_options("origin", rebase(), no_token, |_| {})
+            .is_err()
     );
+
+    let entry = log.lock().unwrap().last().cloned().unwrap();
+    assert!(entry.stopped_on_conflicts, "{entry:?}");
+    assert!(entry.command.contains("--rebase"));
+    let rebasing = f.git(&["rev-parse", "--git-path", "rebase-merge"]).unwrap();
+    assert!(f.path().join(rebasing.trim()).exists(), "left mid-rebase");
+}
+
+// R-840: the server deleted the branch HEAD tracks. The fetch went through and pruned it;
+// only the merge had nothing to take, which is no error.
+#[test]
+fn a_pull_whose_upstream_is_gone_fetches_and_warns() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&["checkout", "-b", "dev", "origin/main"]).unwrap();
+    f.git(&["push", "--set-upstream", "origin", "dev"]).unwrap();
+    let server = f.git(&["remote", "get-url", "origin"]).unwrap();
+    f.git_in(
+        std::path::Path::new(server.trim()),
+        &["branch", "-D", "dev"],
+    )
+    .unwrap();
+    let before = f.oid("HEAD").unwrap();
+    let (repo, log) = journalled(open(&f));
+
+    let pulled = repo
+        .pull_options("origin", rebase(), no_token, |_| {})
+        .unwrap();
+
+    assert!(pulled.upstream_gone);
+    assert_eq!(f.oid("HEAD").unwrap(), before);
+    assert!(
+        f.git(&["rev-parse", "--verify", "-q", "refs/remotes/origin/dev"])
+            .is_err()
+    );
+    let entry = log.lock().unwrap().last().cloned().unwrap();
+    assert_eq!(entry.exit_code, Some(1));
+    assert_eq!(entry.expected, Some(git_engine::Expected::UpstreamGone));
+    assert_eq!(
+        entry.summary,
+        "Fetch completed. Upstream branch origin/dev no longer exists on remote, so nothing \
+         was merged; local branch dev is unchanged."
+    );
+    assert!(
+        entry.stderr.contains("no such ref was fetched"),
+        "the output stays whole"
+    );
+}
+
+#[test]
+fn a_push_behind_the_remote_is_a_warning_to_pull_first() {
+    let f = test_fixtures::with_remote().unwrap();
+    let (repo, log) = journalled(open(&f));
+
+    assert!(repo.push("origin", None, false, no_token, |_| {}).is_err());
+
+    let entry = log.lock().unwrap().last().cloned().unwrap();
+    assert_eq!(entry.expected, Some(git_engine::Expected::PushBehind));
+    assert!(entry.stderr.contains("[rejected]"), "{entry:?}");
 }
 
 // F-311: Delete Merged Branches after Pull looks for branches whose upstream is gone, and a
@@ -328,7 +406,7 @@ fn a_pull_forgets_a_branch_the_remote_deleted() {
     .unwrap();
     let repo = open(&f);
 
-    repo.pull_options("origin", merge(true), no_token, |_| {})
+    repo.pull_options("origin", rebase(), no_token, |_| {})
         .unwrap();
 
     assert!(
@@ -348,7 +426,7 @@ fn a_pull_in_merge_mode_merges_whatever_pull_rebase_says() {
     let local = f.oid("HEAD").unwrap();
     let repo = open(&f);
 
-    repo.pull_options("origin", merge(false), no_token, |_| {})
+    repo.pull_options("origin", merge(), no_token, |_| {})
         .unwrap();
 
     let parents = f
@@ -507,7 +585,7 @@ fn fetch_and_pull_ask_for_the_token_of_the_fetch_url() {
         let _ = repo.fetch("origin", |url| token(url), |_| {});
     });
     let pulled = asked_for(|repo, token| {
-        let _ = repo.pull_options("origin", merge(true), |url| token(url), |_| {});
+        let _ = repo.pull_options("origin", rebase(), |url| token(url), |_| {});
     });
 
     assert_eq!(fetched, ["https://127.0.0.1:1/fetch/r.git"]);

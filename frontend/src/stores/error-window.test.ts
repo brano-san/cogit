@@ -45,6 +45,7 @@ const record = (id: number, over: object = {}) => ({
   summary: "error: failed to push some refs",
   startedAtMs: 1,
   stoppedOnConflicts: false,
+  expected: null,
   ...over,
 });
 
@@ -72,7 +73,7 @@ beforeEach(async () => {
   commands.commandOutcome.mockImplementation((id: number) =>
     Promise.resolve(record(id, { summary: `failed ${id}` })),
   );
-  stop = await errorWindow.own(() => {});
+  stop = await errorWindow.own({ showConflicts: () => {}, pull: () => {} });
   // What the window had is gone with it; so is what it never got, for a clean start.
   for (const entry of errorWindow.entries) act("viewed", entry.id);
   act("closed");
@@ -152,6 +153,30 @@ describe("a failed command and the Errors window", () => {
   });
 });
 
+// R-841: a push refused as behind is a warning that offers Pull, and stays when the
+// conflict list, which it has nothing to do with, is read empty.
+describe("a push the remote refused as behind", () => {
+  it("is a warning that pulls the repository it was about", async () => {
+    vi.useFakeTimers();
+    const pull = vi.fn();
+    stop();
+    stop = await errorWindow.own({ showConflicts: () => {}, pull });
+    commands.commandOutcome.mockResolvedValue(record(7, { expected: "pushBehind", summary: "Remote has commits" }));
+    await errorWindow.command(event(7));
+
+    expect(errorWindow.entries[0]).toMatchObject({ kind: "warning", offer: "pull", title: "Push rejected" });
+    expect(errorWindow.errorCount).toBe(0);
+    vi.advanceTimersByTime(5_000);
+    errorWindow.conflictsResolved("C:/repos/cogit");
+    expect(errorWindow.entries).toHaveLength(1);
+    vi.useRealTimers();
+
+    act("pull", 7);
+    expect(pull).toHaveBeenCalledWith("C:/repos/cogit");
+    expect(errorWindow.entries).toHaveLength(0);
+  });
+});
+
 describe("a command that stops on conflicts", () => {
   it("is a warning, titled for what it did, and not a footer error", async () => {
     commands.commandOutcome.mockResolvedValue(stash(5));
@@ -176,7 +201,7 @@ describe("a command that stops on conflicts", () => {
   it("goes when the user opens the conflicts, and names the repository", async () => {
     const shown = vi.fn();
     stop();
-    stop = await errorWindow.own(shown);
+    stop = await errorWindow.own({ showConflicts: shown, pull: () => {} });
     commands.commandOutcome.mockResolvedValue(stash(5));
     await errorWindow.command(event(5, { stoppedOnConflicts: true }));
 

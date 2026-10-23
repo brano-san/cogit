@@ -120,7 +120,6 @@ pub async fn pull(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,
     remote: String,
-    ff_only: bool,
     autostash: bool,
     credential: Option<app_state::SignIn>,
     on_progress: tauri::ipc::Channel<String>,
@@ -128,15 +127,7 @@ pub async fn pull(
     let app_state = state.state.clone();
     let work = move |stop: NetworkStop| {
         with_progress("pull", &remote, &on_progress, |line| {
-            app_state.pull(
-                repo,
-                &remote,
-                ff_only,
-                autostash,
-                &stop,
-                credential.as_ref(),
-                line,
-            )
+            app_state.pull(repo, &remote, autostash, &stop, credential.as_ref(), line)
         })
     };
     networking(&state.state, repo, OperationKind::Pull, "pull", work).await

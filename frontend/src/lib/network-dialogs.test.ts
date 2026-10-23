@@ -34,18 +34,17 @@ const push = (over: Partial<PushChoice> = {}): PushChoice => ({
 
 describe("pull", () => {
   it("opens on what the repository remembers", () => {
-    expect(pullChoiceOf(EMPTY_DEFAULTS)).toEqual({ method: "merge", tags: false, notes: false });
-    expect(pullChoiceOf({ ...EMPTY_DEFAULTS, pullMethod: "rebase", pullNotes: true })).toEqual({
-      method: "rebase",
+    expect(pullChoiceOf(EMPTY_DEFAULTS)).toEqual({ method: "rebase", tags: false, notes: false });
+    expect(pullChoiceOf({ ...EMPTY_DEFAULTS, pullMethod: "merge", pullNotes: true })).toEqual({
+      method: "merge",
       tags: false,
       notes: true,
     });
   });
 
-  it("keeps the fast-forward setting for a merge only", () => {
+  it("hands the engine the method; whether to fast-forward is the engine's", () => {
     const choice = { method: "merge", tags: true, notes: false } as const;
-    expect(pullOptionsOf(choice, true)).toEqual({ method: "merge", ffOnly: true, fetch: { tags: true, notes: false }, autostash: false });
-    expect(pullOptionsOf({ ...choice, method: "rebase" }, true).ffOnly).toBe(false);
+    expect(pullOptionsOf(choice)).toEqual({ method: "merge", fetch: { tags: true, notes: false }, autostash: false });
   });
 
   it("Fetch Only carries the tag and notes options and nothing else", () => {
@@ -56,8 +55,12 @@ describe("pull", () => {
     expect(pullCommandLine("origin", { method: "merge", tags: true, notes: false }, false)).toBe(
       "git pull --progress --prune --tags --force --no-rebase origin",
     );
-    expect(pullCommandLine("o", { method: "rebase", tags: false, notes: true }, true)).toBe(
+    expect(pullCommandLine("o", { method: "rebase", tags: false, notes: true }, false)).toBe(
       "git fetch +refs/notes/*:refs/notes-remote/o/*; git pull --progress --prune --rebase o",
+    );
+    // No commits of its own: a fast-forward whatever the method.
+    expect(pullCommandLine("o", { method: "rebase", tags: false, notes: false }, true)).toBe(
+      "git pull --progress --prune --ff-only o",
     );
   });
 });

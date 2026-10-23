@@ -60,11 +60,6 @@ export const CATEGORIES: Category[] = [
         title: "Pull",
         fields: [
           {
-            key: "pullMode",
-            label: "When a pull cannot fast-forward",
-            keywords: ["merge", "rebase", "fetch"],
-          },
-          {
             key: "backgroundFetchMinutes",
             label: "Check the remotes in the background",
             hint: "Keeps the pull arrows in Repositories current by asking each remote what it has; nothing is fetched. Never asks for credentials; a remote that cannot be asked shows ? instead.",

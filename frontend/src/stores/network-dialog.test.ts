@@ -73,7 +73,7 @@ describe("Push's Advanced", () => {
 
 describe("the dialogs' commands", () => {
   it("run as network operations the footer can name", async () => {
-    await networkApi.pullWith(1, "o", { method: "merge", ffOnly: false, fetch: { tags: false, notes: false }, autostash: false });
+    await networkApi.pullWith(1, "o", { method: "merge", fetch: { tags: false, notes: false }, autostash: false });
     await networkApi.fetchWith(1, "o", { tags: false, notes: false });
     await networkApi.pushWith(1, {
       remote: "o",

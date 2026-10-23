@@ -5,6 +5,7 @@ import {
   DETACHED_HINTS,
   actionOf,
   pullDoneText,
+  pulledOutcome,
   pushDoneText,
   syncDoneText,
   hintOf,
@@ -572,6 +573,13 @@ describe("detached HEAD", () => {
   it("reports what was done", () => {
     expect(pullDoneText("fetchedDetached")).toBe("Fetched only — HEAD is detached");
     expect(pullDoneText("pulled")).toBe("Pull succeeded");
+    expect(pullDoneText("rebased")).toBe("Pull (Rebase) succeeded.");
+    expect(pullDoneText("upstreamGone")).toBeNull();
+    const pulled = { notes: { remote: "o", diverged: [] }, stashNeeded: false, integrated: null, upstreamGone: false };
+    expect(pulledOutcome({ ...pulled, integrated: "rebase" })).toBe("rebased");
+    expect(pulledOutcome({ ...pulled, integrated: "merge" })).toBe("merged");
+    expect(pulledOutcome({ ...pulled, upstreamGone: true })).toBe("upstreamGone");
+    expect(pulledOutcome(pulled)).toBe("pulled");
     expect(pushDoneText(null)).toBe("Push succeeded");
     expect(pushDoneText({ branches: ["topic"] })).toBe("Pushed topic — HEAD is detached");
     expect(pushDoneText({ branches: [] })).toBeNull();

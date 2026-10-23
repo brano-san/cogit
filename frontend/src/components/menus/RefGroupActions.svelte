@@ -249,7 +249,7 @@
   async function pull(id: RepoId, remote: string) {
     const root = repository.current?.root;
     const done = await attempt("Could not pull", () =>
-      network.pull(id, remote, settings.current.pullMode === "ffOnly"),
+      network.pull(id, remote),
     );
     if (done && root) repoPulse.fetched(root);
     await afterRefChange(id);

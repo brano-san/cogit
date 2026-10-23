@@ -84,8 +84,37 @@ impl RepoHandle {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum PullOutcome {
+    /// Fast-forwarded, or nothing to take.
     Pulled,
+    /// Own commits rebased onto the upstream's (`Pulled::integrated`).
+    Rebased,
+    Merged,
     FetchedDetached,
     /// Fetched only: `Pulled::stash_needed`.
     StashNeeded,
+    /// Fetched only: `Pulled::upstream_gone`.
+    UpstreamGone,
+}
+
+impl From<&crate::Pulled> for PullOutcome {
+    fn from(pulled: &crate::Pulled) -> Self {
+        match pulled {
+            crate::Pulled {
+                stash_needed: true, ..
+            } => Self::StashNeeded,
+            crate::Pulled {
+                upstream_gone: true,
+                ..
+            } => Self::UpstreamGone,
+            crate::Pulled {
+                integrated: Some(crate::PullMethod::Rebase),
+                ..
+            } => Self::Rebased,
+            crate::Pulled {
+                integrated: Some(crate::PullMethod::Merge),
+                ..
+            } => Self::Merged,
+            crate::Pulled { .. } => Self::Pulled,
+        }
+    }
 }

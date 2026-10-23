@@ -13,8 +13,8 @@ export interface PullRequest {
   /** Fetch From opens on this one. */
   remote: string;
   remotes: readonly string[];
-  /** Preferences ▸ Pull: a merge may not create a merge commit. */
-  ffOnly: boolean;
+  /** The branch has no commits of its own: Pull only fast-forwards (R-841). */
+  fastForward: boolean;
   defaults: NetworkDefaults;
   /** HEAD is detached: only Fetch Only runs (F-710). */
   detached?: boolean;

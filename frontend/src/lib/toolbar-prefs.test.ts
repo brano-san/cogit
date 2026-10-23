@@ -98,14 +98,13 @@ describe("remotePlan", () => {
     pullRemote: "origin",
     pushRemote: "origin",
     scope: "all" as const,
-    ffOnly: true,
     deleteMerged: true,
   };
 
   it("names every remote of a Sync before the first step runs", () => {
     expect(remotePlan(["pull", "push"], facts)).toEqual([
       { kind: "fetch", remote: "fork" },
-      { kind: "pull", remote: "origin", ffOnly: true },
+      { kind: "pull", remote: "origin" },
       { kind: "deleteMerged" },
       { kind: "push", remote: "origin" },
     ]);
@@ -133,7 +132,7 @@ describe("remotePlan", () => {
   // (R-552): fetching the others first would fetch them twice, and nothing was merged.
   it("pulls a branch that tracks nothing with one step and deletes nothing", () => {
     const branch = { name: "topic", upstream: null, ahead: 0, behind: 0 };
-    expect(remotePlan(["pull"], { ...facts, branch })).toEqual([{ kind: "pull", remote: "origin", ffOnly: true }]);
+    expect(remotePlan(["pull"], { ...facts, branch })).toEqual([{ kind: "pull", remote: "origin" }]);
   });
 
   it("refuses up front when there is no remote", () => {
@@ -142,35 +141,14 @@ describe("remotePlan", () => {
     );
   });
 
-  // F-320: one commit ahead and one behind, Pull set to fast-forward only (the default).
-  // `git pull --ff-only` failed with "Not possible to fast-forward" and Synchronize stopped
-  // there, saying nothing about what to do.
-  const diverged = { name: "main", upstream: "origin/main", ahead: 1, behind: 1 };
-
-  it("refuses a diverged branch before anything runs when Pull only fast-forwards, and says why", () => {
-    expect(() => remotePlan(["pull", "push"], { ...facts, branch: diverged })).toThrow(
-      /main and origin\/main have diverged \(1 ahead, 1 behind\).*Preferences ▸ Pull/,
-    );
-  });
-
-  it("merges a diverged branch, then pushes, when Pull is set to merge", () => {
-    const plan = remotePlan(["pull", "push"], {
-      ...facts,
-      scope: "current",
-      deleteMerged: false,
-      ffOnly: false,
-      branch: diverged,
-    });
+  // F-320, R-841: one commit ahead and one behind. Pull refused up front while it only
+  // fast-forwarded; now the engine rebases (or merges) and Sync pushes the result.
+  it("pulls a diverged branch, then pushes", () => {
+    const diverged = { name: "main", upstream: "origin/main", ahead: 1, behind: 1 };
+    const plan = remotePlan(["pull", "push"], { ...facts, scope: "current", deleteMerged: false, branch: diverged });
     expect(plan).toEqual([
-      { kind: "pull", remote: "origin", ffOnly: false },
+      { kind: "pull", remote: "origin" },
       { kind: "push", remote: "origin" },
-    ]);
-  });
-
-  it("pulls a branch that is only behind, however Pull is set", () => {
-    const behind = { ...diverged, ahead: 0, behind: 2 };
-    expect(remotePlan(["pull"], { ...facts, scope: "current", deleteMerged: false, branch: behind })).toEqual([
-      { kind: "pull", remote: "origin", ffOnly: true },
     ]);
   });
 });

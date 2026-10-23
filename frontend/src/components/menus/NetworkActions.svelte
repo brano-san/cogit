@@ -23,8 +23,9 @@
   import { fetchAllTargets } from "$lib/repo-list";
   import { measurer } from "$lib/timing";
   import { currentRemote, remotePlan, syncSteps, type SyncOrder } from "$lib/toolbar-prefs";
-  import { NOTHING_PUSHABLE, nothingPushed, pullDoneText, syncDoneText } from "$lib/toolbar";
+  import { FETCHED_DETACHED, NOTHING_PUSHABLE, nothingPushed, pullDoneText, pulledOutcome, syncDoneText } from "$lib/toolbar";
   import type { Pushed } from "$lib/ipc";
+  import type { Pulled } from "$lib/ipc/network-dialogs";
   import { notices } from "$stores/notices.svelte";
   import { confirmation } from "$stores/confirm.svelte";
   import { errors } from "$stores/errors.svelte";
@@ -33,7 +34,6 @@
   import { output } from "$stores/output.svelte";
   import { repoPulse } from "$stores/repo-pulse.svelte";
   import { repository } from "$stores/repository.svelte";
-  import { settings } from "$stores/settings.svelte";
   import { successToast } from "$stores/success-toast.svelte";
   import { toolbar } from "$stores/toolbar.svelte";
 
@@ -136,7 +136,6 @@
         pullRemote,
         pushRemote,
         scope: toolbar.prefs.pullScope,
-        ffOnly: settings.current.pullMode === "ffOnly",
         deleteMerged: toolbar.prefs.deleteMergedAfterPull,
         branch: tracked,
         detached: headless,
@@ -144,13 +143,13 @@
       for (const step of plan) {
         if (step.kind === "fetch") await network.fetch(id, step.remote);
         // Local changes kept where they are: the branch did not move, so neither does the rest.
-        if (step.kind === "pull" && !(await pullWithDefaults(id, step.remote, step.ffOnly))) return;
+        if (step.kind === "pull" && !(await pullWithDefaults(id, step.remote))) return;
         if (step.kind === "deleteMerged") await deleteMergedBranches(id);
         if (step.kind === "push") pushed = await network.push(id, step.remote, false);
       }
     });
     if (ran === null) return;
-    if (headless) successToast.show(steps.includes("push") ? syncDoneText(pushed) : pullDoneText("fetchedDetached"));
+    if (headless) successToast.show(steps.includes("push") ? syncDoneText(pushed) : FETCHED_DETACHED);
     if (steps.includes("pull")) repoPulse.fetched(root);
     await afterRefChange(id);
   }
@@ -168,11 +167,17 @@
     });
   }
 
-  async function pullWithDefaults(id: RepoId, remote: string, ffOnly: boolean): Promise<boolean> {
-    const options = pullOptionsOf(pullChoiceOf(await defaultsOf(id)), ffOnly);
-    const pulled = await pullFlow(networkApi, flowUi, id, remote, options);
-    if (pulled) successToast.show("Pull succeeded");
-    return pulled;
+  /** `false`: nothing was pulled, so neither do the steps after it run. */
+  async function pullWithDefaults(id: RepoId, remote: string): Promise<boolean> {
+    const options = pullOptionsOf(pullChoiceOf(await defaultsOf(id)));
+    return pulledToast(await pullFlow(networkApi, flowUi, id, remote, options));
+  }
+
+  /** A gone upstream is the Errors window's warning, not a success (R-840). */
+  function pulledToast(pulled: Pulled | null): boolean {
+    const text = pulled === null ? null : pullDoneText(pulledOutcome(pulled));
+    if (text !== null) successToast.show(text);
+    return text !== null;
   }
 
   async function pushWithDefaults(id: RepoId, remote: string) {
@@ -206,7 +211,7 @@
       repo: id,
       remote: pullRemote,
       remotes: network.remotes,
-      ffOnly: settings.current.pullMode === "ffOnly",
+      fastForward: tracked?.ahead === 0,
       defaults: await defaultsOf(id),
       detached,
     };
@@ -251,10 +256,9 @@
       if (remember) await saveNetworkDefaults(id, mergeDefaults(request.defaults, { pull: choice }));
       if (action === "fetch") {
         await pullFlow(networkApi, flowUi, id, remote, { fetchOnly: fetchOptionsOf(choice) });
-        successToast.show(request.detached ? pullDoneText("fetchedDetached") : "Fetch succeeded");
+        successToast.show(request.detached ? FETCHED_DETACHED : "Fetch succeeded");
       } else {
-        if (await pullFlow(networkApi, flowUi, id, remote, pullOptionsOf(choice, request.ffOnly)))
-          successToast.show("Pull succeeded");
+        pulledToast(await pullFlow(networkApi, flowUi, id, remote, pullOptionsOf(choice)));
       }
     });
     if (epoch === null) return;
@@ -393,7 +397,7 @@
     }
     try {
       if (kind === "pull") {
-        await network.pull(id, remote, settings.current.pullMode === "ffOnly");
+        await network.pull(id, remote);
         if (target.kind === "repository") repoPulse.fetched(target.root);
       } else {
         // A submodule is detached by design: Push sent what could go, or nothing (F-710).

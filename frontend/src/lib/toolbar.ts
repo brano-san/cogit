@@ -4,6 +4,7 @@
  */
 
 import type { PullOutcome, Pushed } from "$lib/ipc";
+import type { Pulled } from "$lib/ipc/network-dialogs";
 import { prettyKeys, shortcutOf, type Keymap } from "$lib/keymap";
 import type { PushSource } from "$lib/push-to";
 import {
@@ -191,6 +192,8 @@ export const DETACHED_HINTS: Readonly<Record<string, string>> = {
 
 const DETACHED_NOTE = "HEAD is detached";
 
+export const FETCHED_DETACHED = `Fetched only — ${DETACHED_NOTE}`;
+
 /** Push on a detached HEAD where nothing qualified, for a repository not on screen. */
 export const NOTHING_PUSHABLE =
   "HEAD is detached and no branch is ahead of its upstream. Open the repository and use Push To to push HEAD.";
@@ -207,9 +210,31 @@ export function nothingPushed(pushed: Pushed | null): boolean {
   return pushed !== null && pushed.branches.length === 0;
 }
 
-/** The notification after a pull. */
-export function pullDoneText(outcome: PullOutcome): string {
-  return outcome === "fetchedDetached" ? `Fetched only — ${DETACHED_NOTE}` : "Pull succeeded";
+/** The notification after a pull; `null` when it pulled nothing, and a gone upstream is the
+    Errors window's warning (R-840). */
+export function pullDoneText(outcome: PullOutcome): string | null {
+  switch (outcome) {
+    case "fetchedDetached":
+      return FETCHED_DETACHED;
+    case "rebased":
+      return "Pull (Rebase) succeeded.";
+    case "merged":
+      return "Pull (Merge) succeeded.";
+    case "stashNeeded":
+    case "upstreamGone":
+      return null;
+    case "pulled":
+      return "Pull succeeded";
+  }
+}
+
+/** The Pull dialog's answer as the toolbar's `pull` words it (`PullOutcome::from`). */
+export function pulledOutcome(pulled: Pulled): PullOutcome {
+  if (pulled.stashNeeded) return "stashNeeded";
+  if (pulled.upstreamGone) return "upstreamGone";
+  if (pulled.integrated === "rebase") return "rebased";
+  if (pulled.integrated === "merge") return "merged";
+  return "pulled";
 }
 
 /** The notification after a push: `null` from the backend is an ordinary push. An empty

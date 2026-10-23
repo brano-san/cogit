@@ -62,15 +62,7 @@ fn pull(scene: &Scene) {
     let state = AppState::new();
     let repo = state.open_repository(&scene.mine).unwrap().repo;
     state
-        .pull(
-            repo,
-            "origin",
-            true,
-            false,
-            &NetworkStop::default(),
-            None,
-            |_| {},
-        )
+        .pull(repo, "origin", false, &NetworkStop::default(), None, |_| {})
         .unwrap();
 }
 
@@ -106,15 +98,7 @@ fn a_submodule_on_a_local_path_the_pull_brings_is_left_to_git_s_refusal() {
     let repo = state.open_repository(&scene.mine).unwrap().repo;
 
     let refused = state
-        .pull(
-            repo,
-            "origin",
-            true,
-            false,
-            &NetworkStop::default(),
-            None,
-            |_| {},
-        )
+        .pull(repo, "origin", false, &NetworkStop::default(), None, |_| {})
         .unwrap_err();
 
     assert!(

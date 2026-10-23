@@ -52,25 +52,26 @@ export const STASH_AND_PULL: ConfirmRequest = {
   confirm: "Stash and Pull",
 };
 
-/** `false`: the local changes stayed and nothing was pulled, so there is no success to show. */
+/** What the pull did; `null` after Fetch Only, or when the local changes stayed and nothing
+    was pulled, so there is no success to show. */
 export async function pullFlow(
   api: NetworkApi,
   ui: FlowUi,
   repo: number,
   remote: string,
   options: PullOptions | { fetchOnly: FetchOptions },
-): Promise<boolean> {
+): Promise<Pulled | null> {
   if ("fetchOnly" in options) {
     await resolveDivergedNotes(api, ui, repo, await api.fetchWith(repo, remote, options.fetchOnly));
-    return true;
+    return null;
   }
   let pulled = await api.pullWith(repo, remote, options);
   if (pulled.stashNeeded) {
-    if (!(await ui.ask(STASH_AND_PULL))) return false;
+    if (!(await ui.ask(STASH_AND_PULL))) return null;
     pulled = await api.pullWith(repo, remote, { ...options, autostash: true });
   }
   await resolveDivergedNotes(api, ui, repo, pulled.notes);
-  return true;
+  return pulled;
 }
 
 /** The branch, then the notes. A remote that moved its notes gets one offer: fetch,

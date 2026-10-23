@@ -51,7 +51,6 @@ export interface Settings {
       context lines into "N lines hidden" rows. */
   diffWholeFile: boolean;
   laneWidth: number;
-  pullMode: "ffOnly" | "merge";
   gitPath: string;
   terminal: string;
   /** The external merge tool the Conflict Solver opens: a program, and its arguments with
@@ -149,7 +148,6 @@ export const DEFAULT_SETTINGS: Settings = {
   diffLayout: "aligned",
   diffWholeFile: false,
   laneWidth: LANE_WIDTH.default,
-  pullMode: "ffOnly",
   gitPath: "git",
   terminal: "system",
   mergeExternalTool: "",
@@ -201,7 +199,6 @@ const ENUMS: Partial<Record<keyof Settings, readonly string[]>> = {
   algorithm: ["histogram", "myers"],
   ignoreWhitespace: ["none", "trailing", "all"],
   diffLayout: ["aligned", "compact"],
-  pullMode: ["ffOnly", "merge"],
   logLevel: ["error", "warn", "info", "debug", "trace"],
   avatars: ["ask", "gravatar", "off"],
   graphTimeFormat: ["relative", "date", "dateTime"],

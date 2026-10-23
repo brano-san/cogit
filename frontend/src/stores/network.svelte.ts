@@ -66,14 +66,13 @@ class NetworkStore {
 
   /** On a detached HEAD the backend only fetches, and the toast says so (F-710). Local
       changes in the way of moving the branch are asked about, as the Pull dialog does. */
-  async pull(repo: RepoId, remote: string, ffOnly: boolean): Promise<PullOutcome> {
+  async pull(repo: RepoId, remote: string): Promise<PullOutcome> {
     const run = (autostash: boolean) =>
-      this.run(repo, "Pulling", (onLine, credential) =>
-        pullRemote(repo, remote, ffOnly, autostash, onLine, credential),
-      );
+      this.run(repo, "Pulling", (onLine, credential) => pullRemote(repo, remote, autostash, onLine, credential));
     let outcome = await run(false);
     if (outcome === "stashNeeded" && (await confirmation.ask(STASH_AND_PULL))) outcome = await run(true);
-    if (outcome !== "stashNeeded") successToast.show(pullDoneText(outcome));
+    const text = pullDoneText(outcome);
+    if (text !== null) successToast.show(text);
     return outcome;
   }
 

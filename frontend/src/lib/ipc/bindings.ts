@@ -129,6 +129,11 @@ export const commands = {
 	 */
 	stoppedOnConflicts: boolean,
 	/**
+	 *  A failure that is an ordinary state, told as a warning; `summary` then explains it.
+	 *  Set when the record is journaled, from the repository's state as well as the output.
+	 */
+	expected: Expected | null,
+	/**
 	 *  A refusal the app turned into its own question (`branch -d` of an unmerged branch):
 	 *  journaled as git said it, but no error notice.
 	 */
@@ -214,7 +219,7 @@ export const commands = {
 	/**  Kept once a command has succeeded with it. */
 	remember: boolean,
 } | null, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("fetch", { repo, remote, credential, onProgress })),
-	pull: (repo: RepoId, remote: string, ffOnly: boolean, autostash: boolean, credential: {
+	pull: (repo: RepoId, remote: string, autostash: boolean, credential: {
 	/**  Used only for URLs of this host: a retry never hands it to another one. */
 	host: string,
 	/**  `None` or blank: `secret` is a token. */
@@ -222,7 +227,7 @@ export const commands = {
 	secret: string,
 	/**  Kept once a command has succeeded with it. */
 	remember: boolean,
-} | null, onProgress: Channel<string>) => typedError<PullOutcome, GitError>(__TAURI_INVOKE("pull", { repo, remote, ffOnly, autostash, credential, onProgress })),
+} | null, onProgress: Channel<string>) => typedError<PullOutcome, GitError>(__TAURI_INVOKE("pull", { repo, remote, autostash, credential, onProgress })),
 	push: (repo: RepoId, remote: string, force: boolean, credential: {
 	/**  Used only for URLs of this host: a retry never hands it to another one. */
 	host: string,
@@ -1294,7 +1299,9 @@ export type ErrorAction =
 /**  The window closed; everything it listed is dismissed. */
 "closed" | 
 /**  Take the main window to the conflicted files of the entry `id`. */
-"showConflicts";
+"showConflicts" | 
+/**  Pull the repository of the entry `id`, as the toolbar's Pull does. */
+"pull";
 
 /**
  *  One command that ended badly, as the Errors window lists it. The output itself stays in
@@ -1308,6 +1315,7 @@ export type ErrorEntry = {
 	repo: string,
 	command: string,
 	summary: string,
+	offer: ErrorOffer | null,
 	/**  The same failure again collapses into this entry rather than growing the list. */
 	repeats: number,
 };
@@ -1315,8 +1323,14 @@ export type ErrorEntry = {
 export type ErrorKind = 
 /**  The command failed. */
 "error" | 
-/**  The command stopped halfway on conflicts: the user has work to do, nothing is broken. */
+/**
+ *  The command stopped halfway on conflicts, or failed for an ordinary state of things
+ *  (`git_engine::Expected`): the user has work to do, nothing is broken.
+ */
 "warning";
+
+/**  The button of an entry that leads on. */
+export type ErrorOffer = "showConflicts" | "pull";
 
 /**  The whole queue, from the main window to the Errors window, on every change. */
 export type ErrorQueue = ErrorEntry[];
@@ -1332,6 +1346,16 @@ export type ErrorsAction = {
 	action: ErrorAction,
 	id: number | null,
 };
+
+/**
+ *  A failure that is an ordinary state of things: the Errors window shows it as a warning,
+ *  with the whole output still (R-840).
+ */
+export type Expected = 
+/**  A pull fetched, but the upstream of the branch is gone from the remote: nothing merged. */
+"upstreamGone" | 
+/**  The remote has commits the pushed branch lacks: pull first. */
+"pushBehind";
 
 export type FailedDeletion = {
 	name: string,
@@ -1598,6 +1622,11 @@ export type GitOutput = {
 	 *  rest to the user. Set when the record is journaled, from the index.
 	 */
 	stoppedOnConflicts: boolean,
+	/**
+	 *  A failure that is an ordinary state, told as a warning; `summary` then explains it.
+	 *  Set when the record is journaled, from the repository's state as well as the output.
+	 */
+	expected: Expected | null,
 	/**
 	 *  A refusal the app turned into its own question (`branch -d` of an unmerged branch):
 	 *  journaled as git said it, but no error notice.
@@ -2103,21 +2132,31 @@ export type PreviousFile = {
 
 export type Progress = { kind: "indeterminate" } | { kind: "percent"; value: number };
 
-export type PullMethod = "merge" | "rebase";
+export type PullMethod = "merge" | 
+/**  As SmartGit: own commits go on top of the upstream's (R-841). */
+"rebase";
 
 export type PullOptions = {
+	/**
+	 *  How a branch with commits of its own takes the upstream's; one without them only
+	 *  fast-forwards (R-841).
+	 */
 	method: PullMethod,
-	/**  With `Merge`: refuse a merge commit (Preferences ▸ Pull). */
-	ffOnly: boolean,
 	fetch: FetchOptions,
 	/**  `--autostash`: the answer to `Pulled::stash_needed`. */
 	autostash: boolean,
 };
 
 /**  Detached, a pull only fetches: there is no branch to merge into. */
-export type PullOutcome = "pulled" | "fetchedDetached" | 
+export type PullOutcome = 
+/**  Fast-forwarded, or nothing to take. */
+"pulled" | 
+/**  Own commits rebased onto the upstream's (`Pulled::integrated`). */
+"rebased" | "merged" | "fetchedDetached" | 
 /**  Fetched only: `Pulled::stash_needed`. */
-"stashNeeded";
+"stashNeeded" | 
+/**  Fetched only: `Pulled::upstream_gone`. */
+"upstreamGone";
 
 /**
  *  `stash_needed`: the pull only fetched, because the branch has to move and the working
@@ -2126,6 +2165,13 @@ export type PullOutcome = "pulled" | "fetchedDetached" |
 export type Pulled = {
 	notes: NotesFetch,
 	stashNeeded: boolean,
+	/**  How the branch took the upstream's commits; `None` for a fast-forward or a fetch only. */
+	integrated: PullMethod | null,
+	/**
+	 *  Fetched, but the upstream is gone from the remote and nothing was merged; the
+	 *  journal's warning says so (R-840).
+	 */
+	upstreamGone: boolean,
 };
 
 export type PushCommit = {
