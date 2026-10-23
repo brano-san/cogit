@@ -201,6 +201,7 @@ describe("onceForList", () => {
     expect(onceForList(list, "a", make)).toBe(1);
     expect(onceForList([], "a", make)).toBe(2);
     expect(onceForList(list, "b", make)).toBe(3);
+    expect(onceForList(list, "a", make)).toBe(1);
     expect(onceForList(list, null, make)).toBe(4);
     expect(onceForList(list, "b", make)).toBe(3);
   });

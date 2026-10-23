@@ -197,14 +197,19 @@ export function mergeTable(stored: unknown): { columns: FileColumns; sort: FileS
   return { columns, sort, widths };
 }
 
-const listMemo = new WeakMap<object, { key: string; value: unknown }>();
+const listMemo = new WeakMap<object, Map<string, unknown>>();
+/** Keys kept per list: a search switching the unchanged files on and off flips between two. */
+const KEYS_PER_LIST = 4;
 
-/** What `make` built for this very list under this key, built again when either changed;
-    a null key always builds. Held weakly: a list nobody shows any more takes it along. */
+/** What `make` built for this very list under this key, built again for another list or
+    key; a null key always builds. Held weakly: a list nobody shows any more takes it along. */
 export function onceForList<T>(list: object, key: string | null, make: () => T): T {
-  const hit = key === null ? undefined : listMemo.get(list);
-  if (hit && hit.key === key) return hit.value as T;
+  if (key === null) return make();
+  let byKey = listMemo.get(list);
+  if (byKey?.has(key)) return byKey.get(key) as T;
   const value = make();
-  if (key !== null) listMemo.set(list, { key, value });
+  if (!byKey) listMemo.set(list, (byKey = new Map()));
+  if (byKey.size >= KEYS_PER_LIST) byKey.delete(byKey.keys().next().value as string);
+  byKey.set(key, value);
   return value;
 }
