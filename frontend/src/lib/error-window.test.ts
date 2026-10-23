@@ -58,6 +58,11 @@ describe("an expected failure", () => {
     expect(entry).toMatchObject({ kind: "warning", title: "Upstream branch is gone", offer: null });
   });
 
+  it("is a warning about a clone kept without its submodules (R-870)", () => {
+    const entry = entryOf(run(1, { operation: "Clone", command: "git clone --recurse-submodules", expected: "submodulesFailed" }));
+    expect(entry).toMatchObject({ kind: "warning", title: "Submodules not cloned", offer: null });
+  });
+
   it("offers Pull for a push the remote refused as behind", () => {
     const entry = entryOf(run(1, { expected: "pushBehind" }));
     expect(entry).toMatchObject({ kind: "warning", title: "Push rejected", offer: "pull" });

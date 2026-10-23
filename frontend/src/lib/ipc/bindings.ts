@@ -1355,7 +1355,9 @@ export type Expected =
 /**  A pull fetched, but the upstream of the branch is gone from the remote: nothing merged. */
 "upstreamGone" | 
 /**  The remote has commits the pushed branch lacks: pull first. */
-"pushBehind";
+"pushBehind" | 
+/**  A clone checked the repository out, but a submodule failed: the repository is kept. */
+"submodulesFailed";
 
 export type FailedDeletion = {
 	name: string,

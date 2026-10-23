@@ -178,10 +178,18 @@ pub fn clone_repository(
     process.envs(askpass_refusal(own_ssh));
     process.args(&args);
 
+    let kept = std::cell::Cell::new(false);
     let to = Streamed {
         root: &target,
         stop: Some(stop),
-        journal: &|entry| {
+        journal: &|mut entry: GitOutput| {
+            if !stop.is_stopped() && submodules_failed(request, before, &target, &entry) {
+                entry.expected = Some(crate::Expected::SubmodulesFailed);
+                crate::outcome::SUBMODULES_FAILED.clone_into(&mut entry.summary);
+                // A submodule's sign-in is no question to the clone, which is kept anyway.
+                entry.credential_trouble = None;
+                kept.set(true);
+            }
             if let Some(sink) = journal {
                 sink(entry);
             }
@@ -191,7 +199,27 @@ pub fn clone_repository(
     if matches!(result, Err(GitError::Cancelled(_))) {
         remove_leftovers(&target, before);
     }
+    if kept.get() {
+        return Ok(target);
+    }
     result.map(|()| target)
+}
+
+/// git exits non-zero when a submodule fails, though the repository itself is cloned and
+/// checked out. git's words (`LC_ALL=C`) and the state must both say so: a folder that was a
+/// repository before, or a checkout that failed, is not this (R-870).
+fn submodules_failed(
+    request: &CloneRequest,
+    before: CloneDestination,
+    target: &Path,
+    entry: &GitOutput,
+) -> bool {
+    request.submodules
+        && !matches!(entry.exit_code, Some(0) | None)
+        && matches!(before, CloneDestination::Missing | CloneDestination::Empty)
+        && entry.stderr.contains("submodule")
+        && !entry.stderr.contains("checkout failed")
+        && gix::open(target).is_ok_and(|repo| repo.head_commit().is_ok())
 }
 
 /// `1m`, `512k`, `2g`: digits (no leading zero) and one unit letter, as `blob:limit` takes it.
