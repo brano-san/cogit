@@ -56,6 +56,19 @@ fn data_home_honors_xdg_only_when_absolute() {
 }
 
 #[test]
+fn root_installs_into_the_system_folder_wslg_reads() {
+    let home = Some(OsString::from("/home/u"));
+    assert_eq!(
+        target_dir(true, None, home.clone()),
+        Some(PathBuf::from("/usr/local/share"))
+    );
+    assert_eq!(
+        target_dir(false, None, home),
+        Some(PathBuf::from("/home/u/.local/share"))
+    );
+}
+
+#[test]
 fn install_is_idempotent_and_uninstall_removes_exactly_ours() {
     let dir = tempfile::tempdir().unwrap();
     let home = dir.path();
