@@ -334,13 +334,7 @@ impl RepoHandle {
     }
 
     fn count_only(&self, tip: gix::ObjectId, hidden: gix::ObjectId) -> Option<u32> {
-        let walk = self
-            .repo
-            .rev_walk(Some(tip))
-            .with_hidden(Some(hidden))
-            .all()
-            .ok()?;
-        u32::try_from(walk.filter_map(std::result::Result::ok).count()).ok()
+        u32::try_from(self.only_reachable(Some(tip), Some(hidden)).len()).ok()
     }
 
     pub fn tags(&self) -> Result<Vec<Tag>> {
