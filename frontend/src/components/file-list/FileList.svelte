@@ -246,12 +246,23 @@
     shownSections(sections).map((section) => ({
       section,
       index: sections.indexOf(section),
-      sorted: sortRows(visibleFiles(section.files, gates), filesView.sort, active.directories, (path) =>
-        remoteOps.lfsState(path),
-      ),
-      byPath: new Map(section.files.map((file) => [file.path, file])),
+      ...sortedOnce(section.files),
     })),
   );
+  /** The last sort of each list: a list that comes back unchanged (a search over a clean
+      tree typed again) is not sorted again. The LFS column reads state that moves on its
+      own, so it always sorts afresh. */
+  const sortCache = new WeakMap<readonly FileEntry[], { key: string; sorted: FileEntry[]; byPath: Map<string, FileEntry> }>();
+  function sortedOnce(files: readonly FileEntry[]) {
+    const sort = filesView.sort;
+    const key = sort.key === "lfs" ? null : JSON.stringify([gates, sort, active.directories]);
+    const hit = key === null ? undefined : sortCache.get(files);
+    if (hit && hit.key === key) return hit;
+    const sorted = sortRows(visibleFiles(files, gates), sort, active.directories, (path) => remoteOps.lfsState(path));
+    const made = { key: key ?? "", sorted, byPath: new Map(files.map((file) => [file.path, file])) };
+    if (key !== null) sortCache.set(files, made);
+    return made;
+  }
 
   const groups = $derived(
     prepared.map(({ section, index, sorted, byPath }) => {

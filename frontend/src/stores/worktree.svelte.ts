@@ -29,6 +29,11 @@ class WorktreeStore {
   found = $state.raw<FileEntry[]>([]);
 
   #generation = 0;
+  /** Reads started; what a stopped search found stays good until the next one. */
+  #reads = 0;
+  /** A stopped search's files: typing again over the same tree lists them at once, without
+      reading every file and sorting them again (R-823). */
+  #kept: { found: FileEntry[]; reads: number } | null = null;
   /** Bumped by `clear()`: a write that finishes after it reads nothing back, since the
       panels it would read into belong to another repository by now. */
   #cleared = 0;
@@ -41,6 +46,7 @@ class WorktreeStore {
       answer for another read got there first. */
   async load(repo: RepoId): Promise<WorkingState | null> {
     const generation = ++this.#generation;
+    this.#reads += 1;
     this.error = null;
     this.loading = true;
 
@@ -71,8 +77,14 @@ class WorktreeStore {
   async searchEveryFile(on: boolean, repo: RepoId | null): Promise<void> {
     if (this.everyFile === on) return;
     this.everyFile = on;
-    if (on && repo !== null) await this.load(repo);
-    else this.found = [];
+    if (!on) {
+      if (this.found.length > 0) this.#kept = { found: this.found, reads: this.#reads };
+      this.found = [];
+    } else if (this.#kept !== null && this.#kept.reads === this.#reads) {
+      this.found = this.#kept.found;
+    } else if (repo !== null) {
+      await this.load(repo);
+    }
   }
 
   async stage(repo: RepoId, paths: string[]): Promise<WorkingState | null> {
@@ -123,6 +135,7 @@ class WorktreeStore {
     this.staged = [];
     this.unstaged = [];
     this.found = [];
+    this.#kept = null;
     this.everyFile = false;
     this.loading = false;
     this.loaded = false;

@@ -51,6 +51,22 @@ describe("a filter searching a clean working tree", () => {
     expect(ipc.worktreeFiles).toHaveBeenLastCalledWith(1, expect.objectContaining({ unchanged: false }));
   });
 
+  it("lists what it found again without reading, until the tree is read again", async () => {
+    ipc.worktreeFiles.mockClear();
+    ipc.worktreeFiles.mockResolvedValueOnce({ staged: [], unstaged: [row("b", "unchanged")], state: null } as never);
+    await worktree.searchEveryFile(true, 1 as never);
+    const found = worktree.found;
+    await worktree.searchEveryFile(false, 1 as never);
+    await worktree.searchEveryFile(true, 1 as never);
+    expect(ipc.worktreeFiles).toHaveBeenCalledTimes(1);
+    expect(worktree.found).toBe(found);
+    await worktree.searchEveryFile(false, 1 as never);
+    await worktree.load(1 as never);
+    await worktree.searchEveryFile(true, 1 as never);
+    expect(ipc.worktreeFiles).toHaveBeenCalledTimes(3);
+    await worktree.searchEveryFile(false, 1 as never);
+  });
+
   it("keeps nothing a read still on its way finds after the search stopped", async () => {
     let answer!: (files: never) => void;
     ipc.worktreeFiles.mockReturnValueOnce(new Promise((ok) => (answer = ok)) as never);

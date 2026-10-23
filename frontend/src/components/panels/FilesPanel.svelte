@@ -134,8 +134,18 @@
     untrack(() => void worktree.searchEveryFile(on, id));
   });
   $effect(() => () => void worktree.searchEveryFile(false, null));
-  /** What the search found is listed with the changes, never counted or staged as one. */
-  const unstagedRows = $derived(worktree.found.length > 0 ? [...worktree.unstaged, ...worktree.found] : worktree.unstaged);
+  /** What the search found is listed with the changes, never counted or staged as one. The
+      same two lists give back the same rows, so Files does not sort them again (R-823). */
+  const joined = new WeakMap<readonly FileEntry[], { unstaged: readonly FileEntry[]; rows: FileEntry[] }>();
+  function withFound(unstaged: FileEntry[], found: FileEntry[]): FileEntry[] {
+    if (found.length === 0) return unstaged;
+    const kept = joined.get(found);
+    if (kept?.unstaged === unstaged) return kept.rows;
+    const rows = [...unstaged, ...found];
+    joined.set(found, { unstaged, rows });
+    return rows;
+  }
+  const unstagedRows = $derived(withFound(worktree.unstaged, worktree.found));
 
   /** Unstaged and Staged, or one list of both while the index is not shown apart (#32). */
   const separate = $derived(filesView.current.separateIndex);
