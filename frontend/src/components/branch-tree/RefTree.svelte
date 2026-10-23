@@ -222,7 +222,7 @@
       aria-expanded={foldable(node) ? node.open === true : undefined}
       tabindex="-1"
       data-node={node.id}
-      title={node.branch?.name ?? node.tag?.name ?? node.detail ?? node.label}
+      title={node.branch?.name ?? node.tag?.name ?? node.detail ?? (node.kind === "lost" ? `${node.oid} ${node.label}` : node.label)}
       data-drag={node.branch && ondrop ? node.id : undefined}
       data-drop={node.branch && ondrop ? node.id : undefined}
       onclick={(event) => rowClick(node, event)}
@@ -372,11 +372,6 @@
   .row.head .label {
     color: var(--status-ref);
     font-weight: 600;
-  }
-
-  .row.lost .label {
-    color: var(--text-secondary);
-    font-family: var(--font-mono);
   }
 
   .lead {

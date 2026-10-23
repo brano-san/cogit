@@ -82,8 +82,9 @@ function matches(node: { label: string; oid?: string }, filter: string): boolean
   );
 }
 
-/** `20/09/26 05:05 PM:`. A stash keeps no timezone, so it is this machine's. */
-function stashDate(timestamp: number): string {
+/** `20/09/26 05:05 PM:`, before a stash's message or a lost commit's subject. A stash keeps no
+    timezone, so both are this machine's. */
+function leadDate(timestamp: number): string {
   const at = new Date(timestamp * 1000);
   const pad = (n: number) => String(n).padStart(2, "0");
   const hour = at.getHours() % 12 || 12;
@@ -315,7 +316,7 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
       // Date, then message, both beside the box: `stash@{n}` said nothing a user needs.
       label: entry.message,
       depth: 1,
-      lead: stashDate(entry.timestamp),
+      lead: leadDate(entry.timestamp),
       rev: `stash@{${entry.index}}`,
       oid: entry.oid,
     }))
@@ -329,9 +330,10 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
     .map<RefNode>((row) => ({
       id: `lost:${row.oid}`,
       kind: "lost",
-      label: shortOid(row.oid),
+      // Laid out as a stash row (R-822): date, then the subject; the id is in the tooltip.
+      label: row.summary,
       depth: 1,
-      detail: row.summary,
+      lead: leadDate(row.timestamp),
       rev: row.oid,
       oid: row.oid,
     }))

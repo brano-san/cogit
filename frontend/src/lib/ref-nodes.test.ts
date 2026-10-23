@@ -150,6 +150,13 @@ describe("buildRefTree", () => {
     expect(nodes.find((node) => node.id === "stash:1")?.lead).toBe("21/09/26 12:30 AM:");
   });
 
+  it("lays a lost commit out as a stash: its date and time, then its subject", () => {
+    const oid = "d".repeat(40);
+    const row = { ...lost(oid), summary: "dropped work", timestamp: new Date(2026, 8, 20, 17, 5).getTime() / 1000 };
+    const node = buildRefTree(input({ lost: [row] })).find((each) => each.id === `lost:${oid}`);
+    expect([node?.lead, node?.label, node?.detail]).toEqual(["20/09/26 05:05 PM:", "dropped work", undefined]);
+  });
+
   // F-042: the tag list marked annotated tags; the one tree dropped the marker (R-47).
   it("tells an annotated tag from a lightweight one", () => {
     const nodes = buildRefTree(input({ tags: [tag("v1", { isAnnotated: true }), tag("v2")] }));
