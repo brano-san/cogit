@@ -1,16 +1,18 @@
 import { overlapWindow, type OverlapRow, type RepoId } from "$lib/ipc";
+import { settings } from "$stores/settings.svelte";
 
 class OverlapStore {
-  /** Off by default: the column costs a tree diff per visible row (M13). */
-  enabled = $state(false);
+  /** The `graphOverlap` setting: the graph's options menu and Preferences both turn it. */
+  get enabled(): boolean {
+    return settings.current.graphOverlap;
+  }
   rows = $state.raw<Map<string, OverlapRow>>(new Map());
   base = $state<string | null>(null);
 
   #generation = 0;
 
   toggle(): void {
-    this.enabled = !this.enabled;
-    if (!this.enabled) this.clear();
+    void settings.set("graphOverlap", !this.enabled);
   }
 
   async load(repo: RepoId, base: string, window: readonly string[]): Promise<void> {

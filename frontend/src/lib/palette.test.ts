@@ -126,8 +126,6 @@ describe("checkedIds", () => {
     panels: [] as PanelId[],
     output: false,
     maximized: false,
-    overlap: false,
-    avatars: false,
     perspective: "main" as const,
   };
 
@@ -143,10 +141,8 @@ describe("checkedIds", () => {
   });
 
   it("ticks the toggles that are on", () => {
-    const ids = checkedIds({ ...off, output: true, maximized: true, overlap: true });
-    expect(ids).toEqual(
-      expect.arrayContaining(["output", "maximize-panel", "overlap", "perspective-main"]),
-    );
+    const ids = checkedIds({ ...off, output: true, maximized: true });
+    expect(ids).toEqual(expect.arrayContaining(["output", "maximize-panel", "perspective-main"]));
   });
 
   it("follows the perspective that is active", () => {

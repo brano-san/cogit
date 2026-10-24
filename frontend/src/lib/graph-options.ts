@@ -6,7 +6,7 @@ export const GRAPH_SWITCHES = ["graphSelectedRefsOnly", "graphIncludeTracked", "
 export type GraphSwitch = (typeof GRAPH_SWITCHES)[number];
 
 /** The switches of the graph's options menu: each is a setting Preferences shows too. */
-export type GraphOptionKey = "graphFirstParent" | "graphWhileFiltering" | GraphSwitch;
+export type GraphOptionKey = "graphFirstParent" | "graphWhileFiltering" | "graphOverlap" | GraphSwitch;
 
 export type GraphOptionEntry =
   | { kind: "coloring"; coloring: GraphColoring; label: string; hint: string; checked: boolean }
@@ -43,6 +43,12 @@ const WORKING_TREE = {
   hint: "Off: the Working Tree row is left out while the working tree has no changes.",
 } as const;
 
+const OVERLAP = {
+  key: "graphOverlap",
+  label: "Commit Overlap Column",
+  hint: "How much each commit touches the files of the selected one: before a rebase or cherry-pick.",
+} as const;
+
 /** The menu beside the graph filter, in its order (F-561). The values are the
     settings themselves, so the menu and Preferences never disagree. */
 export function graphOptions(settings: Pick<Settings, "graphColoring" | GraphOptionKey>): GraphOptionEntry[] {
@@ -63,5 +69,7 @@ export function graphOptions(settings: Pick<Settings, "graphColoring" | GraphOpt
     ...SWITCHES.map((entry) => ({ kind: "switch" as const, ...entry, checked: settings[entry.key] })),
     { kind: "separator" },
     { kind: "switch", ...WORKING_TREE, checked: settings.graphWorkingTreeAlways },
+    { kind: "separator" },
+    { kind: "switch", ...OVERLAP, checked: settings.graphOverlap },
   ];
 }

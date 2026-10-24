@@ -86,8 +86,6 @@ export interface ToggleState {
   panels: readonly PanelId[];
   output: boolean;
   maximized: boolean;
-  overlap: boolean;
-  avatars: boolean;
   perspective: PerspectiveId;
 }
 
@@ -96,8 +94,6 @@ export function checkedIds(state: ToggleState): string[] {
   const ids = state.panels.map((panel) => `panel-${panel}`);
   if (state.output) ids.push("output");
   if (state.maximized) ids.push("maximize-panel");
-  if (state.overlap) ids.push("overlap");
-  if (state.avatars) ids.push("avatars");
   ids.push(`perspective-${state.perspective}`);
   return ids.sort();
 }

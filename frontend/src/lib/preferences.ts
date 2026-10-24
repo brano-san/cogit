@@ -216,6 +216,12 @@ export const CATEGORIES: Category[] = [
             keywords: ["relative", "date", "time", "clock"],
             dependsOnColumn: "time",
           },
+          {
+            key: "graphOverlap",
+            label: "Commit Overlap column",
+            hint: "How much each commit touches the files of the selected one. Costs a tree diff per row on screen.",
+            keywords: ["overlap", "conflict", "risk", "touched", "same files", "rebase", "cherry-pick"],
+          },
         ],
       },
       {

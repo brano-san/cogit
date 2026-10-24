@@ -40,13 +40,16 @@ describe("graphOptions", () => {
       "Include Tracked Remote Branches",
       "Show Graph While Filtering",
       "Show Working Tree Permanently",
+      "Commit Overlap Column",
     ]);
   });
 
-  it("ends with the Working Tree switch, on by default, after a separator", () => {
+  it("ends with the Working Tree switch, on by default, and the Overlap column, off, each after a separator", () => {
     const menu = graphOptions(DEFAULT_SETTINGS);
+    expect(menu.at(-4)?.kind).toBe("separator");
+    expect(menu.at(-3)).toMatchObject({ kind: "switch", label: "Show Working Tree Permanently", checked: true });
     expect(menu.at(-2)?.kind).toBe("separator");
-    expect(menu.at(-1)).toMatchObject({ kind: "switch", label: "Show Working Tree Permanently", checked: true });
+    expect(menu.at(-1)).toMatchObject({ kind: "switch", label: "Commit Overlap Column", checked: false });
   });
 
   it("neither starts nor ends with a separator, nor doubles one", () => {

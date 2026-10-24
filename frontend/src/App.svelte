@@ -3578,8 +3578,6 @@ ${event.error}`,
       panels: PANELS.filter((panel) => layout.visible(panel)),
       output: output.open,
       maximized: layout.maximized !== null,
-      overlap: overlap.enabled,
-      avatars: avatars.enabled,
       perspective: layout.active,
     });
     sendMenuState(disabledIds(palette), checked, { resend });

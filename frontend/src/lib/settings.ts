@@ -97,6 +97,8 @@ export interface Settings {
   graphAvatarsChangedOnly: boolean;
   /** Author and avatar only on the newest commit of a run by one author; wins over the above. */
   graphAuthorLastOnly: boolean;
+  /** The Commit Overlap column (M13): off by default, it costs a tree diff per row on screen. */
+  graphOverlap: boolean;
   /** A link longer than this many rows is drawn as two stubs; 0 draws every link whole. */
   graphLongLinkRows: number;
   graphHighlightChecked: boolean;
@@ -174,6 +176,7 @@ export const DEFAULT_SETTINGS: Settings = {
   graphShowNotes: true,
   graphAvatarsChangedOnly: false,
   graphAuthorLastOnly: false,
+  graphOverlap: false,
   graphLongLinkRows: 40,
   graphHighlightChecked: true,
   graphColoring: "default",
