@@ -47,6 +47,9 @@
     headerLane?: number | null;
     /** The Working Tree row's dot: green when clean, red when changed; none while unknown. */
     workingTree?: "clean" | "changed" | null;
+    /** A merge in progress: the Working Tree row as the layout placed it, with its lines to
+        HEAD and to the merged commit (07 §4). Drawn instead of the dashed line to HEAD. */
+    workingTreeLayout?: GraphRow | null;
     /** A ring is filled with what is behind it: a stripe, a hovered or a selected row. */
     selectedRows?: readonly number[];
     hoverRow?: number | null;
@@ -69,6 +72,7 @@
     headerRow = 0,
     headerLane = null,
     workingTree = null,
+    workingTreeLayout = null,
     selectedRows = [],
     hoverRow = null,
     focusLane = null,
@@ -127,14 +131,15 @@
     context.rect(0, 0, edge, height);
     context.clip();
 
-    const segmentsAt = new Map(rows.map((row) => [row.listRow, row.layout.segments]));
+    const lined = workingTreeLayout ? [...rows, { listRow: headerRow, layout: workingTreeLayout, paint: undefined }] : rows;
+    const segmentsAt = new Map(lined.map((row) => [row.listRow, row.layout.segments]));
     // Grey first, branch colours over it, the main line on top: where lines cross, the one
     // the eye follows wins.
     for (let layer = 0; layer < LAYERS; layer++) {
       // One path per look: a line's segments meet at every row edge, and stroked one by one
       // their round caps were painted twice there, a tick across the line on every row.
       const strokes = new Map<string, { style: string; width: number; path: Path2D }>();
-      for (const row of rows) {
+      for (const row of lined) {
         for (const [index, segment] of row.layout.segments.entries()) {
           const look = segmentStroke(segment, index, row.paint, options);
           if (look.layer !== layer) continue;
@@ -153,7 +158,7 @@
                 below: segmentsAt.get(row.listRow + 1),
               });
           // Across the Working Tree row to where the line in HEAD's row starts.
-          if (curve && headerRow > 0 && row.listRow === headRow && segment.span !== "bottom") {
+          if (curve && !workingTreeLayout && headerRow > 0 && row.listRow === headRow && segment.span !== "bottom") {
             const x = laneX(segment.from);
             path.moveTo(x, throughWorkingTree(headerRow, scrollTop, segmentsAt.get(headerRow - 1), segment.from));
             path.lineTo(x, Math.min(curve.y1, curve.y2));
@@ -179,7 +184,7 @@
       }
     }
 
-    if (headLane !== null && headRow !== null && scrollTop < GRAPH.rowHeight * headRow) {
+    if (!workingTreeLayout && headLane !== null && headRow !== null && scrollTop < GRAPH.rowHeight * headRow) {
       const top = nodeCentre(headerLane ?? headLane, headerRow, scrollTop);
       const foot = nodeCentre(headLane, headRow, scrollTop);
       context.save();
@@ -264,7 +269,7 @@
 
   $effect(() => {
     // Theme, lane width and colour change the picture without changing the data.
-    void [rows, scrollTop, width, height, dpr, headRow, headLane, headerRow, headerLane, workingTree, selectedRows, hoverRow, focusLane];
+    void [rows, scrollTop, width, height, dpr, headRow, headLane, headerRow, headerLane, workingTree, workingTreeLayout, selectedRows, hoverRow, focusLane];
     void [clipX, stripes, rowHeight];
     void [themeStore.version, settings.current.theme, settings.current.laneWidth, settings.current.graphColoring];
     if (drawsNow(drawnBox, canvasBox(width, height, dpr))) {

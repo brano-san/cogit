@@ -43,6 +43,19 @@ export const commands = {
 	 */
 	graphWindow: (repo: RepoId, generation: number, start: number, count: number) => typedError<string, GitError>(__TAURI_INVOKE("graph_window", { repo, generation, start, count })),
 	graphRowOf: (repo: RepoId, generation: number, oid: string) => typedError<number | null, GitError>(__TAURI_INVOKE("graph_row_of", { repo, generation, oid })),
+	/**  The Working Tree row of a merge in progress, laid out with graph `generation` (07 §4). */
+	graphWorkingTree: (repo: RepoId, generation: number) => typedError<{
+	row: number,
+	lane: number,
+	color: number,
+	kind: NodeKind,
+	primary: boolean,
+	/**  Columns used by the top edge, the node and the bottom edge together. */
+	width: number,
+	segments: Segment[],
+	/**  Stubs standing for a link too long to draw whole (R-330), with the far end of each. */
+	links: LongLink[],
+} | null, GitError>(__TAURI_INVOKE("graph_working_tree", { repo, generation })),
 	/**
 	 *  Colours and dimming for rows of graph `generation`, painted over the whole graph and
 	 *  kept until the rows or the request change. `None` once a newer graph replaced it.

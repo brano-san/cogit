@@ -34,6 +34,7 @@ pub(crate) fn lay_out(
         .with_long_links(long_links);
     let mut cancelled = false;
     let mut view = graph_view(handle, query, flat)?;
+    let mut tree = WorkingTree::of(handle, query, flat, first_parent);
     // A shallow boundary or an unreadable parent: a line to it ends in an arrow (07 §4).
     let cut = git_engine::CutParents::default();
     let rows = git_engine::GraphRows {
@@ -52,7 +53,7 @@ pub(crate) fn lay_out(
         if let Some(view) = view.as_mut() {
             commits.retain_mut(|c| view.admit(&c.oid, &mut c.parents));
         }
-        let nodes: Vec<graph_engine::CommitNode> = commits
+        let mut nodes: Vec<graph_engine::CommitNode> = commits
             .iter()
             .map(|c| graph_engine::CommitNode {
                 oid: c.oid.clone(),
@@ -74,6 +75,9 @@ pub(crate) fn lay_out(
                 },
             })
             .collect();
+        if let Some(tree) = tree.as_mut() {
+            tree.insert(&mut nodes);
+        }
         let rows = if lines {
             let mut passes = passed.take().into_iter().peekable();
             let mut rows = Vec::with_capacity(nodes.len());
@@ -98,11 +102,14 @@ pub(crate) fn lay_out(
             .as_mut()
             .map(graph_engine::ViewFilter::take_folds)
             .unwrap_or_default();
+        let mut rows = rows;
+        let working_tree = tree.as_mut().and_then(|tree| tree.take(&mut rows));
 
         let keep = on_chunk(GraphChunk {
             commits,
             rows,
             folds,
+            working_tree,
             is_last: false,
         });
         cancelled = !keep;
@@ -119,9 +126,12 @@ pub(crate) fn lay_out(
 
     if !cancelled {
         // The rows held back to see how far their links reach (R-330).
+        let mut rows = graph_engine::finish(&mut cursor);
+        let working_tree = tree.as_mut().and_then(|tree| tree.take(&mut rows));
         on_chunk(GraphChunk {
             commits: Vec::new(),
-            rows: graph_engine::finish(&mut cursor),
+            rows,
+            working_tree,
             folds: view
                 .as_mut()
                 .map(graph_engine::ViewFilter::take_folds)
@@ -179,4 +189,90 @@ fn mainline_of(handle: &git_engine::RepoHandle, query: &git_engine::CommitQuery)
     // Lines through left-out commits keep the main line on HEAD's first parents all the way.
     (!query.filters_rows() || query.view.filtered_graph || handle.shown_by(query, &tip))
         .then_some(tip)
+}
+
+/// A merge stopped on conflicts is drawn as if it were done (07 §4): right above HEAD a node
+/// for the working tree, with HEAD and MERGE_HEAD for parents, goes through the layout like
+/// a commit. Its row is taken out of the list, which keeps one row per commit, and drawn as
+/// the Working Tree row.
+struct WorkingTree {
+    head: String,
+    parents: Vec<String>,
+    /// Nodes pushed so far, then the row the node got.
+    pushed: u32,
+    row: Option<u32>,
+}
+
+impl WorkingTree {
+    const OID: &str = "working-tree";
+
+    fn of(
+        handle: &git_engine::RepoHandle,
+        query: &git_engine::CommitQuery,
+        flat: bool,
+        first_parent: bool,
+    ) -> Option<Self> {
+        let ticked = query
+            .visible_refs
+            .as_ref()
+            .is_none_or(|refs| refs.iter().any(|rev| rev == "HEAD"));
+        if flat || !ticked {
+            return None;
+        }
+        let merge = handle.merge_head()?.to_string();
+        let head = match handle.head().ok()? {
+            git_engine::Head::Branch { oid, .. } | git_engine::Head::Detached { oid } => oid,
+            git_engine::Head::Unborn { .. } => return None,
+        };
+        let mut parents = vec![head.clone(), merge];
+        if first_parent {
+            parents.truncate(1);
+        }
+        Some(Self {
+            head,
+            parents,
+            pushed: 0,
+            row: None,
+        })
+    }
+
+    fn insert(&mut self, nodes: &mut Vec<graph_engine::CommitNode>) {
+        let at = if self.row.is_none() {
+            nodes.iter().position(|node| node.oid == self.head)
+        } else {
+            None
+        };
+        if let Some(at) = at {
+            nodes.insert(
+                at,
+                graph_engine::CommitNode {
+                    oid: Self::OID.to_owned(),
+                    parents: self.parents.clone(),
+                    hidden: Vec::new(),
+                },
+            );
+            self.row = Some(self.pushed + u32::try_from(at).unwrap_or(u32::MAX));
+        }
+        self.pushed = self
+            .pushed
+            .saturating_add(u32::try_from(nodes.len()).unwrap_or(u32::MAX));
+    }
+
+    /// Its row out of `rows`, and the rows after it one up.
+    fn take(&self, rows: &mut Vec<graph_engine::GraphRow>) -> Option<graph_engine::GraphRow> {
+        let at = self.row?;
+        let mut taken = None;
+        rows.retain_mut(|row| {
+            if row.row == at {
+                row.kind = graph_engine::NodeKind::WorkingTree;
+                taken = Some(row.clone());
+                return false;
+            }
+            if row.row > at {
+                row.row -= 1;
+            }
+            true
+        });
+        taken
+    }
 }

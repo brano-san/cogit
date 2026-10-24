@@ -333,6 +333,11 @@ export async function graphWindow(repo: RepoId, generation: number, start: numbe
   return decodeBase64Window(unwrap(await commands.graphWindow(repo, generation, start, count)));
 }
 
+/** The Working Tree row of a merge in progress, laid out with the commits (07 §4). */
+export async function graphWorkingTree(repo: RepoId, generation: number): Promise<import("./bindings").GraphRow | null> {
+  return unwrap(await commands.graphWorkingTree(repo, generation));
+}
+
 export async function graphRowOf(repo: RepoId, generation: number, oid: string) {
   return unwrap(await commands.graphRowOf(repo, generation, oid));
 }

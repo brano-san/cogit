@@ -178,6 +178,8 @@ pub(crate) struct GraphChunk {
     pub(crate) rows: Vec<graph_engine::GraphRow>,
     /// Folded merges whose count grew with this chunk.
     pub(crate) folds: Vec<graph_engine::Fold>,
+    /// The Working Tree row of a merge in progress, in the chunk that laid it out.
+    pub(crate) working_tree: Option<graph_engine::GraphRow>,
     pub(crate) is_last: bool,
 }
 

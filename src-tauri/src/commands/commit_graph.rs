@@ -73,6 +73,17 @@ pub async fn graph_row_of(
     Ok(state.state.graph_row_of(repo, generation, &oid))
 }
 
+/// The Working Tree row of a merge in progress, laid out with graph `generation` (07 §4).
+#[tauri::command]
+#[specta::specta]
+pub async fn graph_working_tree(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    generation: u32,
+) -> Result<Option<graph_engine::GraphRow>, GitError> {
+    Ok(state.state.graph_working_tree(repo, generation))
+}
+
 /// Colours and dimming for rows of graph `generation`, painted over the whole graph and
 /// kept until the rows or the request change. `None` once a newer graph replaced it.
 #[tauri::command]

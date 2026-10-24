@@ -145,6 +145,10 @@ impl RepoHandle {
                 }),
             }
         }
+        // With HEAD comes the branch a merge in progress takes in: drawn as merged (07 §4).
+        if names.iter().any(|name| name == "HEAD") {
+            tips.ids.extend(self.merge_head());
+        }
         if !tips.skipped.is_empty() {
             tracing::warn!(
                 skipped = tips.skipped.len(),

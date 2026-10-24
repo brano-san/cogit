@@ -3,7 +3,9 @@ import {
   EMPTY_QUERY,
   graphRowOf,
   graphWindow,
+  graphWorkingTree,
   loadGraph,
+  type GraphRow,
   type CommitQuery,
   type GraphView,
   type RepoId,
@@ -40,6 +42,9 @@ interface Walk {
   asking: Map<number, Promise<void>>;
   /** The commit the list opens at instead of its top; `row` once the walk has reached it. */
   reveal: { oid: string; row: number | null; looking: boolean } | null;
+  /** A merge in progress: the Working Tree row the walk laid out; asked for until found. */
+  tree: GraphRow | null;
+  treeDone: boolean;
 }
 
 const walk = (repo: RepoId, query: CommitQuery = EMPTY_QUERY, reveal?: string): Walk => ({
@@ -53,6 +58,8 @@ const walk = (repo: RepoId, query: CommitQuery = EMPTY_QUERY, reveal?: string): 
   complete: false,
   blocks: new Map(),
   asking: new Map(),
+  tree: null,
+  treeDone: false,
 });
 
 const asError = (err: unknown) =>
@@ -123,6 +130,23 @@ class GraphStore {
       repository's, whose commits the one open does not have (R-300). */
   get rowsRepo(): RepoId | null {
     return this.stale ? null : this.shownRepo;
+  }
+
+  /** The Working Tree row of a merge in progress, laid out by the walk on screen (07 §4). */
+  get workingTreeRow(): GraphRow | null {
+    void this.#arrived;
+    return this.#shown?.tree ?? null;
+  }
+
+  /** Once per progress until the walk has it, or has ended without one. */
+  async #askTree(of: Walk): Promise<void> {
+    if (of.treeDone || of.generation === null) return;
+    const last = of.complete;
+    const row = await graphWorkingTree(of.repo, of.generation).catch(() => null);
+    if (of.treeDone) return;
+    of.tree = row;
+    of.treeDone = row !== null || last;
+    if (row !== null && of === this.#shown) this.#publish();
   }
 
   /** The walk on screen, for what is fetched beside its rows (paint, #11). */
@@ -251,6 +275,7 @@ class GraphStore {
           if (fresh === this.#shown) this.#publish();
           this.#find(fresh);
           this.#ask(fresh);
+          void this.#askTree(fresh);
         },
         { ...query, visibleRefs: this.visibleRefs, view: walkedView(this.view, query), longLinkRows: this.longLinkRows },
       );

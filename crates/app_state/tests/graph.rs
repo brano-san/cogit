@@ -529,3 +529,81 @@ fn rows_held_back_for_long_links_arrive_with_the_last_chunk() {
     assert_eq!(rows, (0..12).collect::<Vec<_>>());
     assert!(!query.filters_rows(), "a layout option is not a filter");
 }
+
+/// A merge stopped on conflicts is drawn as if it were done: the Working Tree row is a
+/// commit of HEAD and MERGE_HEAD, so the merged branch shows though only HEAD is ticked.
+#[test]
+fn a_merge_in_progress_draws_the_merged_branch_into_the_working_tree() {
+    let f = test_fixtures::conflicted().unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let generation = state.begin_graph();
+    state
+        .build_graph(repo, &visible(&["HEAD"]), generation, 100, |_| true)
+        .unwrap();
+    let window = state.graph_window(repo, generation, 0, u32::MAX).unwrap();
+
+    let summaries: Vec<&str> = window.commits.iter().map(|c| c.summary.as_str()).collect();
+    assert_eq!(summaries, ["commit 2", "commit 1", "commit 0"]);
+    let rows: Vec<u32> = window.rows.iter().map(|row| row.row).collect();
+    assert_eq!(
+        rows,
+        [0, 1, 2],
+        "the Working Tree row is not one of the commit rows"
+    );
+
+    let tree = state
+        .graph_working_tree(repo, generation)
+        .expect("a Working Tree row");
+    assert_eq!(tree.kind, graph_engine::NodeKind::WorkingTree);
+    assert_eq!(tree.lane, 0);
+    let mut edges: Vec<u16> = tree
+        .segments
+        .iter()
+        .filter(|segment| segment.span == graph_engine::Span::Bottom)
+        .map(|segment| segment.to)
+        .collect();
+    edges.sort_unstable();
+    assert_eq!(edges, [0, 1], "one line to HEAD, one to the merged commit");
+    assert_eq!(window.rows[0].lane, 0);
+    assert_eq!(window.rows[1].lane, 1);
+    assert!(
+        window.rows[0]
+            .segments
+            .iter()
+            .any(|segment| segment.from == 1 && segment.span != graph_engine::Span::Bottom),
+        "the line to the merged commit passes HEAD's row"
+    );
+}
+
+#[test]
+fn without_a_merge_there_is_no_working_tree_row() {
+    let f = test_fixtures::diamond().unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let generation = state.begin_graph();
+    state
+        .build_graph(repo, &visible(&["HEAD"]), generation, 100, |_| true)
+        .unwrap();
+    assert!(state.graph_working_tree(repo, generation).is_none());
+}
+
+#[test]
+fn the_working_tree_row_of_a_merge_comes_out_when_rows_are_held_back_too() {
+    let f = test_fixtures::conflicted().unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let generation = state.begin_graph();
+    let query = git_engine::CommitQuery {
+        long_link_rows: Some(40),
+        ..visible(&["HEAD"])
+    };
+    state
+        .build_graph(repo, &query, generation, 1, |_| true)
+        .unwrap();
+    let window = state.graph_window(repo, generation, 0, u32::MAX).unwrap();
+
+    let rows: Vec<(u32, u16)> = window.rows.iter().map(|row| (row.row, row.lane)).collect();
+    assert_eq!(rows, [(0, 0), (1, 1), (2, 0)]);
+    assert!(state.graph_working_tree(repo, generation).is_some());
+}

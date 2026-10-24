@@ -77,6 +77,8 @@ struct Laid {
     history: WalkedHistory,
     /// Merges folded by `collapse_merged` and how many commits each holds (#26).
     folds: BTreeMap<u32, u32>,
+    /// A merge in progress: the Working Tree row, laid out with the commits (07 §4).
+    working_tree: Option<GraphRow>,
 }
 
 impl Laid {
@@ -671,6 +673,9 @@ impl AppState {
                 laid.rows.extend(chunk.rows);
                 laid.folds
                     .extend(chunk.folds.iter().map(|fold| (fold.row, fold.hidden)));
+                if chunk.working_tree.is_some() {
+                    laid.working_tree = chunk.working_tree;
+                }
                 graph.compare(from);
                 graph.progress(chunk.is_last)
             };
@@ -818,6 +823,14 @@ impl AppState {
             .map(|w| crate::graph_wire::encode(&w))
             .unwrap_or_default();
         diff_engine::base64(&bytes)
+    }
+
+    /// The Working Tree row of graph `generation` while a merge is in progress.
+    #[must_use]
+    pub fn graph_working_tree(&self, repo: RepoId, generation: u32) -> Option<GraphRow> {
+        let cache = self.graph.read();
+        let (shown, _) = cache.view(repo, generation)?;
+        shown.laid.working_tree.clone()
     }
 
     /// The row of `oid` in graph `generation`. A scan: fifty thousand comparisons are well

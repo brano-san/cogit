@@ -375,12 +375,21 @@
   /** The Working Tree row and the rebase rows start where HEAD's line is, or beside the
       lines passing HEAD's row on their way down. */
   const headLane = $derived(head?.lane ?? null);
+  /** A merge in progress: the layout placed the Working Tree row itself (07 §4). */
+  const treeLayout = $derived(workingTreeRow && virtualRows.length === 0 ? graph.workingTreeRow : null);
   const headerLane = $derived(
-    wtAt > 0 && headLane !== null ? workingTreeLane(headLane, graph.rowAt(wtAt)?.layout.segments ?? []) : headLane,
+    treeLayout
+      ? treeLayout.lane
+      : wtAt > 0 && headLane !== null
+        ? workingTreeLane(headLane, graph.rowAt(wtAt)?.layout.segments ?? [])
+        : headLane,
   );
   /** Right of every line drawn through the header rows: those of HEAD's row run up to them. */
   const headerX = $derived(
-    rowTextX(Math.max((headerLane ?? 0) + 1, wtAt > 0 ? (graph.rowAt(wtAt)?.layout.width ?? 0) : 0), clipX),
+    rowTextX(
+      Math.max((headerLane ?? 0) + 1, treeLayout?.width ?? 0, wtAt > 0 ? (graph.rowAt(wtAt)?.layout.width ?? 0) : 0),
+      clipX,
+    ),
   );
   const commitEdge = (listRow: number) => (listRow <= wtAt ? listRow : Math.max(listRow - headerRows, wtAt));
 
@@ -804,6 +813,7 @@
           headerRow={wtAt}
           {headerLane}
           workingTree={workingTreeLook}
+          workingTreeLayout={treeLayout}
           {selectedRows}
           {hoverRow}
           focusLane={focus}

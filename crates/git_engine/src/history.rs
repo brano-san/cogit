@@ -29,6 +29,19 @@ pub struct CommitText {
 const SECONDS_PER_MINUTE: i32 = 60;
 
 impl RepoHandle {
+    /// The commit a merge stopped on conflicts is taking in, peeled; the first of an octopus.
+    #[must_use]
+    pub fn merge_head(&self) -> Option<gix::ObjectId> {
+        let text = std::fs::read_to_string(self.git_dir().join("MERGE_HEAD")).ok()?;
+        let id = gix::ObjectId::from_hex(text.lines().next()?.trim().as_bytes()).ok()?;
+        self.repo
+            .find_object(id)
+            .ok()?
+            .peel_to_commit()
+            .ok()
+            .map(|commit| commit.id)
+    }
+
     pub(crate) fn graph_tips(&self) -> Result<Vec<gix::ObjectId>> {
         let platform = self
             .repo
@@ -49,6 +62,7 @@ impl RepoHandle {
         if let Ok(head) = self.repo.head_id() {
             tips.push(head.detach());
         }
+        tips.extend(self.merge_head());
 
         tips.sort_unstable();
         tips.dedup();
@@ -95,6 +109,8 @@ impl RepoHandle {
         if let Ok(head) = self.repo.find_reference("HEAD") {
             add(&mut hasher, &head);
         }
+        // Starting a merge moves no ref, and the graph draws the merged branch then (07 §4).
+        self.merge_head().hash(&mut hasher);
         self.shallow_commits().hash(&mut hasher);
         Ok(hasher.finish())
     }
