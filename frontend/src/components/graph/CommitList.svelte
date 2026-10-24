@@ -853,7 +853,7 @@
             style:top="{(wtAt + HEADER_ROWS + index - range.start) * rowHeight}px"
             style:padding-left="{headerX}px"
           >
-            <span class="node" aria-hidden="true">{row.kind === "onto" ? "▶" : "◌"}</span>
+            <span class="node" aria-hidden="true">{#if row.kind === "onto"}▶{:else}<span class="ring"></span>{/if}</span>
             <span class="summary truncate">{row.label}</span>
             <span class="date">{row.detail}</span>
           </div>
@@ -1050,6 +1050,17 @@
     color: var(--status-modify);
     font-size: var(--fs-tiny);
     text-align: center;
+  }
+
+  /* A ring drawn, not a glyph: a font draws ◌ out of round. Even sizes keep it on the pixel grid. */
+  .row.virtual .ring {
+    display: block;
+    box-sizing: border-box;
+    width: 8px;
+    height: 8px;
+    margin: 0 auto;
+    border: 1px solid currentColor;
+    border-radius: 50%;
   }
 
   .row.virtual.onto .node {
