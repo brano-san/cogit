@@ -4,7 +4,7 @@
   import CommandOutput from "$components/layout/CommandOutput.svelte";
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
   import { installChildWindow } from "$lib/child-window";
-  import { outputToShow, repoNameOf } from "$lib/error-window";
+  import { outputToShow, repoNameOf, windowTitle } from "$lib/error-window";
   import {
     closeThisWindow,
     commandOutcome,
@@ -34,6 +34,13 @@
   /** What the journal gave for an entry, kept while the entry is in the queue: the journal
       is a ring of 100 commands and may lose it before the user comes back. */
   const outputs = new Map<number, GitOutput>();
+
+  $effect(() => {
+    const title = windowTitle(entries);
+    if (entries.length === 0) return;
+    document.title = title;
+    void getCurrentWindow().setTitle(title).catch(() => {});
+  });
 
   const current = $derived(entries.find((entry) => entry.id === selected) ?? entries[0]);
   // Keyed by id: every queue update brings new entry objects, and asking again for an

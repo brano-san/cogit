@@ -25,7 +25,7 @@ pub fn reveal_or_open<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Re
         app,
         "errors",
         "errors.html".to_owned(),
-        "Cogit — Errors".to_owned(),
+        "Errors — Cogit".to_owned(),
         Shape {
             width: 860.0,
             height: 600.0,

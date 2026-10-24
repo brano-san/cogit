@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { entryOf, outputToShow, pushEntry, repoNameOf, startsDrag, titleOf, type ErrorEntry } from "./error-window";
+import { entryOf, outputToShow, pushEntry, repoNameOf, startsDrag, titleOf, windowTitle, type ErrorEntry } from "./error-window";
 
 const run = (id: number, over: Partial<Parameters<typeof entryOf>[0]> = {}) => ({
   id,
@@ -142,5 +142,14 @@ describe("startsDrag", () => {
   it("is a drag with the main button on the bare header", () => {
     expect(startsDrag({ button: 0, target: target(false) })).toBe(true);
     expect(startsDrag({ button: 2, target: target(false) })).toBe(false);
+  });
+});
+
+describe("windowTitle", () => {
+  it("names warnings as warnings and errors as errors", () => {
+    expect(windowTitle([{ kind: "warning" }])).toBe("Warning — Cogit");
+    expect(windowTitle([{ kind: "warning" }, { kind: "warning" }])).toBe("Warnings — Cogit");
+    expect(windowTitle([{ kind: "error" }])).toBe("Errors — Cogit");
+    expect(windowTitle([{ kind: "error" }, { kind: "warning" }])).toBe("Errors and Warnings — Cogit");
   });
 });

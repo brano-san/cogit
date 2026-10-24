@@ -15,6 +15,15 @@ export function outputToShow(found: GitOutput | null, cached: GitOutput | undefi
   return found ?? cached ?? "gone";
 }
 
+/** The window's title names what it holds: a merge that stopped on conflicts is a warning,
+    not an error. */
+export function windowTitle(entries: readonly Pick<ErrorEntry, "kind">[]): string {
+  const errors = entries.some((entry) => entry.kind === "error");
+  const warnings = entries.some((entry) => entry.kind === "warning");
+  const what = errors && warnings ? "Errors and Warnings" : errors ? "Errors" : entries.length > 1 ? "Warnings" : "Warning";
+  return `${what} — Cogit`;
+}
+
 /** What did not work; a command that went as far as it could and left conflicts, or failed
     for an ordinary state of things (R-840), is named for what happened, not for failing. */
 export function titleOf(run: Run): string {
