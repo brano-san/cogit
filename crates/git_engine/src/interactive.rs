@@ -50,7 +50,7 @@ fn author_identity(name: &str, email: &str) -> Result<String> {
     Ok(format!("{name} <{email}>"))
 }
 
-fn shell_quote(text: &str) -> String {
+pub(crate) fn shell_quote(text: &str) -> String {
     format!("'{}'", text.replace('\'', r"'\''"))
 }
 

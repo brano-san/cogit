@@ -1120,6 +1120,11 @@ export async function rebaseProgress(repo: RepoId) {
   return unwrap(await commands.rebaseProgress(repo));
 }
 
+/** The steps a running rebase has left, in a new order or with new verbs (F-745). */
+export async function editRebaseTodo(repo: RepoId, steps: import("./bindings").RebaseStep[]) {
+  return unwrap(await commands.editRebaseTodo(repo, steps));
+}
+
 export async function overlapWindow(repo: RepoId, base: string, window: string[]) {
   return unwrap(await commands.overlapWindow(repo, base, window));
 }

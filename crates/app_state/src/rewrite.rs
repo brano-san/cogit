@@ -91,6 +91,16 @@ impl AppState {
         self.handle(repo)?.rebase_progress()
     }
 
+    /// The steps a running rebase has left, in a new order or with new verbs.
+    pub fn edit_rebase_todo(
+        &self,
+        repo: RepoId,
+        steps: &[git_engine::RebaseStep],
+    ) -> Result<(), git_engine::GitError> {
+        let _quiet = self.quiet(repo);
+        self.handle(repo)?.edit_rebase_todo(steps)
+    }
+
     pub fn rebase_todo(
         &self,
         repo: RepoId,

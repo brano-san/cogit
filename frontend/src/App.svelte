@@ -136,6 +136,7 @@
   import { desktop } from "$stores/desktop.svelte";
   import { groupChoices, parseRepoCommand, repoMenu } from "$lib/repo-menu";
   import { listedName, listedRepos, type ListedRepo } from "$lib/repo-list";
+  import { TODO_PREFIX, editedSteps, todoMenu } from "$lib/rebase-todo";
   import { rowSync, summaryPulse } from "$lib/repo-sync";
   import { removalQuestion, UNGROUPED } from "$lib/repo-groups";
   import { repoList } from "$stores/repo-list.svelte";
@@ -182,6 +183,7 @@
     isPublished,
     protectingRefs,
     rebaseProgress,
+    editRebaseTodo,
     rebaseTodo,
     rollbackTo,
     splitOff,
@@ -2246,6 +2248,25 @@ ${event.error}`,
   }
 
   /** A real OS menu, not an HTML popup: the chosen id comes back as a menu command. */
+  /** A step a running rebase has left (F-745): its verb or its place, chosen from a menu. */
+  let todoTarget: number | null = null;
+  async function todoContext(step: number, x: number, y: number) {
+    if (!progress) return;
+    todoTarget = step;
+    await popupContextMenu(todoMenu(progress.todo, step), x, y).catch(() => {});
+  }
+
+  function runTodoCommand(id: string): boolean {
+    const repo = repository.current?.repo;
+    if (!id.startsWith(TODO_PREFIX)) return false;
+    const steps = progress && todoTarget !== null ? editedSteps(progress.todo, todoTarget, id) : null;
+    if (!repo || !steps) return true;
+    void editRebaseTodo(repo, steps)
+      .catch((err) => errors.report(err, "Could not change the rebase plan"))
+      .then(() => refreshProgress());
+    return true;
+  }
+
   async function commitContext(oid: string, x: number, y: number) {
     const id = repository.current?.repo;
     if (!id) return;
@@ -3563,6 +3584,7 @@ ${event.error}`,
       if (worktreeActions?.run(id)) return;
       if (runFileCommand(id)) return;
       if (runRefCommand(id)) return;
+      if (runTodoCommand(id)) return;
       const command = palette.find((entry) => entry.id === id);
       if (!command) return;
       // A command that cannot run says why instead of doing nothing (Ctrl+K with no
@@ -3942,6 +3964,7 @@ ${event.error}`,
               busy={repository.busy}
               onbanneraction={runBannerAction}
               onworktreecontext={(x, y) => void refActions?.worktreeContext(x, y)}
+              ontodocontext={(step, x, y) => void todoContext(step, x, y)}
               onrefcontext={(label, oid, x, y) => void refActions?.labelContext(label, oid, x, y)}
               onactivate={(oid) => refActions?.checkOutCommit(oid)}
               onrefactivate={(label, oid) => refActions?.checkOutLabel(label, oid)}

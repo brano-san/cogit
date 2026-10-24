@@ -127,6 +127,25 @@ pub async fn interactive_rebase(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn edit_rebase_todo(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    steps: Vec<git_engine::RebaseStep>,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    mutating_titled(
+        &state.state,
+        repo,
+        OperationKind::Rebase,
+        "Editing the rebase plan",
+        "edit_rebase_todo",
+        move || app_state.edit_rebase_todo(repo, &steps),
+    )
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn rebase_progress(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,

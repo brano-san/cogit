@@ -470,3 +470,63 @@ fn a_subject_with_no_blank_line_under_it_is_still_left_alone() {
         "{combined}"
     );
 }
+
+fn step(oid: &str, action: &str) -> git_engine::RebaseStep {
+    git_engine::RebaseStep {
+        action: action.to_owned(),
+        oid: oid.to_owned(),
+        summary: String::new(),
+    }
+}
+
+/// The steps a running rebase has left are a plan too: reordered, dropped, squashed there.
+#[test]
+fn the_steps_left_in_a_running_rebase_can_be_reordered_and_dropped() {
+    let f = test_fixtures::linear(5).unwrap();
+    let base = f.oid("HEAD~4").unwrap();
+    let ids: Vec<String> = (1..=4)
+        .map(|n| f.oid(&format!("HEAD~{}", 4 - n)).unwrap())
+        .collect();
+    let repo = open(&f);
+    let mut plan = vec![entry(&ids[0], TodoAction::Edit)];
+    plan.extend(ids[1..].iter().map(|id| entry(id, TodoAction::Pick)));
+    repo.interactive_rebase(&base, &plan).unwrap();
+    let left = repo.rebase_progress().unwrap().unwrap().todo;
+    assert_eq!(left.len(), 3);
+
+    repo.edit_rebase_todo(&[
+        step(&ids[3], "pick"),
+        step(&ids[2], "pick"),
+        step(&ids[1], "drop"),
+    ])
+    .unwrap();
+    assert_eq!(repo.rebase_progress().unwrap().unwrap().todo.len(), 3);
+    repo.continue_operation().unwrap();
+
+    assert_eq!(
+        subjects(&f),
+        ["commit 3", "commit 4", "commit 1", "commit 0"]
+    );
+}
+
+#[test]
+fn a_step_list_that_is_not_the_one_left_is_refused() {
+    let f = test_fixtures::linear(4).unwrap();
+    let base = f.oid("HEAD~3").unwrap();
+    let ids: Vec<String> = (1..=3)
+        .map(|n| f.oid(&format!("HEAD~{}", 3 - n)).unwrap())
+        .collect();
+    let repo = open(&f);
+    let plan = [
+        entry(&ids[0], TodoAction::Edit),
+        entry(&ids[1], TodoAction::Pick),
+        entry(&ids[2], TodoAction::Pick),
+    ];
+    repo.interactive_rebase(&base, &plan).unwrap();
+
+    let stale = repo.edit_rebase_todo(&[step(&ids[2], "pick")]);
+    assert!(stale.is_err(), "a step went missing from the list");
+    let wrong = repo.edit_rebase_todo(&[step(&ids[2], "exec"), step(&ids[1], "pick")]);
+    assert!(wrong.is_err(), "exec is not a step the list offers");
+    assert_eq!(repo.rebase_progress().unwrap().unwrap().todo.len(), 2);
+}

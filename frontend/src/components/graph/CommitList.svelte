@@ -106,6 +106,8 @@
     /** With the repository the row was read from: never a commit of the last one (R-300). */
     onhover?: (repo: RepoId, oid: string) => void;
     onworktreecontext?: (x: number, y: number) => void;
+    /** A step a running rebase has left, by its place in `rebase.todo`. */
+    ontodocontext?: (step: number, x: number, y: number) => void;
     onrefcontext?: (label: RefLabel, oid: string, x: number, y: number) => void;
     /** Double click on a commit and on a label of it: their Check Out (item 40). */
     onactivate?: (oid: string) => void;
@@ -152,6 +154,7 @@
     ongroupcontext,
     onhover,
     onworktreecontext,
+    ontodocontext,
     onrefcontext,
     onactivate,
     onrefactivate,
@@ -696,6 +699,12 @@
     const y = event.clientY - scroller.getBoundingClientRect().top;
     const row = listRowAt(y, readScroll(), rowHeight, listRows);
     if (row === null) return;
+    // The rebase rows sit under the Working Tree row: Index, the steps left, Onto.
+    const virtual = virtualRows[row - wtAt - HEADER_ROWS];
+    if (virtual?.kind === "todo") {
+      ontodocontext?.(row - wtAt - HEADER_ROWS - 1, event.clientX, event.clientY);
+      return;
+    }
     const oid = clickedCommit(row, headerRows, (at) => graph.rowAt(at)?.commit.oid, wtAt);
     if (oid === undefined) return;
     if (oid === null) {
@@ -1065,6 +1074,10 @@
 
   .row.virtual.onto .node {
     color: var(--status-ref);
+  }
+
+  .row.virtual.todo:hover {
+    background: var(--state-hover);
   }
 
   .row.virtual.todo .node {

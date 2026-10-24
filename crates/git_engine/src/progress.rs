@@ -1,8 +1,8 @@
-use crate::{RepoHandle, Result};
-use serde::Serialize;
+use crate::{GitError, RepoHandle, Result};
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RebaseStep {
     pub action: String,
@@ -75,11 +75,86 @@ fn parse_todo(dir: &Path, name: &str) -> Vec<RebaseStep> {
         .collect()
 }
 
+/// What the list of steps left offers; `reword` would wait for an editor nobody sees.
+const EDITABLE: &[&str] = &["pick", "edit", "squash", "fixup", "drop"];
+
 fn count(dir: &Path, name: &str) -> Option<u32> {
     line(dir, name)?.parse().ok()
 }
 
 impl RepoHandle {
+    /// The steps a running interactive rebase has left, replaced by `steps`: the same
+    /// commits, in a new order or with new verbs. A plan with steps of other kinds (exec,
+    /// label, merge) is git's to edit, and a list that is not the one left is stale.
+    pub fn edit_rebase_todo(&self, steps: &[RebaseStep]) -> Result<()> {
+        let merge = self.git_dir().join("rebase-merge");
+        let text = std::fs::read_to_string(merge.join("git-rebase-todo"))
+            .map_err(|_| GitError::InvalidState("no interactive rebase is running".to_owned()))?;
+        let lines: Vec<&str> = text
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty() && !line.starts_with('#'))
+            .collect();
+        if lines
+            .iter()
+            .any(|line| !VERBS.contains(&line.split(' ').next().unwrap_or_default()))
+        {
+            return Err(GitError::InvalidState(
+                "this rebase has steps Cogit cannot edit: use git rebase --edit-todo".to_owned(),
+            ));
+        }
+        if let Some(step) = steps
+            .iter()
+            .find(|step| !EDITABLE.contains(&step.action.as_str()))
+        {
+            return Err(GitError::InvalidState(format!(
+                "{} is not a step of the list",
+                step.action
+            )));
+        }
+        let mut left: Vec<String> = parse_todo(&merge, "git-rebase-todo")
+            .into_iter()
+            .map(|step| step.oid)
+            .collect();
+        let mut asked: Vec<String> = steps.iter().map(|step| step.oid.clone()).collect();
+        left.sort_unstable();
+        asked.sort_unstable();
+        let same = left.len() == asked.len()
+            && left
+                .iter()
+                .zip(&asked)
+                .all(|(a, b)| a.starts_with(b.as_str()) || b.starts_with(a.as_str()));
+        if !same {
+            return Err(GitError::InvalidState(
+                "the rebase moved on since the list was read: look again and retry".to_owned(),
+            ));
+        }
+
+        let body: String = steps
+            .iter()
+            .map(|step| {
+                format!(
+                    "{} {} {}
+",
+                    step.action, step.oid, step.summary
+                )
+            })
+            .collect();
+        let todo = self.git_dir().join("cogit-rebase-todo");
+        std::fs::write(&todo, body)?;
+        // As `run_rebase_body`: git runs the sequence editor with the todo path appended.
+        let editor = format!(
+            "cp {}",
+            crate::interactive::shell_quote(&crate::slash_path(&todo))
+        );
+        let result = self.run_git_with_env(
+            &["rebase", "--edit-todo"],
+            &[("GIT_SEQUENCE_EDITOR", &editor)],
+        );
+        let _ = std::fs::remove_file(&todo);
+        result.map(drop)
+    }
+
     /// `None` when no rebase is running. Never an error: a half-read state must still draw.
     pub fn rebase_progress(&self) -> Result<Option<RebaseProgress>> {
         let merge = self.git_dir().join("rebase-merge");
