@@ -1074,6 +1074,7 @@
     title={confirmation.open.title}
     message={confirmation.open.message}
     confirm={confirmation.open.confirm}
+    cancel={confirmation.open.cancel}
     warning={confirmation.open.warning}
     items={confirmation.open.items}
     fields={confirmation.open.fields}

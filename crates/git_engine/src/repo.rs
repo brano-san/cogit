@@ -121,6 +121,9 @@ impl std::fmt::Debug for RepoHandle {
 
 impl RepoHandle {
     pub fn open(path: &Path) -> Result<Self> {
+        if !path.exists() {
+            return Err(GitError::RepoMissing(path.display().to_string()));
+        }
         let repo = gix::discover_opts(path, gix::discover::upwards::Options::default(), env_free())
             .map_err(|err| GitError::RepoNotFound(format!("{}: {err}", path.display())))?;
         Ok(Self::from_repo(repo))

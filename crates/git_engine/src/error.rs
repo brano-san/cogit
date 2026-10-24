@@ -75,6 +75,10 @@ pub enum GitError {
     #[error("repository not found at {0}")]
     RepoNotFound(String),
 
+    /// The folder itself is gone: deleted or moved since it was listed.
+    #[error("repository folder is gone: {0}")]
+    RepoMissing(String),
+
     #[error("invalid repository state: {0}")]
     InvalidState(String),
 

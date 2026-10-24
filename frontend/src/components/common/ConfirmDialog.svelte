@@ -8,6 +8,7 @@
     title: string;
     message: string;
     confirm: string;
+    cancel?: string;
     warning?: boolean;
     items?: readonly string[];
     fields?: readonly (readonly [string, string])[];
@@ -17,7 +18,7 @@
     onanswer: (yes: boolean, checked: boolean, choice?: string) => void;
   }
 
-  let { title, message, confirm, warning = false, items, fields, note, option, choice, onanswer }: Props = $props();
+  let { title, message, confirm, cancel = "Cancel", warning = false, items, fields, note, option, choice, onanswer }: Props = $props();
   let checked = $state(false);
   // svelte-ignore state_referenced_locally
   let picked = $state(choice?.value);
@@ -65,7 +66,7 @@
   {#snippet footer()}
     <!-- A destructive question starts on Cancel: Enter must not be the way work is lost. -->
     <button class="btn" type="button" data-autofocus={warning || undefined} onclick={() => onanswer(false, false)}>
-      Cancel
+      {cancel}
     </button>
     <button
       type="button"

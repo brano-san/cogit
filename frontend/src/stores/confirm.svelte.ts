@@ -2,6 +2,8 @@ export interface ConfirmRequest {
   title: string;
   message: string;
   confirm: string;
+  /** The other button's label; Cancel when the question has no better name for it. */
+  cancel?: string;
   warning?: boolean;
   /** Label and value pairs under the message, the value in monospace: what is acted on. */
   fields?: readonly (readonly [string, string])[];

@@ -236,6 +236,8 @@ function describeError(error: GitError): string {
       return `${error.data.command} failed with exit code ${error.data.exitCode ?? "unknown"}`;
     case "repoNotFound":
       return `Not a Git repository: ${error.data}`;
+    case "repoMissing":
+      return `The repository folder is no longer on disk: ${error.data}`;
     // A refusal says what is wrong in its own words; most are not about the repository.
     case "invalidState":
       return error.data;

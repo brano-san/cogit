@@ -156,3 +156,17 @@ fn one_path_opened_twice_at_once_is_one_repository() {
     assert_eq!(ids[0], ids[1]);
     assert_eq!(state.list().len(), 1);
 }
+
+/// A listed repository deleted from disk is not "not a repository": the list offers to
+/// remove it instead of showing gix's error.
+#[test]
+fn a_folder_gone_from_disk_is_reported_as_missing() {
+    let f = test_fixtures::linear(1).unwrap();
+    let gone = f.path().join("deleted");
+    let state = AppState::new();
+    let err = state.open_repository(&gone).unwrap_err();
+    assert!(
+        matches!(err, git_engine::GitError::RepoMissing(_)),
+        "{err:?}"
+    );
+}

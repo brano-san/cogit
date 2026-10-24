@@ -562,7 +562,14 @@
   // Every failure that carries raw Git output goes to the dialog; INV-05 says the user
   // sees exactly what Git said, not a summary of it.
   $effect(() => errors.report(worktree.error, "Could not read the working tree"));
-  $effect(() => errors.report(repository.error, "Could not load the repository"));
+  // A listed folder deleted from disk is a question, not an error: remove it or keep it.
+  $effect(() => {
+    const failed = repository.error;
+    // Untracked: the answer closes the repository, and a re-run would ask again.
+    const detail = failed?.detail;
+    if (detail?.kind === "repoMissing") untrack(() => void askMissing(detail.data));
+    else errors.report(failed, "Could not load the repository");
+  });
   // An open that only took long: its timeout notice does not outlive the success.
   $effect(() => {
     const slow = repository.recovered;
@@ -2935,14 +2942,16 @@ ${event.error}`,
     if (name !== null) repoList.rename(root, name);
   }
 
-  async function removeListed(target: RepoMenuSubject) {
+  async function removeListed(target: RepoMenuSubject, asked = false) {
     if (target.kind !== "repository") return;
     const name = listedName(repoList.list, target.root, target.overview);
-    const yes = await confirmation.ask({
-      title: "Remove",
-      message: `Remove ${name} from the list? Nothing is deleted: the folder and the repository stay as they are.`,
-      confirm: "Remove",
-    });
+    const yes =
+      asked ||
+      (await confirmation.ask({
+        title: "Remove",
+        message: `Remove ${name} from the list? Nothing is deleted: the folder and the repository stay as they are.`,
+        confirm: "Remove",
+      }));
     if (!yes) return;
     if (target.overview) {
       repoList.closed(target.root);
@@ -2953,6 +2962,23 @@ ${event.error}`,
     moduleMemory.closeModulesUnder(target.root);
     repoPulse.forget(target.root);
     repoGroups.assign(target.root, UNGROUPED);
+  }
+
+  /** The folder of a listed repository is gone: Remove takes it off the list, Close leaves
+      it there, closed and marked missing. */
+  async function askMissing(path: string) {
+    const root = path.replaceAll("\\", "/").replace(/\/+$/, "");
+    const overview = repository.openRepos.find((entry) => entry.root === root) ?? null;
+    const remove = await confirmation.ask({
+      title: "Repository Deleted",
+      message: `${listedName(repoList.list, root, overview)} was deleted from disk: ${root} is no longer there.`,
+      confirm: "Remove",
+      cancel: "Close",
+    });
+    const target: RepoMenuSubject = { kind: "repository", root, overview };
+    if (remove) await removeListed(target, true);
+    else if (overview) await closeListed(target);
+    else repoList.closed(root);
   }
 
   /** Returns true when the id belonged to the References tree and was handled here. */

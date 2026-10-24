@@ -793,6 +793,7 @@ export const commands = {
 	total: number,
 	todo: RebaseStep[],
 } | null, GitError>(__TAURI_INVOKE("rebase_progress", { repo })),
+	editRebaseTodo: (repo: RepoId, steps: RebaseStep[]) => typedError<null, GitError>(__TAURI_INVOKE("edit_rebase_todo", { repo, steps })),
 	/**
 	 *  `spawn_blocking` matters here: the engine fans out with rayon, which must never run on
 	 *  a Tokio worker (INV-01).
@@ -1663,7 +1664,9 @@ export type GitError =
  *  Boxed: it carries both streams, and an unboxed variant makes every `Result` in
  *  the crate as wide as the largest failure it could ever hold.
  */
-{ kind: "command"; data: GitCommandError } | { kind: "repoNotFound"; data: string } | { kind: "invalidState"; data: string } | { kind: "io"; data: string } | 
+{ kind: "command"; data: GitCommandError } | { kind: "repoNotFound"; data: string } | 
+/**  The folder itself is gone: deleted or moved since it was listed. */
+{ kind: "repoMissing"; data: string } | { kind: "invalidState"; data: string } | { kind: "io"; data: string } | 
 /**  The program to run is not there: no git on PATH, or the one set in Preferences is gone. */
 { kind: "gitNotFound"; data: string } | { kind: "internal"; data: string } | 
 /**  A submodule that cannot be opened, with the reason rather than "not a repository". */
