@@ -4,7 +4,7 @@
   import { ContentSearch } from "$lib/content-search.svelte";
   import { rowActionBlocked, type RowAction } from "$lib/file-menu";
   import { withUnchanged } from "$lib/file-switches";
-  import { emptyText, filesPanelList, mergedSide, mergeIndex, pairMemo, searchesEveryFile, stagedShown } from "$lib/files-panel";
+  import { emptyText, filesPanelList, mergedSide, mergeIndex, pairMemo, stagedShown } from "$lib/files-panel";
   import type { FileView } from "$lib/file-view";
   import type { FileEntry } from "$lib/ipc";
   import { effective, shortcutOf } from "$lib/keymap";
@@ -140,14 +140,15 @@
     });
   });
 
-  /** The working tree list's filter: over a clean tree it looks through every file. Another
-      list in the panel has a filter of its own, so this one starts empty again. */
+  /** The working tree list's filter looks through every file, the unchanged ones gray under the
+      changes; the Unchanged switch stays as it is. Another list in the panel has a filter of
+      its own, so this one starts empty again. */
   let mask = $state("");
   $effect(() => {
     if (shown.kind !== "worktree") mask = "";
   });
   const everyFile = $derived(
-    shown.kind === "worktree" && !filesView.current.unchanged && searchesEveryFile(mask, repository.current?.status),
+    shown.kind === "worktree" && !filesView.current.unchanged && mask.trim() !== "",
   );
   $effect(() => {
     const on = everyFile;

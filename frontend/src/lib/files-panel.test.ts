@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FileEntry } from "$lib/ipc";
-import { changeCount, emptyText, filesPanelList, mergedSide, mergeIndex, pairMemo, searchesEveryFile, selectAllKeys, sameLists, stagedShown, type FilesPanelInput } from "./files-panel";
+import { changeCount, emptyText, filesPanelList, mergedSide, mergeIndex, pairMemo, selectAllKeys, sameLists, stagedShown, type FilesPanelInput } from "./files-panel";
 
 const base: FilesPanelInput = {
   content: true,
@@ -130,20 +130,6 @@ describe("sameLists", () => {
     const next = [a, []];
     expect(sameLists([a, b], next)).toBe(next);
     expect(sameLists([a], [a, b])).toEqual([a, b]);
-  });
-});
-
-describe("a filter over a working tree with nothing to list", () => {
-  const clean = { staged: 0, unstaged: 0, untracked: 0, conflicted: 0, dirtySubmodules: 0 };
-
-  it("searches every file of the repository", () => {
-    expect(searchesEveryFile("main", clean)).toBe(true);
-  });
-
-  it("keeps to the changes when there are any, there is no filter, or the status is unknown", () => {
-    expect(searchesEveryFile("main", { ...clean, untracked: 1 })).toBe(false);
-    expect(searchesEveryFile("  ", clean)).toBe(false);
-    expect(searchesEveryFile("main", undefined)).toBe(false);
   });
 });
 

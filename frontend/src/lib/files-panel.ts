@@ -1,6 +1,5 @@
 import type { ListFile } from "./file-view";
-import type { FileEntry, RepoStatus } from "./ipc/bindings";
-import { workingTreeChanged } from "./repo-state";
+import type { FileEntry } from "./ipc/bindings";
 
 export interface FilesPanelInput {
   /** A repository is open and the panel has something behind it. */
@@ -85,12 +84,6 @@ export function selectAllKeys(groupKeys: readonly (readonly string[])[], touched
     list changed, not each time the panel builds its sections anew. */
 export function sameLists<T>(before: readonly T[], next: readonly T[]): readonly T[] {
   return before.length === next.length && next.every((list, index) => list === before[index]) ? before : next;
-}
-
-/** A filter over a working tree with nothing to list looks through every file of the
-    repository, as if Unchanged were on; the switch itself stays as it is. */
-export function searchesEveryFile(mask: string, status: RepoStatus | undefined): boolean {
-  return mask.trim() !== "" && workingTreeChanged(status) === false;
 }
 
 /** A list's heading counts its changes: an unchanged file is listed, never counted. */

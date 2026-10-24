@@ -108,6 +108,11 @@ export type ViewRow =
 
 const NONE: ReadonlySet<string> = new Set();
 
+/** Unchanged files a filter found go under the changes, which stay on top as they were sorted. */
+export function changesFirst<T extends Pick<FileEntry, "status">>(files: readonly T[]): T[] {
+  return [...files.filter((file) => file.status !== "unchanged"), ...files.filter((file) => file.status === "unchanged")];
+}
+
 /** The repository root is `""`, not `"/"`: a leading slash reads like an absolute path. A
     folder in `collapsed` keeps its heading, with its count, and hides its files. */
 export function groupByDirectory(

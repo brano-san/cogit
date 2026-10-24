@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  changesFirst,
   DEFAULT_VIEW,
   backendView,
   foldersOf,
@@ -241,5 +242,17 @@ describe("paneLayout", () => {
 
   it("gives a single-section list, such as a commit's files, no heading", () => {
     expect(paneLayout(1, 1, true)).toEqual({ apart: false, titled: false });
+  });
+});
+
+describe("changesFirst", () => {
+  it("puts unchanged files under the changes, each kept in its order", () => {
+    const rows = [
+      { path: "a", status: "unchanged" },
+      { path: "b", status: "modified" },
+      { path: "c", status: "unchanged" },
+      { path: "d", status: "untracked" },
+    ] as const;
+    expect(changesFirst(rows).map((file) => file.path)).toEqual(["b", "d", "a", "c"]);
   });
 });

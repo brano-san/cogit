@@ -16,6 +16,7 @@
   import { remoteOps } from "$stores/remote-ops.svelte";
   import { repository } from "$stores/repository.svelte";
   import {
+    changesFirst,
     DEFAULT_VIEW,
     foldersOf,
     groupByDirectory,
@@ -103,7 +104,8 @@
     onmarked?: (paths: string[], bySection: Record<string, string[]>) => void;
     /** Only the working tree is on disk to be searched inside. */
     contents?: ContentSearch;
-    /** Unchanged rows are shown whatever the switch says: a filter over a clean tree. */
+    /** Unchanged rows are shown whatever the switch says, under the changes: a filter that
+        looks through every file. */
     unchanged?: boolean;
     context?: ListContext;
     /** Files of the revision shown (commit tree, or the index), for "N files hidden". */
@@ -251,16 +253,19 @@
       ...sortedOnce(section.files),
     })),
   );
-  /** A list that comes back unchanged (a search over a clean tree typed again, the list
+  /** A list that comes back unchanged (a search over every file typed again, the list
       mounted anew) is not sorted again. The LFS column reads state that moves on its own,
       so it always sorts afresh. */
   function sortedOnce(files: readonly FileEntry[]) {
     const sort = filesView.sort;
     const key = sort.key === "lfs" ? null : JSON.stringify([gates, sort, active.directories]);
-    return onceForList(files, key, () => ({
-      sorted: sortRows(visibleFiles(files, gates), sort, active.directories, (path) => remoteOps.lfsState(path)),
-      byPath: new Map(files.map((file) => [file.path, file])),
-    }));
+    return onceForList(files, key, () => {
+      const sorted = sortRows(visibleFiles(files, gates), sort, active.directories, (path) => remoteOps.lfsState(path));
+      return {
+        sorted: unchanged ? changesFirst(sorted) : sorted,
+        byPath: new Map(files.map((file) => [file.path, file])),
+      };
+    });
   }
 
   const groups = $derived(
