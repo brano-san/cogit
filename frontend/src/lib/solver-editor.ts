@@ -1,4 +1,4 @@
-import { defaultKeymap, history, historyKeymap, undoDepth } from "@codemirror/commands";
+import { defaultKeymap, history, historyKeymap, redo, undo, undoDepth } from "@codemirror/commands";
 import { LanguageDescription, syntaxHighlighting } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
 import {
@@ -677,6 +677,8 @@ export class SolverEditors {
     if (!hunk) return;
     const result = this.views.result;
     result.dispatch(takeTransaction(result.state, hunk, action));
+    // A gutter arrow or a toolbar button keeps the focus otherwise, and Ctrl+Z went nowhere.
+    result.focus();
   }
 
   /** Brings a hunk into view in every pane, the Result first; the others follow by the sync. */
@@ -792,6 +794,13 @@ export class SolverEditors {
     this.#saved = this.views.result.state.doc;
     this.#snapshot = this.#compute();
     this.#onchange();
+  }
+
+  /** Undo or Redo in the Result, from wherever the focus was; the Result takes it. */
+  history(direction: "undo" | "redo"): void {
+    const result = this.views.result;
+    (direction === "undo" ? undo : redo)(result);
+    result.focus();
   }
 
   focusResult(): void {

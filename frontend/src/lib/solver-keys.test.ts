@@ -33,9 +33,18 @@ describe("the keys of the Conflict Solver", () => {
   });
 
   it("leaves the editor's own keys alone", () => {
-    expect(solverKey(press("z", { ctrl: true, code: "KeyZ" }))).toBeNull();
     expect(solverKey(press("a", { ctrl: true, code: "KeyA" }))).toBeNull();
     expect(solverKey(press("1", { code: "Digit1" }))).toBeNull();
     expect(solverKey(press("1", { ctrl: true, shift: true, alt: true, code: "Digit1" }))).toBeNull();
+  });
+});
+
+describe("undo and redo", () => {
+  // The window passes them on to an editor that has the focus: its keymap undoes there.
+  it("are Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y by the place of the key", () => {
+    expect(solverKey(press("z", { ctrl: true, code: "KeyZ" }))).toBe("undo");
+    expect(solverKey(press("я", { ctrl: true, code: "KeyZ" }))).toBe("undo");
+    expect(solverKey(press("Z", { ctrl: true, shift: true, code: "KeyZ" }))).toBe("redo");
+    expect(solverKey(press("y", { ctrl: true, code: "KeyY" }))).toBe("redo");
   });
 });

@@ -2,6 +2,8 @@ import type { TakeAction } from "./solver-model";
 
 export type SolverKey =
   | "save"
+  | "undo"
+  | "redo"
   | { step: "change" | "conflict"; by: 1 | -1 }
   | { take: TakeAction };
 
@@ -29,7 +31,11 @@ export function solverKey(press: Press): SolverKey | null {
     if (press.key === "F7") return { step: "conflict", by: press.shift ? -1 : 1 };
     return null;
   }
-  if (!press.ctrl || press.alt || press.shift) return null;
+  if (!press.ctrl || press.alt) return null;
+  // Undo and Redo of the Result wherever the focus is: a Take button keeps it otherwise.
+  if (press.code === "KeyZ") return press.shift ? "redo" : "undo";
+  if (press.code === "KeyY" && !press.shift) return "redo";
+  if (press.shift) return null;
   if (press.code === "KeyS" || press.key === "s") return "save";
   const take = TAKE_KEYS[press.code ?? ""];
   return take ? { take } : null;

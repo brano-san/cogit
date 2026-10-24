@@ -546,8 +546,12 @@
       alt: event.altKey,
     });
     if (action === null) return;
+    // In an editor its own keymap undoes, in the pane that has the focus.
+    const inEditor = event.target instanceof Element && event.target.closest(".cm-editor") !== null;
+    if ((action === "undo" || action === "redo") && inEditor) return;
     event.preventDefault();
-    if (action === "save") void save();
+    if (action === "undo" || action === "redo") editors?.history(action);
+    else if (action === "save") void save();
     else if ("step" in action) step(action.step, action.by);
     else take(action.take);
   }
