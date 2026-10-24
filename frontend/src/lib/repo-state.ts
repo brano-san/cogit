@@ -62,10 +62,17 @@ export function workingTreeChanged(status: RepoStatus | undefined): boolean | nu
   return status ? workingTreeCount(status) > 0 : null;
 }
 
+/** Changed (unstaged, untracked, submodules), staged and conflicted apart, each only when
+    there are any: a merge with five conflicts reads "5 conflicted", not "5 changed". */
 export function workingTreeLabel(status: RepoStatus | undefined): string {
   if (!status) return "Working Tree/Index";
-  const count = workingTreeCount(status);
-  return `Working Tree/Index (${count > 0 ? `${count} changed` : "clean"})`;
+  const parts = [
+    [status.unstaged + status.untracked + status.dirtySubmodules, "changed"],
+    [status.staged, "staged"],
+    [status.conflicted, "conflicted"],
+  ] as const;
+  const said = parts.filter(([count]) => count > 0).map(([count, word]) => `${count} ${word}`);
+  return `Working Tree/Index (${said.length > 0 ? said.join(", ") : "clean"})`;
 }
 
 export const STATE_TAG_HINT =
