@@ -44,13 +44,11 @@
   import { solverKey } from "$lib/solver-keys";
   import { solverMenu } from "$lib/solver-menu";
   import {
-    composeSave,
     conflictsLeftLabel,
     docsForDeleted,
     docsFromRegions,
     nextHunk,
     hunkTone,
-    textToLines,
     type Hunk,
     type TakeAction,
   } from "$lib/solver-model";
@@ -94,7 +92,7 @@
     if (data.missingOurs || data.missingTheirs || data.regions.length === 0) {
       return docsForDeleted({ ours: data.ours, theirs: data.theirs });
     }
-    return docsFromRegions(data.regions);
+    return docsFromRegions(data.regions, labels());
   });
   /** Line by line: there are hunks, and so ribbons, buttons and a counter. */
   const merged = $derived(
@@ -303,13 +301,9 @@
     await closeThisWindow();
   }
 
-  /** The Result as the file should hold it: undecided hunks as conflict markers. */
+  /** The Result as it stands: an undecided conflict is in it with its markers already. */
   function textToWrite(): string {
-    if (!editors || !docs) return "";
-    const left = snapshot?.unresolved.length ?? 0;
-    return left > 0
-      ? composeSave(textToLines(editors.resultText), editors.spans(), docs.hunks, labels(), editors.decided())
-      : editors.resultText;
+    return editors?.resultText ?? "";
   }
 
   /** Ctrl+S: the working file gets the Result and the window stays; nothing is staged, so
@@ -351,10 +345,7 @@
     saving = true;
     saveFailed = null;
     const left = snapshot?.unresolved.length ?? 0;
-    const text =
-      left > 0
-        ? composeSave(textToLines(editors.resultText), editors.spans(), docs.hunks, labels(), editors.decided())
-        : editors.resultText;
+    const text = textToWrite();
     const result = await saveFlow({
       unresolved: warned ? 0 : left,
       confirmMarkers: () =>

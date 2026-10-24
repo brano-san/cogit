@@ -15,6 +15,6 @@ describe("Conflict Solver panes", () => {
     ]);
     expect(docs.oursText).toBe("a\nb1\n");
     expect(docs.theirsText).toBe("a\nb2\n");
-    expect(docs.resultText).toBe("a\nb\n");
+    expect(docs.resultText).toBe("a\n<<<<<<< ours\nb1\n=======\nb2\n>>>>>>> theirs\n");
   });
 });

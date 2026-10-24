@@ -4,7 +4,6 @@ import {
   hunkLegend,
   hunkTone,
   buildResult,
-  composeSave,
   conflictsLeftLabel,
   docsForDeleted,
   docsFromRegions,
@@ -32,6 +31,9 @@ const REGIONS: SolverRegion[] = [
   region("ours", { base: ["d"], ours: ["D"], theirs: ["d"], result: ["D"] }),
 ];
 
+/** The conflict of REGIONS as the Result shows it before a decision. */
+const MARKED = ["<<<<<<< ours", "B", "=======", "b2", "b3", ">>>>>>> theirs"];
+
 describe("lines and text", () => {
   it("every line ends with a newline, and nothing is the empty string", () => {
     expect(linesToText(["a", "b"])).toBe("a\nb\n");
@@ -56,20 +58,20 @@ describe("lines and text", () => {
 describe("buildResult", () => {
   it("lays the regions out as one document and records where each stretch that is not equal sits", () => {
     const built = buildResult(REGIONS);
-    expect(built.text).toBe("a\nb\nc\nD\n");
+    expect(built.text).toBe(["a", ...MARKED, "c", "D", ""].join("\n"));
     expect(built.hunks.map((hunk) => [hunk.id, hunk.kind])).toEqual([
       [1, "conflict"],
       [3, "ours"],
     ]);
     expect(built.spans).toEqual([
-      { id: 1, start: 1, count: 1 },
-      { id: 3, start: 3, count: 1 },
+      { id: 1, start: 1, count: 6 },
+      { id: 3, start: 8, count: 1 },
     ]);
   });
 
-  it("a conflict starts on the base lines, which is how it reads as undecided", () => {
-    const built = buildResult(REGIONS);
-    expect(built.hunks[0]?.initial).toEqual(["b"]);
+  it("a conflict starts as git writes it, both sides between markers named by the labels", () => {
+    const built = buildResult(REGIONS, { ours: "HEAD", theirs: "feature" });
+    expect(built.hunks[0]?.initial).toEqual(["<<<<<<< HEAD", "B", "=======", "b2", "b3", ">>>>>>> feature"]);
   });
 
   it("a stretch that merged to nothing is a block of no lines", () => {
@@ -102,38 +104,22 @@ describe("take actions", () => {
   });
 });
 
-describe("a conflict decided to stay as the base has it", () => {
-  const { hunks, spans } = buildResult(REGIONS);
-  const [conflict] = hunks as [Hunk];
-
-  it("is no longer unresolved, though the result holds the base lines", () => {
-    expect(isUnresolved(conflict, ["b"], true)).toBe(false);
-    expect(isUnresolved(conflict, ["b"], false)).toBe(true);
-  });
-
-  it("is written as it stands, with no markers", () => {
-    const decided = new Set([conflict.id]);
-    const text = composeSave(["a", "b", "c", "D"], spans, hunks, { ours: "main", theirs: "feature" }, decided);
-    expect(text).toBe("a\nb\nc\nD\n");
-  });
-});
-
 describe("what is unresolved", () => {
   const [conflict, auto] = buildResult(REGIONS).hunks as [Hunk, Hunk];
 
-  it("a conflict is unresolved while the result holds its base lines", () => {
-    expect(isUnresolved(conflict, ["b"])).toBe(true);
+  it("a conflict is unresolved while a marker is left in its stretch", () => {
+    expect(isUnresolved(conflict, MARKED)).toBe(true);
+    expect(isUnresolved(conflict, ["B", "=======", "b2"])).toBe(true);
     expect(isUnresolved(conflict, ["B"])).toBe(false);
-    expect(isUnresolved(conflict, ["b", "more"])).toBe(false);
+    expect(isUnresolved(conflict, ["b"])).toBe(false);
   });
 
-  it("a conflict that is edited back to the base is unresolved again, which is what Undo needs", () => {
-    expect(isUnresolved(conflict, ["B"])).toBe(false);
-    expect(isUnresolved(conflict, ["b"])).toBe(true);
+  it("a Take decides it, whatever is edited in later", () => {
+    expect(isUnresolved(conflict, MARKED, true)).toBe(false);
   });
 
   it("a stretch the merge settled is never a conflict", () => {
-    expect(isUnresolved(auto, ["whatever"])).toBe(false);
+    expect(isUnresolved(auto, ["<<<<<<< x"])).toBe(false);
   });
 
   it("the counter says what is left", () => {
@@ -143,43 +129,11 @@ describe("what is unresolved", () => {
   });
 });
 
-describe("saving with markers", () => {
-  const { hunks, spans } = buildResult(REGIONS);
-  const labels = { ours: "main", theirs: "feature" };
-
-  it("an unresolved conflict is written as git writes it", () => {
-    const text = composeSave(["a", "b", "c", "D"], spans, hunks, labels);
-    expect(text).toBe(
-      ["a", "<<<<<<< main", "B", "=======", "b2", "b3", ">>>>>>> feature", "c", "D", ""].join("\n"),
-    );
-  });
-
-  it("a resolved conflict is written as it stands", () => {
-    expect(composeSave(["a", "B", "c", "D"], spans, hunks, labels)).toBe("a\nB\nc\nD\n");
-  });
-
-  it("an edit anywhere else is kept", () => {
-    expect(composeSave(["a!", "B", "c", "D", "extra"], spans, hunks, labels)).toBe("a!\nB\nc\nD\nextra\n");
-  });
-
-  it("spans after a longer block are shifted by the markers already written", () => {
-    const both = [
-      region("conflict", { base: ["1"], ours: ["o1"], theirs: ["t1"], result: ["1"] }),
-      region("equal", { base: ["m"], ours: ["m"], theirs: ["m"], result: ["m"] }),
-      region("conflict", { base: ["2"], ours: ["o2"], theirs: ["t2"], result: ["2"] }),
-    ];
-    const built = buildResult(both);
-    const text = composeSave(["1", "m", "2"], built.spans, built.hunks, labels);
-    expect(text.split("\n").filter((line) => line.startsWith("<<<<<<<")).length).toBe(2);
-    expect(text).toContain("m\n<<<<<<< main\no2\n=======\nt2\n>>>>>>> feature\n");
-  });
-});
-
 describe("what the buttons in a gutter offer", () => {
   const [conflict, auto] = buildResult(REGIONS).hunks as [Hunk, Hunk];
 
   it("there is no point in taking what the result already holds", () => {
-    expect(visibleActions(conflict, ["b"])).toEqual({ ours: true, theirs: true });
+    expect(visibleActions(conflict, MARKED)).toEqual({ ours: true, theirs: true });
     expect(visibleActions(conflict, ["B"])).toEqual({ ours: false, theirs: true });
     expect(visibleActions(conflict, ["b2", "b3"])).toEqual({ ours: true, theirs: false });
     expect(visibleActions(auto, ["D"])).toEqual({ ours: false, theirs: true });
@@ -255,7 +209,7 @@ describe("the documents of the three panes", () => {
     const docs = docsFromRegions(REGIONS);
     expect(docs.oursText).toBe("a\nB\nc\nD\n");
     expect(docs.theirsText).toBe("a\nb2\nb3\nc\nd\n");
-    expect(docs.resultText).toBe("a\nb\nc\nD\n");
+    expect(docs.resultText).toBe(["a", ...MARKED, "c", "D", ""].join("\n"));
     expect(docs.hunks.map((hunk) => hunk.id)).toEqual([1, 3]);
     expect(docs.oursRows).toEqual([
       { start: 1, count: 1 },
@@ -266,8 +220,8 @@ describe("the documents of the three panes", () => {
       { start: 4, count: 1 },
     ]);
     expect(docs.spans).toEqual([
-      { id: 1, start: 1, count: 1 },
-      { id: 3, start: 3, count: 1 },
+      { id: 1, start: 1, count: 6 },
+      { id: 3, start: 8, count: 1 },
     ]);
   });
 

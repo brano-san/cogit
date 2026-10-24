@@ -12,7 +12,7 @@ import {
   initialBlocks,
   takeTransaction,
 } from "./solver-blocks";
-import { buildResult, composeSave, isUnresolved, textToLines } from "./solver-model";
+import { buildResult, isUnresolved } from "./solver-model";
 
 function region(kind: SolverRegion["kind"], parts: Partial<Omit<SolverRegion, "kind">> = {}): SolverRegion {
   return { kind, base: [], ours: [], theirs: [], result: [], ...parts };
@@ -20,17 +20,22 @@ function region(kind: SolverRegion["kind"], parts: Partial<Omit<SolverRegion, "k
 
 const same = (line: string) => region("equal", { base: [line], ours: [line], theirs: [line], result: [line] });
 
-// a / conflict(b → ours B, theirs b2 b3) / c / ours-only(d → D) / e
+// a / both(b → ours B, theirs b2 b3, result b) / c / ours-only(d → D) / e: one line per
+// hunk, so the offsets below are easy to follow.
 const REGIONS: SolverRegion[] = [
   same("a"),
-  region("conflict", { base: ["b"], ours: ["B"], theirs: ["b2", "b3"], result: ["b"] }),
+  region("both", { base: ["b"], ours: ["B"], theirs: ["b2", "b3"], result: ["b"] }),
   same("c"),
   region("ours", { base: ["d"], ours: ["D"], theirs: ["d"], result: ["D"] }),
   same("e"),
 ];
 
-function opened() {
-  const built = buildResult(REGIONS);
+// The same with the second region a conflict: the Result shows it between markers.
+const CONFLICTED: SolverRegion[] = REGIONS.map((at, index) => (index === 1 ? { ...at, kind: "conflict" } : at));
+const MARKED = ["<<<<<<< ours", "B", "=======", "b2", "b3", ">>>>>>> theirs"];
+
+function opened(regions: SolverRegion[] = REGIONS) {
+  const built = buildResult(regions);
   const state = EditorState.create({
     doc: built.text,
     extensions: [history(), blockTracker(initialBlocks(built.text, built.spans))],
@@ -112,7 +117,7 @@ describe("take actions", () => {
   });
 
   it("Take Base leaves the base lines and decides the conflict; Undo takes the decision back", () => {
-    const { state, hunks } = opened();
+    const { state, hunks } = opened(CONFLICTED);
     const [conflict] = hunks;
     const block = () => blocksOf(taken)[0]!;
     const taken = state.update(takeTransaction(state, conflict!, "base")).state;
@@ -133,7 +138,8 @@ describe("take actions", () => {
   });
 
   it("resolve the conflict, and Undo makes it a conflict again with its range back", () => {
-    const { state, hunks } = opened();
+    const { state, hunks, built } = opened(CONFLICTED);
+    expect(blockLines(state, blocksOf(state)[0]!)).toEqual(MARKED);
     const [conflict] = hunks;
     expect(isUnresolved(conflict!, blockLines(state, blocksOf(state)[0]!))).toBe(true);
 
@@ -142,7 +148,7 @@ describe("take actions", () => {
 
     let undone: EditorState = taken;
     undo({ state: taken, dispatch: (tr) => (undone = tr.state) });
-    expect(undone.doc.toString()).toBe("a\nb\nc\nD\ne\n");
+    expect(undone.doc.toString()).toBe(built.text);
     expect(blocksOf(undone)).toEqual(blocksOf(state));
     expect(isUnresolved(conflict!, blockLines(undone, blocksOf(undone)[0]!))).toBe(true);
 
@@ -169,32 +175,25 @@ describe("take actions", () => {
   });
 });
 
-// A block that starts or ends in the middle of a line (a newline deleted beside it) was
-// counted unresolved by its characters yet written as edited by its lines: the dialog
-// promised markers and the base went out.
-describe("a block whose edge a deleted newline moved into a line", () => {
-  const spans = (state: EditorState) =>
-    blockRows(state).map((row, at) => ({ id: blocksOf(state)[at]!.id, start: row.start, count: row.count }));
-  const saved = (state: EditorState, built: ReturnType<typeof buildResult>) =>
-    composeSave(textToLines(state.doc.toString()), spans(state), built.hunks, { ours: "o", theirs: "t" });
-
+// A newline deleted beside a conflict pulls a neighbour into its block; the markers are
+// still there, and so is the conflict.
+describe("a conflict whose edge a deleted newline moved into a line", () => {
   for (const [name, from, to] of [
     ["before it", 1, 2],
-    ["after it", 3, 4],
+    ["after it", 15, 16],
   ] as const) {
-    it(`counts it as edited once the newline ${name} is deleted, and writes no markers`, () => {
-      const { state, hunks, built } = opened();
+    it(`stays unresolved once the newline ${name} is deleted`, () => {
+      const { state, hunks } = opened(CONFLICTED);
       const next = typed(state, from, to, "");
-
-      expect(isUnresolved(hunks[0]!, blockLines(next, blocksOf(next)[0]!))).toBe(false);
-      expect(saved(next, built)).not.toContain("<<<<<<<");
+      expect(isUnresolved(hunks[0]!, blockLines(next, blocksOf(next)[0]!))).toBe(true);
     });
   }
 
-  it("is unresolved while it is untouched, and then gets markers", () => {
-    const { state, hunks, built } = opened();
-    expect(isUnresolved(hunks[0]!, blockLines(state, blocksOf(state)[0]!))).toBe(true);
-    expect(saved(state, built)).toContain("<<<<<<< o");
+  it("is resolved once its markers are edited away", () => {
+    const { state, hunks } = opened(CONFLICTED);
+    const block = blocksOf(state)[0]!;
+    const next = typed(state, block.from, block.to, "B\n");
+    expect(isUnresolved(hunks[0]!, blockLines(next, blocksOf(next)[0]!))).toBe(false);
   });
 });
 
@@ -203,7 +202,7 @@ describe("a line with a lone CR in it", () => {
   it("stays one line, and its conflict stays unresolved", () => {
     const built = buildResult([
       same("a"),
-      region("conflict", { base: ["x\ry"], ours: ["X"], theirs: ["Y"], result: ["x\ry"] }),
+      region("conflict", { base: ["x"], ours: ["X\ry"], theirs: ["Y"], result: ["x"] }),
     ]);
     const state = EditorState.create({
       doc: built.text,
@@ -211,7 +210,7 @@ describe("a line with a lone CR in it", () => {
     });
 
     expect(state.doc.toString()).toContain("\r");
-    expect(state.doc.lines).toBe(3);
+    expect(state.doc.lines).toBe(7);
     expect(isUnresolved(built.hunks[0]!, blockLines(state, blocksOf(state)[0]!))).toBe(true);
   });
 
@@ -225,6 +224,6 @@ describe("a line with a lone CR in it", () => {
       extensions: [gitLines, blockTracker(initialBlocks(built.text, built.spans))],
     });
 
-    expect(blockRows(state)).toEqual([{ start: 1, count: 1 }]);
+    expect(blockRows(state)).toEqual([{ start: 1, count: 5 }]);
   });
 });

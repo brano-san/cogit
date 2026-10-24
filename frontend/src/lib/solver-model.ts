@@ -12,7 +12,7 @@ export interface Hunk {
   base: string[];
   ours: string[];
   theirs: string[];
-  /** What the Result holds before any decision; for a conflict, the base lines. */
+  /** What the Result holds before any decision; for a conflict, both sides between markers. */
   initial: string[];
 }
 
@@ -40,11 +40,29 @@ export function equalLines(a: readonly string[], b: readonly string[]): boolean 
   return a.length === b.length && a.every((line, at) => line === b[at]);
 }
 
-export function buildResult(regions: readonly SolverRegion[]): { text: string; hunks: Hunk[]; spans: Span[] } {
+export interface Labels {
+  ours: string;
+  theirs: string;
+}
+
+const NO_LABELS: Labels = { ours: "ours", theirs: "theirs" };
+
+/** A conflict as git writes it into the file: the Result shows it so, and a save keeps it so. */
+export function markerLines(ours: readonly string[], theirs: readonly string[], labels: Labels): string[] {
+  return [`<<<<<<< ${labels.ours}`, ...ours, "=======", ...theirs, `>>>>>>> ${labels.theirs}`];
+}
+
+const MARKER = /^(<{7} |={7}$|>{7} )/;
+
+export function buildResult(
+  regions: readonly SolverRegion[],
+  labels: Labels = NO_LABELS,
+): { text: string; hunks: Hunk[]; spans: Span[] } {
   const hunks: Hunk[] = [];
   const spans: Span[] = [];
   const lines: string[] = [];
   regions.forEach((region, id) => {
+    const result = region.kind === "conflict" ? markerLines(region.ours, region.theirs, labels) : region.result;
     if (region.kind !== "equal") {
       hunks.push({
         id,
@@ -52,11 +70,11 @@ export function buildResult(regions: readonly SolverRegion[]): { text: string; h
         base: [...region.base],
         ours: [...region.ours],
         theirs: [...region.theirs],
-        initial: [...region.result],
+        initial: [...result],
       });
-      spans.push({ id, start: lines.length, count: region.result.length });
+      spans.push({ id, start: lines.length, count: result.length });
     }
-    lines.push(...region.result);
+    lines.push(...result);
   });
   return { text: linesToText(lines), hunks, spans };
 }
@@ -76,12 +94,12 @@ export function takeLines(hunk: Hunk, action: TakeAction): string[] {
   }
 }
 
-/** A conflict is undecided while the Result holds its base lines and nobody decided it. Any
-    Take marks it `decided`, and the mark stays when the lines are later edited back to the
-    base by hand: that base is then the answer (Take Base, too). Only Undo of the Take removes
-    the mark (`invertedEffects`). A hunk the merge settled by itself never was one. */
+/** A conflict is undecided while its stretch of the Result still holds a conflict marker and
+    nobody decided it. Any Take marks it `decided` and takes the markers out with the rest;
+    only Undo of the Take removes the mark (`invertedEffects`). A hunk the merge settled by
+    itself never was one. */
 export function isUnresolved(hunk: Hunk, current: readonly string[], decided = false): boolean {
-  return hunk.kind === "conflict" && !decided && equalLines(current, hunk.base);
+  return hunk.kind === "conflict" && !decided && current.some((line) => MARKER.test(line));
 }
 
 export function conflictsLeftLabel(count: number): string {
@@ -92,36 +110,6 @@ export function conflictsLeftLabel(count: number): string {
 /** The current lines of each hunk, read out of the Result by the spans. */
 export function hunkTexts(lines: readonly string[], spans: readonly Span[]): Map<number, string[]> {
   return new Map(spans.map((span) => [span.id, lines.slice(span.start, span.start + span.count)]));
-}
-
-export interface Labels {
-  ours: string;
-  theirs: string;
-}
-
-/** The text to write. A conflict still undecided goes out as git writes it, with both sides
-    between markers, so the file is conflicted in the editor of whoever opens it next. */
-export function composeSave(
-  lines: readonly string[],
-  spans: readonly Span[],
-  hunks: readonly Hunk[],
-  labels: Labels,
-  decided: ReadonlySet<number> = new Set(),
-): string {
-  const byId = new Map(hunks.map((hunk) => [hunk.id, hunk]));
-  const out: string[] = [];
-  let at = 0;
-  for (const span of [...spans].sort((a, b) => a.start - b.start)) {
-    const hunk = byId.get(span.id);
-    if (!hunk) continue;
-    const current = lines.slice(span.start, span.start + span.count);
-    if (!isUnresolved(hunk, current, decided.has(span.id))) continue;
-    out.push(...lines.slice(at, span.start));
-    out.push(`<<<<<<< ${labels.ours}`, ...hunk.ours, "=======", ...hunk.theirs, `>>>>>>> ${labels.theirs}`);
-    at = span.start + span.count;
-  }
-  out.push(...lines.slice(at));
-  return linesToText(out);
 }
 
 /** Which gutter buttons make a difference: not the ones that would put back what is there. */
@@ -209,8 +197,8 @@ function sideText(regions: readonly SolverRegion[], side: "ours" | "theirs"): st
   return linesToText(regions.flatMap((region) => region[side]));
 }
 
-export function docsFromRegions(regions: readonly SolverRegion[]): SolverDocs {
-  const built = buildResult(regions);
+export function docsFromRegions(regions: readonly SolverRegion[], labels: Labels = NO_LABELS): SolverDocs {
+  const built = buildResult(regions, labels);
   return {
     oursText: sideText(regions, "ours"),
     theirsText: sideText(regions, "theirs"),
