@@ -5,6 +5,7 @@
   import { scan } from "$stores/scan.svelte";
   import { scanSections, type ScanLayout } from "$lib/scan-groups";
   import type { ScanHit } from "$lib/ipc";
+  import type { CheckState } from "$lib/ref-nodes";
 
   interface Props {
     busy: boolean;
@@ -48,6 +49,18 @@
           ? "Open 1 Repository"
           : `Open ${chosen.length} Repositories`,
   );
+
+  /** A group's box: on when every repository it can open is ticked, mixed when some are. */
+  function groupState(hits: readonly ScanHit[]): CheckState {
+    const roots = hits.filter((hit) => !hit.alreadyOpen).map((hit) => hit.root);
+    const ticked = roots.filter((root) => scan.chosen.has(root)).length;
+    return ticked === 0 ? "off" : ticked === roots.length ? "on" : "mixed";
+  }
+
+  function toggleGroup(hits: readonly ScanHit[]): CheckState {
+    scan.toggleAll(hits.map((hit) => hit.root));
+    return groupState(hits);
+  }
 
   function open() {
     if (chosen.length > 0 && !busy) onopen(chosen);
@@ -122,12 +135,22 @@
           {:else}
             {@const title = section.title}
             {@const open = !folded.has(title)}
+            {@const hits = section.hits}
             <div class="group">
-              <button type="button" class="heading" aria-expanded={open} onclick={() => fold(title)}>
-                <Disclosure {open} />
-                <span>{title}</span>
-                <span class="n">{section.hits.length}</span>
-              </button>
+              <div class="heading">
+                <button type="button" class="fold" aria-expanded={open} onclick={() => fold(title)}>
+                  <Disclosure {open} />
+                </button>
+                <Checkbox
+                  ariaLabel={`Select every repository in ${title}`}
+                  disabled={hits.every((hit) => hit.alreadyOpen)}
+                  tri={{ state: groupState(hits), toggle: () => toggleGroup(hits) }}
+                />
+                <button type="button" class="fold title" onclick={() => fold(title)}>
+                  <span>{title}</span>
+                  <span class="n">{hits.length}</span>
+                </button>
+              </div>
               {#if open}
                 {#each section.hits as hit (hit.root)}{@render row(hit)}{/each}
               {/if}
@@ -199,17 +222,30 @@
     padding: 0 var(--disclosure-side);
     background: var(--surface-base);
     color: var(--text-secondary);
-    border: 0;
-    font: inherit;
     font-size: var(--fs-header);
     font-weight: 600;
-    text-align: left;
     white-space: nowrap;
-    cursor: default;
   }
 
   .heading:hover {
     color: var(--text-primary);
+  }
+
+  .fold {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: 0;
+    background: none;
+    color: inherit;
+    border: 0;
+    font: inherit;
+    cursor: default;
+  }
+
+  .fold.title {
+    flex: 1 1 auto;
+    height: 100%;
   }
 
   .group:has(.row) .heading {
