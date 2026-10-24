@@ -101,7 +101,12 @@
   <span class="spacer"></span>
 
   <span class="item activity {activity.tone}" role="status">
-    {#if activity.busy}<span class="spinner" aria-hidden="true"></span>{/if}
+    {#if activity.busy}
+      <!-- Determinate while the step says how far it is, else a sweep: an operation is under way. -->
+      <span class="bar" class:sweep={activity.fraction === null} aria-hidden="true">
+        <span class="fill" style:width={activity.fraction === null ? undefined : `${activity.fraction * 100}%`}></span>
+      </span>
+    {/if}
     <span class="truncate">{activity.label}</span>
   </span>
   {#if oncancel}
@@ -221,24 +226,45 @@
     color: var(--status-delete);
   }
 
-  .spinner {
+  .bar {
+    position: relative;
     flex: 0 0 auto;
-    width: 10px;
-    height: 10px;
-    border: 1.5px solid var(--divider);
-    border-top-color: var(--status-ref);
-    border-radius: 50%;
-    animation: spin 700ms linear infinite;
+    width: 96px;
+    height: 6px;
+    /* The item's own gap left it touching the text: a bar needs air a glyph does not. */
+    margin-right: var(--sp-3);
+    overflow: hidden;
+    border-radius: 3px;
+    background: var(--divider);
   }
 
-  @keyframes spin {
+  .fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: 3px;
+    background: var(--status-ref);
+    transition: width 150ms linear;
+  }
+
+  .sweep .fill {
+    width: 35%;
+    animation: sweep 1.1s ease-in-out infinite;
+  }
+
+  @keyframes sweep {
+    from {
+      left: -35%;
+    }
     to {
-      transform: rotate(360deg);
+      left: 100%;
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .spinner {
+    .sweep .fill {
+      left: 0;
+      width: 100%;
+      opacity: 0.5;
       animation: none;
     }
   }

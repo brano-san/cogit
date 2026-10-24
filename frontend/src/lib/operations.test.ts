@@ -58,7 +58,7 @@ describe("activity", () => {
   const idle = { operations: new Map(), opening: false, failed: false };
 
   it("is ready when nothing happens", () => {
-    expect(activity(idle)).toEqual({ label: "Ready", busy: false, tone: "idle" });
+    expect(activity(idle)).toEqual({ label: "Ready", busy: false, tone: "idle", fraction: null });
   });
 
   it("reports the error state when the last action failed", () => {
@@ -66,6 +66,7 @@ describe("activity", () => {
       label: "Error",
       busy: false,
       tone: "error",
+      fraction: null,
     });
   });
 
@@ -79,6 +80,7 @@ describe("activity", () => {
       label: "Rebasing…",
       busy: true,
       tone: "busy",
+      fraction: null,
     });
   });
 
@@ -86,6 +88,13 @@ describe("activity", () => {
     const operations = new Map([[1, "Rebasing"]]);
     const state = { ...idle, operations, network: "pull", networkProgress: "Receiving 40%" };
     expect(activity(state).label).toBe("Receiving 40%");
+  });
+
+  it("knows how far a step is from git's percent or a batch's count", () => {
+    expect(activity({ ...idle, network: "clone", networkProgress: "Receiving objects:  40% (4/10)" }).fraction).toBe(0.4);
+    expect(activity({ ...idle, network: "clone", networkProgress: "Resolving deltas: 100% (8/8), done." }).fraction).toBe(1);
+    expect(activity({ ...idle, network: "clone" }).fraction).toBeNull();
+    expect(activity({ ...idle, bulk: { label: "Fetching", done: 1, total: 4 } }).fraction).toBe(0.25);
   });
 
   it("names the network operation until it reports progress", () => {

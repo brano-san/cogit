@@ -62,6 +62,8 @@ export interface Activity {
   label: string;
   busy: boolean;
   tone: "idle" | "busy" | "error";
+  /** How far a busy step is, 0..1, when it says: git's percent or a batch's count. */
+  fraction: number | null;
 }
 
 /** One line for the whole app: the toolbar and the footer showed the same thing twice. */
@@ -73,9 +75,23 @@ export function activity(input: ActivityInput): Activity {
     busyLabel(input.operations) ??
     (input.opening ? "Opening repository…" : null);
 
-  if (busy !== null) return { label: input.hooks ? `${busy} — ${input.hooks}` : busy, busy: true, tone: "busy" };
-  if (input.failed) return { label: "Error", busy: false, tone: "error" };
-  return { label: "Ready", busy: false, tone: "idle" };
+  if (busy !== null) {
+    const fraction = input.bulk ? bulkFraction(input.bulk) : percentOf(busy);
+    return { label: input.hooks ? `${busy} — ${input.hooks}` : busy, busy: true, tone: "busy", fraction };
+  }
+  if (input.failed) return { label: "Error", busy: false, tone: "error", fraction: null };
+  return { label: "Ready", busy: false, tone: "idle", fraction: null };
+}
+
+function bulkFraction(bulk: BulkProgress): number | null {
+  return bulk.total > 0 ? Math.min(bulk.done / bulk.total, 1) : null;
+}
+
+/** git's progress line names its percent ("Receiving objects:  40% (4/10)"): the last one. */
+export function percentOf(label: string): number | null {
+  const found = [...label.matchAll(/(\d{1,3})%/g)].at(-1);
+  if (!found) return null;
+  return Math.min(Number(found[1]), 100) / 100;
 }
 
 function describeBulk(bulk: BulkProgress): string {
