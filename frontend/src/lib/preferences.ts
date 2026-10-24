@@ -340,7 +340,7 @@ export const CATEGORIES: Category[] = [
           {
             key: "graphAuthorLastOnly",
             label: "Author only on the last commit of a run",
-            hint: "Consecutive commits by one author show the name and avatar once, on the oldest of them. Wins over Only if changed.",
+            hint: "Consecutive commits by one author show the name and avatar once, on the newest of them. Wins over Only if changed.",
             keywords: ["author", "avatar", "name", "repeat", "same", "consecutive", "series", "run", "hide"],
           },
         ],

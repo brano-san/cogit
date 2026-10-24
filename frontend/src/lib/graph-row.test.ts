@@ -100,15 +100,15 @@ describe("avatarShown", () => {
 describe("authorShown", () => {
   const who = (authorName: string, authorEmail: string) => ({ authorName, authorEmail });
   const rows = [who("A", "a@x"), who("A2", "A@x"), who("B", "b@x"), who("N", ""), who("N", ""), who("A", "a@x")];
-  const shown = (lastOnly: boolean, loaded = rows.length) =>
-    rows.map((author, row) => authorShown(lastOnly, author, row + 1 < loaded ? rows[row + 1] : undefined));
+  const shown = (lastOnly: boolean, loaded = 0) =>
+    rows.map((author, row) => authorShown(lastOnly, author, row > loaded ? rows[row - 1] : undefined));
 
-  it("keeps the author only on the bottom row of a run, by address, else by name", () => {
-    expect(shown(true)).toEqual([false, true, true, false, true, true]);
+  it("keeps the author only on the top (newest) row of a run, by address, else by name", () => {
+    expect(shown(true)).toEqual([true, false, true, true, false, true]);
   });
 
-  it("keeps the author while the row below is not loaded, and on every row while off", () => {
-    expect(shown(true, 1)).toEqual([true, true, true, true, true, true]);
+  it("keeps the author while the row above is not loaded, and on every row while off", () => {
+    expect(shown(true, rows.length)).toEqual([true, true, true, true, true, true]);
     expect(shown(false)).toEqual([true, true, true, true, true, true]);
   });
 });

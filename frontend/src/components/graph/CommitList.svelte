@@ -139,7 +139,7 @@
     density?: GraphDensity;
     stripes?: boolean;
     avatarsChangedOnly?: boolean;
-    /** Author and avatar only on the oldest row of a run by one author (`graphAuthorLastOnly`). */
+    /** Author and avatar only on the newest row of a run by one author (`graphAuthorLastOnly`). */
     authorLastOnly?: boolean;
     /** Links longer than this many rows are two stubs (R-330); 0 draws every link whole. */
     longLinkRows?: number;
@@ -451,10 +451,8 @@
       if (!entry) continue;
       const aboveRow = toCommitRow(listRow - 1, headerRows, wtAt);
       const above = aboveRow === null ? undefined : graph.rowAt(aboveRow)?.commit.authorEmail;
-      // The row below may sit in a block not loaded yet: the author stays until it arrives.
-      const belowRow = toCommitRow(listRow + 1, headerRows, wtAt);
-      const below = belowRow === null ? undefined : graph.rowAt(belowRow)?.commit;
-      const author = authorShown(authorLastOnly, entry.commit, below);
+      // The row above may sit in a block not loaded yet: the author stays until it arrives.
+      const author = authorShown(authorLastOnly, entry.commit, aboveRow === null ? undefined : graph.rowAt(aboveRow)?.commit);
       const avatar = authorLastOnly ? author : avatarShown(avatarsChangedOnly, entry.commit.authorEmail, above);
       rows.push({ listRow, entry, author, avatar });
     }

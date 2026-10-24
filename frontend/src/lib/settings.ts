@@ -95,7 +95,7 @@ export interface Settings {
   /** A note icon on commits that have a git note; hover shows the note. */
   graphShowNotes: boolean;
   graphAvatarsChangedOnly: boolean;
-  /** Author and avatar only on the oldest commit of a run by one author; wins over the above. */
+  /** Author and avatar only on the newest commit of a run by one author; wins over the above. */
   graphAuthorLastOnly: boolean;
   /** A link longer than this many rows is drawn as two stubs; 0 draws every link whole. */
   graphLongLinkRows: number;

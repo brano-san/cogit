@@ -111,8 +111,8 @@ function sameAuthor(a: Author, b: Author): boolean {
   return x !== "" && y !== "" ? x === y : a.authorName === b.authorName;
 }
 
-/** "Author only on the last commit of a run": the name and face on the bottom (oldest) row of a
-    run by one author. `below` is the next row, undefined at the end or while not loaded. */
-export function authorShown(lastOnly: boolean, author: Author, below: Author | undefined): boolean {
-  return !lastOnly || below === undefined || !sameAuthor(author, below);
+/** "Author only on the last commit of a run": the name and face on the top (newest) row of a
+    run by one author. `above` is the row before, undefined at the top or while not loaded. */
+export function authorShown(lastOnly: boolean, author: Author, above: Author | undefined): boolean {
+  return !lastOnly || above === undefined || !sameAuthor(author, above);
 }
