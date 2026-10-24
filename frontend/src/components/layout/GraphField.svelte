@@ -9,10 +9,9 @@
     visibleColumns,
     type ColumnRow,
   } from "$lib/graph-columns";
-  import { blockedModes, GRAPH_MODES, type GraphMode } from "$lib/graph-mode-conflicts";
+  import { blockedModes } from "$lib/graph-mode-conflicts";
   import { FIELD_LABELS, FILTER_FIELDS, isSlowField, SLOW_FIELD_TIP, toggled } from "$lib/filter-fields";
   import { COLORING_LABELS, GRAPH_COLORINGS } from "$lib/graph-coloring";
-  import { GRAPH_SWITCHES, type GraphSwitch } from "$lib/graph-options";
   import { forget } from "$lib/filter-patterns";
   import { fieldDisabled, type Field } from "$lib/preferences";
   import { LONG_LINK_ROWS_MAX, type Settings } from "$lib/settings";
@@ -26,6 +25,8 @@
   }
 
   let { field, value, onset }: Props = $props();
+
+  type BooleanKey = { [K in keyof Settings]: Settings[K] extends boolean ? K : never }[keyof Settings];
 
   const TIME_FORMATS = [
     ["relative", "3 days ago"],
@@ -235,8 +236,9 @@
       hundreds of thousands of commits may not fit; a limit keeps it small.
     </p>
   {/if}
-{:else if field.key === "graphStripes" || field.key === "graphShowNotes" || field.key === "graphHighlightChecked" || (GRAPH_SWITCHES as readonly string[]).includes(field.key) || (GRAPH_MODES as readonly string[]).includes(field.key)}
-  {@const key = field.key as "graphStripes" | "graphShowNotes" | "graphHighlightChecked" | GraphSwitch | GraphMode}
+{:else if typeof value[field.key as keyof Settings] === "boolean"}
+  <!-- Every on/off setting of the graph is a checkbox: a list of keys here left new ones without one. -->
+  {@const key = field.key as BooleanKey}
   <div class="row check">
     <Checkbox
       checked={value[key]}
