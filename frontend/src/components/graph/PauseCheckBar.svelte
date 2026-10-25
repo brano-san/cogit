@@ -19,10 +19,11 @@
 
 <div class="bar" aria-label="Rebase in progress">
   <div class="check" class:failed>
+    <span class="label" title="Runs in the repository each time the rebase stops, so a broken step shows up before you continue. Optional: leave it empty to run nothing.">Check at each stop</span>
     <input
       type="text"
       value={check}
-      placeholder="Check command, e.g. cargo test"
+      placeholder="optional, e.g. cargo test"
       aria-label="Command to run at every pause"
       oninput={(event) => oncheck(event.currentTarget.value)}
     />
@@ -55,6 +56,12 @@
     align-items: center;
     gap: var(--sp-3);
     padding: var(--sp-3) var(--sp-5);
+  }
+
+  .label {
+    flex: none;
+    color: var(--fg-secondary);
+    white-space: nowrap;
   }
 
   .check input {
