@@ -278,25 +278,23 @@
     writeScroll(anchoredScrollTop(before, after));
   });
 
-  /** Index and every pending step, sitting between Working Tree and the first commit. */
+  /** The step being applied and every pending one, between Working Tree and the first
+      commit. What is staged is the Working Tree row's to say. */
   const virtualRows = $derived.by(() => {
     if (!rebase) return [];
-    const staged = repository.current?.status?.staged ?? 0;
     const rows = [
-      {
-        kind: "index",
-        label: "Index",
-        detail: rebase.applying ? `rebasing: ${rebase.applying}` : `${staged} staged`,
-      },
-      ...rebase.todo.map((step) => ({
+      ...(rebase.applying ? [{ kind: "applying", label: rebase.applying, detail: "applying", step: -1 }] : []),
+      ...rebase.todo.map((step, at) => ({
         kind: "todo",
         label: step.summary || shortOid(step.oid),
         detail: step.action,
+        step: at,
       })),
       {
         kind: "onto",
         label: `Replaying onto ${rebase.onto ? shortOid(rebase.onto) : "the new base"}`,
         detail: `${rebase.done} of ${rebase.total} done`,
+        step: -1,
       },
     ];
     return rows;
@@ -699,10 +697,10 @@
     const y = event.clientY - scroller.getBoundingClientRect().top;
     const row = listRowAt(y, readScroll(), rowHeight, listRows);
     if (row === null) return;
-    // The rebase rows sit under the Working Tree row: Index, the steps left, Onto.
+    // The rebase rows sit under the Working Tree row: the step applied, the steps left, Onto.
     const virtual = virtualRows[row - wtAt - HEADER_ROWS];
     if (virtual?.kind === "todo") {
-      ontodocontext?.(row - wtAt - HEADER_ROWS - 1, event.clientX, event.clientY);
+      ontodocontext?.(virtual.step, event.clientX, event.clientY);
       return;
     }
     const oid = clickedCommit(row, headerRows, (at) => graph.rowAt(at)?.commit.oid, wtAt);
