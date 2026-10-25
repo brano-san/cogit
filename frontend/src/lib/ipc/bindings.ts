@@ -460,7 +460,6 @@ export const commands = {
 	/**  The three parts of a stash, read without applying it (T5.2). */
 	stashContents: (repo: RepoId, index: number) => typedError<StashContents_Serialize, GitError>(__TAURI_INVOKE("stash_contents", { repo, index })),
 	stashSelection: (repo: RepoId, paths: string[], message: string) => typedError<null, GitError>(__TAURI_INVOKE("stash_selection", { repo, paths, message })),
-	runCheck: (repo: RepoId, command: string) => typedError<HookRun, GitError>(__TAURI_INVOKE("run_check", { repo, command })),
 	/**  Asked for by the user after a confirmation; gc and commit-graph only write objects. */
 	runMaintenance: (repo: RepoId, task: MaintenanceTask, prune: GcPrune) => typedError<null, GitError>(__TAURI_INVOKE("run_maintenance", { repo, task, prune })),
 	addToExclude: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("add_to_exclude", { repo, paths })),

@@ -271,7 +271,6 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::undo_entry,
             commands::stash::stash_contents,
             commands::stash::stash_selection,
-            commands::hooks::run_check,
             commands::checkup::run_maintenance,
             commands::checkup::add_to_exclude,
             commands::checkup::ignore_rules,

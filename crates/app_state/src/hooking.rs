@@ -56,19 +56,6 @@ impl AppState {
         self.handle(repo)?.with_stop(stop.clone()).run_hook(name)
     }
 
-    /// A failing check is a verdict the user reads, so it is tracked like any other run
-    /// and never turned into an error that stops the rebase (T11.3).
-    pub fn run_check(
-        &self,
-        repo: RepoId,
-        command: &str,
-        stop: &git_engine::NetworkStop,
-    ) -> Result<git_engine::HookRun, git_engine::GitError> {
-        self.handle(repo)?
-            .with_stop(stop.clone())
-            .run_check(command)
-    }
-
     pub fn bypass_log(
         &self,
         repo: RepoId,

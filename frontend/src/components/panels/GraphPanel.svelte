@@ -1,10 +1,9 @@
 <script lang="ts">
   import CommitList from "$components/graph/CommitList.svelte";
   import GraphFilterFields from "$components/graph/GraphFilterFields.svelte";
-  import PauseCheckBar from "$components/graph/PauseCheckBar.svelte";
   import StateBanner from "$components/layout/StateBanner.svelte";
   import type { Banner, BannerAction } from "$lib/repo-state";
-  import type { HookRun, RebaseProgress, RepoId } from "$lib/ipc";
+  import type { RebaseProgress, RepoId } from "$lib/ipc";
   import { panelView } from "$lib/repo-phase";
   import { repository } from "$stores/repository.svelte";
   import { settings } from "$stores/settings.svelte";
@@ -13,11 +12,6 @@
   interface Props {
     /** Non-null while a rebase is in flight; its steps become rows of the list below. */
     progress: RebaseProgress | null;
-    check: string;
-    oncheck: (command: string) => void;
-    onruncheck: () => void;
-    verdict: HookRun | null;
-    checking: boolean;
     ondrop: (source: string, target: string, x: number, y: number) => void;
     oncontext: (oid: string, x: number, y: number) => void;
     ongroupcontext?: (oids: string[], x: number, y: number) => void;
@@ -37,11 +31,6 @@
 
   let {
     progress,
-    check,
-    oncheck,
-    onruncheck,
-    verdict,
-    checking,
     ondrop,
     oncontext,
     ongroupcontext,
@@ -69,9 +58,6 @@
   {/if}
   {#if graphFilter.showsFields}
     <GraphFilterFields />
-  {/if}
-  {#if progress}
-    <PauseCheckBar {check} {oncheck} onrun={onruncheck} {verdict} running={checking} />
   {/if}
   <CommitList
     rebase={progress}

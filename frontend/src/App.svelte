@@ -194,7 +194,6 @@
     fetchRemote,
     onMenuCommand,
     openInTerminal,
-    runCheck,
     terminalChoices,
     openRepository,
     openSubmodule,
@@ -337,10 +336,6 @@
   let repoTarget = $state.raw<RepoMenuSubject | null>(null);
   let terminals = $state.raw<{ id: string; label: string }[]>([]);
   let groupTarget = $state<string | null>(null);
-  /** Remembered per repository: a check command is worth typing once, not once per pause. */
-  let checkCommand = $state("");
-  let checkVerdict = $state.raw<import("$lib/ipc").HookRun | null>(null);
-  let checking = $state(false);
   let markedRepos = $state.raw<string[]>([]);
   let journalOpen = $state(false);
   let journalBusy = $state(false);
@@ -2586,23 +2581,6 @@ ${event.error}`,
   }
 
 
-  /** The verdict is information. Nothing is aborted, continued or skipped on its account. */
-  async function runPauseCheck() {
-    const id = repo?.repo;
-    if (!id || checkCommand.trim() === "") return;
-    checking = true;
-    try {
-      checkVerdict = await runCheck(id, checkCommand);
-    } catch (err) {
-      checkVerdict = null;
-      errors.report(err, "Could not run the check");
-    } finally {
-      checking = false;
-      await output.refresh();
-      await output.refreshProblems();
-    }
-  }
-
   /** Every flow step ends the same way: refresh what the panels show, or report why not. */
   async function runFlow(step: () => Promise<void>) {
     try {
@@ -3952,11 +3930,6 @@ ${event.error}`,
             {/if}
             <GraphPanel
               {progress}
-              check={checkCommand}
-              oncheck={(command) => (checkCommand = command)}
-              onruncheck={() => void runPauseCheck()}
-              verdict={checkVerdict}
-              {checking}
               ondrop={onCommitDrop}
               oncontext={(oid, x, y) => void commitContext(oid, x, y)}
               ongroupcontext={(oids, x, y) => void selectionActions?.commitsContext(oids, x, y)}

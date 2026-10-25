@@ -190,7 +190,6 @@ fn commands_that_write_the_repository_wait_for_its_lane() {
         "move_to_trash",
         "install_preset",
         "run_hook",
-        "run_check",
         "rename_remote",
         "remove_remote",
         "set_remote_properties",
@@ -239,7 +238,6 @@ fn every_command_that_talks_to_a_remote_can_be_cancelled() {
         "add_submodule",
         "subtree_op",
         "lfs_op",
-        "run_check",
         "run_hook",
     ]
     .into_iter()

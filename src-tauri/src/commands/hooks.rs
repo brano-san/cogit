@@ -6,26 +6,6 @@ use git_engine::GitError;
 
 #[tauri::command]
 #[specta::specta]
-pub async fn run_check(
-    state: tauri::State<'_, crate::AppContext>,
-    repo: RepoId,
-    command: String,
-) -> Result<git_engine::HookRun, GitError> {
-    let app_state = state.state.clone();
-    super::network::networking_if(
-        true,
-        &state.state,
-        repo,
-        OperationKind::Other,
-        "Running check",
-        "run_check",
-        move |stop| app_state.run_check(repo, &command, &stop),
-    )
-    .await
-}
-
-#[tauri::command]
-#[specta::specta]
 pub async fn list_hooks(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,
