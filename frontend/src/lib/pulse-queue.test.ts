@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BUSY_POLL_MS, GAP_MS, PulseQueue, type PulseDeps } from "./pulse-queue";
+import { BUSY_POLL_MS, GAP_MS, PARALLEL, PulseQueue, type PulseDeps } from "./pulse-queue";
 import type { RepoPulse } from "$lib/ipc/bindings";
 
 const PULSE: RepoPulse = {
@@ -71,83 +71,90 @@ function harness(over: Partial<PulseDeps> = {}) {
 }
 
 describe("the status queue of the Repositories list", () => {
-  it("reads one repository at a time, pausing between two", async () => {
+  // The rows are what the list shows at once: a few local reads side by side, no pause.
+  it("reads several repositories at once, in order, without pausing", async () => {
     const h = harness();
-    h.queue.request("/a");
-    h.queue.request("/b");
-    h.queue.request("/c");
+    const roots = ["/a", "/b", "/c", "/d", "/e", "/f"];
+    for (const root of roots) h.queue.request(root);
     await h.settle();
-    expect(h.asked).toEqual(["/a"]);
-    await h.answer("/a");
+    expect(h.asked).toEqual(roots.slice(0, PARALLEL));
     await h.answer("/b");
-    await h.answer("/c");
-    expect(h.asked).toEqual(["/a", "/b", "/c"]);
-    expect(h.widest()).toBe(1);
-    expect(h.sleeps.filter((ms) => ms === GAP_MS)).toHaveLength(3);
-    expect([...h.pulses.keys()]).toEqual(["/a", "/b", "/c"]);
+    expect(h.asked).toEqual(roots.slice(0, PARALLEL + 1));
+    for (const root of ["/a", "/c", "/d", "/e", "/f"]) await h.answer(root);
+    expect(h.widest()).toBe(PARALLEL);
+    expect(h.sleeps).toEqual([]);
+    expect([...h.pulses.keys()].sort()).toEqual(roots);
   });
 
-  // The requirement: background rows never slow the repository on screen down.
-  it("starts nothing while the repository on screen is busy", async () => {
-    const h = harness();
+  // Reads are cheap and local; only the server's lane waits for the repository on screen.
+  it("reads while the repository on screen is busy, but asks no server then", async () => {
+    const asked: string[] = [];
+    const h = harness({
+      fetch: async (root) => {
+        asked.push(root);
+        return true;
+      },
+    });
     h.state.busy = true;
     h.queue.request("/a");
+    h.queue.request("/b", { fetch: true });
     await h.settle();
-    await h.settle();
-    expect(h.asked).toEqual([]);
+    expect(h.asked).toEqual(["/a"]);
+    expect(asked).toEqual([]);
     expect(h.sleeps.every((ms) => ms === BUSY_POLL_MS)).toBe(true);
 
     h.state.busy = false;
     await h.settle();
-    expect(h.asked).toEqual(["/a"]);
+    expect(asked).toEqual(["/b"]);
   });
 
-  it("finishes the read under way but starts no next one once the screen is busy", async () => {
-    const h = harness();
-    h.queue.request("/a");
-    h.queue.request("/b");
+  it("asks the servers one at a time, pausing between two, and holds no read up meanwhile", async () => {
+    const replies = new Map<string, (ok: boolean) => void>();
+    const h = harness({ fetch: (root) => new Promise((resolve) => replies.set(root, resolve)) });
+    h.queue.request("/a", { fetch: true });
+    h.queue.request("/b", { fetch: true });
+    h.queue.request("/c");
     await h.settle();
-    h.state.busy = true;
-    await h.answer("/a");
+    expect([...replies.keys()]).toEqual(["/a"]);
+    expect(h.asked).toEqual(["/c"]);
+    replies.get("/a")?.(true);
     await h.settle();
-    expect(h.asked).toEqual(["/a"]);
-    h.state.busy = false;
-    await h.settle();
-    expect(h.asked).toEqual(["/a", "/b"]);
+    expect([...replies.keys()]).toEqual(["/a", "/b"]);
+    expect(h.sleeps.filter((ms) => ms === GAP_MS)).toHaveLength(1);
   });
 
-  it("asks once for a root requested twice", async () => {
+  it("asks once for a waiting root requested twice", async () => {
     const h = harness();
-    h.queue.request("/a");
-    h.queue.request("/b");
-    h.queue.request("/b");
-    await h.answer("/a");
-    await h.answer("/b");
+    const roots = ["/a", "/b", "/c", "/d", "/e"];
+    for (const root of roots) h.queue.request(root);
+    h.queue.request("/e");
     await h.settle();
-    expect(h.asked).toEqual(["/a", "/b"]);
+    for (const root of roots) await h.answer(root);
+    await h.settle();
+    expect(h.asked).toEqual(roots);
   });
 
   it("puts a repository that just changed first", async () => {
     const h = harness();
-    h.queue.request("/a");
-    h.queue.request("/b");
-    h.queue.request("/c");
-    h.queue.request("/c", { first: true });
+    const roots = ["/a", "/b", "/c", "/d", "/e", "/f"];
+    for (const root of roots) h.queue.request(root);
+    h.queue.request("/f", { first: true });
+    await h.settle();
     await h.answer("/a");
-    expect(h.asked).toEqual(["/a", "/c"]);
+    expect(h.asked).toEqual([...roots.slice(0, PARALLEL), "/f"]);
   });
 
   it("drops the answer of a cancelled read and never asks for a cancelled one", async () => {
     const h = harness();
-    h.queue.request("/a");
-    h.queue.request("/b");
+    const roots = ["/a", "/b", "/c", "/d", "/e"];
+    for (const root of roots) h.queue.request(root);
     await h.settle();
     h.queue.cancel("/a");
-    h.queue.cancel("/b");
+    h.queue.cancel("/e");
     await h.answer("/a");
     await h.settle();
     expect(h.pulses.size).toBe(0);
-    expect(h.asked).toEqual(["/a"]);
+    expect(h.asked).toEqual(roots.slice(0, PARALLEL));
   });
 
   it("drops everything on stop, and a later request starts afresh", async () => {

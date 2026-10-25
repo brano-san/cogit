@@ -1,15 +1,17 @@
 import type { RepoPulse } from "$lib/ipc/bindings";
 
-/** Between two repositories: the queue is background work and should look like it. */
+/** Between two servers asked: the server lane is background work and should look like it. */
 export const GAP_MS = 300;
-/** How often a queue held back by the repository on screen looks again. */
+/** How often a server lane held back by the repository on screen looks again. */
 export const BUSY_POLL_MS = 500;
+/** Rows read side by side: each is a few milliseconds of local reads (R-353). */
+export const PARALLEL = 4;
 
 export interface PulseDeps {
   pulse(root: string): Promise<RepoPulse>;
   /** `false` when the fetch failed; it never throws for that. */
   fetch(root: string): Promise<boolean>;
-  /** The repository on screen is doing something; nothing starts until it is done. */
+  /** The repository on screen is doing something; no server is asked until it is done. */
   busy(): boolean;
   /** The panels own this one and read its full status themselves: no pulse. */
   owned(root: string): boolean;
@@ -18,89 +20,106 @@ export interface PulseDeps {
   onFetch(root: string, ok: boolean): void;
 }
 
-interface Job {
-  fetch: boolean;
-}
-
-/** The status of the rows of the Repositories list, one repository at a time, with a pause
-    between two and none at all while the repository on screen is busy (R-353). A request
-    for a root already waiting merges with it; `cancel` and `stop` drop what an answer
-    still on its way would have written. */
+/** The status of the rows of the Repositories list, in two lanes (R-353). Reads — branch,
+    changes, ahead/behind of the local tracking ref — run `PARALLEL` at a time, at once: they
+    are what the list shows. Servers are asked one at a time, with a pause between two and
+    none while the repository on screen is busy; each answer is followed by a read. A request
+    for a root already waiting merges with it; `cancel` and `stop` drop what an answer still
+    on its way would have written. */
 export class PulseQueue {
   readonly #deps: PulseDeps;
-  #jobs = new Map<string, Job>();
-  #running = false;
+  #reads = new Set<string>();
+  #fetches = new Set<string>();
+  #reading = new Set<string>();
+  #dropped = new Set<string>();
+  #fetching = false;
+  /** The root whose server is being asked now, and whether it was cancelled meanwhile. */
+  #asking: string | null = null;
+  #askDropped = false;
   #generation = 0;
-  #current: string | null = null;
-  #dropped = false;
 
   constructor(deps: PulseDeps) {
     this.#deps = deps;
   }
 
   get pending(): string[] {
-    return [...this.#jobs.keys()];
+    return [...new Set([...this.#reads, ...this.#fetches])];
   }
 
-  /** `first` jumps the queue: something happened in that repository just now. */
+  /** `first` jumps the queue: something happened in that repository just now. `fetch` asks
+      its server first; the read follows the answer. */
   request(root: string, { fetch = false, first = false } = {}): void {
-    const job = { fetch: fetch || (this.#jobs.get(root)?.fetch ?? false) };
-    if (first) {
-      this.#jobs.delete(root);
-      this.#jobs = new Map([[root, job], ...this.#jobs]);
-    } else {
-      this.#jobs.set(root, job);
+    if (fetch) {
+      this.#fetches.add(root);
+      this.#kickFetches();
+      return;
     }
-    this.#kick();
+    if (first) this.#reads = new Set([root, ...[...this.#reads].filter((each) => each !== root)]);
+    else this.#reads.add(root);
+    this.#kickReads();
   }
 
   cancel(root: string): void {
-    this.#jobs.delete(root);
-    if (this.#current === root) this.#dropped = true;
+    this.#reads.delete(root);
+    this.#fetches.delete(root);
+    if (this.#reading.has(root)) this.#dropped.add(root);
+    if (this.#asking === root) this.#askDropped = true;
   }
 
   stop(): void {
-    this.#jobs.clear();
+    this.#reads.clear();
+    this.#fetches.clear();
     this.#generation += 1;
   }
 
-  #kick(): void {
-    if (this.#running) return;
-    this.#running = true;
-    void this.#drain().finally(() => {
-      this.#running = false;
-      if (this.#jobs.size > 0) this.#kick();
+  #kickReads(): void {
+    while (this.#reading.size < PARALLEL) {
+      const root = [...this.#reads].find((each) => !this.#reading.has(each));
+      if (root === undefined) return;
+      this.#reads.delete(root);
+      this.#reading.add(root);
+      void this.#read(root, this.#generation).finally(() => {
+        this.#reading.delete(root);
+        this.#dropped.delete(root);
+        this.#kickReads();
+      });
+    }
+  }
+
+  async #read(root: string, generation: number): Promise<void> {
+    if (this.#deps.owned(root)) return;
+    const read = await this.#deps.pulse(root).catch(() => null);
+    if (generation === this.#generation && read && !this.#dropped.has(root)) this.#deps.onPulse(root, read);
+  }
+
+  #kickFetches(): void {
+    if (this.#fetching) return;
+    this.#fetching = true;
+    void this.#drainFetches().finally(() => {
+      this.#fetching = false;
+      if (this.#fetches.size > 0) this.#kickFetches();
     });
   }
 
-  async #drain(): Promise<void> {
+  async #drainFetches(): Promise<void> {
     const generation = this.#generation;
     const live = () => generation === this.#generation;
-    while (this.#jobs.size > 0 && live()) {
+    while (this.#fetches.size > 0 && live()) {
       while (this.#deps.busy()) {
         await this.#deps.sleep(BUSY_POLL_MS);
         if (!live()) return;
       }
-      const next = this.#jobs.entries().next();
-      if (next.done) return;
-      const [root, job] = next.value;
-      this.#jobs.delete(root);
-      this.#current = root;
-      this.#dropped = false;
-      try {
-        if (job.fetch) {
-          const ok = await this.#deps.fetch(root).catch(() => false);
-          if (!live()) return;
-          if (!this.#dropped) this.#deps.onFetch(root, ok);
-        }
-        if (!this.#deps.owned(root)) {
-          const read = await this.#deps.pulse(root).catch(() => null);
-          if (!live()) return;
-          if (read && !this.#dropped) this.#deps.onPulse(root, read);
-        }
-      } finally {
-        this.#current = null;
-      }
+      const root = this.#fetches.values().next().value;
+      if (root === undefined) return;
+      this.#fetches.delete(root);
+      this.#asking = root;
+      this.#askDropped = false;
+      const ok = await this.#deps.fetch(root).catch(() => false);
+      this.#asking = null;
+      if (!live()) return;
+      if (this.#askDropped) continue;
+      this.#deps.onFetch(root, ok);
+      this.request(root, { first: true });
       await this.#deps.sleep(GAP_MS);
     }
   }
