@@ -261,6 +261,8 @@
     gap: var(--sp-3);
     height: var(--h-row);
     padding: 0 var(--sp-4);
+    /* Its text boxes are taller than the row: unclipped, one row scrolled the list (1 px). */
+    overflow: hidden;
     white-space: nowrap;
     cursor: default;
   }
@@ -285,6 +287,8 @@
   .path {
     flex: 1 1 auto;
     min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
     color: var(--text-secondary);
   }
 
