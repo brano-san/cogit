@@ -30,6 +30,11 @@ fn a_merge_names_our_branch_and_the_branch_merged_in() {
     assert_eq!(context.operation, ConflictOperation::Merge);
     assert_eq!(context.ours, "main");
     assert_eq!(context.theirs, "theirs");
+    assert_eq!(context.ours_side.role, "Current branch 'main'");
+    assert_eq!(context.ours_side.oid.as_deref().map(str::len), Some(7));
+    assert_eq!(context.ours_side.subject.as_deref(), Some("commit 11"));
+    assert_eq!(context.theirs_side.role, "Merged branch 'theirs'");
+    assert_eq!(context.theirs_side.subject.as_deref(), Some("commit 10"));
 }
 
 #[test]
@@ -53,6 +58,9 @@ fn a_cherry_pick_names_the_commit_picked() {
     assert_eq!(context.ours, "main");
     assert!(context.theirs.ends_with("commit 10"), "{}", context.theirs);
     assert_eq!(context.theirs.chars().take_while(|c| *c != ' ').count(), 7);
+    assert_eq!(context.ours_side.role, "Current branch 'main'");
+    assert_eq!(context.theirs_side.role, "Cherry-picked commit");
+    assert_eq!(context.theirs_side.subject.as_deref(), Some("commit 10"));
 }
 
 #[test]
@@ -72,6 +80,7 @@ fn a_revert_names_the_commit_reverted() {
         "{}",
         context.theirs
     );
+    assert_eq!(context.theirs_side.role, "Reverted commit");
 }
 
 #[test]
@@ -85,6 +94,11 @@ fn a_rebase_has_the_new_base_as_ours_and_the_commit_being_applied_as_theirs() {
     assert_eq!(context.operation, ConflictOperation::Rebase);
     assert_eq!(context.ours, "main");
     assert!(context.theirs.ends_with("commit 10"), "{}", context.theirs);
+    assert_eq!(context.ours_side.role, "Rebase target");
+    assert_eq!(context.ours_side.subject.as_deref(), Some("commit 11"));
+    assert_eq!(context.theirs_side.role, "Rebased branch 'theirs'");
+    assert_eq!(context.theirs_side.oid.as_deref().map(str::len), Some(7));
+    assert_eq!(context.theirs_side.subject.as_deref(), Some("commit 10"));
 }
 
 #[test]
@@ -100,6 +114,8 @@ fn a_stash_apply_leaves_only_its_markers_to_name_the_side() {
     assert_eq!(context.operation, ConflictOperation::StashApply);
     assert_eq!(context.ours, "main");
     assert_eq!(context.theirs, "Stashed changes");
+    assert_eq!(context.ours_side.role, "Working tree before apply");
+    assert_eq!(context.theirs_side.role, "Stash");
 }
 
 #[test]
@@ -111,6 +127,8 @@ fn an_unnamed_conflict_still_has_sides_to_show() {
     assert_eq!(context.operation, ConflictOperation::Unknown);
     assert_eq!(context.ours, "main");
     assert_eq!(context.theirs, "theirs");
+    assert_eq!(context.ours_side.role, "Current branch 'main'");
+    assert_eq!(context.theirs_side.role, "theirs");
 }
 
 const NAVBOARD: &str = "src/device/src/plate/plate_navboard2.cpp";

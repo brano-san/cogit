@@ -5,6 +5,8 @@
   import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
   import SolverBand from "$components/solver/SolverBand.svelte";
+  import SolverMarks from "$components/solver/SolverMarks.svelte";
+  import SolverMenuBar from "$components/solver/SolverMenuBar.svelte";
   import ResolveCloseDialog from "$components/solver/ResolveCloseDialog.svelte";
   import SolverToolbar from "$components/solver/SolverToolbar.svelte";
   import SolverWholeFile from "$components/solver/SolverWholeFile.svelte";
@@ -39,16 +41,17 @@
     type ResolveChoice,
     type ResolveClose,
   } from "$lib/solver-flow";
-  import { bandConnectors, panesOf, type SolverLayout } from "$lib/solver-geometry";
+  import { LAYOUTS, bandConnectors, panesOf, scrollMarks, type SolverLayout } from "$lib/solver-geometry";
   import { foldContext } from "$lib/diff-fold";
   import { solverKey } from "$lib/solver-keys";
-  import { solverMenu } from "$lib/solver-menu";
+  import { solverMenu, type SolverBarState } from "$lib/solver-menu";
   import {
     conflictsLeftLabel,
-    docsForDeleted,
-    docsFromRegions,
     nextHunk,
-    hunkTone,
+    paneTitle,
+    paneTooltip,
+    solverContext,
+    solverDocs,
     type Hunk,
     type TakeAction,
   } from "$lib/solver-model";
@@ -89,21 +92,17 @@
 
   const docs = $derived.by(() => {
     if (!data || data.binary || data.tooLarge) return null;
-    if (data.missingOurs || data.missingTheirs || data.regions.length === 0) {
-      return docsForDeleted({ ours: data.ours, theirs: data.theirs });
-    }
-    return docsFromRegions(data.regions, labels());
+    // A side that lost the file is an empty one: the file is still shown and taken line by line.
+    return solverDocs({ base: data.base, ours: data.ours, theirs: data.theirs, regions: data.regions }, labels());
   });
   /** Line by line: there are hunks, and so ribbons, buttons and a counter. */
-  const merged = $derived(
-    data !== null && docs !== null && !data.missingOurs && !data.missingTheirs && data.regions.length > 0,
-  );
+  const merged = $derived(docs !== null);
   const deleted = $derived(
     data && docs && (data.missingOurs || data.missingTheirs)
       ? { ours: data.missingOurs, theirs: data.missingTheirs }
       : null,
   );
-  const panes = $derived(panesOf(deleted ? "all" : prefs.layout));
+  const panes = $derived(panesOf(prefs.layout));
   const hunks = $derived<readonly Hunk[]>(docs?.hunks ?? []);
   const hunkIds = $derived(hunks.map((hunk) => hunk.id));
   const indexOf = $derived(new Map(hunkIds.map((id, at) => [id, at])));
@@ -176,13 +175,19 @@
     };
   });
 
+  /** A small file is not folded at all: it is on screen whole anyway. */
+  function contextLines(): number {
+    const context = foldContext(settings.current.diffWholeFile, settings.current.contextLines);
+    return docs ? solverContext(context, docs) : context;
+  }
+
   function editorOptions() {
     return {
       aligned: settings.current.diffLayout === "aligned",
       baseChanges: prefs.baseChanges,
       shown: { ours: panes.ours, theirs: panes.theirs },
       resultBelow: panes.below,
-      context: foldContext(settings.current.diffWholeFile, settings.current.contextLines),
+      context: contextLines(),
     };
   }
 
@@ -192,7 +197,7 @@
       baseChanges: prefs.baseChanges,
       shown: { ours: panes.ours, theirs: panes.theirs },
       resultBelow: panes.below,
-      context: foldContext(settings.current.diffWholeFile, settings.current.contextLines),
+      context: contextLines(),
     };
     const made = editors;
     // The editors report back by writing `tick`, which this effect must not then depend on.
@@ -234,10 +239,23 @@
   const topBand = $derived(ribbons("ours", "theirs" as "result"));
 
   const hunkOf = $derived(new Map(hunks.map((hunk) => [hunk.id, hunk])));
+  const removes = (side: "ours" | "theirs") => (id: number) => hunkOf.get(id)?.[side].length === 0;
   const tone = (side: "ours" | "theirs") => (id: number) => {
-    const hunk = hunkOf.get(id);
-    return hunk ? hunkTone(hunk, side, prefs.baseChanges, new Set(snapshot?.unresolved ?? [])) : null;
+    const at = indexOf.get(id);
+    return at === undefined ? null : (snapshot?.tones[at]?.[side] ?? null);
   };
+
+  /** The Result's hunks on its scrollbar, in the color of its block. */
+  const marks = $derived.by(() => {
+    const geo = geometry;
+    if (!geo) return [];
+    return scrollMarks(geo.result, geo.content.result, geo.viewport.result).flatMap((mark) => {
+      const id = hunkIds[mark.at];
+      if (id === undefined) return [];
+      const tones = snapshot?.tones[mark.at];
+      return [{ id, top: mark.top, height: mark.height, tone: tones?.ours ?? tones?.theirs ?? "changed" }];
+    });
+  });
   const shows = (side: "ours" | "theirs") => (id: number) => {
     const at = indexOf.get(id);
     return at === undefined ? false : (snapshot?.actions[at]?.[side] ?? false);
@@ -255,11 +273,12 @@
     });
   });
 
-  function titleOf(pane: PaneName): string {
+  function titleOf(pane: PaneName, tooltip = false): string {
     if (!data) return "";
-    if (pane === "ours") return `${data.context.ours} ("ours")`;
-    if (pane === "theirs") return `${data.context.theirs} ("theirs")`;
-    return "Working Tree";
+    if (pane === "result") return "Working Tree";
+    const side = pane === "ours" ? data.context.oursSide : data.context.theirsSide;
+    const deletedHere = pane === "ours" ? data.missingOurs : data.missingTheirs;
+    return (tooltip ? paneTooltip : paneTitle)(side, pane, deletedHere);
   }
 
   function step(kind: "change" | "conflict", by: 1 | -1) {
@@ -268,10 +287,17 @@
     if (to !== null) editors.goTo(to);
   }
 
-  /** The current hunk, or the first undecided conflict when none is. */
+  /** The current hunk, else the first undecided conflict, else the first hunk. */
   function target(): number | null {
-    return snapshot?.currentId ?? snapshot?.unresolved[0] ?? null;
+    return snapshot?.currentId ?? snapshot?.unresolved[0] ?? hunkIds[0] ?? null;
   }
+
+  /** Which Take actions would change the target hunk: the others are off. */
+  const takeable = $derived.by(() => {
+    const id = target();
+    const at = id === null ? undefined : indexOf.get(id);
+    return at === undefined ? null : (snapshot?.takes[at] ?? null);
+  });
 
   function take(action: TakeAction, advance = true) {
     const id = target();
@@ -519,8 +545,35 @@
       else if (action === "solver-prev-conflict") step("conflict", -1);
       else if (action === "solver-next-conflict") step("conflict", 1);
       else if (action === "external-tool" || action === "solver-external-tool") void runExternal();
+      else if (action === "solver-save") void save();
+      else if (action === "solver-resolve") void markResolved();
+      else if (action === "solver-keep-ours") void resolveWhole("ours");
+      else if (action === "solver-keep-theirs") void resolveWhole("theirs");
+      else if (action === "solver-delete-file") void deleteFile();
+      else if (action === "solver-undo") editors?.history("undo");
+      else if (action === "solver-redo") editors?.history("redo");
+      else if (action === "solver-base-changes") setBaseChanges(!prefs.baseChanges);
+      else if (action === "solver-whole-file") void settings.set("diffWholeFile", !settings.current.diffWholeFile);
+      else if (action === "solver-close") void win.close();
+      else {
+        const layout = LAYOUTS.find((entry) => action === `solver-layout-${entry.id}`);
+        if (layout) setLayout(layout.id);
+      }
     }),
   );
+
+  const barState = $derived<SolverBarState>({
+    hunk: merged && target() !== null,
+    changes: merged && hunkIds.length > 0,
+    conflicts: merged && unresolved.length > 0,
+    tool: !toolRunning,
+    save: merged && !toolRunning && !saving && (snapshot?.dirty ?? false),
+    ready: !toolRunning && !saving,
+    deleted,
+    layout: prefs.layout,
+    baseChanges: prefs.baseChanges,
+    whole: settings.current.diffWholeFile,
+  });
 
   async function oncontext(event: MouseEvent, pane: PaneName) {
     event.preventDefault();
@@ -575,6 +628,7 @@
   {:else if !data}
     <EmptyState title="Reading the three sides…" />
   {:else}
+    <SolverMenuBar label={win.label} state={barState} />
     {#if data.binary || data.tooLarge}
       <SolverWholeFile
         {data}
@@ -590,14 +644,10 @@
         onlayout={setLayout}
         baseChanges={prefs.baseChanges}
         onbase={setBaseChanges}
-        whole={settings.current.diffWholeFile}
-        onwhole={(on) => void settings.set("diffWholeFile", on)}
-        {merged}
         hasChanges={hunkIds.length > 0}
         hasConflicts={unresolved.length > 0}
         onstep={step}
-        conflictsLabel={conflictsLeftLabel(unresolved.length)}
-        canTake={target() !== null}
+        can={takeable}
         ontake={(action) => take(action)}
         {deleted}
         onkeep={(side) => void resolveWhole(side)}
@@ -636,13 +686,11 @@
     {/if}
 
     {#if docs}
-      <div class="panes layout-{deleted ? 'all' : prefs.layout}" inert={toolRunning}>
+      <div class="panes layout-{prefs.layout}" inert={toolRunning}>
         <section class="pane ours" aria-label="Ours">
-          <header title={titleOf("ours")}><span class="truncate">{titleOf("ours")}</span></header>
+          <header title={titleOf("ours", true)}><span class="truncate">{titleOf("ours")}</span></header>
           <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="host" bind:this={oursEl} oncontextmenu={(e) => void oncontext(e, "ours")}>
-            {#if data.missingOurs}<div class="plate"><span>Deleted in ours</span></div>{/if}
-          </div>
+          <div class="host" bind:this={oursEl} oncontextmenu={(e) => void oncontext(e, "ours")}></div>
         </section>
 
         <div class="slot band-left">
@@ -653,6 +701,7 @@
             {open}
             button="ours"
             show={shows("ours")}
+            removes={removes("ours")}
             onact={(id) => takeAt(id, "ours")}
             label="Take Ours"
           />
@@ -664,13 +713,14 @@
           >
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div class="host" bind:this={resultEl} oncontextmenu={(e) => void oncontext(e, "result")}>
+            <SolverMarks {marks} onpick={(id) => editors?.goTo(id)} />
             {#each belowButtons as button (button.id)}
               <span class="below" style:top="{button.y}px">
                 {#if shows("ours")(button.id)}
-                  <button type="button" title="Take Ours" aria-label="Take Ours" onclick={() => takeAt(button.id, "ours")}>»</button>
+                  <button type="button" title="Take Ours" aria-label="Take Ours" onclick={() => takeAt(button.id, "ours")}>{removes("ours")(button.id) ? "×" : "»"}</button>
                 {/if}
                 {#if shows("theirs")(button.id)}
-                  <button type="button" title="Take Theirs" aria-label="Take Theirs" onclick={() => takeAt(button.id, "theirs")}>«</button>
+                  <button type="button" title="Take Theirs" aria-label="Take Theirs" onclick={() => takeAt(button.id, "theirs")}>{removes("theirs")(button.id) ? "×" : "«"}</button>
                 {/if}
               </span>
             {/each}
@@ -685,17 +735,16 @@
             {open}
             button="theirs"
             show={shows("theirs")}
+            removes={removes("theirs")}
             onact={(id) => takeAt(id, "theirs")}
             label="Take Theirs"
           />
         </div>
 
         <section class="pane theirs" aria-label="Theirs">
-          <header title={titleOf("theirs")}><span class="truncate">{titleOf("theirs")}</span></header>
+          <header title={titleOf("theirs", true)}><span class="truncate">{titleOf("theirs")}</span></header>
           <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="host" bind:this={theirsEl} oncontextmenu={(e) => void oncontext(e, "theirs")}>
-            {#if data.missingTheirs}<div class="plate"><span>Deleted in theirs</span></div>{/if}
-          </div>
+          <div class="host" bind:this={theirsEl} oncontextmenu={(e) => void oncontext(e, "theirs")}></div>
         </section>
 
         <div class="slot band-top">
@@ -897,23 +946,6 @@
     position: relative;
     flex: 1 1 auto;
     min-height: 0;
-  }
-
-  .plate {
-    position: absolute;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    z-index: 2;
-    pointer-events: none;
-  }
-
-  .plate span {
-    padding: var(--sp-2) var(--sp-6);
-    background: var(--badge-warning-bg);
-    color: var(--badge-warning-fg);
-    border-radius: var(--r-sm);
-    font-size: var(--fs-dense);
   }
 
   .below {

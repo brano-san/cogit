@@ -168,7 +168,7 @@ pub use runner::{
 pub use search::{CommitQuery, GraphRows, GraphView, Passed, PassedCommits, ShownBy, SkippedRef};
 pub use shared::SharedRepo;
 pub use solver::{
-    ConflictContext, ConflictOperation, MergeToolConfig, marker_labels, merge_target,
+    ConflictContext, ConflictOperation, MergeToolConfig, SideName, marker_labels, merge_target,
     merge_tool_from_listing,
 };
 pub use stash::{AutostashOutcome, StashContents, StashEntry, StashOptions};

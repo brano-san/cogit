@@ -160,6 +160,7 @@ export type {
   ConflictContext,
   ConflictOperation,
   SolverData,
+  SideName,
   SolverKind,
   SolverRegion,
   OperationChanged,

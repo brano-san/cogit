@@ -2,7 +2,7 @@
 
 use std::sync::Mutex;
 
-use tauri::menu::{Menu, MenuItemBuilder, PredefinedMenuItem, Submenu};
+use tauri::menu::{CheckMenuItemBuilder, Menu, MenuItemBuilder, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Manager, Runtime};
 
 /// One row the frontend asks for in a context menu. Ids are palette command ids, so the
@@ -22,6 +22,9 @@ pub struct ContextItem {
     /// Non-empty makes the row a submenu (`Move To ▸`); its own id is then never chosen.
     #[serde(default)]
     pub children: Vec<ContextItem>,
+    /// Present makes the row a check item, ticked or not (`View ▸ Base Changes`).
+    #[serde(default)]
+    pub checked: Option<bool>,
 }
 
 /// `tidy` at every depth; a submenu left empty stays as a disabled row.
@@ -108,6 +111,15 @@ fn append_context_item<R: Runtime>(
         }
         return append(&nested);
     }
+    if let Some(checked) = item.checked {
+        let mut entry = CheckMenuItemBuilder::with_id(item.id.as_str(), item.label.as_str())
+            .enabled(item.enabled)
+            .checked(checked);
+        if let Some(chord) = &item.accelerator {
+            entry = entry.accelerator(chord.as_str());
+        }
+        return append(&entry.build(app)?);
+    }
     let mut entry =
         MenuItemBuilder::with_id(item.id.as_str(), item.label.as_str()).enabled(item.enabled);
     if let Some(chord) = &item.accelerator {
@@ -132,6 +144,7 @@ mod context_tests {
             separator: false,
             accelerator: None,
             children: Vec::new(),
+            checked: None,
         }
     }
 

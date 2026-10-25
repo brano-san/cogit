@@ -1214,6 +1214,8 @@ export type ConflictContext = {
 	operation: ConflictOperation,
 	ours: string,
 	theirs: string,
+	oursSide: SideName,
+	theirsSide: SideName,
 };
 
 /**  Git's unmerged XY pairs: `UU`, `AA`, `DD`, `UD`, `DU`, `AU`, `UA`. */
@@ -1275,6 +1277,8 @@ export type ContextItem = {
 	accelerator?: string | null,
 	/**  Non-empty makes the row a submenu (`Move To ▸`); its own id is then never chosen. */
 	children?: ContextItem[],
+	/**  Present makes the row a check item, ticked or not (`View ▸ Base Changes`). */
+	checked?: boolean | null,
 };
 
 export type CredentialStore = {
@@ -2645,6 +2649,15 @@ export type Shape = {
 	bom: boolean,
 	eol: Eol,
 	finalNewline: boolean,
+};
+
+/**  A side as the solver's pane header names it: its part in the operation and its commit. */
+export type SideName = {
+	role: string,
+	/**  Short hash of the commit the side comes from. */
+	oid: string | null,
+	/**  Its subject, for the header's tooltip. */
+	subject: string | null,
 };
 
 /**  What the Sign in dialog sends with a retry, and Preferences ▸ Authentication ▸ Add…. */

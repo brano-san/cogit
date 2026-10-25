@@ -22,6 +22,33 @@ pub struct ConflictContext {
     pub operation: ConflictOperation,
     pub ours: String,
     pub theirs: String,
+    pub ours_side: SideName,
+    pub theirs_side: SideName,
+}
+
+/// A side as the solver's pane header names it: its part in the operation and its commit.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SideName {
+    pub role: String,
+    /// Short hash of the commit the side comes from.
+    pub oid: Option<String>,
+    /// Its subject, for the header's tooltip.
+    pub subject: Option<String>,
+}
+
+fn merged_role(message: Option<&str>) -> String {
+    let line = message
+        .and_then(|text| text.lines().next())
+        .unwrap_or_default();
+    if line.starts_with("Merge commit") {
+        return "Merged commit".to_owned();
+    }
+    match merge_target(line) {
+        Some(name) if line.starts_with("Merge tag") => format!("Merged tag '{name}'"),
+        Some(name) => format!("Merged branch '{name}'"),
+        None => "Merged commit".to_owned(),
+    }
 }
 
 /// `merge.tool` and what `mergetool.<tool>.cmd|path` say about it.
@@ -103,6 +130,28 @@ impl RepoHandle {
         }
     }
 
+    fn side(&self, role: impl Into<String>, oid: Option<&str>) -> SideName {
+        SideName {
+            role: role.into(),
+            oid: oid.map(short),
+            subject: oid.and_then(|oid| self.subject_of(oid)),
+        }
+    }
+
+    fn current_side(&self) -> SideName {
+        match self.head() {
+            Ok(Head::Branch { name, oid }) => {
+                self.side(format!("Current branch '{name}'"), Some(&oid))
+            }
+            Ok(Head::Unborn { name }) => self.side(format!("Current branch '{name}'"), None),
+            Ok(Head::Detached { oid }) => self.side("Current commit", Some(&oid)),
+            Err(err) => {
+                tracing::error!(error = ?err, context = "naming ours for the conflict solver");
+                self.side("ours", None)
+            }
+        }
+    }
+
     fn branch_label(&self) -> String {
         match self.head() {
             Ok(Head::Branch { name, .. } | Head::Unborn { name }) => name,
@@ -143,34 +192,46 @@ impl RepoHandle {
             } else {
                 "rebase-apply"
             };
-            let ours = self
-                .git_file(&format!("{backend}/onto"))
-                .map_or_else(|| self.branch_label(), |onto| self.name_of_commit(&onto));
+            let onto = self.git_file(&format!("{backend}/onto"));
+            let ours = onto
+                .as_deref()
+                .map_or_else(|| self.branch_label(), |onto| self.name_of_commit(onto));
             let applied = self
                 .git_file("REBASE_HEAD")
                 .or_else(|| self.git_file(&format!("{backend}/stopped-sha")));
-            let theirs = match applied {
-                Some(oid) => self.commit_label(&oid),
-                None => self.git_file(&format!("{backend}/head-name")).map_or_else(
-                    || "theirs".to_owned(),
-                    |name| name.trim_start_matches("refs/heads/").to_owned(),
-                ),
+            let branch = self
+                .git_file(&format!("{backend}/head-name"))
+                .filter(|name| name != "detached HEAD")
+                .map(|name| name.trim_start_matches("refs/heads/").to_owned());
+            let theirs = match (&applied, &branch) {
+                (Some(oid), _) => self.commit_label(oid),
+                (None, Some(name)) => name.clone(),
+                (None, None) => "theirs".to_owned(),
             };
+            let rebased = branch.map_or_else(
+                || "Rebased commit".to_owned(),
+                |name| format!("Rebased branch '{name}'"),
+            );
             return ConflictContext {
                 operation: ConflictOperation::Rebase,
                 ours,
                 theirs,
+                ours_side: self.side("Rebase target", onto.as_deref()),
+                theirs_side: self.side(rebased, applied.as_deref()),
             };
         }
         if let Some(oid) = self.git_file("MERGE_HEAD") {
-            let theirs = self
-                .git_file("MERGE_MSG")
-                .and_then(|message| merge_target(&message))
+            let message = self.git_file("MERGE_MSG");
+            let theirs = message
+                .as_deref()
+                .and_then(merge_target)
                 .unwrap_or_else(|| short(&oid));
             return ConflictContext {
                 operation: ConflictOperation::Merge,
                 ours: self.branch_label(),
                 theirs,
+                ours_side: self.current_side(),
+                theirs_side: self.side(merged_role(message.as_deref()), Some(&oid)),
             };
         }
         if let Some(oid) = self.git_file("CHERRY_PICK_HEAD") {
@@ -178,6 +239,8 @@ impl RepoHandle {
                 operation: ConflictOperation::CherryPick,
                 ours: self.branch_label(),
                 theirs: self.commit_label(&oid),
+                ours_side: self.current_side(),
+                theirs_side: self.side("Cherry-picked commit", Some(&oid)),
             };
         }
         if let Some(oid) = self.git_file("REVERT_HEAD") {
@@ -185,22 +248,30 @@ impl RepoHandle {
                 operation: ConflictOperation::Revert,
                 ours: self.branch_label(),
                 theirs: format!("Revert of {}", self.commit_label(&oid)),
+                ours_side: self.current_side(),
+                theirs_side: self.side("Reverted commit", Some(&oid)),
             };
         }
 
         let marked = std::fs::read(self.root().join(path))
             .map(|bytes| marker_labels(&String::from_utf8_lossy(&bytes)))
             .unwrap_or_default();
-        let theirs = marked.1;
-        let operation = if theirs.as_deref() == Some(STASH_LABEL) {
-            ConflictOperation::StashApply
-        } else {
-            ConflictOperation::Unknown
-        };
+        let theirs = marked.1.unwrap_or_else(|| "theirs".to_owned());
+        if theirs == STASH_LABEL {
+            return ConflictContext {
+                operation: ConflictOperation::StashApply,
+                ours: self.branch_label(),
+                theirs,
+                ours_side: self.side("Working tree before apply", None),
+                theirs_side: self.side("Stash", None),
+            };
+        }
         ConflictContext {
-            operation,
+            operation: ConflictOperation::Unknown,
             ours: self.branch_label(),
-            theirs: theirs.unwrap_or_else(|| "theirs".to_owned()),
+            theirs_side: self.side(theirs.clone(), None),
+            theirs,
+            ours_side: self.current_side(),
         }
     }
 

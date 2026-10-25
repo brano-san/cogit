@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MENU_PREFIX, actionOf, solverMenu } from "./solver-menu";
+import { BAR_MENUS, MENU_PREFIX, actionOf, solverBarMenu, solverMenu } from "./solver-menu";
 
 const ALL = { hunk: true, changes: true, conflicts: true, tool: true };
 
@@ -48,5 +48,50 @@ describe("the menu of the Conflict Solver", () => {
     expect(on("solver-next-change")).toBe(true);
     expect(on("solver-next-conflict")).toBe(false);
     expect(on("solver-external-tool")).toBe(true);
+  });
+});
+
+describe("the menu bar of the Conflict Solver", () => {
+  const STATE = {
+    ...ALL,
+    save: false,
+    ready: true,
+    deleted: { ours: true, theirs: false },
+    layout: "all" as const,
+    baseChanges: true,
+    whole: false,
+  };
+  const rows = (menu: Parameters<typeof solverBarMenu>[1]) =>
+    solverBarMenu("w", menu, STATE).filter((entry) => !entry.separator);
+
+  it("has SmartGit's five menus", () => {
+    expect(BAR_MENUS).toEqual(["File", "Edit", "View", "Go To", "Window"]);
+  });
+
+  it("offers the file's own actions, off where they cannot apply", () => {
+    const file = rows("File");
+    const on = (action: string) => file.find((entry) => entry.id.endsWith(action))?.enabled;
+    expect(on("solver-save")).toBe(false);
+    expect(on("solver-keep-ours")).toBe(false);
+    expect(on("solver-keep-theirs")).toBe(true);
+    expect(on("solver-delete-file")).toBe(true);
+    expect(file.find((entry) => entry.id.endsWith("solver-save"))?.accelerator).toBe("CmdOrCtrl+S");
+  });
+
+  it("ticks the toggles and the layout shown", () => {
+    const view = rows("View");
+    const ticked = view.filter((entry) => entry.checked).map((entry) => actionOf(entry.id));
+    expect(ticked).toEqual(["solver-base-changes", "solver-layout-all"]);
+    expect(view.every((entry) => entry.checked !== undefined)).toBe(true);
+  });
+
+  it("goes to changes and conflicts, and takes in Edit", () => {
+    expect(rows("Go To").map((entry) => actionOf(entry.id))).toEqual([
+      "solver-prev-change",
+      "solver-next-change",
+      "solver-prev-conflict",
+      "solver-next-conflict",
+    ]);
+    expect(rows("Edit").map((entry) => actionOf(entry.id))).toContain("solver-take-theirs-ours");
   });
 });

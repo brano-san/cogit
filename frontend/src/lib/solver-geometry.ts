@@ -220,3 +220,20 @@ export function foldedEdges(blocks: readonly BlockRows[], pads: readonly number[
 export function foldedHeight(lines: number, pads: readonly number[], folds: readonly Fold[]): number {
   return contentHeight(lines, pads) - foldedAbove(folds, lines) * LINE_HEIGHT;
 }
+
+export interface ScrollMark {
+  at: number;
+  top: number;
+  height: number;
+}
+
+/** Where each hunk sits on the scrollbar beside a pane of `viewport` pixels: the whole
+    content squeezed into it, and never thinner than a mark one can see and click. */
+export function scrollMarks(edges: readonly Edge[], content: number, viewport: number, min = 3): ScrollMark[] {
+  const total = Math.max(content, viewport, 1);
+  return edges.map((edge, at) => {
+    const top = (edge.top / total) * viewport;
+    const height = Math.max(((edge.bottom - edge.top) / total) * viewport, min);
+    return { at, top: Math.min(top, viewport - min), height };
+  });
+}

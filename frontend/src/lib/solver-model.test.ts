@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
 import type { SolverRegion } from "./ipc";
+import { foldsOf } from "./solver-geometry";
 import {
   hunkLegend,
   hunkTone,
   buildResult,
   conflictsLeftLabel,
-  docsForDeleted,
   docsFromRegions,
+  sideTone,
+  solverContext,
+  solverDocs,
+  takeChanges,
+  paneTitle,
+  paneTooltip,
   equalLines,
   hunkTexts,
   isUnresolved,
@@ -225,14 +231,113 @@ describe("the documents of the three panes", () => {
     ]);
   });
 
-  it("for a file one side deleted, the other side is the Result to start from and there are no hunks", () => {
-    const docs = docsForDeleted({ ours: null, theirs: "keep\nme\n" });
+});
+
+/** Folds of all three panes at 3 context lines; a small file is not folded at all. */
+function foldsAt(docs: ReturnType<typeof solverDocs>, context = 3) {
+  const lines = (text: string) => Math.max(textToLines(text).length, 1);
+  const at = solverContext(context, docs);
+  const resultRows = docs.spans.map((span) => ({ start: span.start, count: span.count }));
+  return [
+    foldsOf(docs.oursRows, lines(docs.oursText), at, new Set()),
+    foldsOf(resultRows, lines(docs.resultText), at, new Set()),
+    foldsOf(docs.theirsRows, lines(docs.theirsText), at, new Set()),
+  ];
+}
+
+const many = (prefix: string, count: number) => Array.from({ length: count }, (_, at) => `${prefix}${at}`);
+
+describe("solverDocs", () => {
+  it("modify/delete: Ours is empty, the Result starts as Theirs, all of it one block added to Ours", () => {
+    const docs = solverDocs({ base: "step 4\n", ours: null, theirs: "step 4\nstep 4 extra\n", regions: [] });
     expect(docs.oursText).toBe("");
-    expect(docs.theirsText).toBe("keep\nme\n");
-    expect(docs.resultText).toBe("keep\nme\n");
+    expect(docs.resultText).toBe("step 4\nstep 4 extra\n");
+    expect(docs.hunks).toHaveLength(1);
+    expect(docs.oursRows).toEqual([{ start: 0, count: 0 }]);
+    expect(docs.theirsRows).toEqual([{ start: 0, count: 2 }]);
+    expect(docs.spans).toEqual([{ id: 0, start: 0, count: 2 }]);
+    const hunk = docs.hunks[0]!;
+    const result = ["step 4", "step 4 extra"];
+    expect(sideTone(hunk.ours, result)).toBe("add");
+    expect(sideTone(hunk.theirs, result)).toBeNull();
+    expect(hunkLegend(hunk, false)).toMatch(/Ours deleted/);
+    expect(foldsAt(docs)).toEqual([[], [], []]);
+  });
+
+  it("delete/modify: the mirror image, Theirs empty and the Result as Ours has it", () => {
+    const docs = solverDocs({ base: "a\n", ours: "a\nb\n", theirs: null, regions: [] });
+    expect(docs.theirsText).toBe("");
+    expect(docs.resultText).toBe("a\nb\n");
+    expect(docs.theirsRows).toEqual([{ start: 0, count: 0 }]);
+    const hunk = docs.hunks[0]!;
+    expect(sideTone(hunk.theirs, ["a", "b"])).toBe("add");
+    expect(sideTone(hunk.ours, ["a", "b"])).toBeNull();
+    expect(hunkLegend(hunk, false)).toMatch(/Theirs deleted/);
+  });
+
+  it("add/add with other content: one conflict with no base, written with its markers", () => {
+    const docs = solverDocs({
+      base: null,
+      ours: "mine\n",
+      theirs: "yours\n",
+      regions: [region("conflict", { ours: ["mine"], theirs: ["yours"] })],
+    });
+    expect(docs.hunks.map((hunk) => hunk.kind)).toEqual(["conflict"]);
+    expect(docs.resultText).toBe("<<<<<<< ours\nmine\n=======\nyours\n>>>>>>> theirs\n");
+  });
+
+  it("a conflict both sides changed in a long file folds only the lines all three share", () => {
+    const head = many("h", 30);
+    const tail = many("t", 30);
+    const regions = [
+      region("equal", { base: head, ours: head, theirs: head, result: head }),
+      region("conflict", { base: ["x"], ours: ["X1"], theirs: ["X2", "X3"] }),
+      region("equal", { base: tail, ours: tail, theirs: tail, result: tail }),
+    ];
+    const docs = solverDocs({ base: "", ours: "", theirs: "", regions });
+    const [ours, result, theirs] = foldsAt(docs);
+    expect(ours).toEqual([
+      { gap: 0, from: 0, to: 27 },
+      { gap: 1, from: 34, to: 61 },
+    ]);
+    expect(result?.map((fold) => fold.gap)).toEqual([0, 1]);
+    expect(theirs?.[1]).toEqual({ gap: 1, from: 35, to: 62 });
+  });
+
+  it("a pair with no difference: the side the Result already is has no tone, the other has", () => {
+    const docs = solverDocs({
+      base: "a\n",
+      ours: "a\n",
+      theirs: "b\n",
+      regions: [region("theirs", { base: ["a"], ours: ["a"], theirs: ["b"], result: ["b"] })],
+    });
+    const hunk = docs.hunks[0]!;
+    expect(hunkTone(hunk, "ours", false, new Set(), ["b"])).toBe("changed");
+    expect(hunkTone(hunk, "theirs", false, new Set(), ["b"])).toBeNull();
+  });
+
+  it("does not fold a small file at all", () => {
+    const head = many("h", 10);
+    const regions = [
+      region("equal", { base: head, ours: head, theirs: head, result: head }),
+      region("ours", { base: ["x"], ours: ["y"], theirs: ["x"], result: ["y"] }),
+    ];
+    expect(foldsAt(solverDocs({ base: "", ours: "", theirs: "", regions }))).toEqual([[], [], []]);
+  });
+
+  it("a file both sides deleted has nothing to do", () => {
+    const docs = solverDocs({ base: "a\n", ours: null, theirs: null, regions: [] });
     expect(docs.hunks).toEqual([]);
-    expect(docsForDeleted({ ours: "mine\n", theirs: null }).resultText).toBe("mine\n");
-    expect(docsForDeleted({ ours: null, theirs: null }).resultText).toBe("");
+    expect(docs.resultText).toBe("");
+  });
+});
+
+describe("sideTone", () => {
+  it("is how the Result differs from a side: added, deleted, changed or nothing", () => {
+    expect(sideTone([], ["a"])).toBe("add");
+    expect(sideTone(["a"], [])).toBe("del");
+    expect(sideTone(["a"], ["b"])).toBe("changed");
+    expect(sideTone(["a"], ["a"])).toBeNull();
   });
 });
 
@@ -253,5 +358,32 @@ describe("hunkTone", () => {
   it("explains each kind in the legend", () => {
     expect(hunkLegend(conflict, true)).toMatch(/^Conflict/);
     expect(hunkLegend(fromOurs, false)).toMatch(/only Ours/);
+  });
+});
+
+describe("paneTitle", () => {
+  const target = { role: "Rebase target", oid: "e059661", subject: "Master: base file" };
+
+  it("names the role, the side and the commit, the subject only in the tooltip", () => {
+    expect(paneTitle(target, "ours", false)).toBe('Rebase target ("ours", e059661)');
+    expect(paneTooltip(target, "ours", false)).toBe('Rebase target ("ours", e059661)\nMaster: base file');
+  });
+
+  it("says a side that lost the file is deleted, and leaves out a commit it does not have", () => {
+    expect(paneTitle(target, "ours", true)).toBe('Rebase target ("ours", e059661) — deleted');
+    expect(paneTitle({ role: "Stash", oid: null, subject: null }, "theirs", false)).toBe('Stash ("theirs")');
+  });
+});
+
+describe("takeChanges", () => {
+  it("modify/delete: only taking the empty side changes anything", () => {
+    const hunk = solverDocs({ base: "s\n", ours: null, theirs: "s\nx\n", regions: [] }).hunks[0]!;
+    expect(takeChanges(hunk, ["s", "x"])).toEqual({
+      ours: true,
+      theirs: false,
+      oursTheirs: false,
+      theirsOurs: false,
+      base: true,
+    });
   });
 });

@@ -50,6 +50,8 @@ import {
   isUnresolved,
   hunkLegend,
   hunkTone,
+  sideTone,
+  takeChanges,
   visibleActions,
   type Hunk,
   type SolverDocs,
@@ -266,6 +268,13 @@ function lineStart(state: EditorState, line: number): number {
   return line < state.doc.lines ? state.doc.line(line + 1).from : state.doc.length;
 }
 
+/** A settled block of the Result in the color of how it differs from Ours, else from Theirs:
+    the whole file added where Ours lost it is green, not "changed". */
+function toneClass(hunk: Hunk | undefined, current: readonly string[]): string {
+  const tone = hunk ? (sideTone(hunk.ours, current) ?? sideTone(hunk.theirs, current)) : null;
+  return tone === "add" ? "sv-add" : tone === "del" ? "sv-del" : "sv-changed";
+}
+
 function resultDecorations(state: EditorState): DecorationSet {
   const blocks = blocksOf(state);
   const hunks = new Map(state.facet(hunksFacet).map((hunk) => [hunk.id, hunk]));
@@ -284,7 +293,7 @@ function resultDecorations(state: EditorState): DecorationSet {
         ? open
           ? "sv-conflict"
           : "sv-resolved"
-        : `sv-changed sv-from-${hunk?.kind === "theirs" ? "theirs" : hunk?.kind === "ours" ? "ours" : "both"}`;
+        : `${toneClass(hunk, blockLines(state, block))} sv-from-${hunk?.kind === "theirs" ? "theirs" : hunk?.kind === "ours" ? "ours" : "both"}`;
     const cls = `${kind}${current === block.id ? " sv-current" : ""}`;
     const title = hunk ? hunkLegend(hunk, open) : "";
     for (let line = start; line < start + count; line++) {
@@ -429,6 +438,10 @@ export interface Snapshot {
   unresolved: number[];
   /** Per hunk: what a Take button would change. */
   actions: { ours: boolean; theirs: boolean }[];
+  /** Per hunk: how the bands beside the Result color it. */
+  tones: { ours: Tone | null; theirs: Tone | null }[];
+  /** Per hunk: which Take actions would change it. */
+  takes: Record<TakeAction, boolean>[];
   dirty: boolean;
   currentId: number | null;
 }
@@ -568,6 +581,19 @@ export class SolverEditors {
         const block = blocks[at];
         return block ? visibleActions(hunk, blockLines(state, block)) : { ours: false, theirs: false };
       }),
+      takes: this.#docs.hunks.map((hunk, at) => {
+        const block = blocks[at];
+        return takeChanges(hunk, block ? blockLines(state, block) : hunk.initial);
+      }),
+      tones: this.#docs.hunks.map((hunk, at) => {
+        const block = blocks[at];
+        const current = block ? blockLines(state, block) : undefined;
+        const { baseChanges } = this.#options;
+        return {
+          ours: hunkTone(hunk, "ours", baseChanges, unresolved, current),
+          theirs: hunkTone(hunk, "theirs", baseChanges, unresolved, current),
+        };
+      }),
       dirty: this.#saved === null ? undoDepth(state) > 0 : !state.doc.eq(this.#saved),
       currentId: this.#current,
     };
@@ -616,12 +642,17 @@ export class SolverEditors {
 
   #paint(name: "ours" | "theirs", pads: number[], baseChanges: boolean): void {
     const view = this.views[name];
-    const unresolved = unresolvedIds(this.views.result.state);
+    const state = this.views.result.state;
+    const unresolved = unresolvedIds(state);
+    const blocks = blocksOf(state);
     const rows = name === "ours" ? this.#docs.oursRows : this.#docs.theirsRows;
     const spec: PaneSpec = {
       rows,
       ids: this.#docs.hunks.map((hunk) => hunk.id),
-      tones: this.#docs.hunks.map((hunk) => hunkTone(hunk, name, baseChanges, unresolved)),
+      tones: this.#docs.hunks.map((hunk, at) => {
+        const block = blocks[at];
+        return hunkTone(hunk, name, baseChanges, unresolved, block ? blockLines(state, block) : undefined);
+      }),
       pads,
       current: this.#current,
     };

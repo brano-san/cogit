@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { BAND_WIDTH } from "./diff-band";
 import {
+  scrollMarks,
   foldedEdges,
   foldedHeight,
   foldsOf,
@@ -187,5 +188,26 @@ describe("folding the unchanged runs", () => {
     expect(edges[0]).toEqual({ top: (10 - 6) * LINE_HEIGHT, bottom: (12 - 6) * LINE_HEIGHT });
     expect(edges[1]).toEqual({ top: (30 - 6 - 11) * LINE_HEIGHT, bottom: (31 - 6 - 11) * LINE_HEIGHT });
     expect(foldedHeight(40, [0, 0], folds)).toBe((40 - 6 - 11 - 5) * LINE_HEIGHT);
+  });
+});
+
+describe("scrollMarks", () => {
+  it("squeezes the content into the scrollbar and keeps a thin hunk visible", () => {
+    const marks = scrollMarks(
+      [
+        { top: 0, bottom: 200 },
+        { top: 1000, bottom: 1001 },
+      ],
+      2000,
+      500,
+    );
+    expect(marks).toEqual([
+      { at: 0, top: 0, height: 50 },
+      { at: 1, top: 250, height: 3 },
+    ]);
+  });
+
+  it("lays a file shorter than the pane out as it is", () => {
+    expect(scrollMarks([{ top: 20, bottom: 60 }], 100, 400)).toEqual([{ at: 0, top: 20, height: 40 }]);
   });
 });

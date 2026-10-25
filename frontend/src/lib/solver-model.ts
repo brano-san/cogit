@@ -1,5 +1,5 @@
 import type { BlockRows } from "./solver-geometry";
-import type { SolverKind, SolverRegion } from "./ipc";
+import type { SideName, SolverKind, SolverRegion } from "./ipc";
 
 /** What a Take button puts into the Result for one hunk. */
 export type TakeAction = "ours" | "theirs" | "oursTheirs" | "theirsOurs" | "base";
@@ -127,20 +127,36 @@ export function nextHunk(ids: readonly number[], current: number | null, directi
 
 export type Tone = "add" | "del" | "changed" | "conflict" | "resolved";
 
-/** A conflict is its own color, undecided or decided, whatever the sides did; any other
-    hunk is colored as the side pane shows it (`paneTone`). */
+/** A conflict is its own color, undecided or decided, whatever the sides did. Any other hunk:
+    with Base Changes, what that side did to the base (`paneTone`); without, how the Result
+    differs from that side (`sideTone`), so a side the Result already is has no color. */
 export function hunkTone(
   hunk: Hunk,
   side: "ours" | "theirs",
   baseChanges: boolean,
   unresolved: ReadonlySet<number>,
+  current?: readonly string[],
 ): Tone | null {
   if (hunk.kind === "conflict") return unresolved.has(hunk.id) ? "conflict" : "resolved";
+  if (!baseChanges && current) return sideTone(hunk[side], current);
   return paneTone(hunk, side, baseChanges);
+}
+
+/** The Result's lines of a hunk against a side's: what was added, deleted or changed. */
+export function sideTone(side: readonly string[], current: readonly string[]): Tone | null {
+  if (equalLines(side, current)) return null;
+  if (side.length === 0) return "add";
+  return current.length === 0 ? "del" : "changed";
 }
 
 /** What a block of the Result is, in words for its tooltip (the legend). */
 export function hunkLegend(hunk: Hunk, unresolved: boolean): string {
+  // Only a side that lost the whole file is empty where the base is not and the other
+  // side alone changed (`regionsForMissing`): a real one-sided hunk leaves its side as the base.
+  if (hunk.kind !== "conflict" && hunk.base.length > 0) {
+    if (hunk.kind === "theirs" && hunk.ours.length === 0) return "Ours deleted this file: here it is as Theirs has it.";
+    if (hunk.kind === "ours" && hunk.theirs.length === 0) return "Theirs deleted this file: here it is as Ours has it.";
+  }
   switch (hunk.kind) {
     case "conflict":
       return unresolved
@@ -210,17 +226,57 @@ export function docsFromRegions(regions: readonly SolverRegion[], labels: Labels
   };
 }
 
-/** Modify/delete: the side that lost the file is empty, the other is what the Result starts
-    from, and nothing is merged line by line. */
-export function docsForDeleted(sides: { ours: string | null; theirs: string | null }): SolverDocs {
-  const kept = sides.ours ?? sides.theirs ?? "";
-  return {
-    oursText: sides.ours ?? "",
-    theirsText: sides.theirs ?? "",
-    resultText: kept,
-    hunks: [],
-    spans: [],
-    oursRows: [],
-    theirsRows: [],
-  };
+export interface SolverSides {
+  base: string | null;
+  ours: string | null;
+  theirs: string | null;
+  regions: readonly SolverRegion[];
+}
+
+/** Modify/delete: the side that lost the file is an empty one, and the whole file is one
+    block the Result starts from as the side that kept it has it. Nothing is folded away. */
+function regionsForMissing(sides: SolverSides): SolverRegion[] {
+  const base = textToLines(sides.base ?? "");
+  const ours = textToLines(sides.ours ?? "");
+  const theirs = textToLines(sides.theirs ?? "");
+  const kept = sides.ours === null ? theirs : ours;
+  if (equalLines(ours, theirs)) return [{ kind: "equal", base, ours, theirs, result: kept }];
+  return [{ kind: sides.ours === null ? "theirs" : "ours", base, ours, theirs, result: kept }];
+}
+
+export function solverDocs(sides: SolverSides, labels: Labels = NO_LABELS): SolverDocs {
+  const missing = sides.ours === null || sides.theirs === null || sides.regions.length === 0;
+  return docsFromRegions(missing ? regionsForMissing(sides) : sides.regions, labels);
+}
+
+/** Below this nothing is folded: the whole file is on screen anyway. */
+const SMALL_FILE_LINES = 50;
+
+export function solverContext(context: number, docs: SolverDocs): number {
+  const longest = Math.max(
+    ...[docs.oursText, docs.resultText, docs.theirsText].map((text) => textToLines(text).length),
+  );
+  return longest <= SMALL_FILE_LINES ? Number.POSITIVE_INFINITY : context;
+}
+
+/** A pane's header: its part in the operation, which side git calls it and its commit;
+    the subject goes to the tooltip. `Rebase target ("ours", e059661) — deleted`. */
+export function paneTitle(side: SideName, which: "ours" | "theirs", deleted: boolean): string {
+  const oid = side.oid ? `, ${side.oid}` : "";
+  return `${side.role} ("${which}"${oid})${deleted ? " — deleted" : ""}`;
+}
+
+export function paneTooltip(side: SideName, which: "ours" | "theirs", deleted: boolean): string {
+  const title = paneTitle(side, which, deleted);
+  return side.subject ? `${title}\n${side.subject}` : title;
+}
+
+/** Which Take actions would change a hunk's lines as they are now: the toolbar offers
+    only those (a side the Result already is has nothing to take). */
+export function takeChanges(hunk: Hunk, current: readonly string[]): Record<TakeAction, boolean> {
+  const actions: TakeAction[] = ["ours", "theirs", "oursTheirs", "theirsOurs", "base"];
+  return Object.fromEntries(actions.map((action) => [action, !equalLines(current, takeLines(hunk, action))])) as Record<
+    TakeAction,
+    boolean
+  >;
 }

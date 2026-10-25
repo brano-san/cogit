@@ -15,11 +15,13 @@
         between two sides. */
     button: "ours" | "theirs" | null;
     show: (id: number) => boolean;
+    /** Taking that side empties the block: the button is `×`, SmartGit's "remove". */
+    removes?: (id: number) => boolean;
     onact: (id: number) => void;
     label: string;
   }
 
-  let { connectors, tone, current, open, button, show, onact, label }: Props = $props();
+  let { connectors, tone, current, open, button, show, removes = () => false, onact, label }: Props = $props();
 </script>
 
 <div class="band" style:width="{BAND_WIDTH}px">
@@ -46,9 +48,9 @@
             class="act"
             style:left="{button === 'ours' ? ACTION_LEFT_X : ACTION_RIGHT_X}px"
             style:top="{y}px"
-            title={label}
+            title={removes(c.id) ? `${label}: remove these lines` : label}
             aria-label={label}
-            onclick={() => onact(c.id)}>{button === "ours" ? "»" : "«"}</button
+            onclick={() => onact(c.id)}>{removes(c.id) ? "×" : button === "ours" ? "»" : "«"}</button
           >
         {/if}
       {/each}
