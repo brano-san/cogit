@@ -8,7 +8,7 @@ import {
   type ErrorAction,
   type ErrorEntry,
 } from "$lib/ipc";
-import { entryOf, pushEntry } from "$lib/error-window";
+import { entryOf, isNextStep, pushEntry } from "$lib/error-window";
 import { untrack } from "svelte";
 
 /** A warning younger than this is not cleared by a conflict list that is still the one read
@@ -92,13 +92,15 @@ class ErrorWindowStore {
       this.onSignInCanceled?.(record.operation || run.operation, run.repo);
       return;
     }
-    const entry = entryOf({
+    const full = {
       command: "",
       stoppedOnConflicts: false,
       expected: null,
       ...run,
       ...(record ?? {}),
-    });
+    };
+    if (isNextStep(full)) return;
+    const entry = entryOf(full);
     if (this.#owner) this.add(entry);
     else await reportErrorEntry(entry).catch(() => {});
   }

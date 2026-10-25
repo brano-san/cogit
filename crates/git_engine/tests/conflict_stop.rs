@@ -227,3 +227,30 @@ fn a_plain_failure_is_not_answered() {
 
     assert!(!last(&log).answered);
 }
+
+// A rebase that went on from a step and stopped on the next one's conflict, a modify/delete
+// one here, is a stop like the first.
+#[test]
+fn a_rebase_continue_that_stops_on_a_modify_delete_is_marked() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["switch", "-c", "theirs"]).unwrap();
+    f.git_at(10, &["rm", "-q", "file0.txt"]).unwrap();
+    f.git_at(10, &["commit", "-q", "-m", "drop file0"]).unwrap();
+    f.git(&["switch", "main"]).unwrap();
+    f.commit_file(11, "other.txt", "one\n").unwrap();
+    f.commit_file(12, "file0.txt", "changed\n").unwrap();
+    f.git(&[
+        "-c",
+        "sequence.editor=sed -i 1s/^pick/edit/",
+        "rebase",
+        "-i",
+        "theirs",
+    ])
+    .unwrap();
+    let (repo, log) = journaled(&f);
+
+    assert!(repo.continue_operation().is_err());
+
+    let entry = last(&log);
+    assert!(entry.stopped_on_conflicts, "{entry:?}");
+}

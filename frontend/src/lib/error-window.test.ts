@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { entryOf, outputToShow, pushEntry, repoNameOf, startsDrag, titleOf, windowTitle, type ErrorEntry } from "./error-window";
+import { entryOf, outputToShow, pushEntry, repoNameOf, startsDrag, titleOf, windowTitle, isNextStep, type ErrorEntry } from "./error-window";
 
 const run = (id: number, over: Partial<Parameters<typeof entryOf>[0]> = {}) => ({
   id,
@@ -71,6 +71,15 @@ describe("an expected failure", () => {
   it("offers the conflicts of a command that stopped on them, and nothing for an error", () => {
     expect(entryOf(run(1, { stoppedOnConflicts: true })).offer).toBe("showConflicts");
     expect(entryOf(run(1)).offer).toBeNull();
+  });
+});
+
+describe("isNextStep", () => {
+  it("is a Continue or Skip that stopped on the next step's conflicts, not a first stop", () => {
+    expect(isNextStep(run(1, { command: "git rebase --continue", stoppedOnConflicts: true }))).toBe(true);
+    expect(isNextStep(run(1, { command: "git cherry-pick --skip", stoppedOnConflicts: true }))).toBe(true);
+    expect(isNextStep(run(1, { command: "git rebase --continue" }))).toBe(false);
+    expect(isNextStep(run(1, { command: "git rebase main", stoppedOnConflicts: true }))).toBe(false);
   });
 });
 

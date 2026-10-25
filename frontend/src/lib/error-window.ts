@@ -36,6 +36,12 @@ export function titleOf(run: Run): string {
   return `${run.operation} stopped with conflicts`;
 }
 
+/** A Continue or Skip that stopped on the next step's conflicts: the operation going on, shown
+    by its banner and the conflicts themselves, not a warning to pop up. */
+export function isNextStep(run: Pick<Run, "command" | "stoppedOnConflicts">): boolean {
+  return run.stoppedOnConflicts && /\s--(continue|skip)\b/.test(run.command);
+}
+
 function offerOf(run: Run): ErrorOffer | null {
   if (run.stoppedOnConflicts) return "showConflicts";
   return run.expected === "pushBehind" ? "pull" : null;

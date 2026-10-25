@@ -1828,7 +1828,8 @@ ${event.error}`,
       }
     } catch (err) {
       errors.report(err, action === "createBranch" ? "Could not create the branch" : `Could not ${action}`);
-      return;
+      // A Continue or Skip that stopped on the next step's conflicts moved the operation on.
+      if (action !== "continue" && action !== "skip") return;
     }
     await afterRefChange(id);
   }
