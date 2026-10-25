@@ -225,6 +225,24 @@ impl RepoHandle {
         at("refs/heads/").or_else(|| at("refs/remotes/"))
     }
 
+    /// What a row of the Repositories list calls a detached HEAD: the branch at its commit,
+    /// else the commit itself, `abc1234: subject`.
+    #[must_use]
+    pub fn detached_name(&self, oid: &str) -> String {
+        if let Some(branch) = self.branch_at(oid) {
+            return branch;
+        }
+        let short: String = oid.chars().take(7).collect();
+        let subject = gix::ObjectId::from_hex(oid.as_bytes())
+            .ok()
+            .and_then(|id| self.repo.find_commit(id).ok())
+            .and_then(|commit| commit.message().ok().map(|m| m.summary().to_string()));
+        match subject {
+            Some(subject) => format!("{short}: {subject}"),
+            None => short,
+        }
+    }
+
     pub fn push(
         &self,
         remote: &str,

@@ -277,9 +277,14 @@ fn a_detached_head_names_the_branch_at_its_commit() {
 }
 
 #[test]
-fn a_detached_head_off_every_branch_names_none() {
+fn a_detached_head_off_every_branch_names_its_commit() {
     let f = test_fixtures::linear(2).unwrap();
     f.git(&["checkout", "-q", "--detach", "HEAD~1"]).unwrap();
+    let oid = f.oid("HEAD").unwrap();
+    let subject = f.git(&["log", "-1", "--format=%s"]).unwrap();
 
-    assert_eq!(pulse(f.path()).branch_at, None);
+    assert_eq!(
+        pulse(f.path()).branch_at,
+        Some(format!("{}: {}", &oid[..7], subject.trim()))
+    );
 }

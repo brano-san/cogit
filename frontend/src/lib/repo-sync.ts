@@ -1,5 +1,6 @@
 import type { RepoOverview, RepoSummary } from "$lib/ipc";
 import type { RepoPulse } from "$lib/ipc/bindings";
+import { shortOid } from "$lib/format";
 import { CONFLICTED_REPOSITORY, DIRTY_REPOSITORY, trackTooltip } from "$lib/repo-labels";
 
 /** The marks of one row of the Repositories list (R-353). */
@@ -75,13 +76,15 @@ function summaryMarks(current: RepoSummary): Marks & { conflicted: boolean; bran
   const head = current.head.kind === "branch" ? current.head.name : null;
   const tracked = head === null ? undefined : current.branches.find((b) => b.kind === "local" && b.name === head);
   const { staged, unstaged, untracked, conflicted } = current.status;
-  // Detached: a local branch at HEAD first, else a remote-tracking one, as the backend picks.
+  // Detached: a local branch at HEAD first, else a remote-tracking one, as the backend picks;
+  // off every branch, the short hash (the backend adds the subject).
   const at = current.head.kind === "detached" ? current.head.oid : null;
   const branchAt =
     at === null
       ? null
       : (current.branches.find((b) => b.kind === "local" && b.oid === at) ??
-          current.branches.find((b) => b.kind !== "local" && b.oid === at && !b.name.endsWith("/HEAD")))?.name ?? null;
+          current.branches.find((b) => b.kind !== "local" && b.oid === at && !b.name.endsWith("/HEAD")))?.name ??
+        shortOid(at);
   return {
     branch: head,
     branchAt,
@@ -100,7 +103,13 @@ export function freshOverview(
   current: RepoSummary | null,
 ): RepoOverview & { conflicted?: boolean } {
   if (!current || current.repo !== overview.repo) return overview;
-  return { ...overview, ...summaryMarks(current), state: current.state };
+  const marks = summaryMarks(current);
+  // Off every branch the panels know no subject: the list's `abc1234: subject` stands while
+  // it names the same commit.
+  if (current.head.kind === "detached" && overview.branchAt?.startsWith(`${marks.branchAt}:`)) {
+    marks.branchAt = overview.branchAt;
+  }
+  return { ...overview, ...marks, state: current.state };
 }
 
 /** What the panels show of their repository, as a pulse: handed to its row when they let

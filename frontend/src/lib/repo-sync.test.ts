@@ -288,3 +288,24 @@ describe("the marks the panels hand to a row they let go of", () => {
     expect(summaryPulse(now)).toEqual({ missing: false, branch: "dev", branchAt: null, tracked: true, ahead: 0, behind: 2, dirty: true, conflicted: false });
   });
 });
+
+describe("a detached HEAD off every branch", () => {
+  const oid = "abcdef1234567890abcdef1234567890abcdef12";
+  const detached = {
+    repo: 1,
+    head: { kind: "detached", oid },
+    branches: [],
+    status: { staged: 0, unstaged: 0, untracked: 0, conflicted: 0 },
+    state: { kind: "clean" },
+  } as unknown as RepoSummary;
+
+  it("keeps the commit the list read for the row on screen: hash and subject", () => {
+    const base = overview({ repo: 1 as never, branchAt: "abcdef1: Step 3" });
+    expect(freshOverview(base, detached).branchAt).toBe("abcdef1: Step 3");
+  });
+
+  it("falls back to the bare hash when the list read another commit", () => {
+    const base = overview({ repo: 1 as never, branchAt: "1111111: older" });
+    expect(freshOverview(base, detached).branchAt).toBe("abcdef1");
+  });
+});

@@ -14,7 +14,7 @@ pub struct RepoOverview {
     pub name: String,
     pub root: String,
     pub branch: Option<String>,
-    /// On a detached HEAD, a branch whose tip it is: the row names it instead of nothing.
+    /// On a detached HEAD, a branch whose tip it is, else `abc1234: subject`.
     pub branch_at: Option<String>,
     pub ahead: u32,
     pub behind: u32,
@@ -108,7 +108,9 @@ impl AppState {
         };
         match handle.head().inspect_err(logged("repository row: head")) {
             Ok(git_engine::Head::Branch { name, .. }) => row.branch = Some(name),
-            Ok(git_engine::Head::Detached { oid }) => row.branch_at = handle.branch_at(&oid),
+            Ok(git_engine::Head::Detached { oid }) => {
+                row.branch_at = Some(handle.detached_name(&oid))
+            }
             _ => {}
         }
         if let Ok(branches) = handle

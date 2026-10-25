@@ -2455,7 +2455,7 @@ export type RepoOverview = {
 	name: string,
 	root: string,
 	branch: string | null,
-	/**  On a detached HEAD, a branch whose tip it is: the row names it instead of nothing. */
+	/**  On a detached HEAD, a branch whose tip it is, else `abc1234: subject`. */
 	branchAt: string | null,
 	ahead: number,
 	behind: number,
@@ -2469,7 +2469,7 @@ export type RepoOverview = {
 export type RepoPulse = {
 	missing: boolean,
 	branch: string | null,
-	/**  On a detached HEAD, a branch whose tip it is (`RepoHandle::branch_at`). */
+	/**  On a detached HEAD, a branch whose tip it is, else `abc1234: subject` (`detached_name`). */
 	branchAt: string | null,
 	/**  HEAD's branch has an upstream and its remote-tracking ref exists locally. */
 	tracked: boolean,

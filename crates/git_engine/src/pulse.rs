@@ -9,7 +9,7 @@ use std::path::Path;
 pub struct RepoPulse {
     pub missing: bool,
     pub branch: Option<String>,
-    /// On a detached HEAD, a branch whose tip it is (`RepoHandle::branch_at`).
+    /// On a detached HEAD, a branch whose tip it is, else `abc1234: subject` (`detached_name`).
     pub branch_at: Option<String>,
     /// HEAD's branch has an upstream and its remote-tracking ref exists locally.
     pub tracked: bool,
@@ -37,7 +37,7 @@ pub fn pulse(root: &Path) -> RepoPulse {
             handle.track(&name, &oid, &mut found);
             found.branch = Some(name);
         }
-        Ok(crate::Head::Detached { oid }) => found.branch_at = handle.branch_at(&oid),
+        Ok(crate::Head::Detached { oid }) => found.branch_at = Some(handle.detached_name(&oid)),
         _ => {}
     }
     found.dirty = handle.has_changes().unwrap_or_else(|err| {
