@@ -100,7 +100,7 @@
   import { fileFormat, shortOid } from "$lib/format";
   import { checkedIds, disabledIds, rememberCommand, type PaletteCommand } from "$lib/palette";
   import type { Context } from "$lib/availability";
-  import { localRevision, NOTHING_PUSHABLE, reasonOf, refAt, splitMarked, targetsOf, type MenuContext, type ToolbarFacts } from "$lib/toolbar";
+  import { localRevision, reasonOf, refAt, splitMarked, targetsOf, type MenuContext, type ToolbarFacts } from "$lib/toolbar";
   import { toolbar } from "$stores/toolbar.svelte";
   import { stashDialog } from "$stores/stash-dialog.svelte";
   import { settle, step } from "$lib/panel-focus";
@@ -1923,11 +1923,11 @@ ${event.error}`,
     }),
   );
 
-  // Commit and Push on a detached HEAD found nothing to push: Push To for HEAD, as Push does.
+  // Commit and Push hands the push here once committed: the toolbar's Push, then a refresh.
   $effect(() =>
     onPushHead((request) => {
-      if (repository.current?.repo.valueOf() === request.repo.valueOf()) refActions?.pushToCurrent();
-      else notices.inform("Nothing to push", NOTHING_PUSHABLE);
+      if (repository.current?.repo.valueOf() === request.repo.valueOf()) void networkActions?.run("push");
+      else notices.inform("Nothing pushed", "Committed, but the repository is no longer open, so nothing was pushed.");
     }),
   );
 

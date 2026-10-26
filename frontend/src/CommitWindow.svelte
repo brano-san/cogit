@@ -40,17 +40,13 @@
     repoWritten,
     commitTemplate,
     isPublished,
-    listRemotes,
-    pushRemote,
     recentCommits,
     repoRefs,
     type CommitDetails,
   } from "$lib/ipc";
-  import { pushTo } from "$lib/ipc/ref-ops";
   import { ON_MAC, primary } from "$lib/platform";
   import { publishedOrAssume } from "$lib/published";
-  import { menuPush } from "$lib/push-to";
-  import { pushDetached } from "$lib/push-head";
+  import { requestPush } from "$lib/push-head";
   import { placePopup, type Box, type Placed } from "$lib/popup-place";
   import { followSettings } from "$lib/settings-sync";
   import type { ConfirmRequest } from "$stores/confirm.svelte";
@@ -272,36 +268,8 @@
     // Amend committed the last commit's message; the stored draft is the next one's.
     if (!amend) writeDraft(null);
     message = messageAfterCommit(template);
-    if (pushAfter && !(await push(request.repo))) return;
+    if (pushAfter) await requestPush(request.repo);
     void closeThisWindow();
-  }
-
-  /** The branch's own push, as the ref menu's Push would do it; detached, the toolbar's
-      Push (F-710). False when it failed. */
-  async function push(repo: number): Promise<boolean> {
-    try {
-      const [refs, remotes] = await Promise.all([repoRefs(repo), listRemotes(repo)]);
-      const head = refs.head;
-      const primary = remotes.includes("origin") ? "origin" : (remotes[0] ?? null);
-      if (head.kind === "detached") {
-        if (primary === null) throw new Error("Committed, but this repository has no remote to push to.");
-        await pushDetached(repo, primary, (id, remote) => pushRemote(id, remote, false, () => {}));
-        return true;
-      }
-      if (head.kind !== "branch") throw new Error("Committed, but HEAD is not on a branch, so nothing was pushed.");
-      const branch = refs.branches.find((entry) => entry.kind === "local" && entry.name === head.name);
-      const plan = menuPush(
-        { kind: "branch", name: head.name, upstream: branch?.upstream ?? null, remote: branch?.pushRemote ?? undefined },
-        remotes,
-        primary,
-      );
-      if (!plan) throw new Error("Committed, but this repository has no remote to push to.");
-      await pushTo(repo, plan.remote, plan.refspec, plan.track, () => {});
-      return true;
-    } catch (err) {
-      notices.report(err, "Could not push");
-      return false;
-    }
   }
 
   function onkeydown(event: KeyboardEvent) {

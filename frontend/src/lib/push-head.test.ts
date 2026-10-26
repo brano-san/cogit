@@ -1,23 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { pushDetached } from "./push-head";
+import { requestPush } from "./push-head";
 import { headPushSource, nothingPushed } from "./toolbar";
 
-// Commit and Push on a detached HEAD said "HEAD is not on a branch" and pushed nothing.
-describe("Commit and Push on a detached HEAD", () => {
-  it("pushes by the toolbar's rule and stays put when a branch went", async () => {
-    const emit = vi.fn(async () => {});
-    const push = vi.fn(async () => ({ branches: ["topic"] }));
-
-    expect(await pushDetached(3, "origin", push, emit)).toEqual({ branches: ["topic"] });
-
-    expect(push).toHaveBeenCalledWith(3, "origin");
-    expect(emit).not.toHaveBeenCalled();
-  });
-
-  it("asks the main window for Push To for HEAD when nothing qualified", async () => {
+describe("Commit and Push", () => {
+  it("hands the push to the main window", async () => {
     const emit = vi.fn(async () => {});
 
-    await pushDetached(3, "origin", async () => ({ branches: [] }), emit);
+    await requestPush(3, emit);
 
     expect(emit).toHaveBeenCalledWith({ repo: 3 });
   });

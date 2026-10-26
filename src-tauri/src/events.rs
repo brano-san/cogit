@@ -85,8 +85,8 @@ pub struct TreeChanged {
     pub path: String,
 }
 
-/// Commit and Push on a detached HEAD found no branch to push: the main window opens Push To
-/// for HEAD, as the toolbar's Push does (F-710). The page emits it itself.
+/// Commit and Push committed: the main window pushes as the toolbar's Push does (F-710), so
+/// the commit window closes at once. The page emits it itself.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
 #[serde(rename_all = "camelCase")]
 #[tauri_specta(event_name = "cogit://push-head")]
