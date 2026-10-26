@@ -1,14 +1,29 @@
 <script lang="ts">
   import EmptyState from "$components/common/EmptyState.svelte";
-  import Checkbox from "$components/common/Checkbox.svelte";
   import { CopyFeedback } from "$lib/copy-feedback.svelte";
   import { commandLogText, type CommandRow } from "$lib/ipc";
-  import { isFailure, output } from "$stores/output.svelte";
+  import { kindOf, output, type RowKind } from "$stores/output.svelte";
 
   const clock = new Intl.DateTimeFormat(undefined, { timeStyle: "medium" });
 
   function repoName(entry: CommandRow): string {
     return entry.repo.replace(/[/\\]+$/, "").split(/[/\\]/).pop() ?? entry.repo;
+  }
+
+  const TOGGLES: readonly { kind: RowKind; label: string }[] = [
+    { kind: "error", label: "Errors" },
+    { kind: "warning", label: "Warnings" },
+    { kind: "operation", label: "Operations" },
+  ];
+
+  const counts = $derived.by(() => {
+    const found: Record<RowKind, number> = { error: 0, warning: 0, operation: 0 };
+    for (const entry of output.entries) found[kindOf(entry)] += 1;
+    return found;
+  });
+
+  function toggle(kind: RowKind) {
+    output.showing = { ...output.showing, [kind]: !output.showing[kind] };
   }
 
   const feedback = new CopyFeedback();
@@ -26,34 +41,54 @@
 <div class="output" bind:this={panel} tabindex="-1">
   <header>
     <span class="title">Output</span>
-    <span class="problems"><Checkbox bind:checked={output.errorsOnly} label="Problems only" /></span>
+    {#each TOGGLES as toggleOf (toggleOf.kind)}
+      <button
+        type="button"
+        class="btn sm {toggleOf.kind}"
+        aria-pressed={output.showing[toggleOf.kind]}
+        onclick={() => toggle(toggleOf.kind)}><span class="tabular">{toggleOf.label} {counts[toggleOf.kind]}</span></button
+      >
+    {/each}
     <span class="grow"></span>
-    <button type="button" class="btn sm" onclick={() => void feedback.copy(commandLogText(output.errorsOnly))}>
+    <button
+      type="button"
+      class="btn sm"
+      onclick={() => void feedback.copy(commandLogText(output.shownEntries.map((entry) => entry.id)))}
+    >
       {feedback.label("Copy log")}
     </button>
     <button type="button" class="btn sm" onclick={() => void output.clear()}>Clear</button>
     <button type="button" class="btn sm" onclick={() => (output.open = false)} title="Close (Esc)">✕</button>
   </header>
 
-  {#if output.shownEntries.length === 0}
+  {#if output.entries.length === 0}
     <EmptyState title="No Git command has run yet." />
+  {:else if output.shownEntries.length === 0}
+    <EmptyState title="Nothing matches the shown kinds." />
   {:else}
     <div class="list">
+      <div class="line head">
+        <span>Time</span>
+        <span>Operation</span>
+        <span>Repository</span>
+        <span>Command</span>
+        <span class="num">Exit</span>
+        <span class="num">Duration</span>
+      </div>
       {#each output.shownEntries as entry (entry.id)}
-        <div class="entry" class:failed={isFailure(entry)} class:warned={entry.warned}>
-          <button
-            type="button"
-            class="line"
-            title="Show the output of this command"
-            onclick={() => void output.openRecord(entry.id)}
-          >
-            <span class="when tabular">{clock.format(entry.startedAtMs)}</span>
-            <span class="what">{entry.operation}</span>
-            <span class="where truncate">{repoName(entry)}</span>
-            <span class="cmd mono truncate">{entry.command}</span>
-            <span class="meta tabular">{entry.exitCode ?? "?"} · {entry.durationMs} ms</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          class="line {kindOf(entry)}"
+          title="Show the output of this command"
+          onclick={() => void output.openRecord(entry.id)}
+        >
+          <span class="when tabular">{clock.format(entry.startedAtMs)}</span>
+          <span class="what truncate">{entry.operation}</span>
+          <span class="where truncate" title={entry.repo}>{repoName(entry)}</span>
+          <span class="cmd mono truncate">{entry.command}</span>
+          <span class="num tabular">{entry.exitCode ?? "?"}</span>
+          <span class="num tabular">{entry.durationMs} ms</span>
+        </button>
       {/each}
     </div>
   {/if}
@@ -89,10 +124,6 @@
     color: var(--text-secondary);
   }
 
-  .problems {
-    color: var(--text-secondary);
-  }
-
   .grow {
     flex: 1 1 auto;
   }
@@ -104,7 +135,8 @@
   }
 
   .line {
-    display: flex;
+    display: grid;
+    grid-template-columns: 72px minmax(72px, 120px) minmax(80px, 160px) minmax(0, 1fr) 40px 72px;
     align-items: center;
     gap: var(--sp-3);
     width: 100%;
@@ -119,44 +151,49 @@
     cursor: default;
   }
 
-  .line:hover {
+  button.line:hover {
     background: var(--state-hover);
   }
 
-  .when {
-    flex: 0 0 auto;
+  .head {
+    position: sticky;
+    top: 0;
+    background: var(--surface-panel);
+    border-bottom: 1px solid var(--divider);
     color: var(--text-secondary);
+    font-size: var(--fs-small);
+    font-weight: 600;
+  }
+
+  .when,
+  .where,
+  .cmd,
+  .num {
+    color: var(--text-secondary);
+  }
+
+  .when,
+  .num {
     font-size: var(--fs-small);
   }
 
-  .what {
-    flex: 0 0 auto;
-    min-width: 72px;
+  .num {
+    text-align: right;
   }
 
-  .where {
-    flex: 0 1 140px;
-    min-width: 0;
-    color: var(--text-secondary);
-  }
-
-  .cmd {
-    flex: 1 1 auto;
-    min-width: 0;
-    color: var(--text-secondary);
-  }
-
-  .meta {
-    flex: 0 0 auto;
-    color: var(--text-secondary);
-    font-size: var(--fs-small);
-  }
-
-  .entry.failed .what {
+  .line.error .what {
     color: var(--status-delete);
   }
 
-  .entry.warned .what {
+  .line.warning .what {
+    color: var(--status-modify);
+  }
+
+  .btn.error[aria-pressed="true"] {
+    color: var(--status-delete);
+  }
+
+  .btn.warning[aria-pressed="true"] {
     color: var(--status-modify);
   }
 </style>

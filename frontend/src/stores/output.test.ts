@@ -181,15 +181,20 @@ describe("output store answers", () => {
     expect(output.entries.map((entry) => entry.id)).toEqual([2, 1]);
   });
 
-  it("keeps failures and the rows flagged as warnings when only problems are shown", async () => {
+  it("shows each kind of row only while its toggle is on", async () => {
     commands.commandLog.mockResolvedValueOnce([row(4), row(3, 0, true), row(2, 1), row(1, null)]);
     await output.refresh();
+    const shownWith = (showing: typeof output.showing) => {
+      output.showing = showing;
+      return output.shownEntries.map((entry) => entry.id);
+    };
 
-    output.errorsOnly = true;
-    const shown = output.shownEntries.map((entry) => entry.id);
-    output.errorsOnly = false;
-
-    expect(shown).toEqual([3, 2, 1]);
+    expect(shownWith({ error: true, warning: true, operation: false })).toEqual([3, 2, 1]);
+    expect(shownWith({ error: true, warning: false, operation: false })).toEqual([2, 1]);
+    expect(shownWith({ error: false, warning: true, operation: false })).toEqual([3]);
+    expect(shownWith({ error: false, warning: false, operation: true })).toEqual([4]);
+    expect(shownWith({ error: false, warning: false, operation: false })).toEqual([]);
+    output.showing = { error: true, warning: true, operation: true };
   });
 
   it("drops a problem count begun before Clear", async () => {

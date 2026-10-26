@@ -45,8 +45,15 @@
 </script>
 
 <footer class="status-bar">
-  {#if problems > 0}
-    <button type="button" class="foot-button problems" onclick={() => onproblems?.()} title="Show Output">
+  <button
+    type="button"
+    class="foot-button output"
+    class:problems={problems > 0}
+    onclick={() => onproblems?.()}
+    title="Show Output"
+    aria-label="Show Output"
+  >
+    {#if problems > 0}
       <svg class="warn" viewBox="0 0 16 16" aria-hidden="true"
         ><path
           fill="currentColor"
@@ -55,9 +62,13 @@
         /></svg
       >
       <span class="tabular">{problems}</span>
-    </button>
-    <span class="divider" aria-hidden="true"></span>
-  {/if}
+    {:else}
+      <svg class="warn" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"
+        ><path d="M2.5 3.5h11v9h-11zM4.5 6.5l2 1.5-2 1.5M8 9.5h3.5" /></svg
+      >
+    {/if}
+  </button>
+  <span class="divider" aria-hidden="true"></span>
 
   {#if gitMissing}
     <button type="button" class="foot-button problems" onclick={() => ongitmissing?.()} title="Git was not found: Cogit cannot change repositories. Click to fix.">
@@ -142,6 +153,14 @@
 
   .foot-button:hover {
     color: var(--status-delete);
+  }
+
+  .output:not(.problems) {
+    color: var(--text-secondary);
+  }
+
+  .output:not(.problems):hover {
+    color: var(--text-primary);
   }
 
   .problems {

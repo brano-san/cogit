@@ -224,7 +224,7 @@ fn the_rows_are_newest_first_and_flag_warnings_like_the_full_entries() {
 
 /// What the panel's Copy log put on the clipboard when it built the text itself.
 #[test]
-fn the_log_text_reads_as_the_terminal_would_have_shown_it() {
+fn the_log_text_reads_as_the_terminal_would_have_shown_the_rows_shown() {
     let log = journal_of(vec![
         ran("git status", Some(0), "On branch master", "", 5),
         ran(
@@ -237,14 +237,17 @@ fn the_log_text_reads_as_the_terminal_would_have_shown_it() {
         ran("git push", None, "  \n", "fatal: no remote", 9),
     ]);
 
+    let every: Vec<u32> = log.iter().map(|entry| entry.id).collect();
+    let shown = [log[1].id, log[2].id];
+
     assert_eq!(
-        app_state::command_log_text(&log, false),
+        app_state::command_log_text(&log, &every),
         "$ git push\nexit ? in 9 ms\nfatal: no remote\n\n\
          $ git switch topic\nexit 0 in 7 ms\nSwitched to branch 'topic'\n\n\
          $ git status\nexit 0 in 5 ms\nOn branch master"
     );
     assert_eq!(
-        app_state::command_log_text(&log, true),
+        app_state::command_log_text(&log, &shown),
         "$ git push\nexit ? in 9 ms\nfatal: no remote\n\n\
          $ git switch topic\nexit 0 in 7 ms\nSwitched to branch 'topic'"
     );

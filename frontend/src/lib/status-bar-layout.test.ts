@@ -23,7 +23,7 @@ function px(value: string | undefined): number {
 
 describe("status bar layout", () => {
   it("draws the problems mark as an icon, not as a font glyph", () => {
-    const button = /<button[^>]*class="[^"]*\bproblems\b[^"]*"[\s\S]*?<\/button>/.exec(SOURCE)?.[0];
+    const button = /<button[^>]*class="[^"]*\boutput\b[^"]*"[\s\S]*?<\/button>/.exec(SOURCE)?.[0];
     expect(button).toBeDefined();
     expect(button).toContain("<svg");
     expect(button).not.toMatch(/[☀-➿]/);

@@ -13,9 +13,16 @@ export function isFailure(entry: CommandRow): boolean {
   return entry.exitCode !== 0;
 }
 
+export type RowKind = "error" | "warning" | "operation";
+
+export function kindOf(entry: CommandRow): RowKind {
+  if (isFailure(entry)) return "error";
+  return entry.warned ? "warning" : "operation";
+}
+
 class OutputStore {
   open = $state(false);
-  errorsOnly = $state(false);
+  showing = $state<Record<RowKind, boolean>>({ error: true, warning: true, operation: true });
   /** Rows only: what a command printed is fetched by `openRecord` when it is shown. */
   entries = $state.raw<CommandRow[]>([]);
 
@@ -41,9 +48,7 @@ class OutputStore {
   }
 
   get shownEntries(): CommandRow[] {
-    return this.errorsOnly
-      ? this.entries.filter((e) => isFailure(e) || e.warned)
-      : this.entries;
+    return this.entries.filter((entry) => this.showing[kindOf(entry)]);
   }
 
   async refresh(): Promise<void> {

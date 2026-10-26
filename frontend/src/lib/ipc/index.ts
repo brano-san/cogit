@@ -544,8 +544,8 @@ export async function commandLog() {
   return await commands.commandLog();
 }
 
-export async function commandLogText(errorsOnly: boolean) {
-  return await commands.commandLogText(errorsOnly);
+export async function commandLogText(ids: number[]) {
+  return await commands.commandLogText(ids);
 }
 
 /** The Errors window: opened, or shown when it already is. */

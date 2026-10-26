@@ -35,14 +35,11 @@ pub async fn command_log(app: tauri::AppHandle) -> Vec<CommandRow> {
 /// Copy log: every entry with its output, as text.
 #[tauri::command]
 #[specta::specta]
-pub async fn command_log_text(app: tauri::AppHandle, errors_only: bool) -> String {
+pub async fn command_log_text(app: tauri::AppHandle, ids: Vec<u32>) -> String {
     let state = tauri::Manager::state::<crate::AppContext>(&app)
         .state
         .clone();
-    blocking_or_default("command_log_text", move || {
-        state.command_log_text(errors_only)
-    })
-    .await
+    blocking_or_default("command_log_text", move || state.command_log_text(&ids)).await
 }
 
 /// One entry in full. The notice that opened the window carried only its summary.

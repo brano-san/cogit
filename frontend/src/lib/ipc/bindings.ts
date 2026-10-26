@@ -113,7 +113,7 @@ export const commands = {
 	/**  In the blocking pool: the rows are copied under the lock of a journal of megabyte entries. */
 	commandLog: () => __TAURI_INVOKE<CommandRow[]>("command_log"),
 	/**  Copy log: every entry with its output, as text. */
-	commandLogText: (errorsOnly: boolean) => __TAURI_INVOKE<string>("command_log_text", { errorsOnly }),
+	commandLogText: (ids: number[]) => __TAURI_INVOKE<string>("command_log_text", { ids }),
 	/**  One entry in full. The notice that opened the window carried only its summary. */
 	commandOutcome: (id: number) => __TAURI_INVOKE<{
 	/**  Numbered so a window, a toast and a history row can all name the same run. */

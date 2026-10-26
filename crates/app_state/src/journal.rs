@@ -89,11 +89,11 @@ pub fn command_rows(log: &std::collections::VecDeque<git_engine::GitOutput>) -> 
 #[must_use]
 pub fn command_log_text(
     log: &std::collections::VecDeque<git_engine::GitOutput>,
-    errors_only: bool,
+    ids: &[u32],
 ) -> String {
     log.iter()
         .rev()
-        .filter(|entry| !errors_only || is_problem(entry))
+        .filter(|entry| ids.contains(&entry.id))
         .map(entry_text)
         .collect::<Vec<_>>()
         .join("\n\n")
@@ -140,8 +140,8 @@ impl AppState {
     }
 
     #[must_use]
-    pub fn command_log_text(&self, errors_only: bool) -> String {
-        command_log_text(&self.journal.read(), errors_only)
+    pub fn command_log_text(&self, ids: &[u32]) -> String {
+        command_log_text(&self.journal.read(), ids)
     }
 
     /// One entry of the journal, by the number a notice carried. `None` once the ring
