@@ -168,7 +168,7 @@
     background: var(--chrome-bg);
     border-top: 1px solid var(--chrome-border);
     font-size: var(--fs-status);
-    line-height: 1;
+    line-height: 16px;
     color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;
@@ -214,6 +214,7 @@
     min-width: 0;
     max-width: 320px;
     justify-content: flex-end;
+    font-variant-numeric: tabular-nums;
   }
 
   /* Fixed content, fixed box: it must not shift when the status beside it changes. */
