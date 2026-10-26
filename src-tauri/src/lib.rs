@@ -494,7 +494,11 @@ pub fn run() -> anyhow::Result<()> {
                 .build(),
         );
     }
-    if commands::app::self_updates(portable.is_some(), std::env::consts::OS) {
+    if commands::app::self_updates(
+        portable.is_some(),
+        commands::app::installed(),
+        std::env::consts::OS,
+    ) {
         builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
     }
     let mut context = tauri::generate_context!();

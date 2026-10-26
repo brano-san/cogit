@@ -79,7 +79,11 @@ pub async fn app_info(
             log_path: log_path.display().to_string(),
             settings_path: settings_path.display().to_string(),
             portable_dir: portable::layout().map(|layout| layout.root().display().to_string()),
-            self_update: self_updates(portable::layout().is_some(), std::env::consts::OS),
+            self_update: self_updates(
+                portable::layout().is_some(),
+                installed(),
+                std::env::consts::OS,
+            ),
             legacy_note,
             displays,
         })
@@ -89,8 +93,12 @@ pub async fn app_info(
 
 /// A portable copy swaps its folder by hand; the macOS build is unsigned and ships no updater
 /// artifacts (doc/RELEASING.md), so latest.json has no entry for it.
-pub(crate) fn self_updates(portable: bool, os: &str) -> bool {
-    !portable && os != "macos"
+pub(crate) fn self_updates(portable: bool, installed: bool, os: &str) -> bool {
+    !portable && installed && os != "macos"
+}
+
+pub(crate) fn installed() -> bool {
+    tauri::utils::platform::bundle_type().is_some()
 }
 
 #[cfg(test)]
@@ -99,11 +107,17 @@ mod tests {
 
     #[test]
     fn only_an_installed_windows_or_linux_build_updates_itself() {
-        assert!(self_updates(false, "windows"));
-        assert!(self_updates(false, "linux"));
-        assert!(!self_updates(true, "windows"));
-        assert!(!self_updates(true, "linux"));
-        assert!(!self_updates(false, "macos"));
+        assert!(self_updates(false, true, "windows"));
+        assert!(self_updates(false, true, "linux"));
+        assert!(!self_updates(true, true, "windows"));
+        assert!(!self_updates(true, true, "linux"));
+        assert!(!self_updates(false, true, "macos"));
+    }
+
+    #[test]
+    fn a_build_no_installer_packaged_does_not_update_itself() {
+        assert!(!self_updates(false, false, "windows"));
+        assert!(!self_updates(false, false, "linux"));
     }
 }
 
