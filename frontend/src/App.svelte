@@ -491,6 +491,7 @@
   /** `--worktrees-panel-min` plus the splitter. */
   const WORKTREES_MIN_PX = 65;
   const OUTPUT_MIN_PX = 96;
+  const OUTPUT_ROOM_PX = 300;
   let windowHeight = $state(0);
   let leftColumnHeight = $state(0);
   let reposColumnEl = $state<HTMLDivElement | null>(null);
@@ -4128,10 +4129,14 @@ ${event.error}`,
       value={1 - fractions.outputHeight}
       label="Resize output panel"
       extent={windowHeight}
-      onchange={(d) => layout.set("outputHeight", bottomPaneAfterDrag(fractions.outputHeight, d, windowHeight, OUTPUT_MIN_PX))}
+      onchange={(d) =>
+        layout.set(
+          "outputHeight",
+          floorFraction(capFraction(fractions.outputHeight - d, windowHeight, OUTPUT_ROOM_PX), windowHeight, OUTPUT_MIN_PX),
+        )}
       onreset={() => layout.resetOne("outputHeight")}
     />
-    <OutputPanel height={Math.max(OUTPUT_MIN_PX, fractions.outputHeight * windowHeight)} />
+    <OutputPanel height={Math.max(OUTPUT_MIN_PX, Math.min(fractions.outputHeight * windowHeight, windowHeight - OUTPUT_ROOM_PX))} />
   {/if}
 
   {#if finderOpen}
