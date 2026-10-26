@@ -63,8 +63,8 @@
       >
       <span class="tabular">{problems}</span>
     {:else}
-      <svg class="warn" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"
-        ><path d="M2.5 3.5h11v9h-11zM4.5 6.5l2 1.5-2 1.5M8 9.5h3.5" /></svg
+      <svg class="console" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"
+        ><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" /><path d="M4.5 6l2.5 2-2.5 2M8.5 10.5h3" /></svg
       >
     {/if}
   </button>
@@ -170,6 +170,11 @@
   .warn {
     width: 12px;
     height: 12px;
+  }
+
+  .console {
+    width: 16px;
+    height: 16px;
   }
 
   .cancel {
