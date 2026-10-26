@@ -280,7 +280,15 @@ impl RepoHandle {
     }
 
     pub fn commit_signatures(&self, oids: &[String]) -> Result<Vec<SignatureStatus>> {
-        if oids.is_empty() {
+        let present: Vec<&str> = oids
+            .iter()
+            .map(String::as_str)
+            .filter(|oid| {
+                gix::ObjectId::from_hex(oid.as_bytes())
+                    .is_ok_and(|id| self.repo.find_commit(id).is_ok())
+            })
+            .collect();
+        if present.is_empty() {
             return Ok(Vec::new());
         }
         let mut args = vec![
@@ -290,7 +298,7 @@ impl RepoHandle {
             "--no-walk=unsorted",
             "--format=%H%x00%G?%x00%GS%x1e",
         ];
-        args.extend(oids.iter().map(String::as_str));
+        args.extend(present);
         args.push("--");
         let text = self.read_git(&args)?;
         Ok(text

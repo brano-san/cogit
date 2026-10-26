@@ -65,6 +65,24 @@ fn a_batch_reads_each_commit_status_by_id() {
 }
 
 #[test]
+fn a_batch_skips_commits_this_repository_does_not_have() {
+    let f = test_fixtures::linear(1).unwrap();
+    let repo = RepoHandle::open(f.path()).unwrap();
+    let head = f.git(&["rev-parse", "HEAD"]).unwrap().trim().to_owned();
+    let foreign = "292aa3e041f9aaf23ac0b41133da60d6371f5af0".to_owned();
+
+    let found = repo.commit_signatures(&[foreign, head.clone()]).unwrap();
+
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].oid, head);
+    assert!(
+        repo.commit_signatures(&["not-an-id".to_owned()])
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
 fn a_batch_verifies_against_the_allowed_signers() {
     let Some(f) = signed() else {
         return;
