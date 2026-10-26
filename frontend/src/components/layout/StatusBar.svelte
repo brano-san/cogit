@@ -63,8 +63,8 @@
       >
       <span class="tabular">{problems}</span>
     {:else}
-      <svg class="console" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"
-        ><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" /><path d="M4.5 6l2.5 2-2.5 2M8.5 10.5h3" /></svg
+      <svg class="log" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"
+        ><path d="M2 3.5h1M2 8h1M2 12.5h1M5.5 3.5h8.5M5.5 8h8.5M5.5 12.5h6" /></svg
       >
     {/if}
   </button>
@@ -172,7 +172,7 @@
     height: 12px;
   }
 
-  .console {
+  .log {
     width: 16px;
     height: 16px;
   }
