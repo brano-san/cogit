@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   commitHeightAfterDrag,
-  worktreesHeightAfterDrag,
+  bottomPaneAfterDrag,
   capFraction,
   DEFAULT_LAYOUT,
   floorFraction,
@@ -197,9 +197,9 @@ describe("Worktrees height", () => {
   });
 
   it("shrinks when the splitter goes down and stops at its minimum", () => {
-    expect(worktreesHeightAfterDrag(0.25, 0.05, 1000, 98)).toBeCloseTo(0.2);
-    expect(worktreesHeightAfterDrag(0.25, 0.9, 1000, 98)).toBeCloseTo(0.12);
-    expect(worktreesHeightAfterDrag(0.25, -0.9, 1000, 98)).toBeCloseTo(0.88);
+    expect(bottomPaneAfterDrag(0.25, 0.05, 1000, 98)).toBeCloseTo(0.2);
+    expect(bottomPaneAfterDrag(0.25, 0.9, 1000, 98)).toBeCloseTo(0.12);
+    expect(bottomPaneAfterDrag(0.25, -0.9, 1000, 98)).toBeCloseTo(0.88);
   });
 });
 

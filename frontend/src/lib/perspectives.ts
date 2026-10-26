@@ -15,6 +15,7 @@ export interface LayoutFractions {
   /** Height of the Worktrees panel as a share of the whole left column, not of the
       Repositories column: resizing Branches moves Repositories and leaves Worktrees alone. */
   worktreesHeight: number;
+  outputHeight: number;
 }
 
 export const DEFAULT_LAYOUT: LayoutFractions = {
@@ -25,6 +26,7 @@ export const DEFAULT_LAYOUT: LayoutFractions = {
   filesSplit: 0.55,
   commitHeight: 0.18,
   worktreesHeight: 0.16,
+  outputHeight: 0.3,
 };
 
 export function clampFraction(value: number): number {
@@ -38,10 +40,10 @@ export function capFraction(value: number, containerPx: number, reservedPx: numb
   return Math.max(MIN_FRACTION, Math.min(clamped, 1 - reservedPx / containerPx));
 }
 
-/** Dragging the Repositories/Worktrees splitter down by `delta` shrinks Worktrees. Its
-    height is a share of the whole left column, so each pane keeps `minPx` and nothing
-    that resizes Branches reaches it. */
-export function worktreesHeightAfterDrag(
+/** Dragging a splitter down by `delta` shrinks the pane below it (Worktrees, Output). Its
+    height is a share of the whole column, so each pane keeps `minPx` and nothing
+    that resizes the panes above reaches it. */
+export function bottomPaneAfterDrag(
   current: number,
   delta: number,
   columnPx: number,

@@ -4,6 +4,8 @@
   import { commandLogText, type CommandRow } from "$lib/ipc";
   import { kindOf, output, type RowKind } from "$stores/output.svelte";
 
+  let { height }: { height: number } = $props();
+
   const clock = new Intl.DateTimeFormat(undefined, { timeStyle: "medium" });
 
   function repoName(entry: CommandRow): string {
@@ -38,13 +40,13 @@
 
 <svelte:window {onkeydown} />
 
-<div class="output" bind:this={panel} tabindex="-1">
+<div class="output" bind:this={panel} tabindex="-1" style:height="{height}px">
   <header>
     <span class="title">Output</span>
     {#each TOGGLES as toggleOf (toggleOf.kind)}
       <button
         type="button"
-        class="btn sm {toggleOf.kind}"
+        class="btn sm kind-{toggleOf.kind}"
         aria-pressed={output.showing[toggleOf.kind]}
         onclick={() => toggle(toggleOf.kind)}><span class="tabular">{toggleOf.label} {counts[toggleOf.kind]}</span></button
       >
@@ -99,7 +101,6 @@
     display: flex;
     flex-direction: column;
     flex: 0 0 auto;
-    max-height: 32vh;
     border-top: 1px solid var(--divider);
     background: var(--surface-panel);
     font-size: var(--fs-dense);
@@ -189,11 +190,11 @@
     color: var(--status-modify);
   }
 
-  .btn.error[aria-pressed="true"] {
+  .btn.kind-error[aria-pressed="true"] {
     color: var(--status-delete);
   }
 
-  .btn.warning[aria-pressed="true"] {
+  .btn.kind-warning[aria-pressed="true"] {
     color: var(--status-modify);
   }
 </style>

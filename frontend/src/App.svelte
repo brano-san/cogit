@@ -154,7 +154,7 @@
   import { foundStep } from "$lib/found";
   import { revealRef } from "$lib/ref-reveal";
   import { applyPreferences, type ApplyHost } from "$lib/preferences-apply";
-  import { capFraction, commitHeightAfterDrag, floorFraction, PANELS, worktreesHeightAfterDrag, type PanelId } from "$lib/perspectives";
+  import { capFraction, commitHeightAfterDrag, floorFraction, PANELS, bottomPaneAfterDrag, type PanelId } from "$lib/perspectives";
   import { DIFF_PANEL_MIN_HEIGHT_PX, GRAPH_PANEL_MIN_HEIGHT, GRAPH_PANEL_MIN_HEIGHT_PX, graphPanelMinWidth } from "$lib/graph-panel";
   import { closeStep, holdsPanels, reopenClick, repoClick } from "$lib/repo-click";
   import { ModuleInitialiser, moduleClick } from "$lib/module-init";
@@ -490,6 +490,8 @@
   let filesColumnHeight = $state(0);
   /** `--worktrees-panel-min` plus the splitter. */
   const WORKTREES_MIN_PX = 65;
+  const OUTPUT_MIN_PX = 96;
+  let windowHeight = $state(0);
   let leftColumnHeight = $state(0);
   let reposColumnEl = $state<HTMLDivElement | null>(null);
   /** The Repositories and Worktrees panes' minimums together: below them Worktrees slid
@@ -3620,6 +3622,7 @@ ${event.error}`,
 
 <!-- A closed repository has no watcher: its row is read again when the user comes back. -->
 <svelte:window
+  bind:innerHeight={windowHeight}
   {onkeydown}
   onfocus={() => {
     repoPulse.revisit();
@@ -3754,7 +3757,7 @@ ${event.error}`,
         onchange={(d) =>
           layout.set(
             "worktreesHeight",
-            worktreesHeightAfterDrag(fractions.worktreesHeight, d, leftColumnHeight, WORKTREES_MIN_PX),
+            bottomPaneAfterDrag(fractions.worktreesHeight, d, leftColumnHeight, WORKTREES_MIN_PX),
           )}
         onreset={() => layout.resetOne("worktreesHeight")}
       />
@@ -4120,7 +4123,15 @@ ${event.error}`,
   </div>
 
   {#if output.open}
-    <OutputPanel />
+    <Splitter
+      direction="horizontal"
+      value={1 - fractions.outputHeight}
+      label="Resize output panel"
+      extent={windowHeight}
+      onchange={(d) => layout.set("outputHeight", bottomPaneAfterDrag(fractions.outputHeight, d, windowHeight, OUTPUT_MIN_PX))}
+      onreset={() => layout.resetOne("outputHeight")}
+    />
+    <OutputPanel height={Math.max(OUTPUT_MIN_PX, fractions.outputHeight * windowHeight)} />
   {/if}
 
   {#if finderOpen}
