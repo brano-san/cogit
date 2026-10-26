@@ -388,7 +388,10 @@
         relaunch,
         confirm: (outcome) =>
           confirmation.ask({ title: "Check for Updates", message: message(outcome), confirm: "Install" }),
-        report: (text) => notices.inform("Check for Updates", text),
+        report: (outcome) =>
+          outcome.kind === "failed"
+            ? notices.message(message(outcome), "Check for Updates")
+            : notices.inform("Check for Updates", message(outcome)),
         mayInstall: () => mayInstallUpdate(),
       },
       { quiet },

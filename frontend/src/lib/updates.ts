@@ -15,7 +15,7 @@ export interface Updates {
   relaunch: () => Promise<void>;
   /** The app's own dialog answers later, so the answer may be a promise. */
   confirm: (outcome: UpdateOutcome) => boolean | Promise<boolean>;
-  report: (message: string) => void | Promise<void>;
+  report: (outcome: UpdateOutcome) => void | Promise<void>;
   /** Unsaved work and running operations: false keeps the app as it is (the Exit question). */
   mayInstall: () => Promise<boolean>;
 }
@@ -69,13 +69,13 @@ export async function checkForUpdates(
     found = await io.check();
   } catch (err) {
     const outcome: UpdateOutcome = { kind: "failed", reason: String(err) };
-    if (!quiet) io.report(message(outcome));
+    if (!quiet) io.report(outcome);
     return outcome;
   }
 
   const outcome = describe(found);
   if (outcome.kind === "none" || !found) {
-    if (!quiet) io.report(message(outcome));
+    if (!quiet) io.report(outcome);
     return outcome;
   }
 
@@ -87,7 +87,7 @@ export async function checkForUpdates(
     await found.downloadAndInstall();
   } catch (err) {
     const failed: UpdateOutcome = { kind: "failed", reason: String(err) };
-    io.report(message(failed));
+    io.report(failed);
     return failed;
   }
 

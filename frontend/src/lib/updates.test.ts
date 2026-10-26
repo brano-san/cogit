@@ -75,7 +75,7 @@ group("checkForUpdates", () => {
     const outcome = await checkForUpdates(side);
 
     expect(outcome).toEqual({ kind: "none" });
-    expect(side.report).toHaveBeenCalledWith("Cogit is up to date.");
+    expect(side.report).toHaveBeenCalledWith({ kind: "none" });
     expect(side.relaunch).not.toHaveBeenCalled();
   });
 
@@ -116,7 +116,7 @@ group("checkForUpdates", () => {
     const outcome = await checkForUpdates(side);
 
     expect(outcome.kind).toBe("failed");
-    expect(vi.mocked(side.report).mock.calls[0]?.[0]).toContain("no network");
+    expect(side.report).toHaveBeenCalledWith({ kind: "failed", reason: expect.stringContaining("no network") });
   });
 
   it("a failed install does not relaunch into a half-written app", async () => {
@@ -127,7 +127,7 @@ group("checkForUpdates", () => {
 
     expect(outcome.kind).toBe("failed");
     expect(side.relaunch).not.toHaveBeenCalled();
-    expect(vi.mocked(side.report).mock.calls[0]?.[0]).toContain("disk full");
+    expect(side.report).toHaveBeenCalledWith({ kind: "failed", reason: expect.stringContaining("disk full") });
   });
 });
 
@@ -166,7 +166,7 @@ group("the start-up check", () => {
 
     await checkForUpdates(side, { quiet: true });
 
-    expect(vi.mocked(side.report).mock.calls[0]?.[0]).toContain("disk full");
+    expect(side.report).toHaveBeenCalledWith({ kind: "failed", reason: expect.stringContaining("disk full") });
   });
 });
 
