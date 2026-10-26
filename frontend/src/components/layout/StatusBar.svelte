@@ -168,6 +168,7 @@
     background: var(--chrome-bg);
     border-top: 1px solid var(--chrome-border);
     font-size: var(--fs-status);
+    line-height: 1;
     color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;
