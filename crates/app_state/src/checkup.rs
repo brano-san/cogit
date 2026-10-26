@@ -47,6 +47,14 @@ impl AppState {
         self.handle(repo)?.commit_signature(rev)
     }
 
+    pub fn commit_signatures(
+        &self,
+        repo: RepoId,
+        oids: &[String],
+    ) -> Result<Vec<git_engine::SignatureStatus>, GitError> {
+        self.handle(repo)?.commit_signatures(oids)
+    }
+
     pub fn unportable_paths(&self, repo: RepoId, rev: &str) -> Result<Vec<String>, GitError> {
         self.handle(repo)?.unportable_paths(rev)
     }

@@ -469,6 +469,7 @@ export const commands = {
 	/**  The Files LFS column: `.gitattributes` and the local lock cache, no network. */
 	lfsFileStates: (repo: RepoId, paths: string[]) => typedError<LfsFileState[], GitError>(__TAURI_INVOKE("lfs_file_states", { repo, paths })),
 	commitSignature: (repo: RepoId, rev: string) => typedError<SignatureCheck, GitError>(__TAURI_INVOKE("commit_signature", { repo, rev })),
+	commitSignatures: (repo: RepoId, oids: string[]) => typedError<SignatureStatus[], GitError>(__TAURI_INVOKE("commit_signatures", { repo, oids })),
 	unportablePaths: (repo: RepoId, rev: string) => typedError<string[], GitError>(__TAURI_INVOKE("unportable_paths", { repo, rev })),
 	rerereStatus: (repo: RepoId) => typedError<RerereStatus, GitError>(__TAURI_INVOKE("rerere_status", { repo })),
 	rerereForget: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("rerere_forget", { repo, paths })),
@@ -2687,6 +2688,12 @@ export type SignatureCheck = {
 	key: string,
 	/**  What gpg or ssh-keygen said, unaltered. */
 	raw: string,
+};
+
+export type SignatureStatus = {
+	oid: string,
+	status: string,
+	signer: string,
 };
 
 export type SkippedDeletion = {

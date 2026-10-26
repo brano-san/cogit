@@ -40,3 +40,46 @@ fn the_signature_status_is_read_with_show_signature_on() {
 
     assert_eq!(check.status.len(), 1, "{check:?}");
 }
+
+#[test]
+fn a_batch_reads_each_commit_status_by_id() {
+    let Some(f) = signed() else {
+        return;
+    };
+    let repo = RepoHandle::open(f.path()).unwrap();
+    let head = f.git(&["rev-parse", "HEAD"]).unwrap().trim().to_owned();
+    let parent = f.git(&["rev-parse", "HEAD~1"]).unwrap().trim().to_owned();
+
+    let found = repo
+        .commit_signatures(&[parent.clone(), head.clone()])
+        .unwrap();
+
+    let status = |oid: &str| {
+        found
+            .iter()
+            .find(|entry| entry.oid == oid)
+            .map(|entry| entry.status.clone())
+    };
+    assert_eq!(status(&parent).as_deref(), Some("N"), "{found:?}");
+    assert_eq!(status(&head).as_deref(), Some("E"), "{found:?}");
+}
+
+#[test]
+fn a_batch_verifies_against_the_allowed_signers() {
+    let Some(f) = signed() else {
+        return;
+    };
+    let public = std::fs::read_to_string(f.path().join(".signing-key.pub")).unwrap();
+    let allowed = f.path().join(".allowed-signers");
+    std::fs::write(&allowed, format!("* {public}")).unwrap();
+    let allowed = allowed.to_string_lossy().replace('\\', "/");
+    f.git(&["config", "gpg.ssh.allowedSignersFile", &allowed])
+        .unwrap();
+    let repo = RepoHandle::open(f.path()).unwrap();
+    let head = f.git(&["rev-parse", "HEAD"]).unwrap().trim().to_owned();
+
+    let found = repo.commit_signatures(&[head]).unwrap();
+
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].status, "G", "{found:?}");
+}

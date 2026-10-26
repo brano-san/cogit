@@ -14,6 +14,7 @@
   import { pointerDrag } from "$lib/pointer-drag";
   import { ON_MAC, primary } from "$lib/platform";
   import { overlap } from "$stores/overlap.svelte";
+  import { signatures } from "$stores/signatures.svelte";
   import {
     GRAPH,
     HEADER_ROWS,
@@ -398,6 +399,15 @@
   $effect(() => {
     if (!avatars.enabled) return;
     void avatars.load(visible.map((item) => item.entry.commit));
+  });
+
+  $effect(() => {
+    const id = repository.current?.repo;
+    if (!id) return;
+    void signatures.load(
+      id,
+      visible.map((item) => item.entry.commit.oid),
+    );
   });
 
   $effect(() => {

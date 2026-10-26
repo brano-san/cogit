@@ -17,6 +17,8 @@
   import { avatars } from "$stores/avatars.svelte";
   import { notedCommitsStore } from "$stores/noted-commits.svelte";
   import { settings } from "$stores/settings.svelte";
+  import { signatures } from "$stores/signatures.svelte";
+  import { signatureBadge, signatureLabel } from "$lib/signature";
 
   /** What a commit's row in the graph shows, inside the row the list positions. */
   interface Props {
@@ -69,6 +71,8 @@
   );
   const timeColumn = $derived(timeColumnStore.width(timeFormat));
   const hashColumn = $derived(timeColumnStore.hashWidth());
+  const signature = $derived(signatures.statuses.get(entry.commit.oid));
+  const badge = $derived(signatureBadge(signature?.status));
 </script>
 
 {#if folds}
@@ -103,6 +107,20 @@
       <path d="M3.5 2h5.5" />
       <path d="M5.5 5.5h2.5M5.5 8h1.5" />
       <path d="M13.6 5.4l-5 5-.6 2.2 2.2-.6 5-5z" />
+    </svg>
+  </span>
+{/if}
+{#if badge && signature}
+  <span class="signature {badge}" role="img" aria-label={signatureLabel(signature)} data-tip={signatureLabel(signature)}>
+    <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M8 1.8l5 1.9v4c0 3.1-2.1 5.4-5 6.5-2.9-1.1-5-3.4-5-6.5v-4z" />
+      {#if badge === "verified"}
+        <path d="M5.6 8l1.7 1.7 3.2-3.4" />
+      {:else if badge === "bad"}
+        <path d="M6 6l4 4M10 6l-4 4" />
+      {:else}
+        <path d="M8 5.2v3.2M8 10.6v.1" />
+      {/if}
     </svg>
   </span>
 {/if}
@@ -183,6 +201,21 @@
 
   .note-icon:hover {
     color: var(--text-primary);
+  }
+
+  .signature {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    color: var(--text-secondary);
+  }
+
+  .signature.verified {
+    color: var(--status-add);
+  }
+
+  .signature.bad {
+    color: var(--status-delete);
   }
 
   .capsule.more {

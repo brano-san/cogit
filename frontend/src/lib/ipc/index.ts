@@ -91,6 +91,7 @@ export type {
   GcPrune,
   RerereStatus,
   SignatureCheck,
+  SignatureStatus,
   Trailer,
   ModuleProblem,
   Operation,
@@ -1336,6 +1337,10 @@ export async function lfsLocks(repo: RepoId) {
 
 export async function commitSignature(repo: RepoId, rev: string) {
   return unwrap(await commands.commitSignature(repo, rev));
+}
+
+export async function commitSignatures(repo: RepoId, oids: string[]) {
+  return unwrap(await commands.commitSignatures(repo, oids));
 }
 
 export async function unportablePaths(repo: RepoId, rev: string) {

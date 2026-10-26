@@ -50,6 +50,19 @@ pub struct SignatureCheck {
     pub raw: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SignatureStatus {
+    pub oid: String,
+    pub status: String,
+    pub signer: String,
+}
+
+fn carries_signature(decoded: &gix::objs::CommitRef<'_>) -> bool {
+    decoded.extra_headers().find("gpgsig").is_some()
+        || decoded.extra_headers().find("gpgsig-sha256").is_some()
+}
+
 /// The last paragraph, when every line in it is a trailer or continues one.
 pub(crate) fn parse_trailers(body: &str) -> Vec<Trailer> {
     let Some(last) = body.trim_end().rsplit("\n\n").next() else {
@@ -213,11 +226,7 @@ impl RepoHandle {
         let decoded = commit
             .decode()
             .map_err(|err| GitError::Internal(format!("cannot read commit: {err}")))?;
-        let signed = decoded
-            .extra_headers()
-            .find("gpgsig")
-            .or_else(|| decoded.extra_headers().find("gpgsig-sha256"))
-            .is_some();
+        let signed = carries_signature(&decoded);
         let header = decoded.encoding.map(|name| name.to_string());
         let configured = self
             .repo
@@ -263,11 +272,56 @@ impl RepoHandle {
         let mut fields = text.splitn(4, '\0');
         let mut next = || fields.next().unwrap_or_default().trim().to_owned();
         Ok(SignatureCheck {
-            status: next(),
+            status: self.status_of_signed(rev, next()),
             signer: next(),
             key: next(),
             raw: next(),
         })
+    }
+
+    pub fn commit_signatures(&self, oids: &[String]) -> Result<Vec<SignatureStatus>> {
+        if oids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut args = vec![
+            "log",
+            "--no-show-signature",
+            "--encoding=UTF-8",
+            "--no-walk=unsorted",
+            "--format=%H%x00%G?%x00%GS%x1e",
+        ];
+        args.extend(oids.iter().map(String::as_str));
+        args.push("--");
+        let text = self.read_git(&args)?;
+        Ok(text
+            .split('\x1e')
+            .filter_map(|record| {
+                let mut fields = record.trim_start_matches('\n').splitn(3, '\0');
+                let oid = fields.next().filter(|oid| !oid.is_empty())?.to_owned();
+                let mut next = || fields.next().unwrap_or_default().trim().to_owned();
+                let status = self.status_of_signed(&oid, next());
+                Some(SignatureStatus {
+                    oid,
+                    status,
+                    signer: next(),
+                })
+            })
+            .collect())
+    }
+
+    fn status_of_signed(&self, rev: &str, status: String) -> String {
+        let signed = status == "N"
+            && self
+                .find_commit(rev)
+                .ok()
+                .and_then(|commit| {
+                    commit
+                        .decode()
+                        .ok()
+                        .map(|decoded| carries_signature(&decoded))
+                })
+                .unwrap_or(false);
+        if signed { "E".to_owned() } else { status }
     }
 
     pub fn commit_files(&self, rev: &str) -> Result<Vec<FileEntry>> {

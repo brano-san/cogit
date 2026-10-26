@@ -97,7 +97,7 @@ pub use cloning::{
 };
 pub use commit::{
     CommitDetails, ConflictKind, DEFAULT_SIMILARITY, FileEntry, FileMode, FileStatus, Signature,
-    SignatureCheck, SubmoduleChange, Trailer,
+    SignatureCheck, SignatureStatus, SubmoduleChange, Trailer,
 };
 pub use commit_write::CommitRequest;
 pub use config_file::{

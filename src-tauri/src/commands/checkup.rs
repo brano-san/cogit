@@ -95,6 +95,20 @@ pub async fn commit_signature(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn commit_signatures(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    oids: Vec<String>,
+) -> Result<Vec<git_engine::SignatureStatus>, GitError> {
+    let app_state = state.state.clone();
+    blocking("commit_signatures", move || {
+        app_state.commit_signatures(repo, &oids)
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn unportable_paths(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,
