@@ -287,7 +287,7 @@ describe("refLabels with the upstream on the same commit", () => {
     const [label] = at([local("bugfix/q", A, "origin/master"), remote("origin/master", A)]);
     const parts = labelParts(label!);
 
-    expect(parts.remote).toEqual({ text: "origin/master", kind: "remote" });
+    expect(parts.remote).toEqual({ text: "origin/master", kind: "remote", ref: "origin/master" });
     expect(parts.local).toMatchObject({ text: "bugfix/q", kind: "local", name: "bugfix/q" });
     expect(labelParts({ text: "dev", kind: "local" })).toEqual({ remote: null, local: { text: "dev", kind: "local" } });
   });
@@ -530,7 +530,8 @@ describe("checkpoint refs", () => {
     const map = refLabels([branch(long, "local"), branch("feature/a-very-long-branch-name", "local")], [], null);
     const [checkpoint, feature] = [...map.values()].flat();
     expect(checkpoint).toMatchObject({ text: "checkpoint", title: long });
-    expect(feature).toEqual({ text: "feature/a-very-long-branch-name", kind: "local" });
+    expect(feature).toEqual({ text: "feature/a-very-long-branch-name", kind: "local", ref: "feature/a-very-long-branch-name" });
+    expect(checkpoint?.ref).toBe(long);
   });
 });
 

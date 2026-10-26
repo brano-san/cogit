@@ -121,7 +121,7 @@
   import { compareView } from "$stores/compare-view.svelte";
   import { confirmation } from "$stores/confirm.svelte";
   import { undoRewriteQuestion } from "$lib/undo-rewrite";
-  import { isAncestor, undoRewrite, undoRewriteInfo } from "$lib/ipc/ref-ops";
+  import { isAncestor, tagMessage, undoRewrite, undoRewriteInfo } from "$lib/ipc/ref-ops";
   import { effective, withShortcuts } from "$lib/keymap";
   import { binName, ON_MAC, ON_WINDOWS, OS, primary } from "$lib/platform";
   import { pageCommand } from "$lib/page-accelerators";
@@ -136,12 +136,13 @@
   import { desktop } from "$stores/desktop.svelte";
   import { groupChoices, parseRepoCommand, repoMenu } from "$lib/repo-menu";
   import { listedName, listedRepos, type ListedRepo } from "$lib/repo-list";
-  import { TODO_PREFIX, editedSteps, todoMenu } from "$lib/rebase-todo";
+  import { TODO_PREFIX, editedSteps, movedSteps, todoMenu } from "$lib/rebase-todo";
   import { rowSync, summaryPulse } from "$lib/repo-sync";
   import { removalQuestion, UNGROUPED } from "$lib/repo-groups";
   import { repoList } from "$stores/repo-list.svelte";
   import { compareUrl, diffWindowTitle } from "$lib/compare-params";
-  import { dropActions, type DropAction, type DragPayload } from "$lib/drop-target";
+  import { dropActions, parseDrag, type DropAction, type DropActionId, type DragPayload } from "$lib/drop-target";
+  import { dragOver } from "$stores/drag-over.svelte";
   import { moveEntry, planPublished } from "$lib/rebase-plan";
   import { splitRequest } from "$lib/split-off";
   import { readsAgain } from "$lib/file-view";
@@ -184,6 +185,10 @@
     protectingRefs,
     rebaseProgress,
     editRebaseTodo,
+    cherryPick,
+    createTag,
+    moveBranch,
+    setUpstream,
     rebaseTodo,
     rollbackTo,
     splitOff,
@@ -224,7 +229,6 @@
     findGitCandidates,
     useGit,
     type AppInfo,
-    type Branch,
     type RepoId,
     type WorkingState,
     openErrorsWindow,
@@ -2098,35 +2102,73 @@ ${event.error}`,
     await mutate((repo) => rollbackTo(repo, rev, paths), paths);
   }
 
-  /** A drop never acts on its own: the user picks from the menu it opens. */
-  function onBranchDrop(sourceName: string, target: Branch, x: number, y: number) {
-    const source = repository.localBranches.find((b) => b.name === sourceName);
-    if (!source) return;
-    const canFastForward = target.isHead && source.oid !== target.oid;
-    const payload = { kind: "branch" as const, id: sourceName };
-    const onto = { kind: "branch" as const, id: target.name };
-    const head = repository.localBranches.find((b) => b.isHead)?.name ?? null;
-    const actions = dropActions(payload, onto, canFastForward, head);
-    if (actions.length === 0) return;
-    dropMenu = { actions, source: payload, target: onto, x, y };
+  function oidOfDrag(item: DragPayload): string | undefined {
+    if (item.kind === "commit") return item.id;
+    if (item.kind === "tag") return repo?.tags.find((tag) => tag.name === item.id)?.oid;
+    const kind = item.kind === "branch" ? "local" : "remote";
+    return repo?.branches.find((branch) => branch.kind === kind && branch.name === item.id)?.oid;
   }
 
+  function onRefDrop(sourceText: string, targetText: string, x: number, y: number) {
+    dragOver.target = null;
+    const source = parseDrag(sourceText);
+    const target = parseDrag(targetText);
+    if (!source || !target) return;
+    if (source.kind === "step" || target.kind === "step") {
+      if (source.kind === "step" && target.kind === "step") moveStep(Number(source.id), Number(target.id));
+      return;
+    }
+    const head = repository.localBranches.find((branch) => branch.isHead)?.name ?? null;
+    const actions = dropActions(source, target, {
+      head,
+      oidOf: oidOfDrag,
+      upstreamOf: (name) => repository.localBranches.find((branch) => branch.name === name)?.upstream ?? null,
+      canFastForward: (branch, to) =>
+        branch === head && oidOfDrag({ kind: "branch", id: branch }) !== oidOfDrag(to),
+    });
+    if (actions.length === 0) return;
+    dropMenu = { actions, source, target, x, y };
+  }
+
+  function moveStep(from: number, to: number) {
+    const repoId = repository.current?.repo;
+    const steps = progress ? movedSteps(progress.todo, from, to) : null;
+    if (!repoId || !steps) return;
+    void editRebaseTodo(repoId, steps)
+      .catch((err) => errors.report(err, "Could not change the rebase plan"))
+      .then(() => refreshProgress());
+  }
+
+  const DROP_FAILURE: Record<DropActionId, string> = {
+    merge: "Could not merge",
+    fastForward: "Could not fast-forward",
+    rebase: "Could not rebase",
+    squash: "Could not squash",
+    reorder: "Could not move the commit",
+    setUpstream: "Could not set the upstream",
+    moveBranch: "Could not move the branch",
+    moveTag: "Could not move the tag",
+    cherryPick: "Could not cherry-pick",
+  };
+
   async function runDropAction(action: DropAction) {
-    const menu = dropMenu;
     dropMenu = null;
     const id = repository.current?.repo;
-    if (!menu || !id || action.disabled) return;
+    if (!id || action.disabled) return;
 
-    if (menu.source.kind === "commit") {
-      await replan(action, menu.source.id, menu.target.id);
+    if (action.id === "squash" || action.id === "reorder") {
+      await replan(action, action.subject, action.object);
       return;
     }
 
     if (action.destructive) {
+      const moves = action.id === "moveBranch" || action.id === "moveTag";
       const go = await confirmation.ask({
-        title: "Rewrite History",
-        message: `${action.title}. This rewrites history. Continue?`,
-        confirm: "Rewrite",
+        title: moves ? "Move Reference" : "Rewrite History",
+        message: moves
+          ? `${action.title}? Commits only it pointed at are left without a name.`
+          : `${action.title}. This rewrites history. Continue?`,
+        confirm: moves ? "Move" : "Rewrite",
         warning: true,
       });
       if (!go) return;
@@ -2134,35 +2176,24 @@ ${event.error}`,
 
     const revision = (name: string) => localRevision(name, repo?.branches ?? [], repo?.tags ?? []);
     try {
-      if (action.id === "merge") {
-        await mergeInto(id, {
-          source: revision(menu.source.id),
-          noFastForward: false,
-          squash: false,
-          message: null,
-        });
+      if (action.id === "merge" || action.id === "fastForward") {
+        await mergeInto(id, { source: revision(action.subject), noFastForward: false, squash: false, message: null });
       } else if (action.id === "rebase") {
-        await rebaseOnto(id, { onto: revision(menu.target.id), autostash: true });
-      } else if (action.id === "fastForward") {
-        await mergeInto(id, {
-          source: revision(menu.source.id),
-          noFastForward: false,
-          squash: false,
-          message: null,
-        });
+        await rebaseOnto(id, { onto: revision(action.object), autostash: true });
+      } else if (action.id === "setUpstream") {
+        await setUpstream(id, action.subject, action.object);
+      } else if (action.id === "moveBranch") {
+        await moveBranch(id, action.subject, action.object);
+      } else if (action.id === "moveTag") {
+        const message = await tagMessage(id, action.subject);
+        await createTag(id, { name: action.subject, target: action.object, message, force: true });
+      } else if (action.id === "cherryPick") {
+        await cherryPick(id, [action.subject]);
       }
     } catch (err) {
-      errors.report(err, `Could not ${action.id === "rebase" ? "rebase" : "merge"}`);
+      errors.report(err, DROP_FAILURE[action.id]);
     }
     await afterRefChange(id);
-  }
-
-  function onCommitDrop(sourceOid: string, targetOid: string, x: number, y: number) {
-    const source = { kind: "commit" as const, id: sourceOid };
-    const target = { kind: "commit" as const, id: targetOid };
-    const actions = dropActions(source, target, false);
-    if (actions.length === 0) return;
-    dropMenu = { actions, source, target, x, y };
   }
 
   /** Squash and reorder are both one interactive rebase with a two-line plan. */
@@ -3868,7 +3899,7 @@ ${event.error}`,
             oncontext={(node, x, y) => void refContext(node, x, y)}
             ongroupcontext={(nodes, x, y) => void selectionActions?.refsContext(nodes, x, y)}
             onhover={(node) => { refActions?.prefetchNode(node); }}
-            ondrop={onBranchDrop}
+            ondrop={onRefDrop}
           />
         </Panel>
       </div>
@@ -3937,7 +3968,7 @@ ${event.error}`,
             {/if}
             <GraphPanel
               {progress}
-              ondrop={onCommitDrop}
+              ondrop={onRefDrop}
               oncontext={(oid, x, y) => void commitContext(oid, x, y)}
               ongroupcontext={(oids, x, y) => void selectionActions?.commitsContext(oids, x, y)}
               onhover={(id, oid) => refActions?.prefetch(id, oid)}

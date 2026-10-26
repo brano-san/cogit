@@ -39,6 +39,7 @@ export type RefKind = "head" | "local" | "remote" | "tag" | "stash";
 export interface RefLabel {
   text: string;
   kind: RefKind;
+  ref?: string;
   /** The upstream on the same commit, joined into this label (#49): `origin/master`. */
   upstream?: string;
   /** What is drawn before `=`: the remote alone when the upstream has the local branch's
@@ -99,7 +100,7 @@ export function labelParts(label: RefLabel): { remote: RefLabel | null; local: R
   if (label.upstream === undefined) return { remote: null, local: label };
   const { upstream: _upstream, prefix: _prefix, ...local } = label;
   return {
-    remote: { text: label.upstream, kind: "remote" },
+    remote: { text: label.upstream, kind: "remote", ref: label.upstream },
     local: { ...local, text: label.name ?? label.text },
   };
 }
@@ -137,8 +138,8 @@ export function refLabels(
     if (upstream) joined.add(upstream.name);
     const prefix = upstream && prefixOf(upstream.name, branch.name, extras.remotes);
     const label: RefLabel = !upstream
-      ? { text: shortRef(branch.name), kind }
-      : { text: `${prefix}=${branch.name}`, kind, upstream: upstream.name, prefix, name: branch.name };
+      ? { text: shortRef(branch.name), kind, ref: branch.name }
+      : { text: `${prefix}=${branch.name}`, kind, ref: branch.name, upstream: upstream.name, prefix, name: branch.name };
     const lines = upstream ? [branch.name, upstream.name] : [];
     const worktree = held.get(branch.name);
     if (worktree) {
@@ -161,10 +162,15 @@ export function refLabels(
   for (const branch of remotes.values()) {
     if (joined.has(branch.name)) continue;
     const text = shortRef(branch.name);
-    add(branch.oid, text === branch.name ? { text, kind: "remote" } : { text, kind: "remote", title: branch.name });
+    add(
+      branch.oid,
+      text === branch.name
+        ? { text, kind: "remote", ref: branch.name }
+        : { text, kind: "remote", ref: branch.name, title: branch.name },
+    );
   }
   for (const tag of tags) {
-    add(tag.oid, { text: tag.name, kind: "tag" });
+    add(tag.oid, { text: tag.name, kind: "tag", ref: tag.name });
   }
   for (const stash of extras.stashes ?? []) {
     const text = `stash@{${stash.index}}`;

@@ -7,11 +7,12 @@
   import CommitRow from "$components/graph/CommitRow.svelte";
   import GraphCanvas from "$components/graph/GraphCanvas.svelte";
   import { refLabels, shortOid, type RefLabel } from "$lib/format";
-  import { graphDropTarget } from "$lib/drop-target";
+  import { graphDropTarget, serialiseDrag } from "$lib/drop-target";
   import { NO_ITEMS, clickItem, rightClickItem, selectEvery, single, type ItemSelection } from "$lib/item-selection";
   import { firstOids, oidsBetween } from "$lib/graph-selection";
   import { registerSelectAll } from "$lib/select-all";
-  import { pointerDrag } from "$lib/pointer-drag";
+  import { pointerDrag, refAt, refElement } from "$lib/pointer-drag";
+  import { dragOver } from "$stores/drag-over.svelte";
   import { ON_MAC, primary } from "$lib/platform";
   import { overlap } from "$stores/overlap.svelte";
   import { signatures } from "$stores/signatures.svelte";
@@ -98,8 +99,6 @@
     /** Rows of this list, not a block above it: a rebase in flight is part of the history
         the user is reading, and the graph has to draw lines into it. */
     rebase?: RebaseProgress | null;
-    /** A commit was dropped on another commit; the caller offers squash or reorder where
-        the pointer was released. */
     ondrop?: (source: string, target: string, x: number, y: number) => void;
     oncontext?: (oid: string, x: number, y: number) => void;
     /** Right-click on one of several selected commits: the menu of the group. */
@@ -206,8 +205,6 @@
 
   /** The other end of a comparison stays marked while the graph shows it (#33). */
   const comparedFrom = $derived(compareView.showing(selection.oid) ? compareView.from : null);
-
-  let over = $state<string | null>(null);
 
   /** The commits picked with Ctrl and Shift. `selection.oid` is the one Files and Diff
       show: the one clicked last, or the one an arrow key reached. */
@@ -648,17 +645,25 @@
     return graphDropTarget(y, readScroll(), rowHeight, listRows, headerRows, (row) => graph.rowAt(row)?.commit.oid, wtAt);
   }
 
-  /** A commit dragged onto another (R-450): only from a commit row, never the scrollbar. */
+  function inside(x: number, y: number): boolean {
+    const box = scroller?.getBoundingClientRect();
+    return !!box && x >= box.left && x < box.right && y >= box.top && y < box.bottom;
+  }
+
   const commitDrag = $derived(
     ondrop
       ? {
           sourceAt: (event: PointerEvent) =>
-            (event.target as Element | null)?.closest(".row:not(.header):not(.virtual)")
-              ? commitAt(event.clientY)
-              : null,
-          rowAt: (event: PointerEvent) => (event.target as Element | null)?.closest(".row:not(.header):not(.virtual)") ?? null,
-          targetAt: (_x: number, y: number) => commitAt(y),
-          onover: (target: string | null) => (over = target),
+            graph.stale || !refElement(event)?.closest(".row:not(.header)") ? null : (refElement(event)?.getAttribute("data-ref") ?? null),
+          rowAt: refElement,
+          targetAt: (x: number, y: number) => {
+            const ref = refAt(x, y);
+            if (ref !== null) return ref;
+            const oid = inside(x, y) ? commitAt(y) : null;
+            return oid === null ? null : serialiseDrag({ kind: "commit", id: oid });
+          },
+          anywhere: true,
+          onover: (target: string | null) => (dragOver.target = target),
           ondrop,
         }
       : null,
@@ -867,6 +872,8 @@
         {#each virtualRows as row, index (index)}
           <div
             class="row virtual {row.kind}"
+            class:over={row.kind === "todo" && dragOver.target === `step:${row.step}`}
+            data-ref={row.kind === "todo" && ondrop ? `step:${row.step}` : undefined}
             class:striped={stripes && striped(wtAt + HEADER_ROWS + index)}
             style:top="{(wtAt + HEADER_ROWS + index - range.start) * rowHeight}px"
             style:padding-left="{headerX}px"
@@ -881,11 +888,12 @@
           {@const look = looks.get(item.entry.commit.oid)}
           <div
             class="row"
+            data-ref={ondrop ? `commit:${item.entry.commit.oid}` : undefined}
             class:striped={stripes && striped(item.listRow)}
             class:bisect-current={look?.row === "current"}
             class:bisect-found={look?.row === "found"}
             class:selected={picks.ids.has(item.entry.commit.oid) || comparedFrom === item.entry.commit.oid}
-            class:over={over === item.entry.commit.oid}
+            class:over={dragOver.target === `commit:${item.entry.commit.oid}`}
             class:faded={faded.has(item.entry.commit.oid)}
             style:top="{(item.listRow - range.start) * rowHeight}px"
             style:padding-left="{rowTextX(item.entry.layout.width, clipX)}px"

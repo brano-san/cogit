@@ -46,3 +46,11 @@ export function editedSteps(steps: readonly RebaseStep[], at: number, id: string
   next[at] = { ...next[at]!, action: command };
   return next;
 }
+
+export function movedSteps(steps: readonly RebaseStep[], from: number, to: number): RebaseStep[] | null {
+  if (from === to || !steps[from] || !steps[to]) return null;
+  const next = steps.map((step) => ({ ...step, action: verbOf(step) }));
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved!);
+  return next;
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { editedSteps, todoMenu } from "./rebase-todo";
+import { editedSteps, movedSteps, todoMenu } from "./rebase-todo";
 
 const steps = [
   { action: "pick", oid: "a1", summary: "one" },
@@ -36,5 +36,24 @@ describe("the steps after a menu item", () => {
 
   it("is nothing for another menu's item", () => {
     expect(editedSteps(steps, 0, "ref:merge")).toBeNull();
+  });
+});
+
+describe("a step dragged onto another", () => {
+  const steps = [
+    { action: "p", oid: "a", summary: "A" },
+    { action: "pick", oid: "b", summary: "B" },
+    { action: "squash", oid: "c", summary: "C" },
+  ];
+
+  it("takes the place of the step it lands on, verbs spelled out", () => {
+    expect(movedSteps(steps, 0, 2)?.map((step) => step.oid)).toEqual(["b", "c", "a"]);
+    expect(movedSteps(steps, 2, 0)?.map((step) => step.oid)).toEqual(["c", "a", "b"]);
+    expect(movedSteps(steps, 0, 2)?.[2]?.action).toBe("pick");
+  });
+
+  it("changes nothing on itself or off the list", () => {
+    expect(movedSteps(steps, 1, 1)).toBeNull();
+    expect(movedSteps(steps, 1, 5)).toBeNull();
   });
 });

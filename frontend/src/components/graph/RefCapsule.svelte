@@ -2,6 +2,7 @@
   import KindIcon from "$components/common/KindIcon.svelte";
   import HereMark from "$components/graph/HereMark.svelte";
   import { labelParts, type RefLabel } from "$lib/format";
+  import { labelDrag } from "$lib/drop-target";
 
   interface Props {
     label: RefLabel;
@@ -45,16 +46,18 @@
     <!-- The branch colour stays on the local part: the prefix in remote colours, `=` olive. -->
     <span class="capsule {label.kind} joined" class:holds={label.worktree}>
       <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <span class="prefix" title={remote.text} oncontextmenu={menu(remote)} ondblclick={activate(remote)}
+      <span class="prefix" title={remote.text} data-ref={labelDrag(remote)} oncontextmenu={menu(remote)} ondblclick={activate(remote)}
         >{label.prefix}</span
       ><!-- svelte-ignore a11y_no_static_element_interactions --><span
         class="eq"
         title={localTip}
+        data-ref={labelDrag(parts.local)}
         oncontextmenu={menu(parts.local)}
         ondblclick={activate(parts.local)}>=</span
       ><!-- svelte-ignore a11y_no_static_element_interactions --><span
         class="branch"
         title={localTip}
+        data-ref={labelDrag(parts.local)}
         oncontextmenu={menu(parts.local)}
         ondblclick={activate(parts.local)}>{@render held()}{#if label.kind === "head"}<HereMark />{/if}{text}</span
       >
@@ -65,6 +68,7 @@
       class="capsule {label.kind}"
       class:holds={label.worktree}
       title={tooltip}
+      data-ref={labelDrag(label)}
       oncontextmenu={menu(label)}
       ondblclick={activate(label)}
     >

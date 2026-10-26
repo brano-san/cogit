@@ -12,7 +12,9 @@
     type RefTreeInput,
   } from "$lib/ref-nodes";
   import { striped } from "$lib/graph-geometry";
-  import { pointerDrag } from "$lib/pointer-drag";
+  import { pointerDrag, refAt, refElement } from "$lib/pointer-drag";
+  import { nodeDrag } from "$lib/drop-target";
+  import { dragOver } from "$stores/drag-over.svelte";
   import { refActivation } from "$lib/ref-checkout";
   import { TypeAhead, findTyped, listKey, pageRows, pressOf, typedChar } from "$lib/list-keys";
   import { ON_MAC, primary } from "$lib/platform";
@@ -23,7 +25,6 @@
   import { untrack } from "svelte";
   import { triState } from "$lib/tri-state-box";
   import { worktreeMarkTooltip } from "$lib/worktree-list";
-  import type { Branch } from "$lib/ipc";
   import { settings } from "$stores/settings.svelte";
 
   interface Props {
@@ -40,7 +41,7 @@
     ongroupcontext?: (nodes: RefNode[], x: number, y: number) => void;
     onhover?: (node: RefNode) => void;
     /** `x` and `y`: where the pointer was released, for the menu of what to do. */
-    ondrop?: (source: string, target: Branch, x: number, y: number) => void;
+    ondrop?: (source: string, target: string, x: number, y: number) => void;
   }
 
   let {
@@ -56,7 +57,6 @@
     ondrop,
   }: Props = $props();
 
-  let over = $state<string | null>(null);
   /** Click, Ctrl+click, Shift+click, Shift+arrows, Ctrl+A: the model Graph shares. */
   let sel = $state.raw(NO_ITEMS);
   /** The row the keys move from: the cursor of the selection. */
@@ -128,14 +128,18 @@
     if (rows.length > 0) onvisible(toggleSelected(tree, rows.map((row) => row.id), visible));
   }
 
-  function dropped(source: string, target: string, x: number, y: number) {
-    const from = nodes.find((node) => node.id === source)?.branch;
-    const onto = nodes.find((node) => node.id === target)?.branch;
-    if (from && onto && from.name !== onto.name) ondrop?.(from.name, onto, x, y);
-  }
-
-  /** A branch dropped on a branch (R-450); rows are marked with their node id. */
-  const branchDrag = $derived(ondrop ? { onover: (id: string | null) => (over = id), ondrop: dropped } : null);
+  const branchDrag = $derived(
+    ondrop
+      ? {
+          sourceAt: (event: PointerEvent) => refElement(event)?.getAttribute("data-ref") ?? null,
+          rowAt: refElement,
+          targetAt: refAt,
+          anywhere: true,
+          onover: (target: string | null) => (dragOver.target = target),
+          ondrop,
+        }
+      : null,
+  );
 
   let treeEl: HTMLDivElement | undefined = $state();
   const typing = new TypeAhead();
@@ -215,7 +219,7 @@
       class="row {node.kind}"
       class:striped={striped(at, stripes)}
       class:selected={sel.ids.has(node.id)}
-      class:over={over === node.id}
+      class:over={dragOver.target !== null && dragOver.target === nodeDrag(node)}
       style:padding-left="calc(var(--tree-base) + {node.depth} * var(--tree-step))"
       role="treeitem"
       aria-selected={sel.ids.has(node.id)}
@@ -223,8 +227,7 @@
       tabindex="-1"
       data-node={node.id}
       title={node.branch?.name ?? node.tag?.name ?? node.detail ?? (node.kind === "lost" ? `${node.oid} ${node.label}` : node.label)}
-      data-drag={node.branch && ondrop ? node.id : undefined}
-      data-drop={node.branch && ondrop ? node.id : undefined}
+      data-ref={ondrop ? nodeDrag(node) : undefined}
       onclick={(event) => rowClick(node, event)}
       ondblclick={(event) => {
         if (!(event.target as Element).closest("input, .disclosure")) activate(node);

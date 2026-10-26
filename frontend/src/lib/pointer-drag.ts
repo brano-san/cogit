@@ -6,6 +6,7 @@ export interface PointerDragOptions {
       nearest marked row inside the node. */
   sourceAt?: (event: PointerEvent) => string | null;
   rowAt?: (event: PointerEvent) => Element | null;
+  anywhere?: boolean;
   /** The row under a point in client coordinates, already known to be inside the node.
       Default: the `data-drop` of the nearest marked row there. */
   targetAt?: (x: number, y: number) => string | null;
@@ -17,6 +18,14 @@ export interface PointerDragOptions {
 
 /** A field or a list box keeps its own presses: text is selected there, not dragged. */
 const KEEPS_PRESS = "input, textarea, select, [contenteditable]";
+
+export function refAt(x: number, y: number): string | null {
+  return document.elementFromPoint(x, y)?.closest("[data-ref]")?.getAttribute("data-ref") ?? null;
+}
+
+export function refElement(event: PointerEvent): Element | null {
+  return (event.target as Element | null)?.closest?.("[data-ref]") ?? null;
+}
 
 function liftGhost(row: Element): { ghost: HTMLElement; box: DOMRect } {
   const box = row.getBoundingClientRect();
@@ -75,7 +84,7 @@ export function pointerDrag(node: HTMLElement, options: PointerDragOptions | nul
 
   function targetAt(x: number, y: number): string | null {
     const hit = document.elementFromPoint(x, y);
-    if (!hit || !node.contains(hit)) return null;
+    if (!hit || (!current?.anywhere && !node.contains(hit))) return null;
     return current?.targetAt ? current.targetAt(x, y) : marked(hit, "data-drop", node);
   }
 
