@@ -171,13 +171,27 @@ impl AppState {
     }
 
     pub fn restore_branch(&self, repo: RepoId, branch: &str, oid: &str) -> Result<(), GitError> {
+        self.put_branch(repo, branch, oid, "Restore")
+    }
+
+    pub fn move_branch(&self, repo: RepoId, branch: &str, oid: &str) -> Result<(), GitError> {
+        self.put_branch(repo, branch, oid, "Move")
+    }
+
+    fn put_branch(
+        &self,
+        repo: RepoId,
+        branch: &str,
+        oid: &str,
+        verb: &str,
+    ) -> Result<(), GitError> {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let before = handle.restore_branch(branch, oid)?;
         self.record(
             repo,
             format!(
-                "Restore {branch} to {} (was at {})",
+                "{verb} {branch} to {} (was at {})",
                 short(oid),
                 short(&before)
             ),

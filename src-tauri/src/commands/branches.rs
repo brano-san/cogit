@@ -120,6 +120,25 @@ pub async fn restore_branch(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn move_branch(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    branch: String,
+    oid: String,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Branch,
+        "move_branch",
+        move || app_state.move_branch(repo, &branch, &oid),
+    )
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn set_upstream(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,

@@ -974,6 +974,20 @@ fn restoring_a_branch_that_is_not_checked_out_can_be_undone() {
 }
 
 #[test]
+fn moving_a_branch_onto_another_commit_can_be_undone() {
+    let f = test_fixtures::branched().unwrap();
+    let (state, repo) = open(&f);
+    let tip = f.git(&["rev-parse", "dev"]).unwrap().trim().to_owned();
+    let main = f.git(&["rev-parse", "main"]).unwrap().trim().to_owned();
+
+    state.move_branch(repo, "dev", &main).unwrap();
+    assert_eq!(f.git(&["rev-parse", "dev"]).unwrap().trim(), main);
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(f.git(&["rev-parse", "dev"]).unwrap().trim(), tip);
+}
+
+#[test]
 fn undoing_the_restore_of_a_branch_is_refused_once_it_moved_on() {
     let f = test_fixtures::branched().unwrap();
     let (state, repo) = open(&f);

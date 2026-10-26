@@ -442,6 +442,7 @@ export const commands = {
 	renameBranch: (repo: RepoId, from: string, to: string, force: boolean) => typedError<null, GitError>(__TAURI_INVOKE("rename_branch", { repo, from, to, force })),
 	branchReflog: (repo: RepoId, branch: string) => typedError<ReflogEntry[], GitError>(__TAURI_INVOKE("branch_reflog", { repo, branch })),
 	restoreBranch: (repo: RepoId, branch: string, oid: string) => typedError<null, GitError>(__TAURI_INVOKE("restore_branch", { repo, branch, oid })),
+	moveBranch: (repo: RepoId, branch: string, oid: string) => typedError<null, GitError>(__TAURI_INVOKE("move_branch", { repo, branch, oid })),
 	setUpstream: (repo: RepoId, branch: string, upstream: string | null) => typedError<null, GitError>(__TAURI_INVOKE("set_upstream", { repo, branch, upstream })),
 	deleteRemoteBranch: (repo: RepoId, remote: string, branch: string, credential: {
 	/**  Used only for URLs of this host: a retry never hands it to another one. */
