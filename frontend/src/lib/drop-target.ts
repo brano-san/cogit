@@ -23,6 +23,15 @@ export function moveDrag(drag: PointerDrag, x: number, y: number, threshold = DR
   return { ...drag, moving: true };
 }
 
+export function ghostAt(
+  drag: PointerDrag,
+  row: { left: number; top: number },
+  x: number,
+  y: number,
+): { left: number; top: number } {
+  return { left: row.left + x - drag.x, top: row.top + y - drag.y };
+}
+
 /** Where a release drops: nowhere for a click, off every row, or back on its own row. */
 export function dropOn(drag: PointerDrag | null, target: string | null): string | null {
   if (!drag?.moving || target === null || target === drag.source) return null;

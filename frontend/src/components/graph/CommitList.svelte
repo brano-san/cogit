@@ -656,6 +656,7 @@
             (event.target as Element | null)?.closest(".row:not(.header):not(.virtual)")
               ? commitAt(event.clientY)
               : null,
+          rowAt: (event: PointerEvent) => (event.target as Element | null)?.closest(".row:not(.header):not(.virtual)") ?? null,
           targetAt: (_x: number, y: number) => commitAt(y),
           onover: (target: string | null) => (over = target),
           ondrop,

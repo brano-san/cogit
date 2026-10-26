@@ -3,6 +3,7 @@ import {
   DRAG_THRESHOLD,
   dropActions,
   dropOn,
+  ghostAt,
   graphDropTarget,
   moveDrag,
   parseDrag,
@@ -37,6 +38,12 @@ describe("a drag on pointer events", () => {
     expect(dropOn(drag, null)).toBeNull();
     expect(dropOn(drag, "feature")).toBeNull();
     expect(dropOn(null, "main")).toBeNull();
+  });
+
+  it("carries the row under the pointer, held where it was grabbed", () => {
+    const drag = pressDrag("feature", 130, 210);
+    expect(ghostAt(drag, { left: 100, top: 200 }, 130, 210)).toEqual({ left: 100, top: 200 });
+    expect(ghostAt(drag, { left: 100, top: 200 }, 150, 290)).toEqual({ left: 120, top: 280 });
   });
 });
 

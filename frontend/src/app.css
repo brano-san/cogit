@@ -164,6 +164,19 @@ body {
   cursor: grabbing !important;
 }
 
+.drag-ghost {
+  position: fixed;
+  z-index: 1000;
+  box-sizing: border-box;
+  margin: 0;
+  pointer-events: none;
+  opacity: 0.9;
+  background: var(--surface-raised);
+  border: 1px solid var(--divider);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-popover);
+}
+
 /* Keyboard focus must always be visible; `outline: none` makes the app unusable
    without a mouse. */
 :focus-visible {

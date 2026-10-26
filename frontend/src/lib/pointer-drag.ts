@@ -1,10 +1,11 @@
 import type { ActionReturn } from "svelte/action";
-import { dropOn, moveDrag, pressDrag, type PointerDrag } from "$lib/drop-target";
+import { dropOn, ghostAt, moveDrag, pressDrag, type PointerDrag } from "$lib/drop-target";
 
 export interface PointerDragOptions {
   /** What a press drags; `null` leaves it a plain press. Default: the `data-drag` of the
       nearest marked row inside the node. */
   sourceAt?: (event: PointerEvent) => string | null;
+  rowAt?: (event: PointerEvent) => Element | null;
   /** The row under a point in client coordinates, already known to be inside the node.
       Default: the `data-drop` of the nearest marked row there. */
   targetAt?: (x: number, y: number) => string | null;
@@ -16,6 +17,21 @@ export interface PointerDragOptions {
 
 /** A field or a list box keeps its own presses: text is selected there, not dragged. */
 const KEEPS_PRESS = "input, textarea, select, [contenteditable]";
+
+function liftGhost(row: Element): { ghost: HTMLElement; box: DOMRect } {
+  const box = row.getBoundingClientRect();
+  const ghost = row.cloneNode(true) as HTMLElement;
+  ghost.classList.add("drag-ghost");
+  ghost.setAttribute("aria-hidden", "true");
+  ghost.style.position = "fixed";
+  ghost.style.pointerEvents = "none";
+  ghost.style.left = `${box.left}px`;
+  ghost.style.top = `${box.top}px`;
+  ghost.style.width = `${box.width}px`;
+  ghost.style.height = `${box.height}px`;
+  document.body.append(ghost);
+  return { ghost, box };
+}
 
 function marked(element: Element | null, attribute: string, node: HTMLElement): string | null {
   const row = element?.closest(`[${attribute}]`);
@@ -49,6 +65,8 @@ export function pointerDrag(node: HTMLElement, options: PointerDragOptions | nul
   let drag: PointerDrag | null = null;
   let pointer = -1;
   let over: string | null = null;
+  let row: Element | null = null;
+  let lifted: { ghost: HTMLElement; box: DOMRect } | null = null;
   /** `Esc` ended the drag; the button is still down, and its release must not click. */
   let cancelled = false;
 
@@ -59,6 +77,18 @@ export function pointerDrag(node: HTMLElement, options: PointerDragOptions | nul
     const hit = document.elementFromPoint(x, y);
     if (!hit || !node.contains(hit)) return null;
     return current?.targetAt ? current.targetAt(x, y) : marked(hit, "data-drop", node);
+  }
+
+  function dropGhost() {
+    lifted?.ghost.remove();
+    lifted = null;
+  }
+
+  function carry(x: number, y: number) {
+    if (!drag || !lifted) return;
+    const at = ghostAt(drag, lifted.box, x, y);
+    lifted.ghost.style.left = `${at.left}px`;
+    lifted.ghost.style.top = `${at.top}px`;
   }
 
   function hover(target: string | null) {
@@ -75,7 +105,9 @@ export function pointerDrag(node: HTMLElement, options: PointerDragOptions | nul
     document.documentElement.classList.remove("pointer-dragging");
     if (node.hasPointerCapture(pointer)) node.releasePointerCapture(pointer);
     hover(null);
+    dropGhost();
     drag = null;
+    row = null;
     cancelled = false;
   }
 
@@ -88,7 +120,9 @@ export function pointerDrag(node: HTMLElement, options: PointerDragOptions | nul
       // Captured only once it is a drag: a captured click lands on the node, not the row.
       node.setPointerCapture(pointer);
       document.documentElement.classList.add("pointer-dragging");
+      if (row) lifted = liftGhost(row);
     }
+    carry(event.clientX, event.clientY);
     const target = targetAt(event.clientX, event.clientY);
     hover(target === drag.source ? null : target);
   }
@@ -111,6 +145,7 @@ export function pointerDrag(node: HTMLElement, options: PointerDragOptions | nul
     event.stopImmediatePropagation();
     cancelled = true;
     hover(null);
+    dropGhost();
     document.documentElement.classList.remove("pointer-dragging");
   }
 
@@ -121,6 +156,8 @@ export function pointerDrag(node: HTMLElement, options: PointerDragOptions | nul
     const source = sourceAt(event);
     if (source === null) return;
     drag = pressDrag(source, event.clientX, event.clientY);
+    const pressed = event.target as Element | null;
+    row = current.rowAt ? current.rowAt(event) : (pressed?.closest?.("[data-drag]") ?? null);
     pointer = event.pointerId;
     window.addEventListener("pointermove", onmove, true);
     window.addEventListener("pointerup", onup, true);
