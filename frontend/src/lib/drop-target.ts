@@ -113,7 +113,7 @@ export function nodeDrag(node: { branch?: { kind: string; name: string }; tag?: 
   return node.tag ? serialiseDrag({ kind: "tag", id: node.tag.name }) : null;
 }
 
-function nameOf(item: DragPayload): string {
+export function nameOf(item: DragPayload): string {
   return item.kind === "commit" ? shortOid(item.id) : item.id;
 }
 

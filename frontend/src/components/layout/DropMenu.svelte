@@ -4,13 +4,14 @@
 
   interface Props {
     actions: readonly DropAction[];
+    none: string;
     x: number;
     y: number;
     onpick: (action: DropAction) => void;
     onclose: () => void;
   }
 
-  let { actions, x, y, onpick, onclose }: Props = $props();
+  let { actions, none, x, y, onpick, onclose }: Props = $props();
 
   /** A modal layer: Esc is its own only while nothing is open above it (R-451). */
   const layer = modalLayer();
@@ -40,6 +41,8 @@
       {action.title}
       {#if action.destructive}<span class="mark" title="Rewrites history">rewrites</span>{/if}
     </button>
+  {:else}
+    <button type="button" role="menuitem" disabled>{none}</button>
   {/each}
 </div>
 
@@ -78,8 +81,11 @@
     cursor: default;
   }
 
-  button:hover:not(:disabled) {
-    background: var(--state-hover);
+  button:hover:not(:disabled),
+  button:focus-visible:not(:disabled) {
+    background: var(--state-selected);
+    box-shadow: inset 2px 0 0 var(--selected-bar);
+    outline: none;
   }
 
   button:disabled {

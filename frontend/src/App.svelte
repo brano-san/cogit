@@ -141,7 +141,7 @@
   import { removalQuestion, UNGROUPED } from "$lib/repo-groups";
   import { repoList } from "$stores/repo-list.svelte";
   import { compareUrl, diffWindowTitle } from "$lib/compare-params";
-  import { dropActions, parseDrag, type DropAction, type DropActionId, type DragPayload } from "$lib/drop-target";
+  import { dropActions, nameOf, parseDrag, type DropAction, type DropActionId, type DragPayload } from "$lib/drop-target";
   import { dragOver } from "$stores/drag-over.svelte";
   import { moveEntry, planPublished } from "$lib/rebase-plan";
   import { splitRequest } from "$lib/split-off";
@@ -2126,7 +2126,7 @@ ${event.error}`,
       canFastForward: (branch, to) =>
         branch === head && oidOfDrag({ kind: "branch", id: branch }) !== oidOfDrag(to),
     });
-    if (actions.length === 0) return;
+    if (source.kind === target.kind && source.id === target.id) return;
     dropMenu = { actions, source, target, x, y };
   }
 
@@ -4194,6 +4194,7 @@ ${event.error}`,
   {#if dropMenu}
     <DropMenu
       actions={dropMenu.actions}
+      none="Nothing to do with {nameOf(dropMenu.source)} on {nameOf(dropMenu.target)}"
       x={dropMenu.x}
       y={dropMenu.y}
       onpick={(action) => void runDropAction(action)}
