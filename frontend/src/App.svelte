@@ -4155,19 +4155,21 @@ ${event.error}`,
   </div>
 
   {#if output.open}
-    <Splitter
-      direction="horizontal"
-      value={1 - fractions.outputHeight}
-      label="Resize output panel"
-      extent={windowHeight}
-      onchange={(d) =>
-        layout.set(
-          "outputHeight",
-          floorFraction(capFraction(fractions.outputHeight - d, windowHeight, OUTPUT_ROOM_PX), windowHeight, OUTPUT_MIN_PX),
-        )}
-      onreset={() => layout.resetOne("outputHeight")}
-    />
-    <OutputPanel height={Math.max(OUTPUT_MIN_PX, Math.min(fractions.outputHeight * windowHeight, windowHeight - OUTPUT_ROOM_PX))} />
+    <div class="output-dock">
+      <Splitter
+        direction="horizontal"
+        value={1 - fractions.outputHeight}
+        label="Resize output panel"
+        extent={windowHeight}
+        onchange={(d) =>
+          layout.set(
+            "outputHeight",
+            floorFraction(capFraction(fractions.outputHeight - d, windowHeight, OUTPUT_ROOM_PX), windowHeight, OUTPUT_MIN_PX),
+          )}
+        onreset={() => layout.resetOne("outputHeight")}
+      />
+      <OutputPanel height={Math.max(OUTPUT_MIN_PX, Math.min(fractions.outputHeight * windowHeight, windowHeight - OUTPUT_ROOM_PX))} />
+    </div>
   {/if}
 
   {#if finderOpen}
@@ -4619,6 +4621,15 @@ ${event.error}`,
     z-index: -1;
     background: var(--surface-base);
     opacity: 0.85;
+  }
+
+  .output-dock {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 auto;
+    background: var(--surface-base);
   }
 
   .workspace {
