@@ -72,7 +72,14 @@ pub(crate) const JOURNAL_CAPACITY: usize = 100;
 /// exit code 0. Nobody sees those unless we call them out.
 #[must_use]
 pub fn is_warning(entry: &git_engine::GitOutput) -> bool {
-    entry.exit_code == Some(0) && !entry.stderr.trim().is_empty()
+    entry.exit_code == Some(0) && entry.stderr.lines().any(warns)
+}
+
+fn warns(line: &str) -> bool {
+    let line = line.trim_start();
+    let line = line.strip_prefix("remote:").map_or(line, str::trim_start);
+    line.get(..8)
+        .is_some_and(|start| start.eq_ignore_ascii_case("warning:"))
 }
 
 fn is_problem(entry: &git_engine::GitOutput) -> bool {

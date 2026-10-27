@@ -130,14 +130,42 @@ fn the_real_journal_uses_the_shared_capacity() {
 }
 
 #[test]
-fn a_warning_is_a_zero_exit_code_with_something_on_stderr() {
-    let f = test_fixtures::linear(1).unwrap();
-    let state = AppState::new();
-    let repo = state.open_repository(f.path()).unwrap().repo;
+fn a_warning_is_a_zero_exit_code_with_a_warning_line_on_stderr() {
+    let log = journal_of(vec![
+        ran(
+            "git add a.txt",
+            Some(0),
+            "",
+            "warning: in the working copy of a.txt, LF will be replaced by CRLF",
+            1,
+        ),
+        ran(
+            "git push",
+            Some(0),
+            "",
+            "remote: warning: large files detected",
+            1,
+        ),
+        ran(
+            "git switch topic",
+            Some(0),
+            "",
+            "Switched to branch topic",
+            1,
+        ),
+        ran(
+            "git push",
+            Some(0),
+            "",
+            "To github.com:o/r.git
+   1a2b3c4..5d6e7f8  main -> main",
+            1,
+        ),
+    ]);
 
-    state.create_branch(repo, "topic", None, true).unwrap();
+    let warned: Vec<bool> = log.iter().map(app_state::is_warning).collect();
 
-    assert!(state.command_log().iter().any(app_state::is_warning));
+    assert_eq!(warned, [true, true, false, false]);
 }
 
 #[test]
@@ -198,7 +226,7 @@ fn the_rows_are_newest_first_and_flag_warnings_like_the_full_entries() {
             "git switch topic",
             Some(0),
             "",
-            "Switched to branch 'topic'",
+            "warning: refname 'topic' is ambiguous.",
             1,
         ),
         ran("git status", Some(0), "On branch master", "", 1),
