@@ -43,6 +43,10 @@ pub enum Recovery {
     Files {
         kept: Vec<(String, String)>,
     },
+    Discarded {
+        kept: Vec<(String, String)>,
+        left: Vec<(String, Option<String>)>,
+    },
     /// The branch was deleted: undo creates it again, tracking what it tracked.
     Branch {
         name: String,
@@ -207,6 +211,7 @@ impl AppState {
             }
             Recovery::Resolution { path, kept } => handle.unresolve(path, kept.as_deref())?,
             Recovery::Files { kept } => handle.write_back(kept)?,
+            Recovery::Discarded { kept, left } => handle.write_back_over(kept, left)?,
             Recovery::Branch {
                 name,
                 oid,

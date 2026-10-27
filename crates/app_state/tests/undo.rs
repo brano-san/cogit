@@ -505,24 +505,6 @@ fn undoing_a_merge_moves_the_branch_back_after_the_user_left_it() {
     assert_eq!(main.oid, before);
 }
 
-// The dialog says "Undo can bring them back". When the backup stash failed — here because
-// a repository without a first commit cannot stash — the files were deleted anyway, with
-// nothing to bring back.
-#[test]
-fn a_discard_whose_backup_fails_throws_nothing_away() {
-    let f = test_fixtures::empty().unwrap();
-    let (state, repo) = open(&f);
-    std::fs::write(f.path().join("draft.txt"), "only copy\n").unwrap();
-
-    let refused = state.discard_paths(repo, &["draft.txt".to_owned()]);
-
-    assert!(refused.is_err());
-    assert_eq!(
-        std::fs::read_to_string(f.path().join("draft.txt")).unwrap(),
-        "only copy\n"
-    );
-}
-
 // A moved submodule counts as a change, but `git stash` saves nothing for it (exit 0), and
 // the hard reset stopped with "there is nothing to stash" — though `reset --hard` leaves
 // the submodule alone and there was nothing to lose. It goes ahead now, without a backup,
@@ -1643,4 +1625,23 @@ fn a_hard_reset_keeps_a_conflict_fixed_by_hand_for_undo() {
     state.undo_last(repo).unwrap();
 
     assert_eq!(text(&f, "c.txt"), "fixed by hand\n");
+}
+
+#[test]
+fn a_discard_before_the_first_commit_can_be_undone() {
+    let f = test_fixtures::empty().unwrap();
+    f.write_file("added.txt", "staged\n").unwrap();
+    f.git(&["add", "--", "added.txt"]).unwrap();
+    f.write_file("added.txt", "staged and edited\n").unwrap();
+    f.write_file("loose.txt", "untracked\n").unwrap();
+    let (state, repo) = open(&f);
+    let paths = ["added.txt".to_owned(), "loose.txt".to_owned()];
+
+    state.discard_paths(repo, &paths).unwrap();
+    assert_eq!(text(&f, "added.txt"), "staged\n");
+    assert!(!f.path().join("loose.txt").exists());
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(text(&f, "added.txt"), "staged and edited\n");
+    assert_eq!(text(&f, "loose.txt"), "untracked\n");
 }

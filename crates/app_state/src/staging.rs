@@ -63,6 +63,22 @@ impl AppState {
 
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
+        if matches!(handle.head()?, git_engine::Head::Unborn { .. }) {
+            let kept = handle
+                .keep_files(paths)
+                .map_err(|err| backup_failed("discarding", &err))?;
+            handle.discard(paths)?;
+            let left = handle.file_hashes(paths)?;
+            self.record(
+                repo,
+                format!("Discard {}", named(paths)),
+                Recovery::Discarded {
+                    kept: paths.iter().cloned().zip(kept).collect(),
+                    left: paths.iter().cloned().zip(left).collect(),
+                },
+            );
+            return Ok(());
+        }
         // Read before the stash, which empties the folder at a new file: only these did it take.
         let taken = handle.stashable(paths)?;
         // A successful stash has already taken the changes out of the working tree, so

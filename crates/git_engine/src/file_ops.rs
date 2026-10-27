@@ -177,6 +177,44 @@ impl RepoHandle {
                 "{path} is there again: Undo would write over it"
             )));
         }
+        self.write_kept(kept)
+    }
+
+    pub fn file_hashes(&self, paths: &[String]) -> Result<Vec<Option<String>>> {
+        let present: Vec<String> = paths
+            .iter()
+            .filter(|path| self.root().join(path).is_file())
+            .cloned()
+            .collect();
+        let mut hashes = Vec::with_capacity(present.len());
+        for batch in crate::runner::command_line_batches(&present) {
+            let mut args = vec!["hash-object", "--no-filters", "--"];
+            args.extend(batch.iter().map(String::as_str));
+            hashes.extend(self.read_git_literal(&args)?.lines().map(str::to_owned));
+        }
+        let mut hashes = hashes.into_iter();
+        Ok(paths
+            .iter()
+            .map(|path| present.contains(path).then(|| hashes.next()).flatten())
+            .collect())
+    }
+
+    pub fn write_back_over(
+        &self,
+        kept: &[(String, String)],
+        left: &[(String, Option<String>)],
+    ) -> Result<()> {
+        let paths: Vec<String> = left.iter().map(|(path, _)| path.clone()).collect();
+        let now = self.file_hashes(&paths)?;
+        if let Some(((path, _), _)) = left.iter().zip(&now).find(|((_, was), now)| was != *now) {
+            return Err(GitError::InvalidState(format!(
+                "{path} changed since the discard: Undo would write over it"
+            )));
+        }
+        self.write_kept(kept)
+    }
+
+    fn write_kept(&self, kept: &[(String, String)]) -> Result<()> {
         for (path, oid) in kept {
             let id = gix::ObjectId::from_hex(oid.as_bytes())
                 .map_err(|err| GitError::Internal(format!("bad kept object {oid}: {err}")))?;
