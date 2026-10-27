@@ -178,6 +178,7 @@ struct Graph {
     complete: bool,
     /// The graph this walk replaces: still served by its generation until this one ends.
     base: Option<Shown>,
+    replaced: Option<Shown>,
     /// What `base`'s rows count toward the budget; its texts and paint are counted live.
     base_bytes: usize,
     /// Leading rows equal to `base`'s, and whether a row that differs has come yet.
@@ -431,8 +432,9 @@ impl GraphCache {
         }
         graph
             .base
-            .as_ref()
-            .filter(|base| base.generation == generation)
+            .iter()
+            .chain(&graph.replaced)
+            .find(|base| base.generation == generation)
             .map(|base| (base, true))
     }
 
@@ -553,6 +555,7 @@ impl AppState {
             let used = cache.tick();
             let walks = Arc::clone(&cache.walks);
             let mut base = None;
+            let mut replaced_shown = None;
             let mut base_bytes = 0;
             let mut source = None;
             let mut list = None;
@@ -585,6 +588,7 @@ impl AppState {
                     return Ok(skipped);
                 }
                 base = graph.reusable();
+                replaced_shown = (!graph.complete).then(|| graph.shown.clone());
                 base_bytes = if graph.complete {
                     graph.bytes
                 } else {
@@ -624,6 +628,7 @@ impl AppState {
                 ended: false,
                 complete: false,
                 base,
+                replaced: replaced_shown,
                 base_bytes,
                 kept: 0,
                 parted,
@@ -704,6 +709,7 @@ impl AppState {
                 graph.bytes += record.bytes();
                 Arc::make_mut(&mut graph.shown.laid).history = record;
                 graph.base = None;
+                graph.replaced = None;
                 graph.base_bytes = 0;
                 prefill = prefill_of(&graph.shown, &walks, Arc::downgrade(&self.graph));
                 tracing::info!(

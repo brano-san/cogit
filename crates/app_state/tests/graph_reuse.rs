@@ -203,3 +203,35 @@ fn the_graph_being_replaced_is_still_read_while_the_new_one_is_walked() {
         "gone once the new graph is complete"
     );
 }
+
+#[test]
+fn a_walk_replaced_before_it_ended_is_still_read_while_the_next_one_is_walked() {
+    let f = forked();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let first = state.begin_graph();
+    state
+        .build_graph(repo, &CommitQuery::default(), first, 2, |_| false)
+        .unwrap();
+    let shown = state
+        .graph_window(repo, first, 0, 100)
+        .map(|w| w.rows.len());
+    assert!(shown.is_some_and(|rows| rows > 0));
+
+    let generation = state.begin_graph();
+    let mut during = None;
+    state
+        .build_graph(repo, &ticked(&["refs/heads/feat"]), generation, 2, |_| {
+            if during.is_none() {
+                during = Some(
+                    state
+                        .graph_window(repo, first, 0, 100)
+                        .map(|w| w.rows.len()),
+                );
+            }
+            true
+        })
+        .unwrap();
+
+    assert_eq!(during, Some(shown));
+}
