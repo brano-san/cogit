@@ -3,7 +3,7 @@
 use crate::{AppState, Recovery, RepoId};
 
 impl AppState {
-    pub fn stashes(
+    pub(crate) fn local_stashes(
         &self,
         repo: RepoId,
     ) -> Result<Vec<git_engine::StashEntry>, git_engine::GitError> {
@@ -11,7 +11,7 @@ impl AppState {
     }
 
     /// Only the named paths, leaving everything else in the working tree (T5.3).
-    pub fn stash_selection(
+    pub(crate) fn local_stash_selection(
         &self,
         repo: RepoId,
         paths: &[String],
@@ -27,7 +27,7 @@ impl AppState {
         handle.stash_paths(paths, message).map(drop)
     }
 
-    pub fn stash_contents(
+    pub(crate) fn local_stash_contents(
         &self,
         repo: RepoId,
         index: u32,
@@ -35,7 +35,7 @@ impl AppState {
         self.handle(repo)?.stash_contents(index)
     }
 
-    pub fn stash_push(
+    pub(crate) fn local_stash_push(
         &self,
         repo: RepoId,
         options: &git_engine::StashOptions,
@@ -44,7 +44,7 @@ impl AppState {
         self.handle(repo)?.stash_push(options)
     }
 
-    pub fn stash_keeping_worktree(
+    pub(crate) fn local_stash_keeping_worktree(
         &self,
         repo: RepoId,
         message: &str,
@@ -53,7 +53,7 @@ impl AppState {
         self.handle(repo)?.stash_keeping_worktree(message)
     }
 
-    pub fn stash_apply(
+    pub(crate) fn local_stash_apply(
         &self,
         repo: RepoId,
         oid: &str,
@@ -67,7 +67,7 @@ impl AppState {
 
     /// Stash, check out, apply: one call, which the command runs as one operation (R-521,
     /// R-563).
-    pub fn switch_with_autostash(
+    pub(crate) fn local_switch_with_autostash(
         &self,
         repo: RepoId,
         target: &git_engine::CheckoutTarget,
@@ -86,7 +86,11 @@ impl AppState {
         Ok(outcome)
     }
 
-    pub fn stash_drop(&self, repo: RepoId, oid: &str) -> Result<(), git_engine::GitError> {
+    pub(crate) fn local_stash_drop(
+        &self,
+        repo: RepoId,
+        oid: &str,
+    ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         handle

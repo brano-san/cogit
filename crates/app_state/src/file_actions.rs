@@ -37,7 +37,7 @@ impl AppState {
         Ok(())
     }
 
-    pub fn remove_from_repository(
+    pub(crate) fn local_remove_from_repository(
         &self,
         repo: RepoId,
         paths: &[String],
@@ -55,12 +55,12 @@ impl AppState {
         Ok(())
     }
 
-    pub fn move_path(&self, repo: RepoId, from: &str, to: &str) -> Result<()> {
+    pub(crate) fn local_move_path(&self, repo: RepoId, from: &str, to: &str) -> Result<()> {
         let _quiet = self.quiet(repo);
         self.handle(repo)?.move_path(from, to)
     }
 
-    pub fn set_index_flag(
+    pub(crate) fn local_set_index_flag(
         &self,
         repo: RepoId,
         paths: &[String],
@@ -72,7 +72,7 @@ impl AppState {
     }
 
     /// The working file for the diff view's editor, or why it cannot be edited (F-722).
-    pub fn read_editable(
+    pub(crate) fn local_read_editable(
         &self,
         repo: RepoId,
         spec: &git_engine::DiffSpec,
@@ -82,7 +82,7 @@ impl AppState {
     }
 
     /// Not quiet: the watcher's refresh is what re-reads the diff after a save.
-    pub fn save_editable(
+    pub(crate) fn local_save_editable(
         &self,
         repo: RepoId,
         path: &str,
@@ -95,12 +95,16 @@ impl AppState {
             .save_editable(path, text, shape, stamp, force)
     }
 
-    pub fn index_editor_sides(&self, repo: RepoId, path: &str) -> Result<IndexEditorSides> {
+    pub(crate) fn local_index_editor_sides(
+        &self,
+        repo: RepoId,
+        path: &str,
+    ) -> Result<IndexEditorSides> {
         self.handle(repo)?.index_editor_sides(path)
     }
 
     /// A side left `None` was not edited and is not written.
-    pub fn write_index_editor(
+    pub(crate) fn local_write_index_editor(
         &self,
         repo: RepoId,
         path: &str,
@@ -118,12 +122,18 @@ impl AppState {
         Ok(())
     }
 
-    pub fn save_blob(&self, repo: RepoId, rev: &str, path: &str, target: &Path) -> Result<()> {
+    pub(crate) fn local_save_blob(
+        &self,
+        repo: RepoId,
+        rev: &str,
+        path: &str,
+        target: &Path,
+    ) -> Result<()> {
         self.handle(repo)?.save_blob(rev, path, target)
     }
 
     /// Under `dir`, a folder of the current user only (never the shared temp folder).
-    pub fn export_read_only(
+    pub(crate) fn local_export_read_only(
         &self,
         repo: RepoId,
         rev: &str,
@@ -133,7 +143,7 @@ impl AppState {
         self.handle(repo)?.export_read_only(rev, path, dir)
     }
 
-    pub fn apply_commit_file(
+    pub(crate) fn local_apply_commit_file(
         &self,
         repo: RepoId,
         rev: &str,
@@ -146,7 +156,11 @@ impl AppState {
             .apply_commit_file(rev, path, old_path, reverse)
     }
 
-    pub fn present_on_disk(&self, repo: RepoId, paths: &[String]) -> Result<Vec<String>> {
+    pub(crate) fn local_present_on_disk(
+        &self,
+        repo: RepoId,
+        paths: &[String],
+    ) -> Result<Vec<String>> {
         Ok(self.handle(repo)?.present_on_disk(paths))
     }
 }

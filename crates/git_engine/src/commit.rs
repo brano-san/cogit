@@ -4,7 +4,7 @@ use std::ops::ControlFlow;
 
 const SECONDS_PER_MINUTE: i32 = 60;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Signature {
     pub name: String,
@@ -14,7 +14,7 @@ pub struct Signature {
     pub tz_offset_minutes: i32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CommitDetails {
     pub oid: String,
@@ -32,14 +32,14 @@ pub struct CommitDetails {
     pub encoding: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Trailer {
     pub key: String,
     pub value: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SignatureCheck {
     /// `%G?`: G good, B bad, U good but untrusted, X/Y expired, R revoked, E cannot check.
@@ -50,7 +50,7 @@ pub struct SignatureCheck {
     pub raw: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SignatureStatus {
     pub oid: String,

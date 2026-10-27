@@ -1,7 +1,7 @@
 use crate::{AppState, Recovery, RepoId, RepoSummary, Steps};
 
 impl AppState {
-    pub fn worktrees(
+    pub(crate) fn local_worktrees(
         &self,
         repo: RepoId,
     ) -> Result<Vec<git_engine::WorktreeEntry>, git_engine::GitError> {
@@ -10,7 +10,7 @@ impl AppState {
 
     /// Which worktree already has this branch, so a checkout can offer to go there instead
     /// of failing with `already checked out` (T3.8).
-    pub fn worktree_holding(
+    pub(crate) fn local_worktree_holding(
         &self,
         repo: RepoId,
         branch: &str,
@@ -24,6 +24,13 @@ impl AppState {
         owner: RepoId,
         path: &str,
     ) -> Result<RepoSummary, git_engine::GitError> {
+        if let Some(remote) = self.remote(owner) {
+            let request = crate::backend::Request::OpenWorktree {
+                owner: remote.id(),
+                path: path.to_owned(),
+            };
+            return self.open_through(owner, &remote, &request);
+        }
         let known = self
             .handle(owner)?
             .worktree_heads()?
@@ -42,7 +49,7 @@ impl AppState {
         self.open_with(handle, folder, Some(owner), watch, began)
     }
 
-    pub fn add_worktree(
+    pub(crate) fn local_add_worktree(
         &self,
         repo: RepoId,
         path: &str,
@@ -52,7 +59,7 @@ impl AppState {
         self.handle(repo)?.add_worktree_with(path, branch)
     }
 
-    pub fn check_revision(
+    pub(crate) fn local_check_revision(
         &self,
         repo: RepoId,
         rev: &str,
@@ -60,7 +67,7 @@ impl AppState {
         self.handle(repo)?.check_revision(rev)
     }
 
-    pub fn check_branch_name(
+    pub(crate) fn local_check_branch_name(
         &self,
         repo: RepoId,
         name: &str,
@@ -70,7 +77,7 @@ impl AppState {
 
     /// `force` throws uncommitted work away, so it is stashed first and the journal
     /// can put it back (INV-12).
-    pub fn remove_worktree(
+    pub(crate) fn local_remove_worktree(
         &self,
         repo: RepoId,
         path: &str,
@@ -116,7 +123,7 @@ impl AppState {
         removed
     }
 
-    pub fn worktree_leftover(
+    pub(crate) fn local_worktree_leftover(
         &self,
         repo: RepoId,
         path: &str,
@@ -124,7 +131,7 @@ impl AppState {
         Ok(self.handle(repo)?.worktree_leftover(path))
     }
 
-    pub fn delete_worktree_leftover(
+    pub(crate) fn local_delete_worktree_leftover(
         &self,
         repo: RepoId,
         path: &str,
@@ -133,22 +140,30 @@ impl AppState {
         self.handle(repo)?.delete_worktree_leftover(path)
     }
 
-    pub fn prune_worktrees(&self, repo: RepoId) -> Result<(), git_engine::GitError> {
+    pub(crate) fn local_prune_worktrees(&self, repo: RepoId) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         self.handle(repo)?.prune_worktrees()
     }
 
-    pub fn prune_worktree(&self, repo: RepoId, path: &str) -> Result<(), git_engine::GitError> {
+    pub(crate) fn local_prune_worktree(
+        &self,
+        repo: RepoId,
+        path: &str,
+    ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         self.handle(repo)?.prune_worktree(path)
     }
 
-    pub fn repair_worktree(&self, repo: RepoId, path: &str) -> Result<(), git_engine::GitError> {
+    pub(crate) fn local_repair_worktree(
+        &self,
+        repo: RepoId,
+        path: &str,
+    ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         self.handle(repo)?.repair_worktree(path)
     }
 
-    pub fn lock_worktree(
+    pub(crate) fn local_lock_worktree(
         &self,
         repo: RepoId,
         path: &str,
@@ -158,7 +173,7 @@ impl AppState {
         self.handle(repo)?.lock_worktree(path, reason)
     }
 
-    pub fn move_worktree(
+    pub(crate) fn local_move_worktree(
         &self,
         repo: RepoId,
         path: &str,
@@ -168,7 +183,11 @@ impl AppState {
         self.handle(repo)?.move_worktree(path, to)
     }
 
-    pub fn unlock_worktree(&self, repo: RepoId, path: &str) -> Result<(), git_engine::GitError> {
+    pub(crate) fn local_unlock_worktree(
+        &self,
+        repo: RepoId,
+        path: &str,
+    ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         self.handle(repo)?.unlock_worktree(path)
     }

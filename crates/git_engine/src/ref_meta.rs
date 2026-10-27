@@ -1,13 +1,13 @@
 //! What the Branches panel needs beyond the ref list: how tags group, how old each tip is.
 
 use crate::{GitError, RepoHandle, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 const TAG_SEPARATOR_KEY: &str = "cogit.tagGroupSeparator";
 const DEFAULT_TAG_SEPARATOR: &str = "/";
 
 /// When a ref's tip was made, for sorting Branches by date.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RefDate {
     pub full_name: String,
@@ -17,7 +17,7 @@ pub struct RefDate {
 }
 
 /// A ref outside branches and tags: `refs/pull/1/head`, `refs/changes/…`, a tool's own.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OtherRef {
     pub full_name: String,

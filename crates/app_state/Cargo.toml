@@ -8,6 +8,9 @@ repository.workspace = true
 publish.workspace = true
 description = "Open repositories, the event bus, credentials and the undo journal."
 
+[features]
+loopback = []
+
 [[bin]]
 name = "cogit-agent"
 path = "src/bin/cogit_agent.rs"

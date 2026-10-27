@@ -1,6 +1,6 @@
 use crate::{Content, DiffOptions, FileDiff};
 use rayon::prelude::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// One file's two sides, as the caller read them out of the object database.
 #[derive(Debug, Clone)]
@@ -13,7 +13,7 @@ pub struct FileInput {
 
 /// Named rather than a tuple: a positional pair crossing IPC reads as `[string, FileDiff]`
 /// on the other side, and nothing there says which half is which.
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FileDiffEntry {
     pub path: String,

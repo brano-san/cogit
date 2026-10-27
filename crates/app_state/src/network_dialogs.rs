@@ -113,11 +113,16 @@ impl AppState {
         })
     }
 
-    pub fn merge_notes(&self, repo: RepoId, remote: &str, namespace: &str) -> Result<(), GitError> {
+    pub(crate) fn local_merge_notes(
+        &self,
+        repo: RepoId,
+        remote: &str,
+        namespace: &str,
+    ) -> Result<(), GitError> {
         self.handle(repo)?.merge_notes(remote, namespace)
     }
 
-    pub fn push_preview(
+    pub(crate) fn local_push_preview(
         &self,
         repo: RepoId,
         local: &str,
@@ -132,7 +137,7 @@ impl AppState {
 
     /// Tags the dialog's push would send. Kept out of the journal: a remote that cannot be
     /// asked is a line in the dialog, not a notification.
-    pub fn push_tags_preview(
+    pub(crate) fn local_push_tags_preview(
         &self,
         repo: RepoId,
         options: &PushOptions,
@@ -143,7 +148,7 @@ impl AppState {
 
     /// Whether the remote takes `--atomic`; `None` when it could not be asked. Unjournaled
     /// for the reason the tag count is.
-    pub fn push_atomic_support(
+    pub(crate) fn local_push_atomic_support(
         &self,
         repo: RepoId,
         options: &PushOptions,
@@ -152,11 +157,11 @@ impl AppState {
             .push_atomic_support(options, self.stored())
     }
 
-    pub fn network_defaults(&self, repo: RepoId) -> Result<NetworkDefaults, GitError> {
+    pub(crate) fn local_network_defaults(&self, repo: RepoId) -> Result<NetworkDefaults, GitError> {
         self.handle(repo)?.network_defaults()
     }
 
-    pub fn save_network_defaults(
+    pub(crate) fn local_save_network_defaults(
         &self,
         repo: RepoId,
         defaults: &NetworkDefaults,

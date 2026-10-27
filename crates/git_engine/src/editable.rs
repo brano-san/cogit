@@ -4,7 +4,7 @@
 //! normalized: the editor is disabled with the reason.
 
 use crate::{GitError, RepoHandle, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Past this the editor is not offered; the diff itself stops at the same size.
 pub const MAX_EDIT_BYTES: usize = 1_000_000;
@@ -35,7 +35,7 @@ pub enum Eol {
     Crlf,
 }
 
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase", tag = "kind")]
 pub enum EditableFile {
     Text {
@@ -51,7 +51,7 @@ pub enum EditableFile {
     Refused { reason: String },
 }
 
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase", tag = "kind")]
 pub enum SaveOutcome {
     Saved {

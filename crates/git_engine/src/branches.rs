@@ -11,7 +11,7 @@ pub enum RemoteDeletion {
 }
 
 /// What `git branch -d` came to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum BranchDeletion {
     Deleted,
@@ -24,7 +24,7 @@ fn is_not_fully_merged(stderr: &str) -> bool {
     stderr.contains("is not fully merged")
 }
 
-#[derive(Debug, Clone, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(
     tag = "kind",
     rename_all = "camelCase",

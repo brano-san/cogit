@@ -1,9 +1,9 @@
 use crate::line_history::{LogHeader, new_side, path_of};
 use crate::{CommitQuery, GitError, GraphView, RepoHandle, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum FoundKind {
     Branch,
@@ -12,7 +12,7 @@ pub enum FoundKind {
     File,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Found {
     pub kind: FoundKind,
@@ -173,7 +173,7 @@ impl RepoHandle {
 }
 
 /// One edit to the fragment under investigation.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct InvestigationStep {
     pub oid: String,

@@ -6,7 +6,7 @@
 //! output of a push does so because there the two travel separately; here they cannot disagree
 //! because there is only one of them (doc/12-risks.md, R-87).
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -18,7 +18,7 @@ pub enum Severity {
 
 /// A failure that is an ordinary state of things: the Errors window shows it as a warning,
 /// with the whole output still (R-840).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum Expected {
     /// A pull fetched, but the upstream of the branch is gone from the remote: nothing merged.

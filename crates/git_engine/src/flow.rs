@@ -36,7 +36,7 @@ pub enum FlowKind {
     Hotfix,
 }
 
-#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FlowBranch {
     pub kind: FlowKind,
@@ -46,7 +46,7 @@ pub struct FlowBranch {
     pub is_head: bool,
 }
 
-#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FlowStatus {
     pub initialised: bool,

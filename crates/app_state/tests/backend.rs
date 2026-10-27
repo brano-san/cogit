@@ -35,7 +35,7 @@ fn a_repository_opened_through_the_agent_reads_as_the_local_one() {
     let far = remote.open_repository_on(&loopback(), f.path()).unwrap();
 
     assert!(remote.is_remote(far.repo));
-    assert!(!local.is_remote(near.repo));
+    assert_eq!(local.is_remote(near.repo), cfg!(feature = "loopback"));
     assert_eq!(without_id(&far), without_id(&near));
     assert_eq!(
         json(&remote.repo_status(far.repo).unwrap()),
@@ -114,4 +114,149 @@ fn dunce_root(path: &std::path::Path) -> std::path::PathBuf {
     let state = AppState::new();
     let repo = state.open_repository(path).unwrap().repo;
     state.get(repo).unwrap().root
+}
+
+const BY_HAND: [&str; 7] = [
+    "undo_last",
+    "undo_entry",
+    "open_submodule",
+    "reread_repository",
+    "open_worktree",
+    "config_file",
+    "save_config_file",
+];
+
+const ON_WINDOWS: [(&str, &str); 7] = [
+    ("is_remote", "the routing table itself"),
+    ("close_repository", "the registry; tells the agent itself"),
+    ("unregister", "the registry"),
+    ("get", "the registry"),
+    ("root_of", "the registry"),
+    ("forget_row", "the Windows tree-row cache"),
+    ("show_repository", "which repository the window shows"),
+];
+
+const LATER: [(&str, &str); 33] = [
+    (
+        "presets_for",
+        "the preset library is on Windows; settings reach the agent: step 6",
+    ),
+    (
+        "export_preset",
+        "the preset library is on Windows; settings reach the agent: step 6",
+    ),
+    (
+        "install_preset",
+        "the preset library is on Windows; settings reach the agent: step 6",
+    ),
+    ("build_graph", "streams chunks: step 4"),
+    ("graph_window", "reads the graph build_graph left: step 4"),
+    (
+        "graph_window_wire",
+        "reads the graph build_graph left: step 4",
+    ),
+    (
+        "graph_working_tree",
+        "reads the graph build_graph left: step 4",
+    ),
+    ("graph_row_of", "reads the graph build_graph left: step 4"),
+    (
+        "graph_texts_read",
+        "reads the graph build_graph left: step 4",
+    ),
+    (
+        "graph_footprint",
+        "reads the graph build_graph left: step 4",
+    ),
+    ("graph_overlay", "reads the graph build_graph left: step 4"),
+    ("search_contents", "streams batches: step 4"),
+    ("origin_candidates", "a cancel callback: step 4"),
+    ("fetch", "streams git's output, sign-in: steps 4 and 6"),
+    ("pull", "streams git's output, sign-in: steps 4 and 6"),
+    ("push", "streams git's output, sign-in: steps 4 and 6"),
+    ("fetch_more", "streams git's output, sign-in: steps 4 and 6"),
+    (
+        "fetch_depth",
+        "streams git's output, sign-in: steps 4 and 6",
+    ),
+    ("push_to", "streams git's output, sign-in: steps 4 and 6"),
+    ("fetch_with", "streams git's output, sign-in: steps 4 and 6"),
+    ("pull_with", "streams git's output, sign-in: steps 4 and 6"),
+    ("push_with", "streams git's output, sign-in: steps 4 and 6"),
+    (
+        "push_dry_run",
+        "streams git's output, sign-in: steps 4 and 6",
+    ),
+    ("push_notes", "streams git's output, sign-in: steps 4 and 6"),
+    ("delete_remote_branch", "sign-in: step 6"),
+    ("delete_remote_tag", "sign-in: step 6"),
+    ("delete_refs", "sign-in: step 6"),
+    ("move_to_trash", "the Windows recycle bin callback: step 6"),
+    ("start_merge_tool", "a Windows program on the files: step 6"),
+    ("cancel_merge_tool", "with start_merge_tool: step 6"),
+    ("merge_tools_running", "with start_merge_tool: step 6"),
+    ("scan_worktree_removal", "streams chunks: step 4"),
+    (
+        "watcher_is_quiet",
+        "the watcher moves into the agent: step 4",
+    ),
+];
+
+fn repo_methods() -> Vec<String> {
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut found = Vec::new();
+    for entry in std::fs::read_dir(src).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().is_none_or(|ext| ext != "rs") {
+            continue;
+        }
+        let text = std::fs::read_to_string(path).unwrap();
+        for piece in text.split("pub fn ").skip(1) {
+            let name: String = piece
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect();
+            let params = piece.split(")").next().unwrap_or_default();
+            if !name.is_empty() && params.contains("RepoId") && params.contains("&self") {
+                found.push(name);
+            }
+        }
+    }
+    found
+}
+
+fn routed() -> Vec<String> {
+    let routes = include_str!("../src/routes.rs");
+    let list = routes.split("routed! {").nth(1).unwrap();
+    list.lines()
+        .filter_map(|line| line.trim().strip_prefix("fn "))
+        .map(|rest| rest.split('(').next().unwrap().to_owned())
+        .collect()
+}
+
+#[test]
+fn every_repository_method_goes_through_the_agent_or_says_why_not() {
+    let routed = routed();
+    let accounted = |name: &str| {
+        routed.iter().any(|r| r == name)
+            || BY_HAND.contains(&name)
+            || ON_WINDOWS.iter().any(|(n, _)| *n == name)
+            || LATER.iter().any(|(n, _)| *n == name)
+    };
+    let mut strays: Vec<String> = repo_methods()
+        .into_iter()
+        .filter(|name| !accounted(name))
+        .collect();
+    strays.sort();
+    strays.dedup();
+    assert!(
+        strays.is_empty(),
+        "INV-13: a method taking RepoId goes into routed! (src/routes.rs) or into a list of \
+         this test with the reason it stays on Windows: {strays:?}"
+    );
+    assert!(
+        routed.len() > 150,
+        "routed! lost its list: {}",
+        routed.len()
+    );
 }

@@ -3,7 +3,7 @@
 use crate::{AppState, Recovery, RepoId};
 
 impl AppState {
-    pub fn checkout(
+    pub(crate) fn local_checkout(
         &self,
         repo: RepoId,
         target: &git_engine::CheckoutTarget,
@@ -19,7 +19,7 @@ impl AppState {
         Ok(())
     }
 
-    pub fn create_branch(
+    pub(crate) fn local_create_branch(
         &self,
         repo: RepoId,
         name: &str,
@@ -30,7 +30,7 @@ impl AppState {
         self.handle(repo)?.create_branch(name, start, switch)
     }
 
-    pub fn rename_branch(
+    pub(crate) fn local_rename_branch(
         &self,
         repo: RepoId,
         from: &str,
@@ -41,7 +41,7 @@ impl AppState {
         self.handle(repo)?.rename_branch(from, to, force)
     }
 
-    pub fn set_upstream(
+    pub(crate) fn local_set_upstream(
         &self,
         repo: RepoId,
         branch: &str,
@@ -68,7 +68,7 @@ impl AppState {
         })
     }
 
-    pub fn delete_branch(
+    pub(crate) fn local_delete_branch(
         &self,
         repo: RepoId,
         name: &str,
@@ -109,7 +109,7 @@ impl AppState {
         Ok(git_engine::BranchDeletion::Deleted)
     }
 
-    pub fn create_tag(
+    pub(crate) fn local_create_tag(
         &self,
         repo: RepoId,
         request: &git_engine::TagRequest,
@@ -133,7 +133,11 @@ impl AppState {
         })
     }
 
-    pub fn delete_tag(&self, repo: RepoId, name: &str) -> Result<(), git_engine::GitError> {
+    pub(crate) fn local_delete_tag(
+        &self,
+        repo: RepoId,
+        name: &str,
+    ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let oid = handle.tag_target(name);

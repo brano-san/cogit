@@ -2,7 +2,9 @@
 
 use crate::{GitOutput, RepoHandle, Result};
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[derive(
+    Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type,
+)]
 #[serde(rename_all = "camelCase")]
 pub struct RerereStatus {
     pub enabled: bool,

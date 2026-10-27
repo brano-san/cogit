@@ -22,11 +22,14 @@ pub(crate) fn too_large(
 }
 
 impl AppState {
-    pub fn conflicted_paths(&self, repo: RepoId) -> Result<Vec<String>, git_engine::GitError> {
+    pub(crate) fn local_conflicted_paths(
+        &self,
+        repo: RepoId,
+    ) -> Result<Vec<String>, git_engine::GitError> {
         self.handle(repo)?.conflicted_paths()
     }
 
-    pub fn conflict_text(
+    pub(crate) fn local_conflict_text(
         &self,
         repo: RepoId,
         path: &str,
@@ -45,7 +48,7 @@ impl AppState {
         Ok(handle.conflict_sides(path)?.to_text())
     }
 
-    pub fn resolve_conflict(
+    pub(crate) fn local_resolve_conflict(
         &self,
         repo: RepoId,
         path: &str,
@@ -61,7 +64,7 @@ impl AppState {
         self.record_what_was_done(repo, &handle, description, path, kept, done)
     }
 
-    pub fn resolve_conflict_text(
+    pub(crate) fn local_resolve_conflict_text(
         &self,
         repo: RepoId,
         path: &str,
@@ -76,7 +79,7 @@ impl AppState {
     }
 
     /// The solver's Save: the working file only, the conflict stays (Mark Resolved stages it).
-    pub fn save_conflict_text(
+    pub(crate) fn local_save_conflict_text(
         &self,
         repo: RepoId,
         path: &str,

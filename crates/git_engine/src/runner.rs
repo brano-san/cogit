@@ -1,5 +1,5 @@
 use crate::{GitError, RepoHandle, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::process::{Command, Output};
 use std::sync::Arc;
@@ -27,7 +27,7 @@ const INHERITED_GIT_VARS: &[&str] = &[
     "GIT_CONFIG_COUNT",
 ];
 
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GitOutput {
     /// Numbered so a window, a toast and a history row can all name the same run.

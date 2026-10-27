@@ -10,7 +10,7 @@ const STALE_GC_LOCK_HOURS: u64 = 12;
 const GRAPH_WORTH_OBJECTS: u64 = 10_000;
 const SAMPLE: usize = 5;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum MaintenanceTask {
     Gc,
@@ -19,7 +19,9 @@ pub enum MaintenanceTask {
 }
 
 /// How old an unreachable object must be for `git gc` to delete it; asked each time.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Deserialize, specta::Type)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type,
+)]
 #[serde(rename_all = "camelCase")]
 pub enum GcPrune {
     /// Git's own default.

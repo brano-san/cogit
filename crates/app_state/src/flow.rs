@@ -3,14 +3,14 @@
 use crate::{AppState, Recovery, RepoId};
 
 impl AppState {
-    pub fn flow_status(
+    pub(crate) fn local_flow_status(
         &self,
         repo: RepoId,
     ) -> Result<git_engine::FlowStatus, git_engine::GitError> {
         self.handle(repo)?.flow_status()
     }
 
-    pub fn flow_init(
+    pub(crate) fn local_flow_init(
         &self,
         repo: RepoId,
         config: &git_engine::FlowConfig,
@@ -19,7 +19,7 @@ impl AppState {
         self.handle(repo)?.flow_init(config)
     }
 
-    pub fn flow_start(
+    pub(crate) fn local_flow_start(
         &self,
         repo: RepoId,
         kind: git_engine::FlowKind,
@@ -31,7 +31,7 @@ impl AppState {
 
     /// Destructive: the branch is deleted once it is folded back, so the head it had
     /// is kept for Undo.
-    pub fn flow_finish(
+    pub(crate) fn local_flow_finish(
         &self,
         repo: RepoId,
         kind: git_engine::FlowKind,

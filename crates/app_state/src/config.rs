@@ -26,6 +26,13 @@ impl AppState {
         repo: Option<RepoId>,
         scope: git_engine::ConfigScope,
     ) -> Result<git_engine::ConfigFile, git_engine::GitError> {
+        if let Some(remote) = repo.and_then(|repo| self.remote(repo)) {
+            let request = crate::backend::Request::ConfigFile {
+                repo: remote.id(),
+                scope,
+            };
+            return remote.ask(&request, None);
+        }
         git_engine::read_config(&self.config_target(repo, scope)?)
     }
 
@@ -36,10 +43,19 @@ impl AppState {
         text: &str,
         crlf: bool,
     ) -> Result<(), git_engine::GitError> {
+        if let Some(remote) = repo.and_then(|repo| self.remote(repo)) {
+            let request = crate::backend::Request::SaveConfigFile {
+                repo: remote.id(),
+                scope,
+                text: text.to_owned(),
+                crlf,
+            };
+            return remote.ask(&request, None);
+        }
         git_engine::save_config(&self.config_target(repo, scope)?, text, crlf)
     }
 
-    pub fn remote_url(
+    pub(crate) fn local_remote_url(
         &self,
         repo: RepoId,
         name: &str,
@@ -48,14 +64,14 @@ impl AppState {
     }
 
     /// The repository and every submodule below it; 72 ms on a tree of twenty-one.
-    pub fn health(
+    pub(crate) fn local_health(
         &self,
         repo: RepoId,
     ) -> Result<Vec<git_engine::HealthFinding>, git_engine::GitError> {
         Ok(self.handle(repo)?.health_report())
     }
 
-    pub fn trust_directory(&self, repo: RepoId) -> Result<(), git_engine::GitError> {
+    pub(crate) fn local_trust_directory(&self, repo: RepoId) -> Result<(), git_engine::GitError> {
         self.handle(repo)?.trust_directory()
     }
 }

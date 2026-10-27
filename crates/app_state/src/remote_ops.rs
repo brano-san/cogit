@@ -41,7 +41,7 @@ impl AppState {
         }
     }
 
-    pub fn submodule_op(
+    pub(crate) fn local_submodule_op(
         &self,
         repo: RepoId,
         op: SubmoduleOp,
@@ -54,7 +54,7 @@ impl AppState {
             .submodule_op(op, paths)
     }
 
-    pub fn add_submodule(
+    pub(crate) fn local_add_submodule(
         &self,
         repo: RepoId,
         url: &str,
@@ -68,7 +68,7 @@ impl AppState {
             .add_submodule(url, path, branch)
     }
 
-    pub fn subtree_op(
+    pub(crate) fn local_subtree_op(
         &self,
         repo: RepoId,
         op: &SubtreeOp,
@@ -78,20 +78,25 @@ impl AppState {
         self.handle(repo)?.with_stop(stop.clone()).subtree_op(op)
     }
 
-    pub fn subtree_prefixes(&self, repo: RepoId) -> Result<Vec<String>, GitError> {
+    pub(crate) fn local_subtree_prefixes(&self, repo: RepoId) -> Result<Vec<String>, GitError> {
         self.handle(repo)?.subtree_prefixes()
     }
 
-    pub fn lfs_op(&self, repo: RepoId, op: &LfsOp, stop: &NetworkStop) -> Result<(), GitError> {
+    pub(crate) fn local_lfs_op(
+        &self,
+        repo: RepoId,
+        op: &LfsOp,
+        stop: &NetworkStop,
+    ) -> Result<(), GitError> {
         let _quiet = self.guard(repo, op);
         self.handle(repo)?.with_stop(stop.clone()).lfs_op(op)
     }
 
-    pub fn repo_settings(&self, repo: RepoId) -> Result<Vec<RepoSetting>, GitError> {
+    pub(crate) fn local_repo_settings(&self, repo: RepoId) -> Result<Vec<RepoSetting>, GitError> {
         Ok(self.handle(repo)?.repo_settings())
     }
 
-    pub fn write_repo_settings(
+    pub(crate) fn local_write_repo_settings(
         &self,
         repo: RepoId,
         changes: &[RepoSettingChange],

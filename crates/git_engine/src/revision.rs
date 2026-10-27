@@ -3,9 +3,9 @@
 //! journal entry and no error.
 
 use crate::{RepoHandle, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CommitPreview {
     pub oid: String,
@@ -16,7 +16,7 @@ pub struct CommitPreview {
     pub date: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RevisionCheck {
     pub commit: Option<CommitPreview>,

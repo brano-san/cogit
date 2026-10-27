@@ -79,6 +79,7 @@ cargo check -p <crate>                         # fastest
 cargo nextest run -p <crate> --test <name>     # touched targets
 cargo nextest run --workspace --exclude cogit  # full suite
 cargo test -p cogit --lib                      # nextest lacks tauri manifest
+cargo nextest run -p app_state --features loopback --profile loopback # app_state via cogit-agent (M15)
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all
 cargo deny check

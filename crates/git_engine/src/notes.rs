@@ -1,9 +1,9 @@
 //! `git notes`: text attached to a commit from outside it, one namespace per `refs/notes/*`.
 
 use crate::{RepoHandle, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CommitNote {
     /// `commits` for `refs/notes/commits`.

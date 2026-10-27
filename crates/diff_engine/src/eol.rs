@@ -12,7 +12,7 @@ pub enum LineEnding {
     None,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct EolInfo {
     pub old: LineEnding,

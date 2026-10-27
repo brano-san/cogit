@@ -2,10 +2,10 @@
 
 use crate::{AppState, Recovery, RepoId, short};
 use git_engine::{GitError, ResetMode};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// ORIG_HEAD against HEAD, for the confirmation before Undo Last Merge / Rebase / Reset.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct UndoRewrite {
     pub orig: String,
@@ -17,7 +17,12 @@ pub struct UndoRewrite {
 impl AppState {
     /// A hard reset stashes the tracked changes it would destroy first, so Undo can bring
     /// them back; the commits it leaves behind stay reachable as lost commits.
-    pub fn reset_to(&self, repo: RepoId, rev: &str, mode: ResetMode) -> Result<(), GitError> {
+    pub(crate) fn local_reset_to(
+        &self,
+        repo: RepoId,
+        rev: &str,
+        mode: ResetMode,
+    ) -> Result<(), GitError> {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let (branch, before) = match handle.head()? {
@@ -97,7 +102,10 @@ impl AppState {
     }
 
     /// What Undo Last Merge / Rebase / Reset would go back to; `None` while `ORIG_HEAD` is missing.
-    pub fn undo_rewrite_info(&self, repo: RepoId) -> Result<Option<UndoRewrite>, GitError> {
+    pub(crate) fn local_undo_rewrite_info(
+        &self,
+        repo: RepoId,
+    ) -> Result<Option<UndoRewrite>, GitError> {
         let handle = self.handle(repo)?;
         let Some(orig) = handle.orig_head() else {
             return Ok(None);
@@ -117,7 +125,7 @@ impl AppState {
     /// `reset --keep ORIG_HEAD`: like `--merge` it moves the branch back, and unlike it keeps
     /// staged changes too. Git refuses, changing nothing, when a file the move rewrites has
     /// local changes.
-    pub fn undo_rewrite(&self, repo: RepoId) -> Result<(), GitError> {
+    pub(crate) fn local_undo_rewrite(&self, repo: RepoId) -> Result<(), GitError> {
         let info = self.undo_rewrite_info(repo)?.ok_or_else(|| {
             GitError::InvalidState(
                 "there is no merge, rebase or reset to undo: ORIG_HEAD is missing".to_owned(),
@@ -131,7 +139,7 @@ impl AppState {
         self.reset_to(repo, "ORIG_HEAD", ResetMode::Keep)
     }
 
-    pub fn is_ancestor(
+    pub(crate) fn local_is_ancestor(
         &self,
         repo: RepoId,
         ancestor: &str,
@@ -140,7 +148,7 @@ impl AppState {
         self.handle(repo)?.is_ancestor(ancestor, descendant)
     }
 
-    pub fn compare_files(
+    pub(crate) fn local_compare_files(
         &self,
         repo: RepoId,
         from: &str,
@@ -149,22 +157,35 @@ impl AppState {
         self.handle(repo)?.files_between(from, to)
     }
 
-    pub fn tag_name_problem(&self, repo: RepoId, name: &str) -> Result<Option<String>, GitError> {
+    pub(crate) fn local_tag_name_problem(
+        &self,
+        repo: RepoId,
+        name: &str,
+    ) -> Result<Option<String>, GitError> {
         self.handle(repo)?.tag_name_problem(name)
     }
 
-    pub fn tag_message(&self, repo: RepoId, name: &str) -> Result<Option<String>, GitError> {
+    pub(crate) fn local_tag_message(
+        &self,
+        repo: RepoId,
+        name: &str,
+    ) -> Result<Option<String>, GitError> {
         self.handle(repo)?.tag_message(name)
     }
 
-    pub fn rename_tag(&self, repo: RepoId, from: &str, to: &str) -> Result<(), GitError> {
+    pub(crate) fn local_rename_tag(
+        &self,
+        repo: RepoId,
+        from: &str,
+        to: &str,
+    ) -> Result<(), GitError> {
         let _quiet = self.quiet(repo);
         self.handle(repo)?.rename_tag(from, to)?;
         self.record(repo, format!("Rename tag {from} to {to}"), Recovery::None);
         Ok(())
     }
 
-    pub fn branch_reflog(
+    pub(crate) fn local_branch_reflog(
         &self,
         repo: RepoId,
         branch: &str,
@@ -172,11 +193,21 @@ impl AppState {
         self.handle(repo)?.reflog_for(branch, 500)
     }
 
-    pub fn restore_branch(&self, repo: RepoId, branch: &str, oid: &str) -> Result<(), GitError> {
+    pub(crate) fn local_restore_branch(
+        &self,
+        repo: RepoId,
+        branch: &str,
+        oid: &str,
+    ) -> Result<(), GitError> {
         self.put_branch(repo, branch, oid, "Restore")
     }
 
-    pub fn move_branch(&self, repo: RepoId, branch: &str, oid: &str) -> Result<(), GitError> {
+    pub(crate) fn local_move_branch(
+        &self,
+        repo: RepoId,
+        branch: &str,
+        oid: &str,
+    ) -> Result<(), GitError> {
         self.put_branch(repo, branch, oid, "Move")
     }
 
@@ -202,11 +233,11 @@ impl AppState {
         Ok(())
     }
 
-    pub fn noted_commits(&self, repo: RepoId) -> Result<Vec<String>, GitError> {
+    pub(crate) fn local_noted_commits(&self, repo: RepoId) -> Result<Vec<String>, GitError> {
         Ok(self.handle(repo)?.noted_commits())
     }
 
-    pub fn commit_notes(
+    pub(crate) fn local_commit_notes(
         &self,
         repo: RepoId,
         rev: &str,
@@ -214,16 +245,26 @@ impl AppState {
         self.handle(repo)?.commit_notes(rev)
     }
 
-    pub fn set_note(&self, repo: RepoId, rev: &str, text: &str) -> Result<(), GitError> {
+    pub(crate) fn local_set_note(
+        &self,
+        repo: RepoId,
+        rev: &str,
+        text: &str,
+    ) -> Result<(), GitError> {
         self.handle(repo)?.set_note(rev, text)
     }
 
-    pub fn rename_stash(&self, repo: RepoId, oid: &str, message: &str) -> Result<(), GitError> {
+    pub(crate) fn local_rename_stash(
+        &self,
+        repo: RepoId,
+        oid: &str,
+        message: &str,
+    ) -> Result<(), GitError> {
         let _quiet = self.quiet(repo);
         self.handle(repo)?.rename_stash(oid, message)
     }
 
-    pub fn edit_author(
+    pub(crate) fn local_edit_author(
         &self,
         repo: RepoId,
         rev: &str,

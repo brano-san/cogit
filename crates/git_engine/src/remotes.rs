@@ -1,13 +1,13 @@
 //! A remote's own menu in Branches: Properties, Rename, Delete (#19 of 25.09).
 
 use crate::{GitError, RepoHandle, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// In the remote's own section, so `git remote rename` carries it and `git remote remove`
 /// takes it away; absent means on (R-554).
 const BACKGROUND_KEY: &str = "cogitBackgroundFetch";
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoteInfo {
     pub name: String,

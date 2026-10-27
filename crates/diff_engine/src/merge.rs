@@ -6,7 +6,7 @@ use crate::normalize_line_endings;
 use imara_diff::{Diff, InternedInput, sources::lines};
 use std::ops::Range;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum Origin {
     /// Nobody touched these lines.
@@ -20,7 +20,7 @@ pub enum Origin {
     Syntactic,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum Region {
     Clean {
@@ -81,7 +81,7 @@ fn edits(base: &str, side: &str) -> Vec<Edit> {
 
 /// One stretch of the file with what every side has there, for the Conflict Solver: it
 /// aligns the panes by stretch, and "Base Changes" needs what each side did to the base.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SolverRegion {
     pub kind: SolverKind,
@@ -92,7 +92,7 @@ pub struct SolverRegion {
     pub result: Vec<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum SolverKind {
     Equal,

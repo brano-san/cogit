@@ -21,7 +21,7 @@ impl std::fmt::Debug for Credential {
 }
 
 /// How a network command's credential step ended, read off git's own words.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum CredentialTrouble {
     /// Git Credential Manager's window was closed.

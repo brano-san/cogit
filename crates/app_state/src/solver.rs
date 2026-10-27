@@ -2,12 +2,12 @@
 
 use crate::{AppState, RepoId, merge_tool};
 use git_engine::{ConflictContext, GitError};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Past this a side is not merged line by line: the solver offers to take a side whole.
 pub const MAX_SOLVER_BYTES: usize = 4 * 1024 * 1024;
 
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SolverData {
     pub context: ConflictContext,
@@ -40,7 +40,11 @@ fn is_crlf(sides: &[&Option<Vec<u8>>]) -> bool {
 }
 
 impl AppState {
-    pub fn solver_data(&self, repo: RepoId, path: &str) -> Result<SolverData, GitError> {
+    pub(crate) fn local_solver_data(
+        &self,
+        repo: RepoId,
+        path: &str,
+    ) -> Result<SolverData, GitError> {
         let handle = self.handle(repo)?;
         let sides = handle.conflict_sides(path)?;
         let context = handle.conflict_context(path);
@@ -93,7 +97,11 @@ impl AppState {
 
     /// The working file settled outside the solver (an external tool, a hand edit): it is
     /// taken as it is and staged, the file kept for Undo first.
-    pub fn mark_conflict_resolved(&self, repo: RepoId, path: &str) -> Result<(), GitError> {
+    pub(crate) fn local_mark_conflict_resolved(
+        &self,
+        repo: RepoId,
+        path: &str,
+    ) -> Result<(), GitError> {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let kept = handle

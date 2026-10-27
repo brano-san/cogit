@@ -135,7 +135,7 @@ pub struct Hunk {
 }
 
 /// One side of a file shown as a summary: its size and the object id git gives it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct BlobSide {
     #[specta(type = specta_typescript::Number)]
@@ -145,7 +145,7 @@ pub struct BlobSide {
     pub id: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum DiffSide {
     Old,
@@ -153,7 +153,7 @@ pub enum DiffSide {
 }
 
 /// Why a file is shown as binary, in plain terms (R-531).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(
     tag = "kind",
     rename_all = "camelCase",
@@ -184,7 +184,7 @@ pub enum Content {
     Binary(String),
 }
 
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(
     tag = "kind",
     rename_all = "camelCase",

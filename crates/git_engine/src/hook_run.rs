@@ -2,12 +2,12 @@
 //! both through the shell Git for Windows ships (T10.3, T11.3).
 
 use crate::{GitError, RepoHandle, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 const SAMPLE_MESSAGE: &str = "feat: a sample message from a Cogit dry run\n";
 
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct HookRun {
     pub name: String,

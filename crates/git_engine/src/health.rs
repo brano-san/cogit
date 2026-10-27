@@ -2,12 +2,12 @@
 
 use crate::gitlink::is_foreign_path;
 use crate::{GitError, ModuleProblem, RepoHandle};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 const MAX_DEPTH: usize = 16;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(
     tag = "kind",
     rename_all = "camelCase",
@@ -71,7 +71,7 @@ pub enum HealthIssue {
     PrecomposeUnicodeOff,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct HealthFinding {
     /// Path from the repository that was checked; empty for that repository itself.

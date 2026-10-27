@@ -1,6 +1,6 @@
 use crate::{CommitRow, GitError, RepoHandle, Result};
 use rayon::prelude::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
 /// Every commit the graph tips reach, and the tips it was counted from. Kept between calls
@@ -42,7 +42,7 @@ pub(crate) struct ReflogLine {
     pub(crate) author_time: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ReflogEntry {
     pub selector: String,

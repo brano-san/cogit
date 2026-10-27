@@ -1,6 +1,6 @@
 use crate::{GitError, RepoHandle, Result};
 use rayon::prelude::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::ops::ControlFlow;
 
@@ -63,7 +63,7 @@ fn commit_at<'r>(repo: &'r gix::Repository, rev: &str) -> Result<gix::Commit<'r>
 /// The table in doc/modules/M13-commit-overlap.md, so the two cannot drift.
 const HEAVY_FRACTION: f32 = 1.0 / 3.0;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum Overlap {
     None,
@@ -72,7 +72,7 @@ pub enum Overlap {
     Same,
 }
 
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OverlapRow {
     pub oid: String,

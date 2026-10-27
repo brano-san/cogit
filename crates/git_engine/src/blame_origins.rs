@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// What the commit that introduced a line did to it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum LineChange {
     /// Nothing stood at this position in the parent.
@@ -13,7 +13,7 @@ pub enum LineChange {
     Modified,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct BlameCommit {
     pub oid: String,
@@ -39,7 +39,7 @@ pub struct PreviousFile {
 
 /// One commit and the file it wrote the lines into; `previous` is the same file one
 /// step back, absent when the commit created it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct BlameSource {
     pub commit: u32,
@@ -47,7 +47,7 @@ pub struct BlameSource {
     pub previous: Option<PreviousFile>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OriginLine {
     pub line: u32,
@@ -59,7 +59,7 @@ pub struct OriginLine {
     pub change: LineChange,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct BlameReport {
     pub commits: Vec<BlameCommit>,

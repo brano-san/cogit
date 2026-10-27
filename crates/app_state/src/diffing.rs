@@ -3,7 +3,7 @@
 use crate::{AppState, DiffBatch, Recovery, RepoId};
 
 /// What `file_content` read.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum FileContent {
     Text {
@@ -24,7 +24,7 @@ pub enum FileContent {
 }
 
 impl AppState {
-    pub fn diff_file(
+    pub(crate) fn local_diff_file(
         &self,
         repo: RepoId,
         spec: &git_engine::DiffSpec,
@@ -36,7 +36,7 @@ impl AppState {
 
     /// The working file as the editor holds it: the bytes its save would write stand in
     /// for the file on disk, so the live diff is the one the saved file will show.
-    pub fn diff_edited(
+    pub(crate) fn local_diff_edited(
         &self,
         repo: RepoId,
         spec: &git_engine::DiffSpec,
@@ -108,7 +108,7 @@ impl AppState {
     /// The side of `path` the spec shows, whole and read-only: an unchanged or ignored file in
     /// the Diff panel. Decoded as its diff would be; past `limit` (the text limit unless Show
     /// anyway raised it, never past the image cap) only its size is read.
-    pub fn file_content(
+    pub(crate) fn local_file_content(
         &self,
         repo: RepoId,
         spec: &git_engine::DiffSpec,
@@ -145,7 +145,7 @@ impl AppState {
 
     /// Every file of a commit in one call. Blocking: reads are sequential, only the diffing
     /// is parallel, and the caller wraps it in `spawn_blocking` (doc/08-diff-engine.md §9).
-    pub fn diff_files(
+    pub(crate) fn local_diff_files(
         &self,
         repo: RepoId,
         spec: &git_engine::DiffSpec,
@@ -275,7 +275,7 @@ impl AppState {
     }
 
     /// Built and applied in one step: a half-applied selection is the damage R-04 warns of.
-    pub fn stage_selection(
+    pub(crate) fn local_stage_selection(
         &self,
         repo: RepoId,
         request: &diff_engine::PatchRequest,
@@ -294,7 +294,7 @@ impl AppState {
     }
 
     /// The reversed patch is journalled, so undo puts back exactly those lines (R-106).
-    pub fn discard_selection(
+    pub(crate) fn local_discard_selection(
         &self,
         repo: RepoId,
         request: &diff_engine::PatchRequest,
@@ -359,7 +359,7 @@ impl AppState {
         })
     }
 
-    pub fn merge_preview(
+    pub(crate) fn local_merge_preview(
         &self,
         repo: RepoId,
         path: &str,
@@ -392,7 +392,7 @@ impl AppState {
         ))
     }
 
-    pub fn image_sides(
+    pub(crate) fn local_image_sides(
         &self,
         repo: RepoId,
         spec: &git_engine::DiffSpec,

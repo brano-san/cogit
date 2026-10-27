@@ -4,15 +4,22 @@
 use crate::{AppState, PresetStatus, RepoId, presets};
 
 impl AppState {
-    pub fn hooks(&self, repo: RepoId) -> Result<git_engine::HookOverview, git_engine::GitError> {
+    pub(crate) fn local_hooks(
+        &self,
+        repo: RepoId,
+    ) -> Result<git_engine::HookOverview, git_engine::GitError> {
         self.handle(repo)?.hooks()
     }
 
-    pub fn read_hook(&self, repo: RepoId, name: &str) -> Result<String, git_engine::GitError> {
+    pub(crate) fn local_read_hook(
+        &self,
+        repo: RepoId,
+        name: &str,
+    ) -> Result<String, git_engine::GitError> {
         self.handle(repo)?.read_hook(name)
     }
 
-    pub fn write_hook(
+    pub(crate) fn local_write_hook(
         &self,
         repo: RepoId,
         name: &str,
@@ -22,7 +29,7 @@ impl AppState {
         self.handle(repo)?.write_hook(name, body)
     }
 
-    pub fn set_hook_enabled(
+    pub(crate) fn local_set_hook_enabled(
         &self,
         repo: RepoId,
         name: &str,
@@ -34,7 +41,11 @@ impl AppState {
 
     /// Wires a versioned hook directory up. Never automatic: a hooks path inside the tree
     /// turns repository content into code that runs on commit (doc/modules/M10-hooks.md).
-    pub fn use_hooks_path(&self, repo: RepoId, path: &str) -> Result<(), git_engine::GitError> {
+    pub(crate) fn local_use_hooks_path(
+        &self,
+        repo: RepoId,
+        path: &str,
+    ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         self.handle(repo)?
             .run_git(&["config", "core.hooksPath", path])
@@ -42,12 +53,16 @@ impl AppState {
     }
 
     /// Wiring up a team's hooks is two steps, and the second is the one people forget.
-    pub fn adopt_hooks(&self, repo: RepoId, path: &str) -> Result<(), git_engine::GitError> {
+    pub(crate) fn local_adopt_hooks(
+        &self,
+        repo: RepoId,
+        path: &str,
+    ) -> Result<(), git_engine::GitError> {
         self.use_hooks_path(repo, path)?;
         self.handle(repo)?.add_eol_rule(path)
     }
 
-    pub fn run_hook(
+    pub(crate) fn local_run_hook(
         &self,
         repo: RepoId,
         name: &str,
@@ -56,18 +71,21 @@ impl AppState {
         self.handle(repo)?.with_stop(stop.clone()).run_hook(name)
     }
 
-    pub fn bypass_log(
+    pub(crate) fn local_bypass_log(
         &self,
         repo: RepoId,
     ) -> Result<Vec<git_engine::Bypass>, git_engine::GitError> {
         self.handle(repo)?.bypass_log()
     }
 
-    pub fn commit_template(&self, repo: RepoId) -> Result<Option<String>, git_engine::GitError> {
+    pub(crate) fn local_commit_template(
+        &self,
+        repo: RepoId,
+    ) -> Result<Option<String>, git_engine::GitError> {
         self.handle(repo)?.commit_template()
     }
 
-    pub fn recent_commits(
+    pub(crate) fn local_recent_commits(
         &self,
         repo: RepoId,
         limit: u32,

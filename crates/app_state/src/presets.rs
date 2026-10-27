@@ -4,7 +4,7 @@
 use git_engine::{GitError, Preset};
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PresetStatus {
     pub id: String,

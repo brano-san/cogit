@@ -22,24 +22,32 @@ impl AppState {
 
     /// `repo_status` and `conflicted_paths` in one read: after a mutation the cascade wants
     /// both (doc/12-risks.md, R-316).
-    pub fn working_state(
+    pub(crate) fn local_working_state(
         &self,
         repo: RepoId,
     ) -> Result<git_engine::WorkingState, git_engine::GitError> {
         self.handle(repo)?.working_state()
     }
 
-    pub fn stage_paths(&self, repo: RepoId, paths: &[String]) -> Result<(), git_engine::GitError> {
+    pub(crate) fn local_stage_paths(
+        &self,
+        repo: RepoId,
+        paths: &[String],
+    ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         self.handle(repo)?.stage(paths)
     }
 
-    pub fn stage_all(&self, repo: RepoId, files: usize) -> Result<(), git_engine::GitError> {
+    pub(crate) fn local_stage_all(
+        &self,
+        repo: RepoId,
+        files: usize,
+    ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         self.handle(repo)?.stage_all(files)
     }
 
-    pub fn unstage_paths(
+    pub(crate) fn local_unstage_paths(
         &self,
         repo: RepoId,
         paths: &[String],
@@ -50,7 +58,7 @@ impl AppState {
 
     /// Discarded work goes into a backup first (`refs/cogit/backup`), so Undo has something
     /// to put back.
-    pub fn discard_paths(
+    pub(crate) fn local_discard_paths(
         &self,
         repo: RepoId,
         paths: &[String],
@@ -112,7 +120,7 @@ impl AppState {
         restored
     }
 
-    pub fn add_to_gitignore(
+    pub(crate) fn local_add_to_gitignore(
         &self,
         repo: RepoId,
         paths: &[String],
@@ -121,7 +129,7 @@ impl AppState {
         self.handle(repo)?.add_to_gitignore(paths)
     }
 
-    pub fn stage_mode(
+    pub(crate) fn local_stage_mode(
         &self,
         repo: RepoId,
         path: &str,
@@ -131,7 +139,7 @@ impl AppState {
         self.handle(repo)?.stage_mode(path, executable)
     }
 
-    pub fn commit(
+    pub(crate) fn local_commit(
         &self,
         repo: RepoId,
         request: &git_engine::CommitRequest,
@@ -148,12 +156,18 @@ impl AppState {
         Ok(oid)
     }
 
-    pub fn wants_maintenance(&self, repo: RepoId) -> Result<bool, git_engine::GitError> {
+    pub(crate) fn local_wants_maintenance(
+        &self,
+        repo: RepoId,
+    ) -> Result<bool, git_engine::GitError> {
         Ok(self.handle(repo)?.wants_maintenance())
     }
 
     /// After a commit, as a write of its own: gc packs refs and expires reflogs (R-444).
-    pub fn maintain_after_commit(&self, repo: RepoId) -> Result<(), git_engine::GitError> {
+    pub(crate) fn local_maintain_after_commit(
+        &self,
+        repo: RepoId,
+    ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         self.handle(repo)?.maintain_after_commit();
         Ok(())

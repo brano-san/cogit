@@ -106,7 +106,7 @@ pub struct PushOutcome {
     pub notes_rejected: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PushCommit {
     pub oid: String,
@@ -115,7 +115,7 @@ pub struct PushCommit {
     pub author: crate::Signature,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PushPreview {
     pub total: u32,

@@ -2,9 +2,9 @@
 //! name "ours" and "theirs"), the merge tool the user set up in git, and marking resolved.
 
 use crate::{Head, RepoHandle, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum ConflictOperation {
     Merge,
@@ -16,7 +16,7 @@ pub enum ConflictOperation {
 }
 
 /// Names for the two sides, as the solver's panel headers show them.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ConflictContext {
     pub operation: ConflictOperation,
@@ -27,7 +27,7 @@ pub struct ConflictContext {
 }
 
 /// A side as the solver's pane header names it: its part in the operation and its commit.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SideName {
     pub role: String,

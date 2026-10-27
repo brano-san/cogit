@@ -5,7 +5,7 @@ use git_engine::{BlameReport, FileRevision, GitError, OriginQuery, OriginReport}
 pub const FILE_LOG_LIMIT: usize = 10_000;
 
 impl AppState {
-    pub fn file_log(
+    pub(crate) fn local_file_log(
         &self,
         repo: RepoId,
         path: &str,
@@ -16,7 +16,7 @@ impl AppState {
             .file_log(path, rev, follow, FILE_LOG_LIMIT)
     }
 
-    pub fn blame_origins(
+    pub(crate) fn local_blame_origins(
         &self,
         repo: RepoId,
         path: &str,

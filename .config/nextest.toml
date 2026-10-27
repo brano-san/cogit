@@ -34,3 +34,22 @@ threads-required = "num-cpus"
 inherits = "default"
 retries = 2
 slow-timeout = { period = "60s", terminate-after = 6 }
+
+# The app_state suite through Cogit's agent (M15): every repository opens through a
+# `cogit-agent` started on this machine. `cargo nextest run -p app_state --features loopback
+# --profile loopback`. Left out, with the step of the M15 plan that brings them in:
+# - the command journal and its events live in the agent until its events reach Windows
+#   (step 4): journal, events, mutation_speed (counts git runs through the journal);
+# - the watcher runs in the agent and its events do not reach Windows yet (step 4);
+# - the handle cache counters count this process's cache; the agent keeps its own.
+[profile.loopback]
+default-filter = """
+not (
+    (binary(journal) & test(/^(a_failed_command_is_recorded_with_its_exit_code|a_successful_command_keeps_its_stderr|every_git_command_leaves_an_entry|one_entry_can_be_fetched_by_its_number|the_journal_is_newest_first|the_real_journal_uses_the_shared_capacity)$/))
+    | (binary(events) & test(/^(a_failure_is_announced_as_one|every_git_command_announces_itself_without_carrying_its_output)$/))
+    | (binary(mutation_speed) & test(/single_git_invocation|one_git_add/))
+    | (binary(undo) & test(/^a_mutation_(does_not_make_the_watcher_report_our_own_writes|longer_than_the_quiet_window_does_not_echo_either|that_idles_after_its_last_write_does_not_echo|stays_quiet_across_a_switch_and_back)$/))
+    | (binary(watching) & test(=a_repository_recreated_in_its_folder_is_watched_again_after_a_reread))
+    | (binary(handles) & test(/^(calls_on_an_open_repository_share_one_opening|a_config_changed_from_a_terminal_is_read_back|refs_moved_from_a_terminal_need_no_reopening|closing_lets_go_of_the_opened_repository)$/))
+)
+"""

@@ -2,7 +2,7 @@ use crate::{AppState, Recovery, RepoId};
 use git_engine::{BisectMark, GitError};
 
 impl AppState {
-    pub fn bisect_start(
+    pub(crate) fn local_bisect_start(
         &self,
         repo: RepoId,
         bad: &str,
@@ -12,7 +12,7 @@ impl AppState {
         self.handle(repo)?.bisect_start(bad, good)
     }
 
-    pub fn bisect_mark(
+    pub(crate) fn local_bisect_mark(
         &self,
         repo: RepoId,
         mark: BisectMark,
@@ -23,7 +23,7 @@ impl AppState {
     }
 
     /// In the journal as `Abort` is: the marks are gone, and Undo cannot bring them back.
-    pub fn bisect_reset(&self, repo: RepoId) -> Result<(), GitError> {
+    pub(crate) fn local_bisect_reset(&self, repo: RepoId) -> Result<(), GitError> {
         let _quiet = self.quiet(repo);
         self.handle(repo)?.bisect_reset()?;
         self.record(repo, "Reset the bisect".to_owned(), Recovery::None);

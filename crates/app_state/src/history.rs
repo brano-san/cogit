@@ -4,7 +4,7 @@
 use crate::{AppState, RepoId};
 
 impl AppState {
-    pub fn commit_details(
+    pub(crate) fn local_commit_details(
         &self,
         repo: RepoId,
         rev: &str,
@@ -12,7 +12,7 @@ impl AppState {
         self.handle(repo)?.commit_details(rev)
     }
 
-    pub fn commit_files(
+    pub(crate) fn local_commit_files(
         &self,
         repo: RepoId,
         rev: &str,
@@ -20,11 +20,19 @@ impl AppState {
         self.handle(repo)?.commit_files(rev)
     }
 
-    pub fn tree_files(&self, repo: RepoId, rev: &str) -> Result<Vec<String>, git_engine::GitError> {
+    pub(crate) fn local_tree_files(
+        &self,
+        repo: RepoId,
+        rev: &str,
+    ) -> Result<Vec<String>, git_engine::GitError> {
         self.handle(repo)?.tree_files(rev)
     }
 
-    pub fn file_count(&self, repo: RepoId, rev: Option<&str>) -> Result<u32, git_engine::GitError> {
+    pub(crate) fn local_file_count(
+        &self,
+        repo: RepoId,
+        rev: Option<&str>,
+    ) -> Result<u32, git_engine::GitError> {
         self.handle(repo)?.file_count(rev)
     }
 
@@ -40,7 +48,7 @@ impl AppState {
             .search_contents(request, cancelled, on_batch)
     }
 
-    pub fn find(
+    pub(crate) fn local_find(
         &self,
         repo: RepoId,
         query: &str,
@@ -49,21 +57,21 @@ impl AppState {
         self.handle(repo)?.find(query, limit as usize)
     }
 
-    pub fn ref_dates(
+    pub(crate) fn local_ref_dates(
         &self,
         repo: RepoId,
     ) -> Result<Vec<git_engine::RefDate>, git_engine::GitError> {
         self.handle(repo)?.ref_dates()
     }
 
-    pub fn other_refs(
+    pub(crate) fn local_other_refs(
         &self,
         repo: RepoId,
     ) -> Result<Vec<git_engine::OtherRef>, git_engine::GitError> {
         self.handle(repo)?.other_refs()
     }
 
-    pub fn lost_commits(
+    pub(crate) fn local_lost_commits(
         &self,
         repo: RepoId,
         limit: u32,
@@ -80,7 +88,7 @@ impl AppState {
         lost
     }
 
-    pub fn blame(
+    pub(crate) fn local_blame(
         &self,
         repo: RepoId,
         path: &str,
@@ -89,7 +97,7 @@ impl AppState {
         self.handle(repo)?.blame(path, rev)
     }
 
-    pub fn line_history(
+    pub(crate) fn local_line_history(
         &self,
         repo: RepoId,
         path: &str,
@@ -100,7 +108,7 @@ impl AppState {
         self.handle(repo)?.line_history(path, rev, line, limit)
     }
 
-    pub fn file_revisions(
+    pub(crate) fn local_file_revisions(
         &self,
         repo: RepoId,
         path: &str,
@@ -111,7 +119,7 @@ impl AppState {
     }
 
     /// Every commit that changed a fragment of a file, newest first.
-    pub fn investigate(
+    pub(crate) fn local_investigate(
         &self,
         repo: RepoId,
         path: &str,

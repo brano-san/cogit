@@ -2,7 +2,7 @@
 //! never leaves this side of the boundary: it can be as large as the change itself.
 
 use crate::{AppState, RepoId};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::sync::atomic::Ordering;
 
 /// What has to be put back to reverse one destructive operation (INV-12).
@@ -115,7 +115,7 @@ impl Recovery {
 
 /// What the journal shows. The means of undoing stays in `Undoable`, on this side of
 /// the boundary: it can be as large as the change itself and the panel never reads it.
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SafetyEntry {
     pub id: u32,
@@ -153,12 +153,15 @@ impl AppState {
     /// Newest first, like the Output panel.
     #[must_use]
     pub fn safety_log(&self) -> Vec<SafetyEntry> {
-        self.safety
+        let mut log: Vec<SafetyEntry> = self
+            .safety
             .read()
             .iter()
             .rev()
             .map(|held| held.entry.clone())
-            .collect()
+            .collect();
+        log.extend(self.remote_safety_log());
+        log
     }
 
     pub fn undo_last(&self, repo: RepoId) -> Result<SafetyEntry, git_engine::GitError> {
@@ -168,9 +171,14 @@ impl AppState {
             .iter()
             .rev()
             .find(|held| held.entry.repo == repo && held.entry.undoable)
-            .cloned()
-            .ok_or_else(|| git_engine::GitError::InvalidState("nothing to undo".to_owned()))?;
-        self.reverse(repo, held)
+            .cloned();
+        match (held, self.remote(repo)) {
+            (Some(held), _) => self.reverse(repo, held),
+            (None, Some(remote)) => self.undo_through(repo, &remote, None),
+            (None, None) => Err(git_engine::GitError::InvalidState(
+                "nothing to undo".to_owned(),
+            )),
+        }
     }
 
     /// Any entry, not only the newest: the recoveries are independent restores rather than
@@ -181,11 +189,14 @@ impl AppState {
             .read()
             .iter()
             .find(|held| held.entry.id == id && held.entry.repo == repo && held.entry.undoable)
-            .cloned()
-            .ok_or_else(|| {
-                git_engine::GitError::InvalidState(format!("no undoable entry {id} here"))
-            })?;
-        self.reverse(repo, held)
+            .cloned();
+        match (held, self.remote(repo)) {
+            (Some(held), _) => self.reverse(repo, held),
+            (None, Some(remote)) => self.undo_through(repo, &remote, Some(id)),
+            (None, None) => Err(git_engine::GitError::InvalidState(format!(
+                "no undoable entry {id} here"
+            ))),
+        }
     }
 
     fn reverse(&self, repo: RepoId, held: Undoable) -> Result<SafetyEntry, git_engine::GitError> {

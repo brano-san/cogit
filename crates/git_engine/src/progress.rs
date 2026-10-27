@@ -10,7 +10,7 @@ pub struct RebaseStep {
     pub summary: String,
 }
 
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RebaseProgress {
     pub applying: Option<String>,

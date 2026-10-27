@@ -1,14 +1,14 @@
 //! The note Cogit keeps of commits made with `--no-verify`: Git records nothing of it.
 
 use crate::{RepoHandle, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 const BYPASS_FILE: &str = "cogit-hook-bypasses";
 const SEPARATOR: char = '\u{1f}';
 
 /// Git records nothing about `--no-verify`, so Cogit keeps its own note per clone: in the
 /// common git directory, which a linked worktree shares.
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Bypass {
     pub oid: String,

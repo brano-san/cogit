@@ -32,6 +32,7 @@ mod remote_ops;
 mod remotes;
 pub mod repo_rows;
 mod rewrite;
+mod routes;
 mod safety;
 pub mod settings;
 mod solver;
@@ -189,7 +190,7 @@ pub const DEFAULT_CHUNK_SIZE: usize = 200;
 
 /// What a batch diff came back with. A request the user has already moved on from stops
 /// between files rather than finishing work nobody will look at.
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(
     tag = "kind",
     rename_all = "camelCase",

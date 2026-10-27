@@ -1,8 +1,8 @@
 use crate::{CommitQuery, CommitRow, GitError, GraphView, RepoHandle, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// One version of a line: the commit that left it looking like this.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LineVersion {
     pub oid: String,

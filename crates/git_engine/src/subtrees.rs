@@ -3,7 +3,7 @@
 use crate::{GitError, RepoHandle, Result};
 use std::collections::BTreeSet;
 
-#[derive(Debug, Clone, serde::Deserialize, specta::Type)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(
     tag = "kind",
     rename_all = "camelCase",

@@ -83,6 +83,10 @@ impl AppState {
 
     /// Blocking by design; the Tauri layer wraps it in `spawn_blocking`.
     pub fn open_repository(&self, path: &Path) -> Result<RepoSummary, git_engine::GitError> {
+        #[cfg(feature = "loopback")]
+        if let Some(host) = crate::backend::loopback() {
+            return self.open_repository_on(&host, path);
+        }
         let began = self.closes_so_far();
         let mut watch = Steps::new();
         let handle = git_engine::RepoHandle::open(path)?;
@@ -111,6 +115,13 @@ impl AppState {
         owner: RepoId,
         key: &str,
     ) -> Result<RepoSummary, git_engine::GitError> {
+        if let Some(remote) = self.remote(owner) {
+            let request = crate::backend::Request::OpenSubmodule {
+                owner: remote.id(),
+                key: key.to_owned(),
+            };
+            return self.open_through(owner, &remote, &request);
+        }
         let began = self.closes_so_far();
         let path = self.module_root(owner, key)?;
         let mut watch = Steps::new();
@@ -122,6 +133,9 @@ impl AppState {
     /// `open_repository` of one already open, by its id: listed or not stays as it was, so a
     /// re-read of a submodule or worktree on screen does not make it an entry (R-543).
     pub fn reread_repository(&self, repo: RepoId) -> Result<RepoSummary, git_engine::GitError> {
+        if let Some(remote) = self.remote(repo) {
+            return self.reread_through(repo, &remote);
+        }
         let began = self.closes_so_far();
         let open = self.get(repo).ok_or_else(|| crate::not_open(repo))?;
         let mut watch = Steps::new();
@@ -208,7 +222,7 @@ impl AppState {
     ///
     /// Lazy on purpose: a repository with nine submodules, each with its own, costs one
     /// walk per level, and the tree only needs the level the user opened (problem 5).
-    pub fn submodules_under(
+    pub(crate) fn local_submodules_under(
         &self,
         repo: RepoId,
         parent: &str,
@@ -219,7 +233,7 @@ impl AppState {
         git_engine::RepoHandle::open_exact(&self.module_root(repo, parent)?)?.submodules()
     }
 
-    pub fn update_submodule(
+    pub(crate) fn local_update_submodule(
         &self,
         repo: RepoId,
         path: &str,
@@ -330,9 +344,11 @@ impl AppState {
         &self,
         root: PathBuf,
         display_name: String,
+        owner: Option<RepoId>,
+        lane: PathBuf,
         began: u64,
     ) -> Option<RepoId> {
-        self.find_or_register(root.clone(), display_name, None, root, began)
+        self.find_or_register(root, display_name, owner, lane, began)
     }
 
     fn find_or_register(

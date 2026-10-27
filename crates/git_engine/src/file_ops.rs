@@ -4,7 +4,7 @@ use crate::{FileStatus, GitError, Head, RepoHandle, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum IndexFlag {
     AssumeUnchanged,
@@ -12,7 +12,7 @@ pub enum IndexFlag {
 }
 
 /// `None` where the file is absent; every side `None` when any of them is not text.
-#[derive(Debug, Clone, Default, Serialize, specta::Type)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct IndexEditorSides {
     pub head: Option<String>,
@@ -393,7 +393,7 @@ impl RepoHandle {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct IgnoreRule {
     pub path: String,

@@ -1,7 +1,7 @@
 use crate::runner::bare_git;
 use crate::{GitError, RepoHandle, Result};
 
-#[derive(Debug, Clone, serde::Deserialize, specta::Type)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(
     tag = "kind",
     rename_all = "camelCase",
@@ -42,7 +42,7 @@ pub fn lfs_version_from(exit_code: Option<i32>, stdout: &str) -> Option<String> 
     (exit_code == Some(0) && !line.is_empty()).then(|| line.to_owned())
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LfsLock {
     pub path: String,
@@ -73,7 +73,7 @@ pub(crate) fn parse_locks(json: &str) -> Vec<LfsLock> {
 }
 
 /// A file `.gitattributes` puts in Git LFS; `lock` is the owner from the local lock cache.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LfsFileState {
     pub path: String,

@@ -23,7 +23,7 @@ pub struct ConflictSides {
 }
 
 /// What the sides are: a link or a submodule is taken whole, whatever its bytes look like.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum EntryKind {
     #[default]
@@ -43,7 +43,7 @@ pub struct ConflictStages {
 }
 
 /// Named rather than a tuple: positional optional strings reorder silently across IPC.
-#[derive(Debug, Clone, Default, Serialize, specta::Type)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ConflictText {
     pub base: Option<String>,

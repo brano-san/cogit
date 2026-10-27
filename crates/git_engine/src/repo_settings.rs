@@ -24,7 +24,7 @@ pub const REPO_SETTING_KEYS: &[&str] = &[
     "cogit.tagGroupSeparator",
 ];
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RepoSetting {
     pub key: String,
@@ -52,7 +52,7 @@ fn parse_origins(output: &str) -> std::collections::HashMap<String, (String, Str
     found
 }
 
-#[derive(Debug, Clone, serde::Deserialize, specta::Type)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RepoSettingChange {
     pub key: String,

@@ -1,7 +1,7 @@
 use crate::{GitError, RepoHandle, Result};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct StashEntry {
     pub index: u32,
@@ -11,7 +11,7 @@ pub struct StashEntry {
     pub timestamp: i64,
 }
 
-#[derive(Debug, Clone, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct StashOptions {
     pub message: String,
@@ -21,7 +21,7 @@ pub struct StashOptions {
 
 /// The three things `git stash` puts away, each readable without touching the working tree.
 /// A stash is a commit: `^1` is HEAD at the time, `^2` the index, `^3` the untracked files.
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct StashContents {
     pub worktree: Vec<crate::FileEntry>,
@@ -35,7 +35,7 @@ pub struct StashContents {
 }
 
 /// Where the changes a checkout carried over ended up (item 46 of 25.09).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum AutostashOutcome {
     /// Back in the working tree, and no stash is left of them.

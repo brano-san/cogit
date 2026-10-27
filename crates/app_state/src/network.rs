@@ -68,7 +68,7 @@ impl AppState {
         stopped
     }
 
-    pub fn remotes(&self, repo: RepoId) -> Result<Vec<String>, git_engine::GitError> {
+    pub(crate) fn local_remotes(&self, repo: RepoId) -> Result<Vec<String>, git_engine::GitError> {
         self.handle(repo)?.remotes()
     }
 
@@ -204,7 +204,7 @@ impl AppState {
 
     /// Pull ▸ Delete merged branches after Pull (#26). Each deletion is journalled, so
     /// Undo brings a branch back; one that refuses is logged and the rest still go.
-    pub fn delete_merged_branches(
+    pub(crate) fn local_delete_merged_branches(
         &self,
         repo: RepoId,
     ) -> Result<Vec<String>, git_engine::GitError> {
