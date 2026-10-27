@@ -31,6 +31,9 @@ export async function runMutation(
     result = await step(id);
   } catch (err) {
     context.report(err);
+    if (context.epoch() === epoch && context.repo() === id) {
+      await context.after(paths, readsBack ? null : await context.loadWorktree(id));
+    }
     return false;
   }
   if (context.epoch() !== epoch || context.repo() !== id) return true;

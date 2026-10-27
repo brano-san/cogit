@@ -1454,6 +1454,7 @@ ${event.error}`,
       undone = await safety.undoShown(id);
     } catch (err) {
       errors.report(err, "Could not undo");
+      await afterRefChange(id);
       return;
     }
     if (undone) await afterRefChange(id);
@@ -2642,13 +2643,12 @@ ${event.error}`,
   async function runFlow(step: () => Promise<void>) {
     try {
       await step();
-      await repository.refresh();
-      // A finish merges, and a conflicted merge leaves files the list has to show.
-      await afterWorkingTreeChange();
-      await reloadGraph();
     } catch (err) {
       errors.report(err, "Could not run the git-flow step");
     }
+    await repository.refresh();
+    await afterWorkingTreeChange();
+    await reloadGraph();
   }
 
   async function askFlowStart(kind: import("$lib/ipc").FlowKind) {
@@ -3172,10 +3172,12 @@ ${event.error}`,
     journalBusy = true;
     try {
       await safety.undoOne(id, entry.id);
-      await repository.refresh();
-      await afterWorkingTreeChange();
     } catch (err) {
       errors.report(err, "Could not undo");
+    }
+    try {
+      await repository.refresh();
+      await afterWorkingTreeChange();
     } finally {
       journalBusy = false;
     }

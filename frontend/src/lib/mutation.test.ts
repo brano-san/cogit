@@ -48,7 +48,7 @@ describe("runMutation", () => {
     expect(calls).toEqual(["write + worktree_files", "after"]);
   });
 
-  it("reports a failed step and reads nothing", async () => {
+  it("reports a failed step and still reads back what it may have changed", async () => {
     const { calls, context: c } = context();
     const failure = new Error("git said no");
 
@@ -56,7 +56,15 @@ describe("runMutation", () => {
 
     expect(done).toBe(false);
     expect(c.report).toHaveBeenCalledWith(failure);
-    expect(calls).toEqual(["report"]);
+    expect(calls).toEqual(["report", "worktree_files", "after"]);
+  });
+
+  it("does not read the list again after a failed step that read it back", async () => {
+    const { calls, context: c } = context();
+
+    await runMutation(c, () => Promise.reject(new Error("no")), ["a"], true);
+
+    expect(calls).toEqual(["report", "after"]);
   });
 
   it("reads nothing into panels that moved to another repository meanwhile", async () => {
