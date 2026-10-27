@@ -79,6 +79,7 @@
       return;
     }
     event.preventDefault();
+    if (!dragging) onend?.();
   }
 </script>
 

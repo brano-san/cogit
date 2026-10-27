@@ -501,11 +501,12 @@
 
   function dragOutput(d: number) {
     const from = outputDrag?.from ?? fractions.outputHeight;
-    const raw = (outputDrag?.raw ?? fractions.outputHeight) - d;
+    const top = windowHeight > 0 ? 1 - OUTPUT_ROOM_PX / windowHeight : 1;
+    const raw = Math.max(0, Math.min(top, (outputDrag?.raw ?? fractions.outputHeight) - d));
     const collapsed = raw * windowHeight < OUTPUT_MIN_PX / 2;
     outputDrag = { from, raw, collapsed };
     if (collapsed) return;
-    layout.set("outputHeight", floorFraction(capFraction(raw, windowHeight, OUTPUT_ROOM_PX), windowHeight, OUTPUT_MIN_PX));
+    layout.set("outputHeight", floorFraction(raw, windowHeight, OUTPUT_MIN_PX));
   }
 
   function endOutputDrag() {
