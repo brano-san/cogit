@@ -65,3 +65,44 @@ describe("repository.error", () => {
     stop();
   });
 });
+
+describe("re-reading the repository on screen", () => {
+  const deferred = <T,>() => {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((settle) => (resolve = settle));
+    return { promise, resolve };
+  };
+
+  it("reads once more when the counters changed while it was reading", async () => {
+    commands.openRepository.mockResolvedValueOnce({ status: "ok", data: summary("C") });
+    await repository.open("C");
+    const slow = deferred<unknown>();
+    commands.openRepository.mockReturnValueOnce(slow.promise);
+    const staged = { ...summary("C").status, staged: 1 };
+    commands.rereadRepository.mockResolvedValueOnce({ status: "ok", data: { ...summary("C"), status: staged } });
+
+    const reopened = repository.open("C");
+    repository.applyState(summary("C").repo as never, { status: staged, conflicted: [], indexLock: null });
+    slow.resolve({ status: "ok", data: summary("C") });
+    await reopened;
+
+    expect(commands.rereadRepository).toHaveBeenCalledTimes(1);
+    expect(repository.current?.status.staged).toBe(1);
+  });
+
+  it("does the refresh asked for while an open of the same folder ran", async () => {
+    commands.rereadRepository.mockReset();
+    commands.openRepository.mockResolvedValueOnce({ status: "ok", data: summary("D") });
+    await repository.open("D");
+    const slow = deferred<unknown>();
+    commands.openRepository.mockReturnValueOnce(slow.promise);
+    commands.rereadRepository.mockResolvedValueOnce({ status: "ok", data: summary("D") });
+
+    const reopened = repository.open("D");
+    await repository.refresh();
+    slow.resolve({ status: "ok", data: summary("D") });
+    await reopened;
+
+    expect(commands.rereadRepository).toHaveBeenCalledTimes(1);
+  });
+});

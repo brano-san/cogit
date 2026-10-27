@@ -117,8 +117,20 @@ class RepositoryStore {
   }
 
   /** `false` when a newer open overtook this one and its answer was dropped. */
-  open(path: string): Promise<boolean> {
-    return this.#read(path, () => openRepository(path));
+  async open(path: string): Promise<boolean> {
+    this.#again = false;
+    let shown = await this.#read(path, () => openRepository(path));
+    while (shown && this.#again && this.current?.root === path) {
+      this.#again = false;
+      const repo = this.current.repo;
+      shown = await this.#read(path, () => rereadRepository(repo));
+    }
+    return shown;
+  }
+
+  #rereadAgain(): void {
+    const phase = this.phase;
+    if (phase.kind === "opening" && phase.repo?.root === phase.root) this.#again = true;
   }
 
   /** An open of `path`, whichever command reads it: the phase goes through `opening`. */
@@ -196,6 +208,7 @@ class RepositoryStore {
       if (this.#ticket !== ticket || asked !== this.#statusRead) return null;
       const open = this.current;
       if (!open || open.repo !== repo) return null;
+      this.#rereadAgain();
       this.#replace({ ...open, status, indexLock });
       return conflicted;
     } catch {
@@ -212,6 +225,7 @@ class RepositoryStore {
     if (!open || open.repo !== repo) return null;
     // A read begun earlier would answer with older counters.
     this.#statusRead += 1;
+    this.#rereadAgain();
     this.#replace({ ...open, status: state.status, indexLock: state.indexLock });
     return state.conflicted;
   }
