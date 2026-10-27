@@ -4,12 +4,14 @@ class SignatureStore {
   statuses = $state.raw<Map<string, SignatureStatus>>(new Map());
 
   #repo: RepoId | null = null;
+  #asked = new Set<string>();
   #running = false;
   #next: { repo: RepoId; window: readonly string[] } | null = null;
 
   async load(repo: RepoId, window: readonly string[]): Promise<void> {
     if (repo !== this.#repo) {
       this.#repo = repo;
+      this.#asked = new Set();
       this.statuses = new Map();
     }
     this.#next = { repo, window };
@@ -19,8 +21,9 @@ class SignatureStore {
       while (this.#next) {
         const { repo: asked, window: rows } = this.#next;
         this.#next = null;
-        const missing = rows.filter((oid) => !this.statuses.has(oid));
+        const missing = rows.filter((oid) => !this.#asked.has(oid));
         if (missing.length === 0) continue;
+        for (const oid of missing) this.#asked.add(oid);
         const found = await commitSignatures(asked, [...missing]).catch(() => []);
         if (asked !== this.#repo) continue;
         const next = new Map(this.statuses);
@@ -34,6 +37,7 @@ class SignatureStore {
 
   clear(): void {
     this.#repo = null;
+    this.#asked = new Set();
     this.#next = null;
     this.statuses = new Map();
   }
