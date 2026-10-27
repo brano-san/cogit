@@ -1,6 +1,7 @@
 <script lang="ts">
   import { modalLayer, modals } from "$lib/modal-stack";
   import type { DropAction } from "$lib/drop-target";
+  import { placePopup, type Placed } from "$lib/popup-place";
 
   interface Props {
     actions: readonly DropAction[];
@@ -16,6 +17,18 @@
   /** A modal layer: Esc is its own only while nothing is open above it (R-451). */
   const layer = modalLayer();
 
+  let menu: HTMLDivElement | undefined = $state();
+  let placed = $state<Placed | null>(null);
+
+  $effect(() => {
+    if (!menu) return;
+    const size = { width: menu.offsetWidth, height: menu.scrollHeight + 2 };
+    placed = placePopup({ left: x, top: y, right: x + size.width, bottom: y }, size, {
+      width: window.innerWidth,
+      height: window.innerHeight,
+    });
+  });
+
   function onkeydown(event: KeyboardEvent) {
     if (event.key === "Escape" && modals.isTop(layer) && !event.defaultPrevented) {
       event.preventDefault();
@@ -29,7 +42,15 @@
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 <div class="backdrop" onclick={onclose}></div>
 
-<div class="menu" role="menu" style:left="{x}px" style:top="{y}px">
+<div
+  bind:this={menu}
+  class="menu"
+  role="menu"
+  style:left="{placed?.left ?? x}px"
+  style:top="{placed?.top ?? y}px"
+  style:max-height={placed ? `${placed.maxHeight}px` : undefined}
+  style:visibility={placed ? undefined : "hidden"}
+>
   {#each actions as action (action.id)}
     <button
       type="button"
@@ -64,6 +85,7 @@
     border: 1px solid var(--field-border);
     border-radius: var(--r-sm);
     box-shadow: var(--shadow-popover);
+    overflow-y: auto;
   }
 
   button {
