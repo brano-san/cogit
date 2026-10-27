@@ -39,7 +39,9 @@ impl AppState {
         let _quiet = self.quiet_briefly(repo);
         self.signed_in(sign_in, |credential| {
             let handle = self.handle(repo)?.with_stop(stop.clone());
-            if handle.head_tracks_nothing() {
+            if handle.head_tracks_nothing()
+                || matches!(handle.head()?, git_engine::Head::Detached { .. })
+            {
                 let notes = handle.fetch_options(remote, options.fetch, credential, on_line)?;
                 return Ok(Pulled {
                     notes,

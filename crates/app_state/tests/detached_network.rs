@@ -168,3 +168,27 @@ fn pull_on_a_branch_still_pulls() {
 
     assert_eq!(outcome, PullOutcome::Pulled);
 }
+
+#[test]
+fn the_pull_dialog_on_a_detached_head_only_fetches() {
+    let (f, state, repo) = detached();
+    let head = f.oid("HEAD").unwrap();
+    f.write_file("file0.txt", "edited\n").unwrap();
+    f.git(&["update-ref", "-d", "refs/remotes/origin/main"])
+        .unwrap();
+
+    let pulled = state
+        .pull_with(
+            repo,
+            "origin",
+            git_engine::PullOptions::default(),
+            &NetworkStop::default(),
+            None,
+            |_| {},
+        )
+        .unwrap();
+
+    assert!(!pulled.stash_needed);
+    assert_eq!(f.oid("HEAD").unwrap(), head);
+    assert!(f.oid("refs/remotes/origin/main").is_ok());
+}
