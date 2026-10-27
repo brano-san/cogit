@@ -201,6 +201,9 @@ impl AppState {
         stop: impl Fn() -> bool + Send + Sync + Clone + 'static,
         send: impl Fn(WorktreeScanChunk) + Sync,
     ) -> Result<(), git_engine::GitError> {
+        if let Some(remote) = self.remote(repo) {
+            return self.scan_through(&remote, path, &stop, &send);
+        }
         let scan = self
             .handle(repo)?
             .worktree_scan(path)?
@@ -271,7 +274,7 @@ fn put_back(handle: &git_engine::RepoHandle, path: &str, wanted: &str, stash: &s
 }
 
 /// The three stages of the Remove Worktree scan, which one chunk reports as it finishes.
-#[derive(Debug, Clone, Copy, serde::Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum WorktreeScanStage {
     Changes,
@@ -281,7 +284,7 @@ pub enum WorktreeScanStage {
 
 /// `Started` carries the id `cancel_operation` stops the scan by; each stage then answers
 /// on its own, in whatever order they finish.
-#[derive(Debug, serde::Serialize, specta::Type)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase", tag = "kind")]
 pub enum WorktreeScanChunk {
     Started {

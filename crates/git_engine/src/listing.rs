@@ -5,7 +5,7 @@
 //! the panel needs a list that is not the change list, and a way to look inside.
 
 use crate::{GitError, RepoHandle, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
 /// Nothing larger is opened. A file this big is a build artefact or a dump, and reading
@@ -48,7 +48,7 @@ impl gix::traverse::tree::Visit for FileCounter {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ContentMatch {
     pub path: String,

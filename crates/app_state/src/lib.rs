@@ -1,3 +1,4 @@
+mod agent_events;
 mod avatars;
 mod backend;
 mod bisect;
@@ -37,6 +38,7 @@ mod safety;
 pub mod settings;
 mod solver;
 mod stashing;
+mod streams;
 pub mod taskbar;
 pub mod terminal;
 mod watching;
@@ -52,6 +54,7 @@ mod registry;
 mod rows;
 mod staging;
 
+pub use agent_events::forward_agent_events;
 pub use avatars::{Author, AvatarRow, Avatars};
 pub use backend::{Host, serve_agent};
 pub use credentials::{
@@ -243,7 +246,8 @@ pub struct AppState {
     /// External merge tools running, one per conflicted file.
     merge_tools: merge_tool::MergeTools,
     agents: parking_lot::Mutex<HashMap<backend::Host, Arc<backend::Agent>>>,
-    remotes: RwLock<HashMap<RepoId, backend::Remote>>,
+    command_tap: Arc<std::sync::OnceLock<journal::CommandTap>>,
+    remotes: Arc<RwLock<HashMap<RepoId, backend::Remote>>>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -293,7 +297,8 @@ impl AppState {
             reads: reads::Cancellations::default(),
             merge_tools: merge_tool::MergeTools::default(),
             agents: parking_lot::Mutex::new(HashMap::new()),
-            remotes: RwLock::new(HashMap::new()),
+            command_tap: Arc::default(),
+            remotes: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -301,6 +306,11 @@ impl AppState {
     /// one: its next chunk sees it is no longer current and the walk ends there.
     pub fn begin_graph(&self) -> u32 {
         self.graph_generation.fetch_add(1, Ordering::SeqCst) + 1
+    }
+
+    pub(crate) fn adopt_graph_generation(&self, generation: u32) {
+        self.graph_generation
+            .fetch_max(generation, Ordering::SeqCst);
     }
 
     #[must_use]

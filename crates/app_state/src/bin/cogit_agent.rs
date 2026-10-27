@@ -1,6 +1,7 @@
 use app_state::AppState;
 use std::io::{self, BufReader, BufWriter};
 use std::process::ExitCode;
+use std::sync::Arc;
 
 #[cfg(target_env = "musl")]
 #[global_allocator]
@@ -10,12 +11,16 @@ fn main() -> ExitCode {
     if std::env::args().nth(1).as_deref() != Some("serve") {
         return ExitCode::from(2);
     }
-    let state = AppState::new();
+    let state = Arc::new(AppState::new());
     let input = BufReader::new(io::stdin());
     let output = BufWriter::new(io::stdout());
-    match agent::serve(input, output, |request, stop| {
-        app_state::serve_agent(&state, request, stop)
-    }) {
+    let forwarded = Arc::clone(&state);
+    match agent::serve(
+        input,
+        output,
+        move |events| app_state::forward_agent_events(forwarded, events),
+        |request, call| app_state::serve_agent(&state, request, call),
+    ) {
         Ok(()) => ExitCode::SUCCESS,
         Err(err) => {
             tracing::error!(error = ?err, context = "agent serve");

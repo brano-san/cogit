@@ -11,7 +11,7 @@ use git_engine::{
 };
 use graph_engine::GraphRow;
 use parking_lot::{Mutex, RwLock, RwLockWriteGuard};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Weak};
@@ -45,7 +45,7 @@ pub fn throttled(
 }
 
 /// How far the walk got. The rows themselves travel only when asked for, by window.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GraphProgress {
     pub generation: u32,
@@ -58,7 +58,7 @@ pub struct GraphProgress {
     pub kept: u32,
 }
 
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GraphWindow {
     pub start: u32,
@@ -540,6 +540,9 @@ impl AppState {
         chunk_size: usize,
         mut on_progress: impl FnMut(GraphProgress) -> bool,
     ) -> Result<Vec<SkippedRef>, GitError> {
+        if let Some(remote) = self.remote(repo) {
+            return self.graph_through(&remote, query, generation, chunk_size, &mut on_progress);
+        }
         let started = std::time::Instant::now();
         let handle = self.handle(repo)?;
         // Before the walk: a ref moving during it leaves an older print, never a newer one.
@@ -765,7 +768,7 @@ impl AppState {
     /// `None` once a newer graph replaced it. A graph's rows get their subject and author
     /// here, read once per row (R-302).
     #[must_use]
-    pub fn graph_window(
+    pub(crate) fn local_graph_window(
         &self,
         repo: RepoId,
         generation: u32,
@@ -833,7 +836,11 @@ impl AppState {
 
     /// The Working Tree row of graph `generation` while a merge is in progress.
     #[must_use]
-    pub fn graph_working_tree(&self, repo: RepoId, generation: u32) -> Option<GraphRow> {
+    pub(crate) fn local_graph_working_tree(
+        &self,
+        repo: RepoId,
+        generation: u32,
+    ) -> Option<GraphRow> {
         let cache = self.graph.read();
         let (shown, _) = cache.view(repo, generation)?;
         shown.laid.working_tree.clone()
@@ -842,7 +849,12 @@ impl AppState {
     /// The row of `oid` in graph `generation`. A scan: fifty thousand comparisons are well
     /// under a millisecond, and an index would cost every load instead of the rare lookup.
     #[must_use]
-    pub fn graph_row_of(&self, repo: RepoId, generation: u32, oid: &str) -> Option<u32> {
+    pub(crate) fn local_graph_row_of(
+        &self,
+        repo: RepoId,
+        generation: u32,
+        oid: &str,
+    ) -> Option<u32> {
         let cache = self.graph.read();
         let (shown, _) = cache.view(repo, generation)?;
         let row = shown
@@ -879,7 +891,7 @@ impl AppState {
 
     /// How many commits of `repo` have their subject and author read: a count for tests.
     #[must_use]
-    pub fn graph_texts_read(&self, repo: RepoId) -> usize {
+    pub(crate) fn local_graph_texts_read(&self, repo: RepoId) -> usize {
         let cache = self.graph.read();
         cache
             .graphs
@@ -890,7 +902,7 @@ impl AppState {
 
     /// What the cache's budget counts for the graph of `repo`; 0 without one. For tests.
     #[must_use]
-    pub fn graph_footprint(&self, repo: RepoId) -> usize {
+    pub(crate) fn local_graph_footprint(&self, repo: RepoId) -> usize {
         self.graph
             .read()
             .graphs
@@ -901,6 +913,11 @@ impl AppState {
     /// Another budget for the cache: filling the real one takes four large histories.
     pub fn set_graph_cache_budget(&self, bytes: usize) {
         self.graph.write().budget = Some(bytes);
+        self.budget_on_agents(bytes);
+    }
+
+    pub(crate) fn graph_cache_budget(&self) -> Option<usize> {
+        self.graph.read().budget
     }
 
     pub(crate) fn forget_graph(&self, repo: RepoId) {

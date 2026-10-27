@@ -6,14 +6,14 @@ use crate::topo::{LOOKAHEAD, in_date_order, in_graph_order, merged_after_head};
 use crate::{CommitRow, Mailmap, RepoHandle, Result, TextFields};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SkippedRef {
     pub name: String,
     pub reason: String,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase", default)]
 pub struct CommitQuery {
     pub author: Option<String>,
@@ -41,7 +41,7 @@ pub struct CommitQuery {
 
 /// Graph modes that decide which commits the graph shows: the walk follows first parents,
 /// `graph_engine::ViewFilter` collapses merged branches.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase", default)]
 pub struct GraphView {
     /// `--first-parent`: one line per ticked ref, merged branches left out.

@@ -116,7 +116,13 @@ fn dunce_root(path: &std::path::Path) -> std::path::PathBuf {
     state.get(repo).unwrap().root
 }
 
-const BY_HAND: [&str; 7] = [
+const BY_HAND: [&str; 13] = [
+    "build_graph",
+    "graph_window_wire",
+    "search_contents",
+    "origin_candidates",
+    "scan_worktree_removal",
+    "show_repository",
     "undo_last",
     "undo_entry",
     "open_submodule",
@@ -126,17 +132,16 @@ const BY_HAND: [&str; 7] = [
     "save_config_file",
 ];
 
-const ON_WINDOWS: [(&str, &str); 7] = [
+const ON_WINDOWS: [(&str, &str); 6] = [
     ("is_remote", "the routing table itself"),
     ("close_repository", "the registry; tells the agent itself"),
     ("unregister", "the registry"),
     ("get", "the registry"),
     ("root_of", "the registry"),
     ("forget_row", "the Windows tree-row cache"),
-    ("show_repository", "which repository the window shows"),
 ];
 
-const LATER: [(&str, &str); 33] = [
+const LATER: [(&str, &str); 21] = [
     (
         "presets_for",
         "the preset library is on Windows; settings reach the agent: step 6",
@@ -149,28 +154,6 @@ const LATER: [(&str, &str); 33] = [
         "install_preset",
         "the preset library is on Windows; settings reach the agent: step 6",
     ),
-    ("build_graph", "streams chunks: step 4"),
-    ("graph_window", "reads the graph build_graph left: step 4"),
-    (
-        "graph_window_wire",
-        "reads the graph build_graph left: step 4",
-    ),
-    (
-        "graph_working_tree",
-        "reads the graph build_graph left: step 4",
-    ),
-    ("graph_row_of", "reads the graph build_graph left: step 4"),
-    (
-        "graph_texts_read",
-        "reads the graph build_graph left: step 4",
-    ),
-    (
-        "graph_footprint",
-        "reads the graph build_graph left: step 4",
-    ),
-    ("graph_overlay", "reads the graph build_graph left: step 4"),
-    ("search_contents", "streams batches: step 4"),
-    ("origin_candidates", "a cancel callback: step 4"),
     ("fetch", "streams git's output, sign-in: steps 4 and 6"),
     ("pull", "streams git's output, sign-in: steps 4 and 6"),
     ("push", "streams git's output, sign-in: steps 4 and 6"),
@@ -195,11 +178,6 @@ const LATER: [(&str, &str); 33] = [
     ("start_merge_tool", "a Windows program on the files: step 6"),
     ("cancel_merge_tool", "with start_merge_tool: step 6"),
     ("merge_tools_running", "with start_merge_tool: step 6"),
-    ("scan_worktree_removal", "streams chunks: step 4"),
-    (
-        "watcher_is_quiet",
-        "the watcher moves into the agent: step 4",
-    ),
 ];
 
 fn repo_methods() -> Vec<String> {
@@ -258,5 +236,114 @@ fn every_repository_method_goes_through_the_agent_or_says_why_not() {
         routed.len() > 150,
         "routed! lost its list: {}",
         routed.len()
+    );
+}
+
+fn graph_of(state: &AppState, repo: app_state::RepoId) -> (Value, Vec<Value>) {
+    let generation = state.begin_graph();
+    let mut steps = Vec::new();
+    let skipped = state
+        .build_graph(
+            repo,
+            &git_engine::CommitQuery::default(),
+            generation,
+            7,
+            |progress| {
+                steps.push(json(&progress));
+                true
+            },
+        )
+        .unwrap();
+    let window = state.graph_window(repo, generation, 0, 100).unwrap();
+    assert!(window.complete);
+    (json(&(skipped, window)), steps)
+}
+
+#[test]
+fn a_graph_walked_in_the_agent_arrives_as_the_local_one() {
+    let f = test_fixtures::linear(30).unwrap();
+    let (local, remote) = (AppState::new(), AppState::new());
+    let near = local.open_repository(f.path()).unwrap().repo;
+    let far = remote
+        .open_repository_on(&loopback(), f.path())
+        .unwrap()
+        .repo;
+
+    let (near_graph, near_steps) = graph_of(&local, near);
+    let (far_graph, far_steps) = graph_of(&remote, far);
+    assert_eq!(far_graph, near_graph);
+    assert_eq!(far_steps, near_steps);
+    assert!(far_steps.len() > 1, "{far_steps:?}");
+}
+
+#[test]
+fn a_graph_the_window_gives_up_on_stops_in_the_agent() {
+    let f = test_fixtures::linear(200).unwrap();
+    let state = AppState::new();
+    let repo = state
+        .open_repository_on(&loopback(), f.path())
+        .unwrap()
+        .repo;
+    let generation = state.begin_graph();
+    let mut heard = 0;
+    state
+        .build_graph(
+            repo,
+            &git_engine::CommitQuery::default(),
+            generation,
+            1,
+            |_| {
+                heard += 1;
+                false
+            },
+        )
+        .unwrap();
+    assert_eq!(heard, 1);
+    let (graph, _) = graph_of(&state, repo);
+    assert!(graph.to_string().contains("\"complete\":true"));
+}
+
+#[test]
+fn a_command_and_a_change_in_the_agent_reach_the_window() {
+    let f = changed();
+    let state = AppState::new();
+    let repo = state
+        .open_repository_on(&loopback(), f.path())
+        .unwrap()
+        .repo;
+    state.show_repository(Some(repo));
+    let mut events = state.subscribe();
+
+    state.stage_paths(repo, &["file0.txt".to_owned()]).unwrap();
+    let rows = state.command_rows();
+    assert!(
+        rows.iter().any(|row| row.command.contains("add")),
+        "{rows:?}"
+    );
+    let mut recorded = false;
+    let mut changed = false;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while state.watcher_is_quiet(repo) && std::time::Instant::now() < deadline {
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    f.write_file("later.txt", "later\n").unwrap();
+    while !(recorded && changed) && std::time::Instant::now() < deadline {
+        match events.try_recv() {
+            Ok(app_state::AppEvent::CommandRecorded(notice)) => {
+                recorded |= state.command_outcome(notice.id).is_some();
+            }
+            Ok(app_state::AppEvent::RepoChanged {
+                repo: changed_repo, ..
+            }) => {
+                changed |= changed_repo == repo;
+            }
+            Ok(_) => {}
+            Err(_) => std::thread::sleep(std::time::Duration::from_millis(20)),
+        }
+    }
+    assert!(recorded, "no command reached the window's journal");
+    assert!(
+        changed,
+        "no change reached the window from the agent's watcher"
     );
 }

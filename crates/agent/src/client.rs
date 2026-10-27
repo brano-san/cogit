@@ -27,9 +27,14 @@ pub enum AgentError {
 
 type Outcome = Result<Value, Value>;
 
+enum Message {
+    Chunk(Value),
+    Done(Outcome),
+}
+
 #[derive(Default)]
 struct Waiting {
-    calls: HashMap<u64, Sender<Outcome>>,
+    calls: HashMap<u64, Sender<Message>>,
     gone: Option<String>,
 }
 
@@ -49,10 +54,23 @@ impl std::fmt::Debug for Client {
 }
 
 impl Client {
-    pub fn connect<R, W>(mut input: R, mut output: W) -> Result<Self, AgentError>
+    pub fn connect<R, W>(input: R, output: W) -> Result<Self, AgentError>
     where
         R: Read + Send + 'static,
         W: Write + Send + 'static,
+    {
+        Self::connect_with_events(input, output, |_| {})
+    }
+
+    pub fn connect_with_events<R, W, E>(
+        mut input: R,
+        mut output: W,
+        on_event: E,
+    ) -> Result<Self, AgentError>
+    where
+        R: Read + Send + 'static,
+        W: Write + Send + 'static,
+        E: Fn(Value) + Send + 'static,
     {
         let hello = ToAgent::Hello {
             protocol: PROTOCOL,
@@ -77,7 +95,7 @@ impl Client {
         let replies = waiting.clone();
         std::thread::Builder::new()
             .name("agent-replies".into())
-            .spawn(move || deliver_replies(&mut input, &replies))
+            .spawn(move || deliver_replies(&mut input, &replies, &on_event))
             .map_err(|err| AgentError::Handshake(err.to_string()))?;
         Ok(Self {
             output: Mutex::new(Box::new(output)),
@@ -93,6 +111,19 @@ impl Client {
     }
 
     pub fn call(&self, request: Value, stop: Option<&NetworkStop>) -> Result<Outcome, AgentError> {
+        self.call_streaming(
+            request,
+            &|| stop.is_some_and(NetworkStop::is_stopped),
+            &mut |_| {},
+        )
+    }
+
+    pub fn call_streaming(
+        &self,
+        request: Value,
+        canceled: &dyn Fn() -> bool,
+        on_chunk: &mut dyn FnMut(Value),
+    ) -> Result<Outcome, AgentError> {
         let id = self.next.fetch_add(1, Ordering::Relaxed);
         let (reply, answer) = mpsc::channel();
         {
@@ -103,17 +134,17 @@ impl Client {
             waiting.calls.insert(id, reply);
         }
         self.send(&ToAgent::Call { id, request })?;
-        let mut canceled = false;
+        let mut asked_to_stop = false;
         loop {
             match answer.recv_timeout(STOP_POLL) {
-                Ok(outcome) => return Ok(outcome),
+                Ok(Message::Done(outcome)) => return Ok(outcome),
+                Ok(Message::Chunk(data)) => on_chunk(data),
                 Err(RecvTimeoutError::Disconnected) => return Err(self.gone()),
-                Err(RecvTimeoutError::Timeout) => {
-                    if !canceled && stop.is_some_and(NetworkStop::is_stopped) {
-                        canceled = true;
-                        self.send(&ToAgent::Cancel { id })?;
-                    }
-                }
+                Err(RecvTimeoutError::Timeout) => {}
+            }
+            if !asked_to_stop && canceled() {
+                asked_to_stop = true;
+                self.send(&ToAgent::Cancel { id })?;
             }
         }
     }
@@ -132,14 +163,20 @@ impl Client {
     }
 }
 
-fn deliver_replies<R: Read>(input: &mut R, waiting: &Mutex<Waiting>) {
+fn deliver_replies<R: Read>(input: &mut R, waiting: &Mutex<Waiting>, on_event: &dyn Fn(Value)) {
     let reason = loop {
         match read_frame(input) {
             Ok(Some(FromAgent::Reply { id, outcome })) => {
                 if let Some(reply) = waiting.lock().calls.remove(&id) {
-                    reply.send(outcome).ok();
+                    reply.send(Message::Done(outcome)).ok();
                 }
             }
+            Ok(Some(FromAgent::Chunk { id, data })) => {
+                if let Some(reply) = waiting.lock().calls.get(&id) {
+                    reply.send(Message::Chunk(data)).ok();
+                }
+            }
+            Ok(Some(FromAgent::Event { event })) => on_event(event),
             Ok(Some(other)) => break format!("unexpected frame {other:?}"),
             Ok(None) => break "the agent closed its output".to_owned(),
             Err(err) => break err.to_string(),

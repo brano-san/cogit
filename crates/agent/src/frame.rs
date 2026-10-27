@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::{self, Read, Write};
 
-pub const PROTOCOL: u32 = 1;
+pub const PROTOCOL: u32 = 2;
 
 const LARGEST_FRAME: u32 = 256 * 1024 * 1024;
 
@@ -26,9 +26,16 @@ pub enum FromAgent {
         id: u64,
         outcome: Result<Value, Value>,
     },
+    Chunk {
+        id: u64,
+        data: Value,
+    },
+    Event {
+        event: Value,
+    },
 }
 
-pub fn write_frame<W: Write>(output: &mut W, frame: &impl Serialize) -> io::Result<()> {
+pub fn write_frame<W: Write + ?Sized>(output: &mut W, frame: &impl Serialize) -> io::Result<()> {
     let body = serde_json::to_vec(frame)?;
     let length = u32::try_from(body.len())
         .ok()

@@ -9,6 +9,8 @@ use crate::FileContent;
 use crate::RepoRefs;
 use crate::SolverData;
 use crate::UndoRewrite;
+use crate::graph_cache::GraphWindow;
+use crate::graph_overlay::{GraphOverlay, GraphPaintRequest};
 use git_engine::BisectMark;
 use git_engine::BlameReport;
 use git_engine::FileRevision;
@@ -28,7 +30,7 @@ use std::borrow::Borrow;
 use std::path::{Path, PathBuf};
 
 macro_rules! routed {
-    ($(fn $name:ident($($args:tt)*) -> $answer:ty = $local:ident;)*) => {
+    ($(fn $name:ident($($args:tt)*) -> $answer:ty = $local:ident $(, $mode:ident)?;)*) => {
         #[allow(non_camel_case_types)]
         #[derive(Debug, Serialize, Deserialize)]
         pub(crate) enum RepoCall {
@@ -49,39 +51,39 @@ macro_rules! routed {
             }
         }
 
-        $(route!(@munch [call stop] $name $local [$answer] [] [] [] [] [] [None]; $($args)*);)*
+        $(route!(@munch [call stop] [$($mode)?] $name $local [$answer] [] [] [] [] [] [None]; $($args)*);)*
     };
 }
 
 macro_rules! route {
-    (@munch [$call:ident $stopv:ident] $name:ident $local:ident [$answer:ty] [$($p:tt)*] [$($f:tt)*] [$($o:tt)*] [$($l:tt)*] [$($c:tt)*] [$stop:expr];
+    (@munch [$call:ident $stopv:ident] [$($mode:ident)?] $name:ident $local:ident [$answer:ty] [$($p:tt)*] [$($f:tt)*] [$($o:tt)*] [$($l:tt)*] [$($c:tt)*] [$stop:expr];
         $n:ident: &NetworkStop $(, $($rest:tt)*)?) => {
-        route!(@munch [$call $stopv] $name $local [$answer] [$($p)* $n: &NetworkStop,] [$($f)*] [$($o)*] [$($l)* $stopv,] [$($c)* $n,] [Some($n)]; $($($rest)*)?);
+        route!(@munch [$call $stopv] [$($mode)?] $name $local [$answer] [$($p)* $n: &NetworkStop,] [$($f)*] [$($o)*] [$($l)* $stopv,] [$($c)* $n,] [Some($n)]; $($($rest)*)?);
     };
-    (@munch [$call:ident $stopv:ident] $name:ident $local:ident [$answer:ty] [$($p:tt)*] [$($f:tt)*] [$($o:tt)*] [$($l:tt)*] [$($c:tt)*] [$stop:expr];
+    (@munch [$call:ident $stopv:ident] [$($mode:ident)?] $name:ident $local:ident [$answer:ty] [$($p:tt)*] [$($f:tt)*] [$($o:tt)*] [$($l:tt)*] [$($c:tt)*] [$stop:expr];
         $n:ident: Option<&$t:ty> $(, $($rest:tt)*)?) => {
-        route!(@munch [$call $stopv] $name $local [$answer]
+        route!(@munch [$call $stopv] [$($mode)?] $name $local [$answer]
             [$($p)* $n: Option<&$t>,]
             [$($f)* $n: Option<<$t as ToOwned>::Owned>,]
             [$($o)* $n: $n.map(ToOwned::to_owned),]
             [$($l)* $call.$n.as_ref().map(<<$t as ToOwned>::Owned as Borrow<$t>>::borrow),]
             [$($c)* $n,] [$stop]; $($($rest)*)?);
     };
-    (@munch [$call:ident $stopv:ident] $name:ident $local:ident [$answer:ty] [$($p:tt)*] [$($f:tt)*] [$($o:tt)*] [$($l:tt)*] [$($c:tt)*] [$stop:expr];
+    (@munch [$call:ident $stopv:ident] [$($mode:ident)?] $name:ident $local:ident [$answer:ty] [$($p:tt)*] [$($f:tt)*] [$($o:tt)*] [$($l:tt)*] [$($c:tt)*] [$stop:expr];
         $n:ident: &$t:ty $(, $($rest:tt)*)?) => {
-        route!(@munch [$call $stopv] $name $local [$answer]
+        route!(@munch [$call $stopv] [$($mode)?] $name $local [$answer]
             [$($p)* $n: &$t,]
             [$($f)* $n: <$t as ToOwned>::Owned,]
             [$($o)* $n: $n.to_owned(),]
             [$($l)* <<$t as ToOwned>::Owned as Borrow<$t>>::borrow(&$call.$n),]
             [$($c)* $n,] [$stop]; $($($rest)*)?);
     };
-    (@munch [$call:ident $stopv:ident] $name:ident $local:ident [$answer:ty] [$($p:tt)*] [$($f:tt)*] [$($o:tt)*] [$($l:tt)*] [$($c:tt)*] [$stop:expr];
+    (@munch [$call:ident $stopv:ident] [$($mode:ident)?] $name:ident $local:ident [$answer:ty] [$($p:tt)*] [$($f:tt)*] [$($o:tt)*] [$($l:tt)*] [$($c:tt)*] [$stop:expr];
         $n:ident: $t:ty $(, $($rest:tt)*)?) => {
-        route!(@munch [$call $stopv] $name $local [$answer]
+        route!(@munch [$call $stopv] [$($mode)?] $name $local [$answer]
             [$($p)* $n: $t,] [$($f)* $n: $t,] [$($o)* $n,] [$($l)* $call.$n,] [$($c)* $n,] [$stop]; $($($rest)*)?);
     };
-    (@munch [$call:ident $stopv:ident] $name:ident $local:ident [$answer:ty] [$($p:tt)*] [$($f:tt)*] [$($o:tt)*] [$($l:tt)*] [$($c:tt)*] [$stop:expr];) => {
+    (@munch [$call:ident $stopv:ident] [] $name:ident $local:ident [$answer:ty] [$($p:tt)*] [$($f:tt)*] [$($o:tt)*] [$($l:tt)*] [$($c:tt)*] [$stop:expr];) => {
         #[allow(non_camel_case_types)]
         #[derive(Debug, Serialize, Deserialize)]
         pub(crate) struct $name {
@@ -108,9 +110,48 @@ macro_rules! route {
             }
         }
     };
+    (@munch [$call:ident $stopv:ident] [quiet] $name:ident $local:ident [$answer:ty] [$($p:tt)*] [$($f:tt)*] [$($o:tt)*] [$($l:tt)*] [$($c:tt)*] [$stop:expr];) => {
+        #[allow(non_camel_case_types)]
+        #[derive(Debug, Serialize, Deserialize)]
+        pub(crate) struct $name {
+            repo: RepoId,
+            $($f)*
+        }
+
+        impl $name {
+            #[allow(unused_variables)]
+            fn run($call: Self, state: &AppState, $stopv: &NetworkStop) -> Result<Value, Value> {
+                answer(Ok::<_, GitError>(state.$local($call.repo, $($l)*)))
+            }
+        }
+
+        impl AppState {
+            pub fn $name(&self, repo: RepoId, $($p)*) -> $answer {
+                match self.remote(repo) {
+                    None => self.$local(repo, $($c)*),
+                    Some(remote) => remote
+                        .ask(
+                            &Request::Repo(RepoCall::$name($name { repo: remote.id(), $($o)* })),
+                            $stop,
+                        )
+                        .unwrap_or_else(|err| {
+                            tracing::error!(error = ?err, context = stringify!($name));
+                            Default::default()
+                        }),
+                }
+            }
+        }
+    };
 }
 
 routed! {
+    fn graph_window(generation: u32, start: u32, count: u32) -> Option<GraphWindow> = local_graph_window, quiet;
+    fn graph_working_tree(generation: u32) -> Option<graph_engine::GraphRow> = local_graph_working_tree, quiet;
+    fn graph_row_of(generation: u32, oid: &str) -> Option<u32> = local_graph_row_of, quiet;
+    fn graph_overlay(generation: u32, start: u32, count: u32, request: &GraphPaintRequest) -> Option<GraphOverlay> = local_graph_overlay, quiet;
+    fn graph_texts_read() -> usize = local_graph_texts_read, quiet;
+    fn graph_footprint() -> usize = local_graph_footprint, quiet;
+    fn watcher_is_quiet() -> bool = local_watcher_is_quiet, quiet;
     fn repo_status() -> Result<git_engine::RepoStatus, GitError> = local_repo_status;
     fn worktree_files(view: git_engine::WorktreeView) -> Result<git_engine::WorktreeFiles, GitError> = local_worktree_files;
     fn repo_refs() -> Result<RepoRefs, GitError> = local_repo_refs;

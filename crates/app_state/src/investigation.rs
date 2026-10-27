@@ -33,6 +33,9 @@ impl AppState {
         query: &OriginQuery,
         cancelled: &dyn Fn() -> bool,
     ) -> Result<Option<OriginReport>, GitError> {
+        if let Some(remote) = self.remote(repo) {
+            return self.origins_through(&remote, query, cancelled);
+        }
         self.handle(repo)?.origin_candidates(query, cancelled)
     }
 }

@@ -68,6 +68,8 @@ impl From<&git_engine::GitOutput> for CommandRow {
 /// from holding every byte Git ever printed.
 pub(crate) const JOURNAL_CAPACITY: usize = 100;
 
+pub(crate) type CommandTap = Box<dyn Fn(&git_engine::GitOutput) + Send + Sync>;
+
 /// Git reports mixed line endings, permissions and deprecated settings on `stderr` with
 /// exit code 0. Nobody sees those unless we call them out.
 #[must_use]
@@ -135,6 +137,12 @@ pub fn record(
 }
 
 impl AppState {
+    pub(crate) fn tap_commands(&self, tap: CommandTap) {
+        if self.command_tap.set(tap).is_err() {
+            tracing::error!("the commands of this state are tapped already");
+        }
+    }
+
     /// Newest first: the Output panel opens on what just happened.
     #[must_use]
     pub fn command_log(&self) -> Vec<git_engine::GitOutput> {
@@ -185,11 +193,15 @@ impl AppState {
     /// mutation returns and the guard drops (R-197).
     pub(crate) fn command_sink(&self, repo: RepoId) -> git_engine::CommandSink {
         let journal = Arc::clone(&self.journal);
+        let tap = Arc::clone(&self.command_tap);
         let events = self.events.clone();
         let watchers = Arc::clone(&self.watchers);
         Arc::new(move |entry| {
             if let Some(watcher) = watchers.read().get(&repo) {
                 watcher.quiet_for(fs_watcher::DEFAULT_QUIET);
+            }
+            if let Some(tap) = tap.get() {
+                tap(&entry);
             }
             let _ = events.send(AppEvent::CommandRecorded(CommandNotice::from(&entry)));
             record(&mut journal.write(), JOURNAL_CAPACITY, entry);

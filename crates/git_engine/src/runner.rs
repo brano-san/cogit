@@ -10,6 +10,11 @@ pub type CommandSink = Arc<dyn Fn(GitOutput) + Send + Sync>;
 /// repository the run came from. Wrapping after four billion commands is not a scenario.
 static NEXT_ID: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
 
+#[must_use]
+pub fn next_output_id() -> u32 {
+    NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+}
+
 /// Cleared, not overridden — `GIT_DIR` and friends override `current_dir`, and unset must
 /// stay unset (doc/12-risks.md, R-22).
 const INHERITED_GIT_VARS: &[&str] = &[
@@ -89,7 +94,7 @@ impl GitOutput {
             trimmed,
         );
         Self {
-            id: NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+            id: next_output_id(),
             repo: repo.display().to_string(),
             operation: crate::outcome::operation_label(&command),
             severity: crate::outcome::severity_of(exit_code, &stderr),

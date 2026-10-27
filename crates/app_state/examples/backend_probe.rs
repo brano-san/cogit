@@ -1,6 +1,6 @@
 //! The same repository reads timed on any root: `C:` against `\\wsl.localhost\…` (M15).
 //!
-//! `cargo run --release -p app_state --example backend_probe -- <root>…`
+//! `cargo run --release -p app_state --example backend_probe -- [--agent <cogit-agent>] <root>…`
 //! Per read: the first run, the median, and the answer as JSON — what an agent would send.
 
 use app_state::{AppState, DEFAULT_CHUNK_SIZE};
@@ -48,22 +48,27 @@ fn time<T: serde::Serialize>(what: &str, mut work: impl FnMut() -> T) {
 
 fn main() {
     let state = AppState::new();
-    for root in std::env::args().skip(1) {
+    let mut args: Vec<String> = std::env::args().skip(1).collect();
+    let host = (args.first().map(String::as_str) == Some("--agent") && args.len() > 1)
+        .then(|| app_state::Host::Loopback(args.drain(..2).nth(1).unwrap_or_default().into()));
+    let open = |path: &Path| match &host {
+        Some(host) => state.open_repository_on(host, path),
+        None => state.open_repository(path),
+    };
+    for root in args {
         let path = Path::new(&root);
         out(&format!(
             "{root} ({:?})",
             app_state::location::RepoLocation::of(path)
         ));
-        let repo = match state.open_repository(path) {
+        let repo = match open(path) {
             Ok(summary) => summary.repo,
             Err(err) => {
                 out(&format!("  cannot open: {err}"));
                 continue;
             }
         };
-        time("open_repository", || {
-            state.open_repository(path).map_err(|e| e.to_string())
-        });
+        time("open_repository", || open(path).map_err(|e| e.to_string()));
         time("repo_status", || {
             state.repo_status(repo).map_err(|e| e.to_string())
         });

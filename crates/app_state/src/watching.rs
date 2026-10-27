@@ -23,7 +23,14 @@ impl AppState {
         let stopped = left.len();
         // Outside the lock: dropping one joins the thread that delivers its events (R-126).
         drop(left);
-        let watched_again = repo.is_some_and(|repo| self.watch_again(repo));
+        let remote = repo.filter(|repo| self.is_remote(*repo));
+        let watched_again = repo
+            .filter(|_| remote.is_none())
+            .is_some_and(|repo| self.watch_again(repo));
+        if let Some(repo) = remote {
+            self.forget_row(repo);
+        }
+        self.show_on_agents(repo);
         tracing::info!(
             repo = repo.map(|repo| repo.0),
             stopped,
@@ -226,7 +233,7 @@ impl AppState {
 
     /// Test seam: whether the watcher of `repo` is inside a quiet window right now.
     #[must_use]
-    pub fn watcher_is_quiet(&self, repo: RepoId) -> bool {
+    pub(crate) fn local_watcher_is_quiet(&self, repo: RepoId) -> bool {
         self.watchers
             .read()
             .get(&repo)

@@ -6,7 +6,7 @@ pub use lanes::{finish, layout, pass_through, push};
 pub use paint::{PAINT_DIM, PAINT_SLOT, Paint, PaintSpec, paint};
 pub use view::{Fold, ViewFilter};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 
 const LANE_COLORS: u8 = 8;
@@ -19,7 +19,7 @@ pub struct CommitNode {
     pub hidden: Vec<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum NodeKind {
     Normal,
@@ -29,7 +29,7 @@ pub enum NodeKind {
 }
 
 /// The part of its row a segment covers: the upper half, the lower half or all of it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum Span {
     Top,
@@ -37,7 +37,7 @@ pub enum Span {
     Through,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Segment {
     pub from: u16,
@@ -48,7 +48,7 @@ pub struct Segment {
     pub arrow: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GraphRow {
     pub row: u32,
@@ -64,7 +64,7 @@ pub struct GraphRow {
 }
 
 /// `segments[segment]` is one stub of a cut link; `oid` is the commit at its other end.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LongLink {
     pub segment: u16,

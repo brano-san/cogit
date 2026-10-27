@@ -4,19 +4,60 @@ use parking_lot::Mutex;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::io::{self, Read, Write};
+use std::sync::Arc;
 
-pub fn serve<R, W, H>(mut input: R, output: W, handler: H) -> io::Result<()>
+type Outbox = Arc<Mutex<dyn Write + Send>>;
+
+#[derive(Clone)]
+pub struct Events(Outbox);
+
+impl std::fmt::Debug for Events {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Events")
+    }
+}
+
+impl Events {
+    pub fn send(&self, event: Value) -> bool {
+        send(&self.0, &FromAgent::Event { event })
+            .inspect_err(|err| tracing::error!(error = ?err, context = "agent event"))
+            .is_ok()
+    }
+}
+
+#[derive(Debug)]
+pub struct Call {
+    id: u64,
+    stop: NetworkStop,
+    outbox: Events,
+}
+
+impl Call {
+    #[must_use]
+    pub fn stop(&self) -> &NetworkStop {
+        &self.stop
+    }
+
+    pub fn chunk(&self, data: Value) -> bool {
+        send(&self.outbox.0, &FromAgent::Chunk { id: self.id, data })
+            .inspect_err(|err| tracing::error!(error = ?err, id = self.id, context = "agent chunk"))
+            .is_ok()
+    }
+}
+
+pub fn serve<R, W, S, H>(mut input: R, output: W, on_start: S, handler: H) -> io::Result<()>
 where
     R: Read,
-    W: Write + Send,
-    H: Fn(Value, &NetworkStop) -> Result<Value, Value> + Sync,
+    W: Write + Send + 'static,
+    S: FnOnce(Events),
+    H: Fn(Value, &Call) -> Result<Value, Value> + Sync,
 {
     let Some(ToAgent::Hello { protocol, version }) = read_frame(&mut input)? else {
         return Err(invalid("the first frame is not a hello"));
     };
-    let output = Mutex::new(output);
+    let outbox: Outbox = Arc::new(Mutex::new(output));
     send(
-        &output,
+        &outbox,
         &FromAgent::Welcome {
             protocol: PROTOCOL,
             version: crate::VERSION.to_owned(),
@@ -27,18 +68,23 @@ where
         return Ok(());
     }
     tracing::info!(version, "client connected");
+    on_start(Events(outbox.clone()));
     let running: Mutex<HashMap<u64, NetworkStop>> = Mutex::default();
     std::thread::scope(|scope| {
         let read = read_calls(
             &mut input,
             |id, request| {
-                let stop = NetworkStop::default();
-                running.lock().insert(id, stop.clone());
-                let (output, running, handler) = (&output, &running, &handler);
+                let call = Call {
+                    id,
+                    stop: NetworkStop::default(),
+                    outbox: Events(outbox.clone()),
+                };
+                running.lock().insert(id, call.stop.clone());
+                let (running, handler) = (&running, &handler);
                 scope.spawn(move || {
-                    let outcome = handler(request, &stop);
+                    let outcome = handler(request, &call);
                     running.lock().remove(&id);
-                    if let Err(err) = send(output, &FromAgent::Reply { id, outcome }) {
+                    if let Err(err) = send(&call.outbox.0, &FromAgent::Reply { id, outcome }) {
                         tracing::error!(error = ?err, id, context = "agent reply");
                     }
                 });
@@ -71,6 +117,6 @@ fn read_calls<R: Read>(
     Ok(())
 }
 
-fn send<W: Write>(output: &Mutex<W>, frame: &FromAgent) -> io::Result<()> {
+fn send(output: &Mutex<dyn Write + Send>, frame: &FromAgent) -> io::Result<()> {
     write_frame(&mut *output.lock(), frame)
 }

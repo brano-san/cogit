@@ -7,14 +7,14 @@ use git_engine::CommitRow;
 use graph_engine::{GraphRow, Paint, PaintSpec};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PaintTip {
     pub oid: String,
     pub slot: u8,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GraphPaintRequest {
     #[serde(default)]
@@ -30,7 +30,7 @@ pub struct GraphPaintRequest {
     pub varying: bool,
 }
 
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GraphOverlay {
     pub start: u32,
@@ -210,7 +210,7 @@ impl PaintMemo {
 impl AppState {
     /// `None` once a newer graph replaced `generation`.
     #[must_use]
-    pub fn graph_overlay(
+    pub(crate) fn local_graph_overlay(
         &self,
         repo: RepoId,
         generation: u32,

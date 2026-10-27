@@ -3,12 +3,12 @@
 use std::collections::HashMap;
 
 use gix::bstr::ByteSlice as _;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{CommitQuery, CommitRow, Mailmap, RepoHandle};
 
 /// Where the free text of the filter is looked for; any one field matching is enough.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase", default)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct TextFields {

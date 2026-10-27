@@ -32,7 +32,7 @@ impl Host {
         }
     }
 
-    fn local_path(&self, path: &str) -> PathBuf {
+    pub(crate) fn local_path(&self, path: &str) -> PathBuf {
         match self {
             Self::Loopback(_) => PathBuf::from(path),
         }
@@ -62,7 +62,7 @@ pub(crate) struct Agent {
 }
 
 impl Agent {
-    fn start(host: &Host) -> Result<Self, GitError> {
+    fn start(host: &Host, on_event: impl Fn(Value) + Send + 'static) -> Result<Self, GitError> {
         let mut command = host.command();
         command
             .env(INSIDE_AGENT, "1")
@@ -79,7 +79,8 @@ impl Agent {
         let (Some(output), Some(input)) = (child.stdout.take(), child.stdin.take()) else {
             return Err(GitError::Internal("the agent has no pipes".to_owned()));
         };
-        let client = agent::Client::connect(output, input).map_err(|err| unavailable(&err))?;
+        let client = agent::Client::connect_with_events(output, input, on_event)
+            .map_err(|err| unavailable(&err))?;
         tracing::info!(?host, version = client.version(), "agent started");
         Ok(Self {
             host: host.clone(),
@@ -93,12 +94,25 @@ impl Agent {
         request: &Request,
         stop: Option<&NetworkStop>,
     ) -> Result<T, GitError> {
+        self.stream(
+            request,
+            &|| stop.is_some_and(NetworkStop::is_stopped),
+            &mut |_| {},
+        )
+    }
+
+    fn stream<T: DeserializeOwned>(
+        &self,
+        request: &Request,
+        canceled: &dyn Fn() -> bool,
+        on_chunk: &mut dyn FnMut(Value),
+    ) -> Result<T, GitError> {
         let Some(client) = &self.client else {
             return Err(GitError::Internal("the agent is stopping".to_owned()));
         };
         let request = serde_json::to_value(request).map_err(|err| garbled(&err))?;
         match client
-            .call(request, stop)
+            .call_streaming(request, canceled, on_chunk)
             .map_err(|err| unavailable(&err))?
         {
             Ok(answer) => serde_json::from_value(answer).map_err(|err| garbled(&err)),
@@ -135,6 +149,19 @@ pub(crate) struct Remote {
 impl Remote {
     pub(crate) fn id(&self) -> RepoId {
         self.id
+    }
+
+    pub(crate) fn host(&self) -> &Host {
+        &self.agent.host
+    }
+
+    pub(crate) fn stream<T: DeserializeOwned>(
+        &self,
+        request: &Request,
+        canceled: &dyn Fn() -> bool,
+        on_chunk: &mut dyn FnMut(Value),
+    ) -> Result<T, GitError> {
+        self.agent.stream(request, canceled, on_chunk)
     }
 
     pub(crate) fn ask<T: DeserializeOwned>(
@@ -176,6 +203,13 @@ pub(crate) enum Request {
         repo: RepoId,
     },
     SafetyLog,
+    Show {
+        repo: Option<RepoId>,
+    },
+    GraphBudget {
+        bytes: usize,
+    },
+    Stream(crate::streams::StreamCall),
     Undo {
         repo: RepoId,
         id: Option<u32>,
@@ -200,7 +234,7 @@ fn opened(state: &AppState, result: Result<RepoSummary, GitError>) -> Result<Val
     }))
 }
 
-pub fn serve_agent(state: &AppState, request: Value, stop: &NetworkStop) -> Result<Value, Value> {
+pub fn serve_agent(state: &AppState, request: Value, call: &agent::Call) -> Result<Value, Value> {
     let request: Request = serde_json::from_value(request).map_err(|err| {
         to_json(&GitError::Internal(format!(
             "not a request of this agent: {err}"
@@ -220,13 +254,22 @@ pub fn serve_agent(state: &AppState, request: Value, stop: &NetworkStop) -> Resu
         } => answer(state.save_config_file(Some(repo), scope, &text, crlf)),
         Request::Close { repo } => answer(Ok(state.close_repository(repo))),
         Request::SafetyLog => answer(Ok(state.safety_log())),
+        Request::Show { repo } => {
+            state.show_repository(repo);
+            answer(Ok(()))
+        }
+        Request::GraphBudget { bytes } => {
+            state.set_graph_cache_budget(bytes);
+            answer(Ok(()))
+        }
+        Request::Stream(stream) => stream.run(state, call),
         Request::Undo { repo, id } => answer(match id {
             Some(id) => state.undo_entry(repo, id),
             None => state.undo_last(repo),
         }),
-        Request::Repo(call) => {
-            tracing::debug!(call = call.name(), "agent call");
-            call.run(state, stop)
+        Request::Repo(repo_call) => {
+            tracing::debug!(call = repo_call.name(), "agent call");
+            repo_call.run(state, call.stop())
         }
     }
 }
@@ -237,7 +280,7 @@ pub(crate) fn answer<T: Serialize>(result: Result<T, GitError>) -> Result<Value,
         .map_err(|err| to_json(&err))
 }
 
-fn to_json(value: &impl Serialize) -> Value {
+pub(crate) fn to_json(value: &impl Serialize) -> Value {
     serde_json::to_value(value).unwrap_or_else(|err| Value::String(err.to_string()))
 }
 
@@ -314,6 +357,29 @@ impl AppState {
         self.remotes.read().contains_key(&repo)
     }
 
+    pub(crate) fn budget_on_agents(&self, bytes: usize) {
+        let agents: Vec<Arc<Agent>> = self.agents.lock().values().cloned().collect();
+        for agent in agents {
+            if let Err(err) = agent.ask::<()>(&Request::GraphBudget { bytes }, None) {
+                tracing::error!(error = ?err, context = "graph budget in the agent");
+            }
+        }
+    }
+
+    pub(crate) fn show_on_agents(&self, shown: Option<RepoId>) {
+        let target = shown.and_then(|repo| self.remote(repo));
+        let agents: Vec<Arc<Agent>> = self.agents.lock().values().cloned().collect();
+        for agent in agents {
+            let repo = target
+                .as_ref()
+                .filter(|remote| Arc::ptr_eq(&remote.agent, &agent))
+                .map(|remote| remote.id);
+            if let Err(err) = agent.ask::<()>(&Request::Show { repo }, None) {
+                tracing::error!(error = ?err, context = "show in the agent");
+            }
+        }
+    }
+
     pub(crate) fn remote(&self, repo: RepoId) -> Option<Remote> {
         self.remotes.read().get(&repo).cloned()
     }
@@ -380,7 +446,19 @@ impl AppState {
         if let Some(agent) = agents.get(host) {
             return Ok(agent.clone());
         }
-        let agent = Arc::new(Agent::start(host)?);
+        let sink = crate::agent_events::Sink {
+            host: host.clone(),
+            remotes: Arc::clone(&self.remotes),
+            journal: Arc::clone(&self.journal),
+            events: self.events.clone(),
+            rows: Arc::clone(&self.cached_rows),
+        };
+        let agent = Arc::new(Agent::start(host, move |event| sink.take(event))?);
+        if let Some(bytes) = self.graph_cache_budget()
+            && let Err(err) = agent.ask::<()>(&Request::GraphBudget { bytes }, None)
+        {
+            tracing::error!(error = ?err, context = "graph budget in the agent");
+        }
         agents.insert(host.clone(), agent.clone());
         Ok(agent)
     }

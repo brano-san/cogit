@@ -163,7 +163,8 @@ pub use rerere::RerereStatus;
 pub use reset::ResetMode;
 pub use revision::{CommitPreview, RevisionCheck};
 pub use runner::{
-    CommandSink, GitOutput, git_version, gix_version, redact_command, use_git_program,
+    CommandSink, GitOutput, git_version, gix_version, next_output_id, redact_command,
+    use_git_program,
 };
 pub use search::{CommitQuery, GraphRows, GraphView, Passed, PassedCommits, ShownBy, SkippedRef};
 pub use shared::SharedRepo;

@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use std::ops::Range;
 
 /// A block of lines and the commit that introduced it, as blame reported them.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OriginQuery {
     /// The commit that wrote the block; forty zeros for the working tree.
@@ -20,7 +20,7 @@ pub struct OriginQuery {
     pub previous: Option<PreviousFile>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum OriginKind {
     /// Nothing like it existed before: the lines first appeared at this position.
@@ -33,7 +33,7 @@ pub enum OriginKind {
     Copied,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum Likelihood {
     High,
@@ -41,7 +41,7 @@ pub enum Likelihood {
     Low,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum LineMatch {
     Same,
@@ -49,7 +49,7 @@ pub enum LineMatch {
     Missing,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OriginText {
     pub line: u32,
@@ -58,7 +58,7 @@ pub struct OriginText {
 }
 
 /// Where Go Deeper continues: the source's version, file and the picked line in it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct DeeperTarget {
     pub rev: String,
@@ -66,7 +66,7 @@ pub struct DeeperTarget {
     pub line: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OriginCandidate {
     pub kind: OriginKind,
@@ -84,7 +84,7 @@ pub struct OriginCandidate {
     pub source: Vec<OriginText>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OriginReport {
     /// In-place first, the rest by score.

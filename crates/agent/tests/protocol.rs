@@ -1,13 +1,15 @@
 #![allow(clippy::unwrap_used)]
 
-use agent::{AgentError, Client, FromAgent, PROTOCOL, ToAgent, read_frame, serve, write_frame};
+use agent::{
+    AgentError, Call, Client, FromAgent, PROTOCOL, ToAgent, read_frame, serve, write_frame,
+};
 use git_engine::NetworkStop;
 use serde_json::{Value, json};
 use std::io::{self, PipeReader, PipeWriter};
 use std::sync::{Arc, Barrier, mpsc};
 use std::thread::{self, JoinHandle};
 
-type Handler = Box<dyn Fn(Value, &NetworkStop) -> Result<Value, Value> + Send + Sync>;
+type Handler = Box<dyn Fn(Value, &Call) -> Result<Value, Value> + Send + Sync>;
 
 struct Wires {
     agent_in: PipeReader,
@@ -29,7 +31,7 @@ fn wires() -> Wires {
 
 fn pair(handler: Handler) -> (Client, JoinHandle<io::Result<()>>) {
     let wires = wires();
-    let server = thread::spawn(move || serve(wires.agent_in, wires.agent_out, handler));
+    let server = thread::spawn(move || serve(wires.agent_in, wires.agent_out, |_| {}, handler));
     let client = Client::connect(wires.client_in, wires.client_out).unwrap();
     (client, server)
 }
@@ -73,9 +75,9 @@ fn an_error_of_the_handler_comes_back_as_an_error() {
 fn a_cancel_reaches_the_running_call() {
     let (started_tx, started) = mpsc::channel();
     let started_tx = parking_lot::Mutex::new(started_tx);
-    let (client, _server) = pair(Box::new(move |_, stop| {
+    let (client, _server) = pair(Box::new(move |_, call: &Call| {
         started_tx.lock().send(()).unwrap();
-        while !stop.is_stopped() {
+        while !call.stop().is_stopped() {
             thread::yield_now();
         }
         Err(json!("canceled"))
@@ -101,9 +103,10 @@ fn closing_the_pipe_stops_the_running_calls_and_ends_the_agent() {
         serve(
             wires.agent_in,
             wires.agent_out,
-            move |_, stop: &NetworkStop| {
+            |_| {},
+            move |_, call: &Call| {
                 started_tx.lock().send(()).unwrap();
-                while !stop.is_stopped() {
+                while !call.stop().is_stopped() {
                     thread::yield_now();
                 }
                 Err(json!("canceled"))
@@ -188,7 +191,8 @@ fn another_protocol_is_refused_at_the_handshake() {
 #[test]
 fn an_agent_hears_another_protocol_and_leaves_after_saying_its_own() {
     let wires = wires();
-    let server = thread::spawn(move || serve(wires.agent_in, wires.agent_out, |r, _| Ok(r)));
+    let server =
+        thread::spawn(move || serve(wires.agent_in, wires.agent_out, |_| {}, |r, _| Ok(r)));
     let mut out = wires.client_out;
     let mut input = wires.client_in;
     write_frame(
@@ -205,4 +209,64 @@ fn an_agent_hears_another_protocol_and_leaves_after_saying_its_own() {
         Some(FromAgent::Welcome { protocol, .. }) if protocol == PROTOCOL
     ));
     server.join().unwrap().unwrap();
+}
+
+#[test]
+fn the_chunks_of_a_call_arrive_in_order_before_its_answer() {
+    let (client, _server) = pair(Box::new(|_, call| {
+        for n in 0..50 {
+            assert!(call.chunk(json!(n)));
+        }
+        Ok(json!("done"))
+    }));
+    let mut seen = Vec::new();
+    let answer = client
+        .call_streaming(json!("walk"), &|| false, &mut |chunk| seen.push(chunk))
+        .unwrap();
+    assert_eq!(answer, Ok(json!("done")));
+    assert_eq!(seen, (0..50).map(|n| json!(n)).collect::<Vec<_>>());
+}
+
+#[test]
+fn an_event_reaches_the_client_without_a_call() {
+    let wires = wires();
+    let (heard_tx, heard) = mpsc::channel();
+    thread::spawn(move || {
+        serve(
+            wires.agent_in,
+            wires.agent_out,
+            |events| {
+                assert!(events.send(json!({ "changed": "index" })));
+            },
+            |r, _| Ok(r),
+        )
+    });
+    let heard_tx = parking_lot::Mutex::new(heard_tx);
+    let _client = Client::connect_with_events(wires.client_in, wires.client_out, move |event| {
+        heard_tx.lock().send(event).ok();
+    })
+    .unwrap();
+    assert_eq!(
+        heard
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .unwrap(),
+        json!({ "changed": "index" })
+    );
+}
+
+#[test]
+fn a_cancel_gets_through_a_stream_that_never_pauses() {
+    let (client, _server) = pair(Box::new(|_, call| {
+        while !call.stop().is_stopped() {
+            call.chunk(json!("row"));
+        }
+        Err(json!("canceled"))
+    }));
+    let seen = std::cell::Cell::new(0);
+    let answer = client
+        .call_streaming(json!("walk"), &|| seen.get() >= 3, &mut |_| {
+            seen.set(seen.get() + 1);
+        })
+        .unwrap();
+    assert_eq!(answer, Err(json!("canceled")));
 }

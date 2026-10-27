@@ -44,6 +44,9 @@ impl AppState {
         cancelled: &dyn Fn() -> bool,
         on_batch: &mut dyn FnMut(Vec<git_engine::ContentMatch>),
     ) -> Result<(), git_engine::GitError> {
+        if let Some(remote) = self.remote(repo) {
+            return self.search_through(&remote, request, cancelled, on_batch);
+        }
         self.handle(repo)?
             .search_contents(request, cancelled, on_batch)
     }

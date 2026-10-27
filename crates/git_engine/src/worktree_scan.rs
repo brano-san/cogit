@@ -1,14 +1,14 @@
 use crate::{
     FileEntry, FileMode, FileStatus, PushCommit, RepoHandle, Result, SubmoduleChange, WorktreeView,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
 
 /// How many commit names a submodule row carries; the total is counted past it.
 const NAMED: usize = 10;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WorktreeSubmodules {
     /// Every submodule checked out in the worktree: removing it deletes their repositories.
@@ -18,7 +18,7 @@ pub struct WorktreeSubmodules {
 }
 
 /// Commits a submodule holds that no remote has: removing the worktree deletes the only copy.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct UnpushedInSubmodule {
     pub path: String,
