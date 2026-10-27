@@ -7,6 +7,10 @@ use app_state::{AppState, DEFAULT_CHUNK_SIZE};
 use std::path::Path;
 use std::time::Instant;
 
+#[cfg(target_env = "musl")]
+#[global_allocator]
+static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 const RUNS: usize = 5;
 
 fn out(line: &str) {

@@ -109,6 +109,10 @@ encoding_rs = "0.8"
 ureq = "3.4"
 md-5 = "0.11"
 
+# --- agent (M15) ---
+# musl's allocator halves status and file-list speed on Linux; mimalloc wins most of it back.
+mimalloc = "0.1"
+
 # --- system ---
 # Only to move sign-ins kept before Cogit's own password store into it (R-891).
 keyring = "4.2"

@@ -39,6 +39,9 @@ windows-registry.workspace = true
 test_fixtures.workspace = true
 tempfile.workspace = true
 
+[target.'cfg(target_env = "musl")'.dev-dependencies]
+mimalloc.workspace = true
+
 # Its own main: git starts the test binary as Cogit's credential helper.
 [[test]]
 name = "sign_in"
