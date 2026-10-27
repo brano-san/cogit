@@ -37,6 +37,23 @@ jobs:
         with:
           command: check
 
+  agent:
+    name: Agent (linux-x64 musl)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: ./.github/actions/musl
+
+      - name: Agent tests on musl
+        shell: bash
+        run: |
+          cargo test --locked -p agent --target x86_64-unknown-linux-musl
+          cargo test --locked -p app_state --test backend --target x86_64-unknown-linux-musl
+
   build:
     name: Build (${{ matrix.name }})
     runs-on: ${{ matrix.os }}

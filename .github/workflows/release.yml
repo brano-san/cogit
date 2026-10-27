@@ -59,9 +59,36 @@ jobs:
     with:
       ref: refs/tags/${{ needs.meta.outputs.tag }}
 
+  agent:
+    name: Agent (linux-x64 musl)
+    needs: [meta, ci]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: refs/tags/${{ needs.meta.outputs.tag }}
+
+      - uses: ./.github/actions/musl
+
+      - name: Build the agent
+        shell: bash
+        run: |
+          cargo build --locked --release -p app_state --bin cogit-agent --target x86_64-unknown-linux-musl
+          kind=$(file -b target/x86_64-unknown-linux-musl/release/cogit-agent)
+          echo "$kind"
+          [[ "$kind" == *"static"* ]] || { echo "::error::the agent is not static: $kind"; exit 1; }
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: cogit-agent-linux-x64
+          path: target/x86_64-unknown-linux-musl/release/cogit-agent
+          if-no-files-found: error
+          retention-days: 7
+
   build:
     name: Build (${{ matrix.name }})
-    needs: [meta, ci]
+    needs: [meta, ci, agent]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     # A job marked experimental may fail without blocking the release: its files are simply
@@ -106,6 +133,21 @@ jobs:
       - name: Tag and manifests agree
         shell: bash
         run: node scripts/ci/check-version.mjs "$VERSION"
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        if: runner.os == 'Windows'
+        with:
+          name: cogit-agent-linux-x64
+          path: ${{ runner.temp }}/agent
+
+      - name: Embed the WSL agent (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          {
+            echo "COGIT_AGENT_BIN=$(cygpath -m "$RUNNER_TEMP/agent/cogit-agent")"
+            echo "COGIT_REQUIRE_AGENT=1"
+          } >> "$GITHUB_ENV"
 
       # A rerun without the certificate would replace a signed installer with an unsigned one.
       # (A draft release is invisible to the read-only token: the guard then has nothing to see.)

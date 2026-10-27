@@ -99,13 +99,21 @@ fn watch_code() {
 
 fn embed_agent(out_dir: &Path) {
     println!("cargo:rerun-if-env-changed=COGIT_AGENT_BIN");
+    println!("cargo:rerun-if-env-changed=COGIT_REQUIRE_AGENT");
+    if std::env::var_os("COGIT_REQUIRE_AGENT").is_some()
+        && std::env::var_os("COGIT_AGENT_BIN").is_none()
+    {
+        panic!(
+            "COGIT_REQUIRE_AGENT is set and COGIT_AGENT_BIN is not: this build would open no repository in WSL"
+        );
+    }
     let embedded = out_dir.join("cogit-agent");
     let bytes = match std::env::var_os("COGIT_AGENT_BIN") {
         Some(agent) => {
-            println!("cargo:rerun-if-changed={}", Path::new(&agent).display());
-            std::fs::read(&agent).unwrap_or_else(|err| {
-                panic!("COGIT_AGENT_BIN {}: {err}", Path::new(&agent).display())
-            })
+            let agent = Path::new("..").join(agent);
+            println!("cargo:rerun-if-changed={}", agent.display());
+            std::fs::read(&agent)
+                .unwrap_or_else(|err| panic!("COGIT_AGENT_BIN {}: {err}", agent.display()))
         }
         None => Vec::new(),
     };

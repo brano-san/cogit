@@ -19,7 +19,9 @@
     "tauri": "tauri",
     "bench:repos": "node scripts/bench/fixtures.mjs",
     "bench:build": "node scripts/bench/build.mjs",
-    "bench": "node scripts/bench/run.mjs"
+    "bench": "node scripts/bench/run.mjs",
+    "agent": "node scripts/build-agent.mjs",
+    "release": "node scripts/build-agent.mjs --release"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.12.1"

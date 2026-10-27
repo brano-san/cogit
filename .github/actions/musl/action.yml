@@ -1,0 +1,16 @@
+name: Set up the musl target
+description: Rust with x86_64-unknown-linux-musl and musl-tools, for the static agent that runs inside WSL (M15).
+runs:
+  using: composite
+  steps:
+    - name: musl-tools
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends musl-tools
+
+    - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f
+      with:
+        target: x86_64-unknown-linux-musl
+        build-warnings: ""
+        cache-key: musl-v1
