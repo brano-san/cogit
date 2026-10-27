@@ -1619,3 +1619,28 @@ fn slow_pre_commit(f: &test_fixtures::Fixture, seconds: u32) {
         std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).unwrap();
     }
 }
+
+#[test]
+fn a_hard_reset_keeps_a_conflict_fixed_by_hand_for_undo() {
+    let f = about_to_conflict();
+    let (state, repo) = open(&f);
+    let head = head_oid(&state, repo);
+    let _ = state.merge(
+        repo,
+        &git_engine::MergeOptions {
+            source: "side".to_owned(),
+            no_fast_forward: false,
+            squash: false,
+            message: None,
+        },
+    );
+    f.write_file("c.txt", "fixed by hand\n").unwrap();
+
+    state
+        .reset_to(repo, &head, git_engine::ResetMode::Hard)
+        .unwrap();
+    assert_eq!(text(&f, "c.txt"), "main\n");
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(text(&f, "c.txt"), "fixed by hand\n");
+}

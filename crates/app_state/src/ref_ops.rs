@@ -36,7 +36,9 @@ impl AppState {
         );
 
         let status = handle.status()?;
-        let stashed = if mode == ResetMode::Hard && (status.staged > 0 || status.unstaged > 0) {
+        let stashed = if mode == ResetMode::Hard
+            && (status.staged > 0 || status.unstaged > 0 || status.conflicted > 0)
+        {
             handle
                 .backup_before_reset(&format!("cogit: before hard reset to {}", short(rev)))
                 .map_err(|err| crate::backup_failed("resetting", &err))?
@@ -108,7 +110,7 @@ impl AppState {
         Ok(Some(UndoRewrite {
             orig,
             head,
-            dirty: status.staged > 0 || status.unstaged > 0,
+            dirty: status.staged > 0 || status.unstaged > 0 || status.conflicted > 0,
         }))
     }
 
