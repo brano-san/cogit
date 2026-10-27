@@ -84,12 +84,12 @@
           title="Show the output of this command"
           onclick={() => void output.openRecord(entry.id)}
         >
-          <span class="when tabular">{clock.format(entry.startedAtMs)}</span>
+          <span class="when tabular truncate">{clock.format(entry.startedAtMs)}</span>
           <span class="what truncate">{entry.operation}</span>
           <span class="where truncate" title={entry.repo}>{repoName(entry)}</span>
           <span class="cmd mono truncate">{entry.command}</span>
-          <span class="num tabular">{entry.exitCode ?? "?"}</span>
-          <span class="num tabular">{entry.durationMs} ms</span>
+          <span class="num tabular truncate">{entry.exitCode ?? "?"}</span>
+          <span class="num tabular truncate">{entry.durationMs} ms</span>
         </button>
       {/each}
     </div>
@@ -137,7 +137,7 @@
 
   .line {
     display: grid;
-    grid-template-columns: 72px minmax(72px, 120px) minmax(80px, 160px) minmax(0, 1fr) 40px 72px;
+    grid-template-columns: 12ch minmax(72px, 120px) minmax(80px, 160px) minmax(0, 1fr) 5ch 9ch;
     align-items: center;
     gap: var(--sp-3);
     width: 100%;
