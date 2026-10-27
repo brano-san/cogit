@@ -15,6 +15,8 @@ import {
   recentMessages,
   sortedFiles,
   splitPath,
+  parseColumnWidths,
+  DEFAULT_COLUMN_WIDTHS,
   stateSide,
 } from "./commit-window";
 
@@ -208,5 +210,15 @@ describe("amendMessage", () => {
       message: "last, edited",
       before: null,
     });
+  });
+});
+
+describe("parseColumnWidths", () => {
+  it("falls back to the defaults for nothing stored or junk", () => {
+    expect(parseColumnWidths(null)).toEqual(DEFAULT_COLUMN_WIDTHS);
+    expect(parseColumnWidths("not json")).toEqual(DEFAULT_COLUMN_WIDTHS);
+  });
+  it("keeps stored widths and holds the minimum", () => {
+    expect(parseColumnWidths(JSON.stringify({ name: 300, state: 10 }))).toEqual({ name: 300, state: 60 });
   });
 });

@@ -20,7 +20,13 @@
     listedFiles,
     menuLabel,
     opening,
+    COLUMN_WIDTHS_KEY,
+    DEFAULT_COLUMN_WIDTHS,
+    columnWidth,
     leftOut,
+    parseColumnWidths,
+    type ColumnWidths,
+    type ResizedColumn,
     parseCommitWindow,
     partialQuestion,
     planCommit,
@@ -130,6 +136,38 @@
     }),
   );
   const canCommit = $derived(blocked === null);
+
+  let widths = $state(readColumnWidths());
+
+  function readColumnWidths(): ColumnWidths {
+    try {
+      return parseColumnWidths(localStorage.getItem(COLUMN_WIDTHS_KEY));
+    } catch {
+      return { ...DEFAULT_COLUMN_WIDTHS };
+    }
+  }
+
+  function startResize(key: ResizedColumn, event: PointerEvent) {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = widths[key];
+    const move = (moved: PointerEvent) => {
+      widths = { ...widths, [key]: columnWidth(startWidth + moved.clientX - startX) };
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+      try {
+        localStorage.setItem(COLUMN_WIDTHS_KEY, JSON.stringify(widths));
+      } catch {
+        return;
+      }
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
+    window.addEventListener("pointercancel", stop);
+  }
 
   function tickAll(paths: readonly string[]) {
     ticked = new Set(paths);
@@ -339,7 +377,7 @@
         <span class="info" title={COUNTER_INFO} role="img" aria-label="About the file counts">i</span>
       </div>
 
-      <div class="table">
+      <div class="table" style:--name-width="{widths.name}px" style:--state-width="{widths.state}px">
         <div class="thead">
           <span class="cell check"
             ><Checkbox
@@ -349,14 +387,26 @@
             /></span
           >
           {#each [["name", "Name"], ["state", "State"], ["directory", "Directory"]] as [key, title] (key)}
-            {#if key === "state"}
-              <span class="cell head-button">{title}</span>
-            {:else}
-              <button type="button" class="cell head-button" onclick={() => sortBy(key as SortKey)}>
-                {title}
-                {#if sortKey === key}<span class="arrow" class:flipped={!descending}><Caret /></span>{/if}
-              </button>
-            {/if}
+            <div class="cell header">
+              {#if key === "state"}
+                <span class="head-button">{title}</span>
+              {:else}
+                <button type="button" class="head-button" onclick={() => sortBy(key as SortKey)}>
+                  {title}
+                  {#if sortKey === key}<span class="arrow" class:flipped={!descending}><Caret /></span>{/if}
+                </button>
+              {/if}
+              {#if key === "name" || key === "state"}
+                <!-- svelte-ignore a11y_interactive_supports_focus -->
+                <span
+                  class="resizer"
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-label="Resize the {title} column"
+                  onpointerdown={(event) => startResize(key as ResizedColumn, event)}
+                ></span>
+              {/if}
+            </div>
           {/each}
         </div>
         {#if rows.length === 0}
@@ -621,7 +671,7 @@
   .thead,
   .row {
     display: grid;
-    grid-template-columns: 28px minmax(120px, 1fr) minmax(90px, 0.9fr) minmax(120px, 1.5fr);
+    grid-template-columns: 28px var(--name-width) var(--state-width) minmax(120px, 1fr);
     align-items: center;
     height: 24px;
   }
@@ -654,8 +704,33 @@
     justify-content: center;
   }
 
-  .head-button {
+  .header {
+    position: relative;
     height: 100%;
+    min-width: 0;
+  }
+
+  .resizer {
+    position: absolute;
+    top: 0;
+    right: -3px;
+    bottom: 0;
+    width: 6px;
+    z-index: 1;
+    cursor: col-resize;
+    touch-action: none;
+  }
+
+  .resizer:hover {
+    background: var(--splitter-active);
+  }
+
+  .head-button {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    padding: 0 var(--sp-3);
     background: none;
     border: 0;
     border-left: 1px solid var(--divider);

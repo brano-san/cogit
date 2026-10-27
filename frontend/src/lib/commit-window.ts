@@ -234,3 +234,30 @@ export function amendMessage(
     ? { message: before, before: null }
     : { message: current, before: null };
 }
+
+export type ResizedColumn = "name" | "state";
+export type ColumnWidths = Record<ResizedColumn, number>;
+
+export const COLUMN_WIDTHS_KEY = "cogit.commit-window.columns";
+export const DEFAULT_COLUMN_WIDTHS: ColumnWidths = { name: 220, state: 110 };
+const MIN_COLUMN_WIDTH = 60;
+
+export function columnWidth(width: number): number {
+  return Math.max(MIN_COLUMN_WIDTH, Math.round(width));
+}
+
+export function parseColumnWidths(stored: string | null): ColumnWidths {
+  const widths = { ...DEFAULT_COLUMN_WIDTHS };
+  if (stored === null) return widths;
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    if (typeof parsed !== "object" || parsed === null) return widths;
+    for (const key of ["name", "state"] as const) {
+      const value = (parsed as Record<string, unknown>)[key];
+      if (typeof value === "number" && Number.isFinite(value)) widths[key] = columnWidth(value);
+    }
+  } catch {
+    return widths;
+  }
+  return widths;
+}
