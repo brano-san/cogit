@@ -9,9 +9,10 @@
     extent?: number;
     onchange: (deltaFraction: number) => void;
     onreset: () => void;
+    onend?: () => void;
   }
 
-  let { direction, value, label, extent, onchange, onreset }: Props = $props();
+  let { direction, value, label, extent, onchange, onreset, onend }: Props = $props();
 
   let element: HTMLDivElement;
   let dragging = $state(false);
@@ -55,7 +56,13 @@
   function onpointerup(event: PointerEvent) {
     if (!dragging) return;
     element.releasePointerCapture(event.pointerId);
+    finishDrag();
+  }
+
+  function finishDrag() {
+    if (!dragging) return;
     dragging = false;
+    onend?.();
   }
 
   function onkeydown(event: KeyboardEvent) {
@@ -91,6 +98,7 @@
   {onpointerdown}
   {onpointermove}
   {onpointerup}
+  onlostpointercapture={finishDrag}
   {onkeydown}
   ondblclick={onreset}
 ></div>

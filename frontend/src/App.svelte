@@ -496,6 +496,24 @@
   const WORKTREES_MIN_PX = 65;
   const OUTPUT_MIN_PX = 96;
   const OUTPUT_ROOM_PX = 300;
+  let outputDrag = $state<{ from: number; raw: number; collapsed: boolean } | null>(null);
+
+  function dragOutput(d: number) {
+    const from = outputDrag?.from ?? fractions.outputHeight;
+    const raw = (outputDrag?.raw ?? fractions.outputHeight) - d;
+    const collapsed = raw * windowHeight < OUTPUT_MIN_PX / 2;
+    outputDrag = { from, raw, collapsed };
+    if (collapsed) return;
+    layout.set("outputHeight", floorFraction(capFraction(raw, windowHeight, OUTPUT_ROOM_PX), windowHeight, OUTPUT_MIN_PX));
+  }
+
+  function endOutputDrag() {
+    if (outputDrag?.collapsed) {
+      layout.set("outputHeight", outputDrag.from);
+      output.open = false;
+    }
+    outputDrag = null;
+  }
   let windowHeight = $state(0);
   let leftColumnHeight = $state(0);
   let reposColumnEl = $state<HTMLDivElement | null>(null);
@@ -4161,14 +4179,11 @@ ${event.error}`,
         value={1 - fractions.outputHeight}
         label="Resize output panel"
         extent={windowHeight}
-        onchange={(d) =>
-          layout.set(
-            "outputHeight",
-            floorFraction(capFraction(fractions.outputHeight - d, windowHeight, OUTPUT_ROOM_PX), windowHeight, OUTPUT_MIN_PX),
-          )}
+        onchange={dragOutput}
+        onend={endOutputDrag}
         onreset={() => layout.resetOne("outputHeight")}
       />
-      <OutputPanel height={Math.max(OUTPUT_MIN_PX, Math.min(fractions.outputHeight * windowHeight, windowHeight - OUTPUT_ROOM_PX))} />
+      {#if !outputDrag?.collapsed}<OutputPanel height={Math.max(OUTPUT_MIN_PX, Math.min(fractions.outputHeight * windowHeight, windowHeight - OUTPUT_ROOM_PX))} />{/if}
     </div>
   {/if}
 
