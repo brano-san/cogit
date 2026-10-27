@@ -308,7 +308,8 @@
     const now = headerRows;
     const moved = now - headerRowsSeen;
     headerRowsSeen = now;
-    if (moved !== 0 && scroller && scroller.scrollTop > 0) writeScroll(readScroll() + moved * rowHeight);
+    const above = untrack(() => (headIndex ?? 0) * rowHeight < readScroll());
+    if (moved !== 0 && scroller && above) writeScroll(readScroll() + moved * rowHeight);
   });
   const commitCount = $derived(graph.total);
   const listRows = $derived(commitCount + headerRows);
