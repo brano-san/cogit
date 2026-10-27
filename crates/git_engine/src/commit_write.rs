@@ -44,6 +44,11 @@ impl RepoHandle {
         args.push(&message);
         if request.only.is_empty() {
             self.run_git(&args)?;
+        } else if self.merge_head().is_some() {
+            return Err(GitError::InvalidState(
+                "a merge is committed whole: tick every file, or unstage what should stay out"
+                    .to_owned(),
+            ));
         } else {
             self.commit_from_index(&args, &request.only)?;
         }

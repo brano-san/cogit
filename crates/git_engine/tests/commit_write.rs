@@ -574,3 +574,24 @@ fn recent_commits_of_a_branch_with_no_commit_is_empty() {
     let f = test_fixtures::empty().unwrap();
     assert!(open(&f).recent_commits(10).unwrap().is_empty());
 }
+
+#[test]
+fn a_merge_in_progress_is_not_committed_in_part() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["switch", "-c", "side"]).unwrap();
+    std::fs::write(f.path().join("a.txt"), "a\n").unwrap();
+    std::fs::write(f.path().join("b.txt"), "b\n").unwrap();
+    f.git(&["add", "--", "a.txt", "b.txt"]).unwrap();
+    f.git(&["commit", "-m", "side"]).unwrap();
+    f.git(&["switch", "-"]).unwrap();
+    f.git(&["merge", "--no-commit", "--no-ff", "side"]).unwrap();
+    let repo = open(&f);
+
+    let partial = CommitRequest {
+        only: vec!["a.txt".to_owned()],
+        ..request("merge side")
+    };
+
+    assert!(repo.commit(&partial).is_err());
+    assert!(repo.merge_head().is_some());
+}
