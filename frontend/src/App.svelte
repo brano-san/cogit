@@ -2039,6 +2039,7 @@ ${event.error}`,
   async function activate(root: string): Promise<string | null> {
     const story = `open:${root}`;
     trace(story, "activate: panels cleared");
+    const shownBefore = repository.current?.repo;
     forgetPanels();
     worktrees.ownerRoot = null;
     const watch = measure("open-repository");
@@ -2068,6 +2069,8 @@ ${event.error}`,
       graph.clear();
     }
     watch.stop(`${repository.current?.branches.length ?? 0} refs`);
+    const shownNow = repository.current?.repo;
+    if (shownNow !== undefined && shownNow === shownBefore && commit.oid === null) void worktree.load(shownNow);
     // A failed open leaves the previous repository on screen.
     return repository.error ? null : (repository.current?.root ?? null);
   }
