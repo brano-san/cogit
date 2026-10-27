@@ -284,8 +284,9 @@ impl RepoHandle {
             .iter()
             .map(String::as_str)
             .filter(|oid| {
-                gix::ObjectId::from_hex(oid.as_bytes())
-                    .is_ok_and(|id| self.repo.find_commit(id).is_ok())
+                !oid.is_empty()
+                    && oid.bytes().all(|byte| byte.is_ascii_hexdigit())
+                    && self.find_commit(oid).is_ok()
             })
             .collect();
         if present.is_empty() {

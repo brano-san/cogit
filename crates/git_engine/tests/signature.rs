@@ -101,3 +101,16 @@ fn a_batch_verifies_against_the_allowed_signers() {
     assert_eq!(found.len(), 1, "{found:?}");
     assert_eq!(found[0].status, "G", "{found:?}");
 }
+
+#[test]
+fn a_name_that_is_not_a_hash_is_never_passed_to_git() {
+    let f = test_fixtures::linear(1).unwrap();
+    let repo = RepoHandle::open(f.path()).unwrap();
+
+    let found = repo
+        .commit_signatures(&["--output=x".to_owned(), "HEAD".to_owned()])
+        .unwrap();
+
+    assert!(found.is_empty());
+    assert!(!f.path().join("x").exists());
+}
