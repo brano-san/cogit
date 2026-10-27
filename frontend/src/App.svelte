@@ -1954,7 +1954,9 @@ ${event.error}`,
   // Commit and Push hands the push here once committed: the toolbar's Push, then a refresh.
   $effect(() =>
     onPushHead((request) => {
+      const overview = repository.openRepos.find((entry) => entry.repo.valueOf() === request.repo.valueOf());
       if (repository.current?.repo.valueOf() === request.repo.valueOf()) void networkActions?.run("push");
+      else if (overview) void networkActions?.syncListed({ kind: "repository", root: overview.root, overview }, "push");
       else notices.inform("Nothing pushed", "Committed, but the repository is no longer open, so nothing was pushed.");
     }),
   );
