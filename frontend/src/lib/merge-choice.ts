@@ -7,7 +7,7 @@ export function mergeQuestion(source: string, into: string): ConfirmRequest {
   return {
     title: "Merge",
     message:
-      `${into} has no commits of its own since ${source} branched off, so the merge can fast-forward.\n\n` +
+      `${into} has no commits that ${source} lacks, so the merge can fast-forward.\n\n` +
       `Fast-forward moves ${into} to ${source} and keeps the history a straight line. ` +
       `A merge commit records that ${source} was merged, even though nothing needs combining.`,
     fields: [
