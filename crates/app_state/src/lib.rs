@@ -85,7 +85,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use tokio::sync::broadcast;
 
-const EVENT_CHANNEL_CAPACITY: usize = 256;
+const EVENT_CHANNEL_CAPACITY: usize = 4096;
 
 /// The next event for a long-lived subscriber. One that fell behind skips what it missed
 /// and carries on; only a closed bus ends it.
