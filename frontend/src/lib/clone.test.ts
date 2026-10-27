@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { CogitError } from "$lib/ipc";
 import {
   branchOptions,
   cloneRequest,
@@ -195,6 +196,8 @@ describe("running the clone", () => {
       clone: vi.fn(async () => "D:\\src\\app"),
       open,
       report: vi.fn(),
+      submodules: vi.fn(async () => []),
+      initialize: vi.fn(async () => {}),
     };
 
     expect(await runClone(request, deps)).toBe("D:\\src\\app");
@@ -210,10 +213,66 @@ describe("running the clone", () => {
       clone: vi.fn(async () => Promise.reject(failure)),
       open: vi.fn(async () => {}),
       report: vi.fn(),
+      submodules: vi.fn(async () => []),
+      initialize: vi.fn(async () => {}),
     };
 
     expect(await runClone(request, deps)).toBeNull();
     expect(deps.report).toHaveBeenCalledWith(failure, "Could not clone the repository");
     expect(deps.open).not.toHaveBeenCalled();
+  });
+
+  it("opens the repository, then clones each submodule past the ones that fail", async () => {
+    const order: string[] = [];
+    const gone = new Error("fatal: repository not found");
+    const deps = {
+      run: (operation: (onLine: (line: string) => void, credential: null) => Promise<string>) => operation(() => {}, null),
+      clone: vi.fn(async () => "D:\\src\\app"),
+      open: vi.fn(async () => {
+        order.push("open");
+      }),
+      report: vi.fn(),
+      submodules: vi.fn(async () => ["a", "gone", "z"]),
+      initialize: vi.fn(async (_root: string, path: string) => {
+        order.push(path);
+        if (path === "gone") throw gone;
+      }),
+    };
+
+    await runClone(request, deps);
+
+    expect(order).toEqual(["open", "a", "gone", "z"]);
+    expect(deps.report).toHaveBeenCalledWith(gone, "Could not clone the submodule gone");
+  });
+
+  it("stops at a submodule clone that was canceled", async () => {
+    const canceled = new CogitError({ kind: "cancelled", data: "git submodule update" });
+    const deps = {
+      run: (operation: (onLine: (line: string) => void, credential: null) => Promise<string>) => operation(() => {}, null),
+      clone: vi.fn(async () => "D:\\src\\app"),
+      open: vi.fn(async () => {}),
+      report: vi.fn(),
+      submodules: vi.fn(async () => ["a", "b"]),
+      initialize: vi.fn(async () => Promise.reject(canceled)),
+    };
+
+    await runClone(request, deps);
+
+    expect(deps.initialize).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the submodules alone when they were not asked for", async () => {
+    const deps = {
+      run: (operation: (onLine: (line: string) => void, credential: null) => Promise<string>) => operation(() => {}, null),
+      clone: vi.fn(async () => "D:\\src\\app"),
+      open: vi.fn(async () => {}),
+      report: vi.fn(),
+      submodules: vi.fn(async () => ["a"]),
+      initialize: vi.fn(async () => {}),
+    };
+
+    await runClone({ ...request, submodules: false }, deps);
+
+    expect(deps.submodules).not.toHaveBeenCalled();
   });
 });

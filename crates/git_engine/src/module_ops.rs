@@ -50,7 +50,14 @@ impl RepoHandle {
         }
         let chosen = self.chosen_modules(paths)?;
         match op {
-            SubmoduleOp::Initialize => self.submodule_update(&["--init", "--recursive"], paths),
+            SubmoduleOp::Initialize => {
+                let filter = self
+                    .partial_clone_filter()
+                    .map(|spec| format!("--filter={spec}"));
+                let mut flags = vec!["--init"];
+                flags.extend(filter.as_deref());
+                self.initialize_each(paths, self.file_allow().as_deref(), &flags)
+            }
             SubmoduleOp::Synchronize => {
                 self.run_on_paths(&["submodule", "sync", "--recursive"], paths)
             }
@@ -104,18 +111,69 @@ impl RepoHandle {
     /// With the repository's own `protocol.file.allow` handed on: git reads it for the clone
     /// of a submodule from the global and system files only, so a local opt-in went unheard.
     pub(crate) fn submodule_update(&self, flags: &[&str], paths: &[String]) -> Result<()> {
-        let allow = self
-            .repo
+        self.update_allowing(self.file_allow().as_deref(), flags, paths)
+    }
+
+    fn file_allow(&self) -> Option<String> {
+        self.repo
             .config_snapshot()
             .string("protocol.file.allow")
-            .map(|value| format!("protocol.file.allow={value}"));
-        let mut args = match &allow {
-            Some(allow) => vec!["-c", allow.as_str()],
+            .map(|value| format!("protocol.file.allow={value}"))
+    }
+
+    fn update_allowing(&self, allow: Option<&str>, flags: &[&str], paths: &[String]) -> Result<()> {
+        let mut args = match allow {
+            Some(allow) => vec!["-c", allow],
             None => Vec::new(),
         };
         args.extend(["submodule", "update", "--progress"]);
         args.extend(flags);
         self.run_network(&with_paths(&args, paths))
+    }
+
+    fn partial_clone_filter(&self) -> Option<String> {
+        let config = self.repo.config_snapshot();
+        self.repo.remote_names().iter().find_map(|remote| {
+            config
+                .string(format!("remote.{remote}.partialCloneFilter").as_str())
+                .map(|spec| spec.to_string())
+        })
+    }
+
+    fn initialize_each(&self, paths: &[String], allow: Option<&str>, flags: &[&str]) -> Result<()> {
+        let wanted: Vec<String> = if paths.is_empty() {
+            self.submodule_paths().into_iter().collect()
+        } else {
+            paths.to_vec()
+        };
+        let mut failed = None;
+        for path in &wanted {
+            let done = self
+                .update_allowing(allow, flags, std::slice::from_ref(path))
+                .and_then(|()| {
+                    self.checked_out(path)
+                        .map_or(Ok(()), |inner| inner.initialize_each(&[], allow, flags))
+                });
+            match done {
+                Err(GitError::Cancelled(command)) => return Err(GitError::Cancelled(command)),
+                Err(err) => {
+                    failed.get_or_insert(err);
+                }
+                Ok(()) => {}
+            }
+        }
+        failed.map_or(Ok(()), Err)
+    }
+
+    fn checked_out(&self, path: &str) -> Option<RepoHandle> {
+        let mut inner = RepoHandle::open_exact(&self.root().join(path)).ok()?;
+        if let Some(journal) = self.journal() {
+            inner = inner.with_journal(journal.clone());
+        }
+        if let Some(stop) = &self.stop {
+            inner = inner.with_stop(stop.clone());
+        }
+        Some(inner)
     }
 
     fn run_on_paths(&self, args: &[&str], paths: &[String]) -> Result<()> {

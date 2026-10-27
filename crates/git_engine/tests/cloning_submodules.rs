@@ -3,7 +3,8 @@
 #![allow(unsafe_code, clippy::unwrap_used)]
 
 use git_engine::{
-    CloneRequest, CommandSink, Expected, GitError, GitOutput, NetworkStop, clone_repository,
+    CloneRequest, CommandSink, GitError, GitOutput, NetworkStop, RepoHandle, SubmoduleOp,
+    clone_repository,
 };
 
 type GitResult<T> = Result<T, GitError>;
@@ -41,10 +42,8 @@ fn clone_journaled(request: &CloneRequest) -> (GitResult<PathBuf>, Vec<GitOutput
     (cloned, entries)
 }
 
-/// The repository is cloned and checked out, a submodule is not: the clone is kept and its
-/// journal entry is a warning with git's whole output (R-870).
 #[test]
-fn a_clone_whose_submodule_fails_is_kept_with_a_warning() {
+fn a_clone_is_ready_before_its_submodules_and_one_failing_spares_the_rest() {
     let config = tempfile::tempdir().unwrap();
     allow_local_submodules(config.path());
     let f = test_fixtures::with_submodule().unwrap();
@@ -53,16 +52,31 @@ fn a_clone_whose_submodule_fails_is_kept_with_a_warning() {
         .join("nowhere")
         .to_string_lossy()
         .replace('\\', "/");
+    let source = f
+        .path()
+        .join("vendor/lib")
+        .to_string_lossy()
+        .replace('\\', "/");
+    f.git(&[
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "add",
+        "--",
+        &source,
+        "a-gone",
+    ])
+    .unwrap();
     f.git(&[
         "config",
         "-f",
         ".gitmodules",
-        "submodule.vendor/lib.url",
+        "submodule.a-gone.url",
         &nowhere,
     ])
     .unwrap();
     f.git(&["add", ".gitmodules"]).unwrap();
-    f.commit_staged(2, "point vendor/lib nowhere").unwrap();
+    f.commit_staged(2, "add a-gone, pointed nowhere").unwrap();
     let parent = tempfile::tempdir().unwrap();
     let target = parent.path().join("app");
 
@@ -70,10 +84,18 @@ fn a_clone_whose_submodule_fails_is_kept_with_a_warning() {
 
     assert_eq!(cloned.unwrap(), target);
     assert!(target.join("README.md").is_file(), "checked out");
-    let entry = journal.last().unwrap();
-    assert_eq!(entry.expected, Some(Expected::SubmodulesFailed));
-    assert_ne!(entry.exit_code, Some(0));
-    assert!(entry.stderr.contains("nowhere"), "{}", entry.stderr);
+    assert_eq!(journal.last().unwrap().exit_code, Some(0));
+    assert!(!target.join("vendor/lib/.git").exists());
+
+    let initialized = RepoHandle::open(&target)
+        .unwrap()
+        .submodule_op(SubmoduleOp::Initialize, &[]);
+
+    assert!(
+        matches!(initialized, Err(GitError::Command(ref failed)) if failed.stderr.contains("nowhere")),
+        "{initialized:?}"
+    );
+    assert!(target.join("vendor/lib/.git").exists());
 }
 
 #[test]
@@ -85,7 +107,7 @@ fn a_clone_that_fails_itself_stays_an_error() {
 
     assert!(cloned.is_err());
     assert!(!target.exists());
-    assert_eq!(journal.last().unwrap().expected, None);
+    assert_ne!(journal.last().unwrap().exit_code, Some(0));
 }
 
 #[test]
@@ -104,6 +126,10 @@ fn a_clone_with_submodules_checks_them_out() {
         |_| {},
     )
     .unwrap();
+    RepoHandle::open(&target)
+        .unwrap()
+        .submodule_op(SubmoduleOp::Initialize, &[])
+        .unwrap();
 
     let out = test_fixtures::git_command_in(&target)
         .args(["submodule", "status"])
@@ -120,5 +146,49 @@ fn a_clone_with_submodules_checks_them_out() {
             .count()
             > 1,
         "the submodule has its files"
+    );
+}
+
+#[test]
+fn the_submodules_of_a_partial_clone_are_partial_too() {
+    let config = tempfile::tempdir().unwrap();
+    allow_local_submodules(config.path());
+    let f = test_fixtures::with_submodule().unwrap();
+    f.git(&["config", "uploadpack.allowFilter", "true"])
+        .unwrap();
+    let inner = f.path().join("vendor/lib");
+    f.git_in(&inner, &["config", "uploadpack.allowFilter", "true"])
+        .unwrap();
+    let inner_url = format!("file://{}", inner.to_string_lossy().replace('\\', "/"));
+    f.git(&[
+        "config",
+        "-f",
+        ".gitmodules",
+        "submodule.vendor/lib.url",
+        &inner_url,
+    ])
+    .unwrap();
+    f.git(&["add", ".gitmodules"]).unwrap();
+    f.commit_staged(2, "reach vendor/lib through file://")
+        .unwrap();
+    let parent = tempfile::tempdir().unwrap();
+    let target = parent.path().join("app");
+    let source = format!("file://{}", f.path().to_string_lossy().replace('\\', "/"));
+    let mut wanted = request(Path::new(&source), &target);
+    wanted.skip_larger_than = Some("1m".to_owned());
+
+    clone_repository(&wanted, None, &NetworkStop::default(), None, |_| {}).unwrap();
+    RepoHandle::open(&target)
+        .unwrap()
+        .submodule_op(SubmoduleOp::Initialize, &[])
+        .unwrap();
+
+    let filter = test_fixtures::git_command_in(&target.join("vendor/lib"))
+        .args(["config", "remote.origin.partialclonefilter"])
+        .output()
+        .unwrap();
+    assert_eq!(
+        String::from_utf8_lossy(&filter.stdout).trim(),
+        "blob:limit=1048576"
     );
 }

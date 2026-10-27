@@ -25,7 +25,8 @@
   import { UNGROUPED, groupRows } from "$lib/repo-groups";
   import { NO_FILTER_FOLDS, shownFolds, toggleFilterFold } from "$lib/tree";
   import type { RepoOverview } from "$lib/ipc";
-  import { listedRepos, type ListedRepo } from "$lib/repo-list";
+  import { folderName, listedRepos, type ListedRepo } from "$lib/repo-list";
+  import { cloneWizard } from "$stores/clone.svelte";
   import { repoList } from "$stores/repo-list.svelte";
   import { repoGroups } from "$stores/repo-groups.svelte";
   import { repository } from "$stores/repository.svelte";
@@ -432,6 +433,13 @@
           {@render moduleTree(listed.root, false, row.depth, (starts[at] ?? 0) + 1, false)}
         {/if}
       {/if}
+    {/each}
+    {#each cloneWizard.underway as target (target)}
+      <div class="row closed" title="{target} — cloning" style:padding-left="var(--tree-base)">
+        <Disclosure empty open={false} label="Cloning" />
+        <span class="name truncate shrink-last">{folderName(target)}</span>
+        <span class="op">cloning…</span>
+      </div>
     {/each}
 </div>
 

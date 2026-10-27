@@ -1,3 +1,4 @@
+import { asCogitError } from "$lib/notices";
 import type { CloneDestination, CloneRequest, RemoteBranches, SignIn } from "$lib/ipc/clone";
 
 /** Repository ▸ Clone…, three pages (F-575). */
@@ -179,6 +180,8 @@ export interface CloneRun {
   /** Opens the new repository and puts it in the list, as Open does. */
   open: (root: string) => Promise<unknown>;
   report: (err: unknown, title: string) => void;
+  submodules: (root: string) => Promise<string[]>;
+  initialize: (root: string, path: string) => Promise<unknown>;
 }
 
 /** The root it opened, or `null` when the clone failed or was cancelled. */
@@ -191,5 +194,21 @@ export async function runClone(request: CloneRequest, deps: CloneRun): Promise<s
     return null;
   }
   await deps.open(root);
+  if (request.submodules) await initializeEach(root, deps);
   return root;
+}
+
+async function initializeEach(root: string, deps: CloneRun): Promise<void> {
+  const paths = await deps.submodules(root).catch((err) => {
+    deps.report(err, "Could not read the submodules");
+    return [];
+  });
+  for (const path of paths) {
+    try {
+      await deps.initialize(root, path);
+    } catch (err) {
+      deps.report(err, `Could not clone the submodule ${path}`);
+      if (asCogitError(err)?.detail.kind === "cancelled") return;
+    }
+  }
 }

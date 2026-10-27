@@ -296,3 +296,62 @@ fn the_submodules_a_pull_brought_are_not_cloned_after_cancel() {
     assert!(matches!(result, Err(GitError::Cancelled(_))), "{result:?}");
     assert_eq!(state(&f), SubmoduleState::NotInitialised);
 }
+
+fn add_unreachable_submodule(f: &test_fixtures::Fixture, path: &str) {
+    let source = f.path().join(MODULE).to_string_lossy().replace('\\', "/");
+    f.git(&[
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "add",
+        "--",
+        &source,
+        path,
+    ])
+    .unwrap();
+    let key = format!("submodule.{path}.url");
+    f.git(&["config", "-f", ".gitmodules", &key, "/nowhere/gone.git"])
+        .unwrap();
+    f.git(&["commit", "-qam", "add an unreachable submodule"])
+        .unwrap();
+}
+
+fn forget_every_checkout(f: &test_fixtures::Fixture) {
+    f.git(&["submodule", "deinit", "-f", "--all"]).unwrap();
+    std::fs::remove_dir_all(f.path().join(".git").join("modules")).unwrap();
+}
+
+#[test]
+fn one_unreachable_submodule_leaves_the_others_checked_out() {
+    let f = test_fixtures::with_submodule().unwrap();
+    add_unreachable_submodule(&f, "a-gone");
+    forget_every_checkout(&f);
+
+    let result = open(&f).submodule_op(SubmoduleOp::Initialize, &[]);
+
+    assert!(matches!(result, Err(GitError::Command(_))), "{result:?}");
+    let module = open(&f)
+        .submodules()
+        .unwrap()
+        .into_iter()
+        .find(|module| module.path == MODULE)
+        .unwrap();
+    assert_eq!(module.state, SubmoduleState::InSync);
+    let inside = f
+        .git_in(
+            &f.path().join(MODULE),
+            &["diff", "--cached", "--name-status"],
+        )
+        .unwrap();
+    assert_eq!(inside.trim(), "");
+}
+
+#[test]
+fn initialize_reaches_a_submodule_inside_a_submodule() {
+    let f = test_fixtures::with_nested_submodule().unwrap();
+    forget_every_checkout(&f);
+
+    open(&f).submodule_op(SubmoduleOp::Initialize, &[]).unwrap();
+
+    assert!(f.path().join("vendor/middle/deep/inner/.git").exists());
+}

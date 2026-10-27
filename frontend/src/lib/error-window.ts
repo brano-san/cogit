@@ -29,7 +29,6 @@ export function windowTitle(entries: readonly Pick<ErrorEntry, "kind">[]): strin
 export function titleOf(run: Run): string {
   if (run.expected === "upstreamGone") return "Upstream branch is gone";
   if (run.expected === "pushBehind") return "Push rejected";
-  if (run.expected === "submodulesFailed") return "Submodules not cloned";
   if (!run.stoppedOnConflicts) return `${run.operation} failed`;
   if (/\bgit\b.*\bstash\b/.test(run.command)) return "Stash applied with conflicts";
   if (/\bgit\b.*\bpull\b.*\s--rebase\b/.test(run.command)) return "Rebase stopped with conflicts";

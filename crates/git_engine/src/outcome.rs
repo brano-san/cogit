@@ -25,15 +25,10 @@ pub enum Expected {
     UpstreamGone,
     /// The remote has commits the pushed branch lacks: pull first.
     PushBehind,
-    /// A clone checked the repository out, but a submodule failed: the repository is kept.
-    SubmodulesFailed,
 }
 
 /// What `git pull` says when the upstream it was told to merge was not fetched.
 pub(crate) const NO_SUCH_REF: &str = "no such ref was fetched";
-
-pub(crate) const SUBMODULES_FAILED: &str = "Clone finished, but some submodules could not be \
-     fetched. The repository was added; update the submodules once they are reachable.";
 
 pub(crate) const PUSH_BEHIND: &str = "Remote has commits you don't have \u{2014} pull first.";
 

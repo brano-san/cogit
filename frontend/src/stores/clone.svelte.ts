@@ -34,6 +34,7 @@ export type CloneCheck =
 /** Repository ▸ Clone… (F-575): the three pages and what each of them holds. */
 export class CloneWizard {
   open = $state(false);
+  underway = $state<string[]>([]);
   page = $state<ClonePage>("repository");
   source = $state("");
   check = $state.raw<CloneCheck>({ state: "idle" });

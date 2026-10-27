@@ -80,6 +80,7 @@
   import { cloneWizard } from "$stores/clone.svelte";
   import { parentFolder, runClone } from "$lib/clone";
   import { cloneRepository, type CloneRequest } from "$lib/ipc/clone";
+  import { submoduleOp } from "$lib/ipc/remote-ops";
   import PromptDialog from "$components/layout/PromptDialog.svelte";
   import SignInDialog from "$components/layout/SignInDialog.svelte";
   import MasterPasswordDialog from "$components/layout/MasterPasswordDialog.svelte";
@@ -3303,18 +3304,37 @@ ${event.error}`,
     const checked = cloneWizard.credential;
     cloneWizard.close();
     welcome.close();
+    let cloned: RepoId | null = null;
+    const target = request.target;
+    const arrived = () => (cloneWizard.underway = cloneWizard.underway.filter((path) => path !== target));
+    cloneWizard.underway = [...cloneWizard.underway, target];
     await runClone(request, {
-      run: (operation) => network.run(null, "Cloning", operation),
+      run: (operation) =>
+        network.run(null, "Cloning", operation).catch((err: unknown) => {
+          arrived();
+          throw err;
+        }),
       clone: (wanted, onLine, credential) => cloneRepository(wanted, onLine, credential ?? checked),
       open: async (root) => {
         opening = true;
         try {
           await activate(root);
+          cloned = repository.current?.repo ?? null;
         } finally {
           opening = false;
+          arrived();
         }
       },
       report: (err, title) => errors.report(err, title),
+      submodules: async () => (cloned ? (await listSubmodules(cloned)).map((module) => module.path) : []),
+      initialize: async (_root, path) => {
+        if (!cloned) return;
+        try {
+          await submoduleOp(cloned, "initialize", [path]);
+        } finally {
+          if (repository.current?.repo === cloned) await afterWorkingTreeChange();
+        }
+      },
     });
   }
 
