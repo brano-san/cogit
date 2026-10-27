@@ -1,9 +1,9 @@
 //! Variants are detected from marker files in `.git`; none of them may panic (INV-07).
 
 use crate::{Head, RepoHandle, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(
     tag = "kind",
     rename_all = "camelCase",

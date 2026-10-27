@@ -8,7 +8,12 @@ repository.workspace = true
 publish.workspace = true
 description = "Open repositories, the event bus, credentials and the undo journal."
 
+[[bin]]
+name = "cogit-agent"
+path = "src/bin/cogit_agent.rs"
+
 [dependencies]
+agent.workspace = true
 portable.workspace = true
 avatars.workspace = true
 git_engine.workspace = true
@@ -39,7 +44,7 @@ windows-registry.workspace = true
 test_fixtures.workspace = true
 tempfile.workspace = true
 
-[target.'cfg(target_env = "musl")'.dev-dependencies]
+[target.'cfg(target_env = "musl")'.dependencies]
 mimalloc.workspace = true
 
 # Its own main: git starts the test binary as Cogit's credential helper.

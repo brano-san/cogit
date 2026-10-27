@@ -1,9 +1,9 @@
 //! INV-05: when the `git` CLI fails the user sees exactly what Git said — `stderr`
 //! carries the pre-receive message and the reason a push was rejected.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, thiserror::Error, Serialize, specta::Type)]
+#[derive(Debug, Clone, thiserror::Error, Serialize, Deserialize, specta::Type)]
 #[error("Command `{command}` failed (exit code {exit_code:?})")]
 #[serde(rename_all = "camelCase")]
 pub struct GitCommandError {
@@ -25,7 +25,7 @@ pub struct GitCommandError {
 }
 
 /// The host a remote wants a sign-in for, and the username last tried there.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthRequired {
     pub host: String,
@@ -64,7 +64,7 @@ impl From<crate::GitOutput> for GitError {
     }
 }
 
-#[derive(Debug, thiserror::Error, Serialize, specta::Type)]
+#[derive(Debug, thiserror::Error, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "kind", content = "data", rename_all = "camelCase")]
 pub enum GitError {
     /// Boxed: it carries both streams, and an unboxed variant makes every `Result` in

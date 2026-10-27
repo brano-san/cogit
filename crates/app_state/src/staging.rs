@@ -3,7 +3,7 @@
 use crate::{AppState, Recovery, RepoId, backup_failed, named};
 
 impl AppState {
-    pub fn worktree_files(
+    pub(crate) fn local_worktree_files(
         &self,
         repo: RepoId,
         view: git_engine::WorktreeView,
@@ -13,7 +13,7 @@ impl AppState {
 
     /// Staging changes the status and nothing else; reopening the repository to learn
     /// that re-reads HEAD, every branch and every tag for no reason.
-    pub fn repo_status(
+    pub(crate) fn local_repo_status(
         &self,
         repo: RepoId,
     ) -> Result<git_engine::RepoStatus, git_engine::GitError> {

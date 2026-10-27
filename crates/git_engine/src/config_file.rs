@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 /// Why git refused the text. `line` is 1-based, as git counts it.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error, Serialize, Deserialize, specta::Type)]
 #[error("{message}")]
 #[serde(rename_all = "camelCase")]
 pub struct ConfigProblem {

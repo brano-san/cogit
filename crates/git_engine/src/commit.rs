@@ -1,5 +1,5 @@
 use crate::{GitError, RepoHandle, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::ops::ControlFlow;
 
 const SECONDS_PER_MINUTE: i32 = 60;
@@ -120,7 +120,7 @@ pub(crate) fn split_message(text: &str) -> (String, String) {
     (summary, body.trim_end().to_owned())
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum FileStatus {
     Added,
@@ -139,7 +139,7 @@ pub enum FileStatus {
     Sparse,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum FileMode {
     Plain,
@@ -148,7 +148,7 @@ pub enum FileMode {
     Submodule,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FileEntry {
     pub path: String,
@@ -172,7 +172,7 @@ pub struct FileEntry {
 }
 
 /// Git's unmerged XY pairs: `UU`, `AA`, `DD`, `UD`, `DU`, `AU`, `UA`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum ConflictKind {
     BothModified,
@@ -186,7 +186,7 @@ pub enum ConflictKind {
 
 /// What a submodule row stands for. `git add` records only the commit (`new_commits`);
 /// `modified` and `untracked` are edits inside the submodule that no parent commit can hold.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SubmoduleChange {
     pub new_commits: bool,

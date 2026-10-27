@@ -3,7 +3,7 @@
 use crate::{GitError, Head, RepoHandle, Result};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct BisectState {
     /// What `git bisect reset` goes back to: a branch, or a commit if it began detached.
@@ -20,7 +20,7 @@ pub struct BisectState {
 }
 
 /// The words `git bisect start --term-new/--term-old` chose; git refuses the others.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct BisectTerms {
     pub bad: String,

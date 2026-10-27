@@ -2,11 +2,11 @@
 
 use crate::repo::env_free;
 use crate::{GitError, RepoHandle, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 /// Why a submodule path is not a repository of its own.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "reason", rename_all = "camelCase")]
 pub enum ModuleProblem {
     #[error("Directory does not exist: {path}")]

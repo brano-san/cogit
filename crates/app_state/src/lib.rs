@@ -1,4 +1,5 @@
 mod avatars;
+mod backend;
 mod bisect;
 mod checkup;
 mod cloning;
@@ -51,6 +52,7 @@ mod rows;
 mod staging;
 
 pub use avatars::{Author, AvatarRow, Avatars};
+pub use backend::{Host, serve_agent};
 pub use credentials::{
     CredentialStore, KnownCredential, SecretError, SignIn, SshKeys, credential_host,
     credential_target, host_input, host_of, private_keys, ssh_host, ssh_keys,
@@ -239,6 +241,8 @@ pub struct AppState {
     reads: reads::Cancellations,
     /// External merge tools running, one per conflicted file.
     merge_tools: merge_tool::MergeTools,
+    agents: parking_lot::Mutex<HashMap<backend::Host, Arc<backend::Agent>>>,
+    remotes: RwLock<HashMap<RepoId, backend::Remote>>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -287,6 +291,8 @@ impl AppState {
             network_runs: parking_lot::Mutex::new(HashMap::new()),
             reads: reads::Cancellations::default(),
             merge_tools: merge_tool::MergeTools::default(),
+            agents: parking_lot::Mutex::new(HashMap::new()),
+            remotes: RwLock::new(HashMap::new()),
         }
     }
 

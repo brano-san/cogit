@@ -9,7 +9,7 @@ use std::collections::BTreeSet;
 /// The four Files-panel toggles that cost extra reading. The rest — untracked, rename
 /// sources, directories, index and worktree side by side — are filters over what is already
 /// in the list, so the panel applies them itself (doc/modules/M6-staging.md, T6.9).
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase", default)]
 pub struct WorktreeView {
     pub unchanged: bool,
@@ -18,7 +18,7 @@ pub struct WorktreeView {
     pub skipped: bool,
 }
 
-#[derive(Debug, Clone, Default, Serialize, specta::Type)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WorktreeFiles {
     pub staged: Vec<FileEntry>,

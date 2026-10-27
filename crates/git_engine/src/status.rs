@@ -2,9 +2,9 @@ use crate::{GitError, RepoHandle, Result};
 use gix::status::index_worktree::Item as WorktreeItem;
 use gix::status::plumbing::index_as_worktree::EntryStatus;
 use gix::status::{Item, UntrackedFiles};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RepoStatus {
     pub staged: u32,
@@ -17,7 +17,7 @@ pub struct RepoStatus {
 }
 
 /// The counters and the conflicted paths, from one read of the status (R-316).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkingState {
     pub status: RepoStatus,

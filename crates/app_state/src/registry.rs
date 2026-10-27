@@ -1,7 +1,7 @@
 //! The open repositories: opening, registering and closing them, and the submodules below.
 
 use crate::{AppEvent, AppState, RepoId};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 
@@ -22,7 +22,7 @@ pub struct OpenRepo {
     pub lane: PathBuf,
 }
 
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RepoSummary {
     pub repo: RepoId,
@@ -40,7 +40,7 @@ pub struct RepoSummary {
 }
 
 /// What a commit moves besides the counters: the refs and the operation state (R-316).
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RepoRefs {
     pub head: git_engine::Head,
@@ -92,7 +92,7 @@ impl AppState {
 
     /// `open_repository` without the status, the registration and the watcher: after a
     /// commit only these moved, and the status is read by the refresh that follows.
-    pub fn repo_refs(&self, repo: RepoId) -> Result<RepoRefs, git_engine::GitError> {
+    pub(crate) fn local_repo_refs(&self, repo: RepoId) -> Result<RepoRefs, git_engine::GitError> {
         let handle = self.handle(repo)?;
         Ok(RepoRefs {
             head: handle.head()?,
@@ -243,6 +243,7 @@ impl AppState {
         // First, so that nothing begun from here on reaches the id, nor fills a cache
         // for it after it is cleared below.
         let removed = self.unregister(repo);
+        self.forget_remote(repo);
         self.safety.write().retain(|held| held.entry.repo != repo);
         watch.done("unregister");
 
@@ -325,6 +326,15 @@ impl AppState {
     /// Looked up and registered under one lock, so two opens of one path at once end up
     /// with one id. Asking for a listed repository lists it; the reverse never unlists.
     /// `None` when `root` was closed after `began`: the open is older than the close.
+    pub(crate) fn register_remote(
+        &self,
+        root: PathBuf,
+        display_name: String,
+        began: u64,
+    ) -> Option<RepoId> {
+        self.find_or_register(root.clone(), display_name, None, root, began)
+    }
+
     fn find_or_register(
         &self,
         root: PathBuf,

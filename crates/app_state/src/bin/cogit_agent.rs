@@ -1,4 +1,4 @@
-use serde_json::{Value, json};
+use app_state::AppState;
 use std::io::{self, BufReader, BufWriter};
 use std::process::ExitCode;
 
@@ -10,10 +10,11 @@ fn main() -> ExitCode {
     if std::env::args().nth(1).as_deref() != Some("serve") {
         return ExitCode::from(2);
     }
+    let state = AppState::new();
     let input = BufReader::new(io::stdin());
     let output = BufWriter::new(io::stdout());
-    match agent::serve(input, output, |request: Value, _| {
-        Err(json!(format!("unknown request {request}")))
+    match agent::serve(input, output, |request, stop| {
+        app_state::serve_agent(&state, request, stop)
     }) {
         Ok(()) => ExitCode::SUCCESS,
         Err(err) => {
