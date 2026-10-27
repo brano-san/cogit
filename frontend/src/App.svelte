@@ -110,7 +110,7 @@
   import { commitScope } from "$lib/commit-scope";
   import { activity, applyOperation, cancellable, trackCancellable } from "$lib/operations";
   import { measurer } from "$lib/timing";
-  import { item as menuItem, refMenu } from "$lib/context-menu";
+  import { item as menuItem, refMenu, setMenuKeys } from "$lib/context-menu";
   import RefActions from "$components/menus/RefActions.svelte";
   import RefGroupActions from "$components/menus/RefGroupActions.svelte";
   import SelectionActions from "$components/menus/SelectionActions.svelte";
@@ -761,6 +761,7 @@
 
   /** The palette shows each command's keys as the menu has them (11 §12, rule 5). */
   const menuKeys = $derived(effective(settings.bindings, settings.keymap));
+  $effect(() => setMenuKeys(menuKeys));
 
   /** One action per command id: the palette, the native menu and the toolbar run these. */
   const actions: AppCommandActions = {

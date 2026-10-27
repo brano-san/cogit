@@ -6,6 +6,7 @@ import type { WorktreeBranch } from "./bindings";
 import { counted } from "$lib/listener-count";
 import { OS } from "$lib/platform";
 import { secondaryReleased } from "$lib/secondary-button";
+import { withMenuKeys } from "$lib/context-menu";
 import { GIT_NOT_FOUND_HINT } from "$lib/git-missing";
 import type {
   SignIn,
@@ -1266,7 +1267,7 @@ export async function popupContextMenu(items: ContextItem[], x: number, y: numbe
   // rows above it (R-776). A frame was not enough in Branches; 50 ms was, every time.
   await new Promise((resolve) => setTimeout(resolve, 50));
   if (OS === "linux") await secondaryReleased();
-  return unwrap(await commands.popupContextMenu(items, x, y));
+  return unwrap(await commands.popupContextMenu(withMenuKeys(items), x, y));
 }
 
 /** Closes the window this webview lives in. The close happens in Rust: a window

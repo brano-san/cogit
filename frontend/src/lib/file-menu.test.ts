@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ContextItem } from "./ipc";
+import { withKeys } from "./context-menu";
 import {
   commitFileMenu,
   rowActionBlocked,
@@ -58,7 +59,7 @@ describe("worktreeFileMenu", () => {
   });
 
   it("shows the chords the keyboard uses for the same things", () => {
-    const menu = worktreeFileMenu(MODIFIED);
+    const menu = withKeys(worktreeFileMenu(MODIFIED), { stage: "CmdOrCtrl+T", unstage: "CmdOrCtrl+Shift+T", blame: "CmdOrCtrl+Shift+L" });
     expect(find(menu, "file-stage")?.accelerator).toBe("CmdOrCtrl+T");
     expect(find(menu, "file-unstage")?.accelerator).toBe("CmdOrCtrl+Shift+T");
     expect(find(menu, "file-discard")?.accelerator).toBe("CmdOrCtrl+Z");

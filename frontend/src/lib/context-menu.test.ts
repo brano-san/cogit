@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SEPARATOR, item, offer, refMenu, submenu, tidy } from "./context-menu";
+import { SEPARATOR, item, offer, refMenu, submenu, tidy, withKeys } from "./context-menu";
 
 describe("tidy", () => {
   const sep = SEPARATOR;
@@ -67,5 +67,26 @@ describe("tidy at every depth", () => {
     const [row] = tidy([item("x", "X"), empty].slice(1));
     expect(row!.enabled).toBe(false);
     expect(row!.children).toEqual([]);
+  });
+});
+
+describe("withKeys", () => {
+  const keys = { stage: "CmdOrCtrl+T", unstage: "", branch: "F7" };
+
+  it("shows the key of the command a row runs, as the user set it", () => {
+    const [stage, unstage, other] = withKeys([item("file-stage", "Stage"), item("file-unstage", "Unstage"), item("file-log", "Log")], keys);
+    expect(stage!.accelerator).toBe("CmdOrCtrl+T");
+    expect(unstage!.accelerator).toBeNull();
+    expect(other!.accelerator).toBeNull();
+  });
+
+  it("keeps a key a row was given and reaches into submenus", () => {
+    const [own, nested] = withKeys([item("file-stage", "Stage", true, "Space"), submenu("more", "More", [item("ref:add-branch", "Add Branch")])], keys);
+    expect(own!.accelerator).toBe("Space");
+    expect(nested!.children![0]!.accelerator).toBe("F7");
+  });
+
+  it("names fixed panel keys without a keymap", () => {
+    expect(withKeys([item("file-discard", "Discard…")], {})[0]!.accelerator).toBe("CmdOrCtrl+Z");
   });
 });

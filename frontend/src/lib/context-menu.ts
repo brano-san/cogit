@@ -61,3 +61,46 @@ export function refMenu(at: { kind: string }): ContextItem[] {
     item("lost-toggle", "Toggle"),
   ];
 }
+
+const COMMAND_OF: Record<string, string> = {
+  "file-stage": "stage",
+  "file-unstage": "unstage",
+  "file-stash": "stash-selection",
+  "file-blame": "blame",
+  "file-commit": "commit",
+  "ref:wt-commit": "commit",
+  "ref:wt-stage": "stage",
+  "ref:wt-unstage": "unstage",
+  "ref:add-branch": "branch",
+  "ref:add-tag": "tag",
+  "ref:copy-id": "copy-sha",
+  "ref:rebase-i": "rebase-i",
+  "fetch-remotes": "fetch-all",
+};
+
+const FIXED_KEYS: Record<string, string> = {
+  "file-discard": "CmdOrCtrl+Z",
+  "file-investigate": "CmdOrCtrl+Alt+Shift+L",
+  "ref:toggle": "Space",
+  "refgroup:toggle": "Space",
+};
+
+export function withKeys(items: readonly ContextItem[], keys: Readonly<Record<string, string>>): ContextItem[] {
+  return items.map((entry) => {
+    const command = COMMAND_OF[entry.id];
+    const accelerator =
+      entry.accelerator || (command !== undefined ? keys[command] : undefined) || FIXED_KEYS[entry.id] || null;
+    const children = entry.children ? withKeys(entry.children, keys) : entry.children;
+    return { ...entry, accelerator, ...(children ? { children } : {}) };
+  });
+}
+
+let menuKeys: Readonly<Record<string, string>> = {};
+
+export function setMenuKeys(keys: Readonly<Record<string, string>>): void {
+  menuKeys = keys;
+}
+
+export function withMenuKeys(items: readonly ContextItem[]): ContextItem[] {
+  return withKeys(items, menuKeys);
+}
