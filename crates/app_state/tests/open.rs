@@ -82,8 +82,10 @@ fn opening_announces_the_repository_on_the_event_bus() {
 
     let summary = state.open_repository(f.path()).unwrap();
 
-    match events.try_recv() {
-        Ok(app_state::AppEvent::RepoOpened { repo }) => assert_eq!(repo, summary.repo),
+    let announced = std::iter::from_fn(|| events.try_recv().ok())
+        .find(|event| !matches!(event, app_state::AppEvent::Backend { .. }));
+    match announced {
+        Some(app_state::AppEvent::RepoOpened { repo }) => assert_eq!(repo, summary.repo),
         other => panic!("expected RepoOpened, got {other:?}"),
     }
 }

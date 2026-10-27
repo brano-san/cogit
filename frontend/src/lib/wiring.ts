@@ -8,6 +8,7 @@ import {
   onOperationChanged,
   onRepoChanged,
   onWatchLimited,
+  onBackendChanged,
   onRevealCommit,
   onRepoWritten,
   onSessionEnding,
@@ -18,6 +19,7 @@ import {
   type OperationChanged,
   type RepoChanged,
   type WatchLimited,
+  type BackendChanged,
   type RevealCommit,
   type RepoWritten,
 } from "$lib/ipc";
@@ -28,6 +30,7 @@ import { counted } from "$lib/listener-count";
 export interface Handlers {
   repoChanged: (event: RepoChanged) => void;
   watchLimited: (event: WatchLimited) => void;
+  backendChanged: (event: BackendChanged) => void;
   operationChanged: (event: OperationChanged) => void;
   avatarReady: (email: string) => void;
   mergeResolved: (event: MergeResolved) => void;
@@ -57,6 +60,7 @@ export function connect(handlers: Handlers): Stop {
   const pending: Promise<Stop>[] = [
     onRepoChanged(handlers.repoChanged),
     onWatchLimited(handlers.watchLimited),
+    onBackendChanged(handlers.backendChanged),
     onOperationChanged(handlers.operationChanged),
     onAvatarReady((event) => handlers.avatarReady(event.email)),
     onMergeResolved(handlers.mergeResolved),

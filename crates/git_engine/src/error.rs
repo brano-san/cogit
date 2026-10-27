@@ -104,6 +104,9 @@ pub enum GitError {
     /// command, as the journal wrote it.
     #[error("canceled: {0}")]
     Cancelled(String),
+
+    #[error("{0}")]
+    Unavailable(String),
 }
 
 impl From<std::io::Error> for GitError {

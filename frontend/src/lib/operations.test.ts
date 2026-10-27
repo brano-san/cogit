@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activity, applyOperation, busyLabel, cancellable, trackCancellable } from "./operations";
+import { activity, applyOperation, busyLabel, cancellable, trackCancellable, trackStarting } from "./operations";
 
 const start = (id: number, label: string) => ({ id, label, success: null });
 const end = (id: number, success: boolean) => ({ id, label: "", success });
@@ -68,6 +68,13 @@ describe("activity", () => {
       tone: "error",
       fraction: null,
     });
+  });
+
+  it("says which agent is starting while a repository in it opens", () => {
+    let starting = trackStarting([], { host: "WSL: Ubuntu", state: { state: "starting" } });
+    expect(activity({ ...idle, opening: true, starting }).label).toBe("Starting WSL: Ubuntu…");
+    starting = trackStarting(starting, { host: "WSL: Ubuntu", state: { state: "failed" } });
+    expect(activity({ ...idle, opening: true, starting }).label).toBe("Opening repository…");
   });
 
   it("reports opening a repository", () => {

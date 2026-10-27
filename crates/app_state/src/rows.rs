@@ -1,13 +1,13 @@
 //! Rows of the Repositories tree, cached until the repository changes.
 
 use crate::{AppState, OpenRepo, RepoId};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::Ordering;
 
 /// Commits arrive with their lane placement so the UI never computes layout (INV-02).
 /// One row of the repository tree: enough to draw it without opening every repository.
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RepoOverview {
     pub repo: RepoId,
@@ -83,6 +83,13 @@ impl AppState {
     }
 
     fn overview_of(&self, open: &OpenRepo) -> RepoOverview {
+        if let Some(remote) = self.remote(open.id) {
+            return self.overview_through(open, &remote);
+        }
+        self.local_overview_of(open)
+    }
+
+    pub(crate) fn local_overview_of(&self, open: &OpenRepo) -> RepoOverview {
         let mut row = RepoOverview {
             repo: open.id,
             name: open.display_name.clone(),

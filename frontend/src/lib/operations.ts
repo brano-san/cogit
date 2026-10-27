@@ -1,4 +1,4 @@
-import type { OperationPhase } from "./ipc";
+import type { BackendChanged, OperationPhase } from "./ipc";
 
 export interface OperationEvent {
   id: number;
@@ -55,6 +55,8 @@ export interface ActivityInput {
   /** Hooks git runs inside the step on screen (D4). */
   hooks?: string;
   opening: boolean;
+  /** Hosts whose agent is starting, as `BackendChanged` names them. */
+  starting?: readonly string[];
   failed: boolean;
 }
 
@@ -66,6 +68,11 @@ export interface Activity {
   fraction: number | null;
 }
 
+export function trackStarting(starting: readonly string[], event: BackendChanged): string[] {
+  const others = starting.filter((host) => host !== event.host);
+  return event.state.state === "starting" ? [...others, event.host] : others;
+}
+
 /** One line for the whole app: the toolbar and the footer showed the same thing twice. */
 export function activity(input: ActivityInput): Activity {
   const busy =
@@ -73,6 +80,7 @@ export function activity(input: ActivityInput): Activity {
     input.networkProgress ??
     (input.network === undefined ? null : `${input.network}…`) ??
     busyLabel(input.operations) ??
+    (input.starting?.length ? `Starting ${input.starting.join(", ")}…` : null) ??
     (input.opening ? "Opening repository…" : null);
 
   if (busy !== null) {

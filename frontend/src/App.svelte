@@ -108,7 +108,7 @@
   import { installSelectAll, selectAllFromMenu } from "$lib/select-all";
   import { needsPush, pullRequestFor } from "$lib/pull-request";
   import { commitScope } from "$lib/commit-scope";
-  import { activity, applyOperation, cancellable, trackCancellable } from "$lib/operations";
+  import { activity, applyOperation, cancellable, trackCancellable, trackStarting } from "$lib/operations";
   import { measurer } from "$lib/timing";
   import { item as menuItem, refMenu, setMenuKeys } from "$lib/context-menu";
   import RefActions from "$components/menus/RefActions.svelte";
@@ -1091,6 +1091,19 @@
     }
     if (change.kind !== "hooks") stale = markStale(stale, change.kind);
     diskPasses.add(change.kind);
+  }
+
+  let startingBackends = $state<string[]>([]);
+
+  function onBackendChanged(event: import("$lib/ipc").BackendChanged) {
+    startingBackends = trackStarting(startingBackends, event);
+    if (event.state.state === "lost") {
+      notices.report(
+        { kind: "unavailable", data: `${event.state.reason}
+Refresh (F5) starts it again.` },
+        `Cogit lost its agent in ${event.host}`,
+      );
+    }
   }
 
   function onWatchLimited(event: import("$lib/ipc").WatchLimited) {
@@ -3538,6 +3551,7 @@ ${event.error}`,
     connect({
       repoChanged: onDiskChange,
       watchLimited: onWatchLimited,
+      backendChanged: onBackendChanged,
       operationChanged: (event) => {
         running = applyOperation(running, event);
         networkOps = trackCancellable(networkOps, event);
@@ -4573,6 +4587,7 @@ ${event.error}`,
       networkProgress: network.progress ?? undefined,
       hooks: runningHooks,
       opening: repository.busy,
+      starting: startingBackends,
       failed: notices.errorCount + errorWindow.errorCount > 0,
     })}
     problems={output.problems}

@@ -45,6 +45,7 @@ import type {
   RendererMemory,
   RepoChanged,
   WatchLimited,
+  BackendChanged,
   RepoId,
   ScanHit,
   ScanChunk,
@@ -196,6 +197,7 @@ export type {
   RevisionCheck,
   RepoChanged,
   WatchLimited,
+  BackendChanged,
   RepoId,
   RepoOverview,
   RepoState,
@@ -261,6 +263,8 @@ ${GIT_NOT_FOUND_HINT}`;
         : `Git refused the config at line ${error.data.line}: ${error.data.message}`;
     case "cancelled":
       return `Canceled: ${error.data}`;
+    case "unavailable":
+      return error.data;
   }
 }
 
@@ -545,6 +549,11 @@ export async function onRepoChanged(handler: (change: RepoChanged) => void) {
 /** The working tree is not watched (the OS refused it): the reason, raw. */
 export async function onWatchLimited(handler: (event: WatchLimited) => void) {
   return await counted(events.watchLimited.listen((event) => handler(event.payload)));
+}
+
+/** An agent holding repositories is starting, started, failed to start or was lost. */
+export async function onBackendChanged(handler: (event: BackendChanged) => void) {
+  return await counted(events.backendChanged.listen((event) => handler(event.payload)));
 }
 
 export async function commandLog() {

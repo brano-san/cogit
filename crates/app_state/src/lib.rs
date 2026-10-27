@@ -56,7 +56,7 @@ mod staging;
 
 pub use agent_events::forward_agent_events;
 pub use avatars::{Author, AvatarRow, Avatars};
-pub use backend::{Host, serve_agent};
+pub use backend::{BackendState, Host, provide_agent_binary, serve_agent};
 pub use credentials::{
     CredentialStore, KnownCredential, SecretError, SignIn, SshKeys, credential_host,
     credential_target, host_input, host_of, private_keys, ssh_host, ssh_keys,
@@ -173,6 +173,10 @@ pub enum AppEvent {
     /// A git command finished. The payload says what happened, not what was printed:
     /// a record can be two megabytes and most of them are never looked at.
     CommandRecorded(CommandNotice),
+    Backend {
+        host: String,
+        state: BackendState,
+    },
 }
 
 /// What the layout hands `build_graph` as it walks; the webview never sees it (R-193).

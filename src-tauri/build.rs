@@ -61,6 +61,7 @@ fn main() {
     watch_code();
     if let Some(out_dir) = std::env::var_os("OUT_DIR") {
         write_crate_list(Path::new(&out_dir));
+        embed_agent(Path::new(&out_dir));
     }
 
     tauri_build::build();
@@ -94,6 +95,25 @@ fn watch_code() {
     if std::env::var("PROFILE").as_deref() == Ok("release") {
         println!("cargo:rerun-if-changed=../frontend/src");
     }
+}
+
+fn embed_agent(out_dir: &Path) {
+    println!("cargo:rerun-if-env-changed=COGIT_AGENT_BIN");
+    let embedded = out_dir.join("cogit-agent");
+    let bytes = match std::env::var_os("COGIT_AGENT_BIN") {
+        Some(agent) => {
+            println!("cargo:rerun-if-changed={}", Path::new(&agent).display());
+            std::fs::read(&agent).unwrap_or_else(|err| {
+                panic!("COGIT_AGENT_BIN {}: {err}", Path::new(&agent).display())
+            })
+        }
+        None => Vec::new(),
+    };
+    if std::fs::read(&embedded).ok().as_deref() != Some(bytes.as_slice()) {
+        std::fs::write(&embedded, &bytes)
+            .unwrap_or_else(|err| panic!("{}: {err}", embedded.display()));
+    }
+    println!("cargo:rustc-env=COGIT_AGENT_EMBED={}", embedded.display());
 }
 
 /// `cargo metadata` takes seconds, so its answer is kept until `Cargo.lock` changes.

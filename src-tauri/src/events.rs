@@ -23,6 +23,13 @@ pub struct WatchLimited {
     pub error: String,
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
+#[serde(rename_all = "camelCase")]
+pub struct BackendChanged {
+    pub host: String,
+    pub state: app_state::BackendState,
+}
+
 /// A conflicted file was resolved in its own window; the main one refreshes on it.
 /// The page emits it itself, like `RevealCommit`.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
@@ -138,6 +145,9 @@ pub(crate) fn forward_repo_changes(app: tauri::AppHandle, state: &Arc<AppState>)
                 }
                 app_state::AppEvent::WatchLimited { repo, error } => {
                     let _ = WatchLimited { repo, error }.emit(&app);
+                }
+                app_state::AppEvent::Backend { host, state } => {
+                    let _ = BackendChanged { host, state }.emit(&app);
                 }
                 app_state::AppEvent::CommandRecorded(notice) => {
                     let _ = CommandRecorded(notice).emit(&app);

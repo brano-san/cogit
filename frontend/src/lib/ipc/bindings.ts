@@ -845,6 +845,7 @@ export const commands = {
 /** Events */
 export const events = {
 	avatarReady: makeEvent<AvatarReady>("avatar-ready"),
+	backendChanged: makeEvent<BackendChanged>("backend-changed"),
 	cogitOpenModule: makeEvent<OpenModule>("cogit://open-module"),
 	cogitPushHead: makeEvent<PushHead>("cogit://push-head"),
 	cogitSettingsChanged: makeEvent<SettingsChanged>("cogit://settings-changed"),
@@ -936,6 +937,13 @@ export type AvatarRow = {
 	/**  A `data:` URL, so the webview needs no access to the cache directory. */
 	image: string | null,
 };
+
+export type BackendChanged = {
+	host: string,
+	state: BackendState,
+};
+
+export type BackendState = { state: "starting" } | { state: "started" } | { state: "failed" } | { state: "lost"; reason: string };
 
 /**  Why a file is shown as binary, in plain terms (R-531). */
 export type BinaryCause = 
@@ -1680,7 +1688,7 @@ export type GitError =
  *  The user stopped it: a fetch, pull or push cancelled from the footer. Carries the
  *  command, as the journal wrote it.
  */
-{ kind: "cancelled"; data: string };
+{ kind: "cancelled"; data: string } | { kind: "unavailable"; data: string };
 
 export type GitOutput = {
 	/**  Numbered so a window, a toast and a history row can all name the same run. */

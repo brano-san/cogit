@@ -87,6 +87,9 @@ impl AppState {
         if let Some(host) = crate::backend::loopback() {
             return self.open_repository_on(&host, path);
         }
+        if let Some(host) = crate::Host::of(path) {
+            return self.open_repository_on(&host, path);
+        }
         let began = self.closes_so_far();
         let mut watch = Steps::new();
         let handle = git_engine::RepoHandle::open(path)?;

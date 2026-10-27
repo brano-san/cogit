@@ -1,42 +1,178 @@
+use crate::location::RepoLocation;
 use crate::routes::RepoCall;
 use crate::{AppState, RepoId, RepoSummary};
 use git_engine::{GitError, NetworkStop};
+use parking_lot::Mutex;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::VecDeque;
+use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, OnceLock};
+use std::thread::JoinHandle;
 
 const INSIDE_AGENT: &str = "COGIT_INSIDE_AGENT";
+const AGENT_IN_DISTRO: &str = "COGIT_AGENT";
+const NOT_INSTALLED: i32 = 97;
+const LAST_WORDS: usize = 40;
+
+static AGENT_BINARY: OnceLock<&'static [u8]> = OnceLock::new();
+static AGENT_DIR: OnceLock<String> = OnceLock::new();
+
+pub fn provide_agent_binary(bytes: &'static [u8]) {
+    if !bytes.is_empty() && AGENT_BINARY.set(bytes).is_err() {
+        tracing::error!(context = "the agent binary was provided twice");
+    }
+}
+
+fn agent_dir(bytes: &[u8]) -> &'static str {
+    AGENT_DIR.get_or_init(|| {
+        use std::hash::{Hash as _, Hasher as _};
+        let mut hasher = std::hash::DefaultHasher::new();
+        bytes.hash(&mut hasher);
+        format!(
+            "{}-{:08x}",
+            env!("CARGO_PKG_VERSION"),
+            hasher.finish() & 0xffff_ffff
+        )
+    })
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Host {
     Loopback(PathBuf),
+    Wsl { distro: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase", tag = "state")]
+pub enum BackendState {
+    Starting,
+    Started,
+    Failed,
+    Lost { reason: String },
 }
 
 impl Host {
-    fn command(&self) -> Command {
+    #[must_use]
+    pub fn of(path: &Path) -> Option<Self> {
+        match RepoLocation::of(path) {
+            RepoLocation::Wsl { distro, .. } => Some(Self::Wsl { distro }),
+            RepoLocation::Local | RepoLocation::Ssh { .. } => None,
+        }
+    }
+
+    #[must_use]
+    pub fn label(&self) -> String {
+        match self {
+            Self::Loopback(_) => "loopback".to_owned(),
+            Self::Wsl { distro } => format!("WSL: {distro}"),
+        }
+    }
+
+    fn command(&self) -> Result<Command, GitError> {
         match self {
             Self::Loopback(exe) => {
                 let mut command = Command::new(exe);
                 command.arg("serve");
-                command
+                Ok(command)
+            }
+            Self::Wsl { distro } => {
+                let mut command = Command::new("wsl.exe");
+                command.args(["-d", distro, "-e", "sh", "-c"]);
+                if let Some(agent) = std::env::var_os(AGENT_IN_DISTRO) {
+                    command.args([r#"exec "$1" serve"#, "cogit-agent"]);
+                    command.arg(agent);
+                    return Ok(command);
+                }
+                let Some(bytes) = AGENT_BINARY.get() else {
+                    return Err(GitError::Unavailable(format!(
+                        "This build of Cogit carries no agent, so it cannot open repositories in {}. \
+                         Build it with COGIT_AGENT_BIN, or set {AGENT_IN_DISTRO} to an agent inside the distribution.",
+                        self.label()
+                    )));
+                };
+                command.args([
+                    &format!(
+                        r#"a="$HOME/.cache/cogit/agent/$1/cogit-agent"; [ -x "$a" ] || exit {NOT_INSTALLED}; exec "$a" serve"#
+                    ),
+                    "cogit-agent",
+                    agent_dir(bytes),
+                ]);
+                Ok(command)
             }
         }
     }
 
+    fn install(&self) -> Result<bool, GitError> {
+        let (Self::Wsl { distro }, Some(bytes)) = (self, AGENT_BINARY.get()) else {
+            return Ok(false);
+        };
+        let started = std::time::Instant::now();
+        let mut command = Command::new("wsl.exe");
+        command
+            .args(["-d", distro, "-e", "sh", "-c"])
+            .arg(concat!(
+                r#"set -e; d="$HOME/.cache/cogit/agent"; mkdir -p "$d/$1"; t="$d/$1/.part.$$"; "#,
+                r#"cat > "$t"; chmod 755 "$t"; mv -f "$t" "$d/$1/cogit-agent"; cd "$d"; "#,
+                r#"ls -1t | tail -n +3 | while IFS= read -r old; do rm -rf -- "$old"; done"#
+            ))
+            .args(["cogit-install", agent_dir(bytes)])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        hide_window(&mut command);
+        let mut child = command.spawn().map_err(|err| self.unreachable(&err))?;
+        let written = child.stdin.take().map(|mut input| input.write_all(bytes));
+        let output = child
+            .wait_with_output()
+            .map_err(|err| self.unreachable(&err))?;
+        if !output.status.success() || !matches!(written, Some(Ok(()))) {
+            return Err(GitError::Unavailable(format!(
+                "Cogit could not install its agent in {}: {}\n{}",
+                self.label(),
+                output.status,
+                String::from_utf8_lossy(&output.stderr).trim()
+            )));
+        }
+        tracing::info!(host = ?self, elapsed_ms = started.elapsed().as_millis(), "agent installed");
+        Ok(true)
+    }
+
     fn agent_path(&self, path: &Path) -> String {
-        match self {
-            Self::Loopback(_) => path.to_string_lossy().into_owned(),
+        match (self, RepoLocation::of(path)) {
+            (Self::Wsl { .. }, RepoLocation::Wsl { path, .. }) => path,
+            _ => path.to_string_lossy().into_owned(),
         }
     }
 
     pub(crate) fn local_path(&self, path: &str) -> PathBuf {
         match self {
             Self::Loopback(_) => PathBuf::from(path),
+            Self::Wsl { distro } => PathBuf::from(format!(
+                r"\\wsl.localhost\{distro}{}",
+                path.replace('/', r"\")
+            )),
         }
     }
+
+    fn unreachable(&self, err: &dyn std::fmt::Display) -> GitError {
+        GitError::Unavailable(format!("Cogit could not reach {}: {err}", self.label()))
+    }
+}
+
+fn hide_window(command: &mut Command) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    #[cfg(not(windows))]
+    let _ = command;
 }
 
 #[cfg(feature = "loopback")]
@@ -54,39 +190,158 @@ pub(crate) fn loopback() -> Option<Host> {
         .map(Host::Loopback)
 }
 
+#[derive(Debug, Default)]
+struct LastWords {
+    lines: VecDeque<String>,
+    exit: Option<String>,
+}
+
+impl LastWords {
+    fn told(&self) -> String {
+        let mut text = self.exit.clone().unwrap_or_default();
+        if !self.lines.is_empty() {
+            text.push_str("\nIts last output:\n");
+            text.push_str(&Vec::from(self.lines.clone()).join("\n"));
+        }
+        text
+    }
+}
+
+struct Spawned {
+    child: Child,
+    words: Arc<Mutex<LastWords>>,
+    listener: JoinHandle<()>,
+}
+
+impl Spawned {
+    fn finish(mut self) -> (Option<i32>, String) {
+        let status = self.child.wait();
+        if self.listener.join().is_err() {
+            tracing::error!(context = "agent stderr reader panicked");
+        }
+        let mut words = self.words.lock();
+        let code = status
+            .as_ref()
+            .ok()
+            .and_then(std::process::ExitStatus::code);
+        words.exit = Some(match status {
+            Ok(status) => format!("The agent exited: {status}."),
+            Err(err) => format!("The agent's exit is unknown: {err}."),
+        });
+        (code, words.told())
+    }
+}
+
+type Failure = (Option<i32>, GitError);
+
 #[derive(Debug)]
 pub(crate) struct Agent {
     host: Host,
+    pid: u32,
     client: Option<agent::Client>,
-    child: Child,
+    leaving: Arc<AtomicBool>,
+    words: Arc<Mutex<LastWords>>,
 }
 
 impl Agent {
-    fn start(host: &Host, on_event: impl Fn(Value) + Send + 'static) -> Result<Self, GitError> {
-        let mut command = host.command();
+    fn start(
+        host: &Host,
+        on_event: impl Fn(Value) + Send + Clone + 'static,
+        on_lost: impl FnOnce(String) + Send + 'static,
+    ) -> Result<Self, GitError> {
+        let (client, spawned) = match Self::connect(host, on_event.clone()) {
+            Err((Some(NOT_INSTALLED), _)) if host.install()? => Self::connect(host, on_event),
+            other => other,
+        }
+        .map_err(|(_, err)| err)?;
+        Ok(Self::watch(host, client, spawned, on_lost))
+    }
+
+    fn connect(
+        host: &Host,
+        on_event: impl Fn(Value) + Send + 'static,
+    ) -> Result<(agent::Client, Spawned), Failure> {
+        let mut command = host.command().map_err(|err| (None, err))?;
         command
             .env(INSIDE_AGENT, "1")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::inherit());
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-            command.creation_flags(CREATE_NO_WINDOW);
-        }
-        let mut child = command.spawn().map_err(|err| unavailable(&err))?;
-        let (Some(output), Some(input)) = (child.stdout.take(), child.stdin.take()) else {
-            return Err(GitError::Internal("the agent has no pipes".to_owned()));
+            .stderr(Stdio::piped());
+        hide_window(&mut command);
+        let mut child = command
+            .spawn()
+            .map_err(|err| (None, host.unreachable(&err)))?;
+        let (Some(output), Some(input), Some(errors)) =
+            (child.stdout.take(), child.stdin.take(), child.stderr.take())
+        else {
+            return Err((
+                None,
+                GitError::Internal("the agent has no pipes".to_owned()),
+            ));
         };
-        let client = agent::Client::connect_with_events(output, input, on_event)
-            .map_err(|err| unavailable(&err))?;
-        tracing::info!(?host, version = client.version(), "agent started");
-        Ok(Self {
-            host: host.clone(),
-            client: Some(client),
+        let words = Arc::new(Mutex::new(LastWords::default()));
+        let heard = Arc::clone(&words);
+        let label = host.label();
+        let listener = std::thread::spawn(move || {
+            for line in BufReader::new(errors).lines() {
+                let Ok(line) = line else { break };
+                tracing::warn!(host = label, line, "agent stderr");
+                let mut words = heard.lock();
+                if words.lines.len() == LAST_WORDS {
+                    words.lines.pop_front();
+                }
+                words.lines.push_back(line);
+            }
+        });
+        let spawned = Spawned {
             child,
-        })
+            words,
+            listener,
+        };
+        match agent::Client::connect_with_events(output, input, on_event) {
+            Ok(client) => Ok((client, spawned)),
+            Err(err) => {
+                let (code, told) = spawned.finish();
+                Err((
+                    code,
+                    GitError::Unavailable(format!(
+                        "Cogit's agent in {} did not start: {err}\n{told}",
+                        host.label()
+                    )),
+                ))
+            }
+        }
+    }
+
+    fn watch(
+        host: &Host,
+        client: agent::Client,
+        spawned: Spawned,
+        on_lost: impl FnOnce(String) + Send + 'static,
+    ) -> Self {
+        tracing::info!(?host, version = client.version(), "agent started");
+        let leaving = Arc::new(AtomicBool::new(false));
+        let words = Arc::clone(&spawned.words);
+        let pid = spawned.child.id();
+        let left = Arc::clone(&leaving);
+        std::thread::spawn(move || {
+            let (_, told) = spawned.finish();
+            if !left.load(Ordering::Acquire) {
+                tracing::error!(reason = told, "agent lost");
+                on_lost(told);
+            }
+        });
+        Self {
+            host: host.clone(),
+            pid,
+            client: Some(client),
+            leaving,
+            words,
+        }
+    }
+
+    fn is_gone(&self) -> bool {
+        self.client.as_ref().is_none_or(agent::Client::is_gone)
     }
 
     fn ask<T: DeserializeOwned>(
@@ -113,25 +368,27 @@ impl Agent {
         let request = serde_json::to_value(request).map_err(|err| garbled(&err))?;
         match client
             .call_streaming(request, canceled, on_chunk)
-            .map_err(|err| unavailable(&err))?
+            .map_err(|err| self.lost(&err))?
         {
             Ok(answer) => serde_json::from_value(answer).map_err(|err| garbled(&err)),
             Err(error) => Err(serde_json::from_value(error).unwrap_or_else(|err| garbled(&err))),
         }
     }
+
+    fn lost(&self, err: &agent::AgentError) -> GitError {
+        GitError::Unavailable(format!(
+            "Cogit's agent in {} stopped: {err}\n{}\nRefresh (F5) starts it again.",
+            self.host.label(),
+            self.words.lock().told()
+        ))
+    }
 }
 
 impl Drop for Agent {
     fn drop(&mut self) {
+        self.leaving.store(true, Ordering::Release);
         self.client = None;
-        if let Err(err) = self.child.wait() {
-            tracing::error!(error = ?err, context = "agent exit");
-        }
     }
-}
-
-fn unavailable(err: &dyn std::fmt::Display) -> GitError {
-    GitError::Io(format!("Cogit's agent is unavailable: {err}"))
 }
 
 fn garbled(err: &serde_json::Error) -> GitError {
@@ -203,6 +460,9 @@ pub(crate) enum Request {
         repo: RepoId,
     },
     SafetyLog,
+    Overview {
+        repo: RepoId,
+    },
     Show {
         repo: Option<RepoId>,
     },
@@ -254,6 +514,12 @@ pub fn serve_agent(state: &AppState, request: Value, call: &agent::Call) -> Resu
         } => answer(state.save_config_file(Some(repo), scope, &text, crlf)),
         Request::Close { repo } => answer(Ok(state.close_repository(repo))),
         Request::SafetyLog => answer(Ok(state.safety_log())),
+        Request::Overview { repo } => answer(
+            state
+                .get(repo)
+                .map(|open| state.local_overview_of(&open))
+                .ok_or_else(|| crate::not_open(repo)),
+        ),
         Request::Show { repo } => {
             state.show_repository(repo);
             answer(Ok(()))
@@ -309,6 +575,11 @@ impl AppState {
         repo: RepoId,
         remote: &Remote,
     ) -> Result<RepoSummary, GitError> {
+        let remote = if remote.agent.is_gone() {
+            &self.reconnect(repo, remote)?
+        } else {
+            remote
+        };
         let summary: RepoSummary = remote.ask(&Request::Reread { repo: remote.id }, None)?;
         let root = remote.agent.host.local_path(&summary.root);
         Ok(RepoSummary {
@@ -316,6 +587,24 @@ impl AppState {
             root: git_engine::slash_path(&root),
             ..summary
         })
+    }
+
+    fn reconnect(&self, repo: RepoId, remote: &Remote) -> Result<Remote, GitError> {
+        let root = self.root_of(repo)?;
+        let agent = self.agent(&remote.agent.host)?;
+        let Opened { summary, .. } = agent.ask(
+            &Request::Open {
+                path: agent.host.agent_path(&root),
+            },
+            None,
+        )?;
+        let fresh = Remote {
+            agent,
+            id: summary.repo,
+        };
+        self.remotes.write().insert(repo, fresh.clone());
+        tracing::info!(repo = repo.0, root = %root.display(), "reconnected to the agent");
+        Ok(fresh)
     }
 
     fn adopt(
@@ -350,6 +639,12 @@ impl AppState {
             root: git_engine::slash_path(&root),
             ..summary
         })
+    }
+
+    #[doc(hidden)]
+    #[must_use]
+    pub fn agent_process_id(&self, repo: RepoId) -> Option<u32> {
+        self.remote(repo).map(|remote| remote.agent.pid)
     }
 
     #[must_use]
@@ -390,6 +685,36 @@ impl AppState {
         };
         if let Err(err) = remote.ask::<bool>(&Request::Close { repo: remote.id }, None) {
             tracing::error!(error = ?err, context = "close in the agent");
+        }
+    }
+
+    pub(crate) fn overview_through(
+        &self,
+        open: &crate::OpenRepo,
+        remote: &Remote,
+    ) -> crate::RepoOverview {
+        match remote.ask::<crate::RepoOverview>(&Request::Overview { repo: remote.id }, None) {
+            Ok(row) => crate::RepoOverview {
+                repo: open.id,
+                name: open.display_name.clone(),
+                root: git_engine::slash_path(&open.root),
+                ..row
+            },
+            Err(err) => {
+                tracing::error!(error = ?err, context = "repository row in the agent");
+                crate::RepoOverview {
+                    repo: open.id,
+                    name: open.display_name.clone(),
+                    root: git_engine::slash_path(&open.root),
+                    branch: None,
+                    branch_at: None,
+                    ahead: 0,
+                    behind: 0,
+                    dirty: false,
+                    missing: true,
+                    state: git_engine::RepoState::Clean,
+                }
+            }
         }
     }
 
@@ -443,17 +768,37 @@ impl AppState {
 
     fn agent(&self, host: &Host) -> Result<Arc<Agent>, GitError> {
         let mut agents = self.agents.lock();
-        if let Some(agent) = agents.get(host) {
+        if let Some(agent) = agents.get(host).filter(|agent| !agent.is_gone()) {
             return Ok(agent.clone());
         }
-        let sink = crate::agent_events::Sink {
+        let sink = Arc::new(crate::agent_events::Sink {
             host: host.clone(),
             remotes: Arc::clone(&self.remotes),
             journal: Arc::clone(&self.journal),
             events: self.events.clone(),
             rows: Arc::clone(&self.cached_rows),
+        });
+        let events = self.events.clone();
+        let label = host.label();
+        let tell = move |state: BackendState| {
+            let _ = events.send(crate::AppEvent::Backend {
+                host: label.clone(),
+                state,
+            });
         };
-        let agent = Arc::new(Agent::start(host, move |event| sink.take(event))?);
+        tell(BackendState::Starting);
+        let lost = tell.clone();
+        let started = Agent::start(
+            host,
+            move |event| sink.take(event),
+            move |reason| lost(BackendState::Lost { reason }),
+        );
+        tell(if started.is_ok() {
+            BackendState::Started
+        } else {
+            BackendState::Failed
+        });
+        let agent = Arc::new(started?);
         if let Some(bytes) = self.graph_cache_budget()
             && let Err(err) = agent.ask::<()>(&Request::GraphBudget { bytes }, None)
         {

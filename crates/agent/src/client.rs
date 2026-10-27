@@ -106,6 +106,11 @@ impl Client {
     }
 
     #[must_use]
+    pub fn is_gone(&self) -> bool {
+        self.waiting.lock().gone.is_some()
+    }
+
+    #[must_use]
     pub fn version(&self) -> &str {
         &self.version
     }

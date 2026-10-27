@@ -36,9 +36,10 @@ mod window_place;
 
 use app_state::AppState;
 pub use events::{
-    AvatarReady, CommandRecorded, ErrorQueue, ErrorReported, ErrorsAction, MenuCommand,
-    MergeResolved, MergeToolFinished, OpenModule, OperationChanged, PushHead, RepoChanged,
-    RepoWritten, RevealCommit, SessionEnding, SettingsChanged, TreeChanged, WatchLimited,
+    AvatarReady, BackendChanged, CommandRecorded, ErrorQueue, ErrorReported, ErrorsAction,
+    MenuCommand, MergeResolved, MergeToolFinished, OpenModule, OperationChanged, PushHead,
+    RepoChanged, RepoWritten, RevealCommit, SessionEnding, SettingsChanged, TreeChanged,
+    WatchLimited,
 };
 use specta_typescript::Typescript;
 use std::path::PathBuf;
@@ -116,6 +117,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
         .events(collect_events![
             RepoChanged,
             WatchLimited,
+            BackendChanged,
             MenuCommand,
             OperationChanged,
             AvatarReady,
@@ -560,6 +562,7 @@ pub fn run() -> anyhow::Result<()> {
             );
             git_engine::warm_up();
 
+            app_state::provide_agent_binary(include_bytes!(env!("COGIT_AGENT_EMBED")));
             let state = Arc::new(AppState::new());
             state.use_preset_dir(config_dir.join("presets"));
             state.use_password_store(config_dir.join("passwords.json"));

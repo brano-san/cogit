@@ -57,6 +57,13 @@ fn a_repository_opened_through_the_agent_reads_as_the_local_one() {
         json(&remote.repo_refs(far.repo).unwrap()),
         json(&local.repo_refs(near.repo).unwrap())
     );
+    let row = |state: &AppState| {
+        let mut rows = json(&state.overviews());
+        rows[0].as_object_mut().unwrap().remove("repo");
+        rows
+    };
+    assert_eq!(row(&remote), row(&local));
+    assert_eq!(row(&remote)[0]["dirty"], true);
 }
 
 #[test]
@@ -132,7 +139,8 @@ const BY_HAND: [&str; 13] = [
     "save_config_file",
 ];
 
-const ON_WINDOWS: [(&str, &str); 6] = [
+const ON_WINDOWS: [(&str, &str); 7] = [
+    ("agent_process_id", "the agent process itself"),
     ("is_remote", "the routing table itself"),
     ("close_repository", "the registry; tells the agent itself"),
     ("unregister", "the registry"),
@@ -346,4 +354,106 @@ fn a_command_and_a_change_in_the_agent_reach_the_window() {
         changed,
         "no change reached the window from the agent's watcher"
     );
+}
+
+fn kill(pid: u32) {
+    let status = if cfg!(windows) {
+        std::process::Command::new("taskkill")
+            .args(["/F", "/PID", &pid.to_string()])
+            .output()
+    } else {
+        std::process::Command::new("kill")
+            .args(["-9", &pid.to_string()])
+            .output()
+    };
+    assert!(status.unwrap().status.success());
+}
+
+#[test]
+fn a_lost_agent_is_told_and_a_refresh_starts_it_again() {
+    let f = changed();
+    let state = AppState::new();
+    let repo = state
+        .open_repository_on(&loopback(), f.path())
+        .unwrap()
+        .repo;
+    let mut events = state.subscribe();
+    kill(state.agent_process_id(repo).unwrap());
+
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    let reason = loop {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "no word of the lost agent"
+        );
+        match events.try_recv() {
+            Ok(app_state::AppEvent::Backend {
+                state: app_state::BackendState::Lost { reason },
+                ..
+            }) => break reason,
+            Ok(_) => {}
+            Err(_) => std::thread::sleep(std::time::Duration::from_millis(20)),
+        }
+    };
+    assert!(reason.contains("exited"), "{reason}");
+    let lost = state.repo_status(repo).unwrap_err();
+    assert!(
+        matches!(&lost, git_engine::GitError::Unavailable(text) if text.contains("F5")),
+        "{lost:?}"
+    );
+
+    state.reread_repository(repo).unwrap();
+    assert_eq!(state.repo_status(repo).unwrap().unstaged, 1);
+}
+
+#[test]
+#[ignore = "needs WSL with git and a musl cogit-agent in COGIT_AGENT_BIN; distro in COGIT_TEST_DISTRO"]
+fn a_repository_in_wsl_opens_through_its_agent() {
+    let agent = std::fs::read(std::env::var("COGIT_AGENT_BIN").unwrap()).unwrap();
+    app_state::provide_agent_binary(Box::leak(agent.into_boxed_slice()));
+    let distro = std::env::var("COGIT_TEST_DISTRO").unwrap_or_else(|_| "Ubuntu-22.04".to_owned());
+    let folder = format!("/tmp/cogit-wsl-test-{}", std::process::id());
+    let made = std::process::Command::new("wsl.exe")
+        .args(["-d", &distro, "-e", "sh", "-c"])
+        .arg(r#"set -e; rm -rf "$1"; mkdir -p "$1"; cd "$1"; git init -q; echo a > a.txt; echo b > b.txt; git add b.txt"#)
+        .args(["sh", &folder])
+        .output()
+        .unwrap();
+    assert!(made.status.success(), "{made:?}");
+
+    let state = AppState::new();
+    let path = format!(r"\\wsl.localhost\{distro}{}", folder.replace('/', r"\"));
+    let summary = state.open_repository(std::path::Path::new(&path)).unwrap();
+    assert!(state.is_remote(summary.repo));
+    assert_eq!(summary.root, path.replace('\\', "/"));
+    let status = state.repo_status(summary.repo).unwrap();
+    assert_eq!((status.staged, status.untracked), (1, 1), "{status:?}");
+
+    let mut events = state.subscribe();
+    let killed = std::process::Command::new("wsl.exe")
+        .args(["-d", &distro, "-e", "pkill", "-9", "-x", "cogit-agent"])
+        .output()
+        .unwrap();
+    assert!(killed.status.success(), "{killed:?}");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while !matches!(
+        events.try_recv(),
+        Ok(app_state::AppEvent::Backend {
+            state: app_state::BackendState::Lost { .. },
+            ..
+        })
+    ) {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "no word of the lost agent"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    assert!(matches!(
+        state.repo_status(summary.repo),
+        Err(git_engine::GitError::Unavailable(_))
+    ));
+    state.reread_repository(summary.repo).unwrap();
+    assert_eq!(state.repo_status(summary.repo).unwrap().untracked, 1);
+    assert!(state.close_repository(summary.repo));
 }
