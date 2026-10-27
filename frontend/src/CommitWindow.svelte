@@ -37,6 +37,7 @@
   import { shortOid } from "$lib/format";
   import {
     closeThisWindow,
+    onRepoChanged,
     repoWritten,
     commitTemplate,
     isPublished,
@@ -197,6 +198,23 @@
     }),
   );
 
+  async function reread() {
+    if (!request || !loaded || committing) return;
+    const id = request.repo;
+    const [log] = await Promise.all([recentCommits(id, 100).catch(() => history), worktree.load(id)]);
+    history = log;
+    const listed = new Set(listedFiles(mode, worktree.staged, worktree.unstaged).map((file) => file.path));
+    ticked = new Set([...ticked].filter((path) => listed.has(path)));
+  }
+
+  $effect(() => {
+    if (!request) return;
+    const stop = onRepoChanged((change) => {
+      if (change.repo === request.repo) void reread();
+    });
+    return () => void stop.then((undo) => undo()).catch(() => {});
+  });
+
   // The inline panel keeps the same draft: it is written on every change, and read back
   // when the other window changes it. Amend's borrowed message is nobody's draft.
   $effect(() => {
@@ -256,7 +274,7 @@
         worktree.staged,
         worktree.unstaged,
       );
-      if (plan.stage.length > 0) await worktree.stage(request.repo, plan.stage);
+      if (plan.stage.length > 0) await worktree.stage(request.repo, plan.stage, true);
       await worktree.commit(request.repo, message, amend, noVerify, plan.only, signoff);
     } catch (err) {
       // A hook's refusal or git's own words: the window stays, the message with it.
@@ -289,7 +307,7 @@
     settings.formatDate(details.author.timestamp, details.author.tzOffsetMinutes);
 </script>
 
-<svelte:window {onkeydown} onresize={() => (menuAt = null)} />
+<svelte:window onfocus={() => void reread()} {onkeydown} onresize={() => (menuAt = null)} />
 
 <TooltipLayer />
 
