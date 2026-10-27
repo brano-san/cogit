@@ -19,8 +19,6 @@ export function mergeQuestion(source: string, into: string): ConfirmRequest {
   };
 }
 
-/** `noFastForward` for the merge, asked only when a fast-forward is possible; `null` when
-    the user canceled. */
 export async function chooseMerge(
   source: string,
   into: string,

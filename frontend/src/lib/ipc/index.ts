@@ -4,6 +4,8 @@ import { Channel } from "@tauri-apps/api/core";
 import { commands, events } from "./bindings";
 import type { WorktreeBranch } from "./bindings";
 import { counted } from "$lib/listener-count";
+import { OS } from "$lib/platform";
+import { secondaryReleased } from "$lib/secondary-button";
 import { GIT_NOT_FOUND_HINT } from "$lib/git-missing";
 import type {
   SignIn,
@@ -1263,6 +1265,7 @@ export async function popupContextMenu(items: ContextItem[], x: number, y: numbe
   // WebView2 still settled it, read the pointer a client-area offset off — the highlight
   // rows above it (R-776). A frame was not enough in Branches; 50 ms was, every time.
   await new Promise((resolve) => setTimeout(resolve, 50));
+  if (OS === "linux") await secondaryReleased();
   return unwrap(await commands.popupContextMenu(items, x, y));
 }
 

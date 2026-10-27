@@ -87,8 +87,6 @@ class WorktreeStore {
     }
   }
 
-  /** `exact` names every path even when they are all of Unstaged: a list read a while ago
-      may be missing files that `add --all` would take. */
   async stage(repo: RepoId, paths: string[], exact = false): Promise<WorkingState | null> {
     const everything = !exact && stagesEverything(paths, this.unstaged);
     return this.mutate(repo, () => (everything ? stageAll(repo, paths.length) : stagePaths(repo, paths)));

@@ -15,7 +15,6 @@ export interface ConfirmRequest {
   option?: string;
   /** A dropdown under the message; the option picked comes back from `askWithChoice`. */
   choice?: ConfirmChoice;
-  /** A third button between Cancel and the confirming one; `askWithAlternative` tells which. */
   alternative?: string;
 }
 
