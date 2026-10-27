@@ -63,7 +63,6 @@ export interface DragPayload {
 export type DropActionId =
   | "merge"
   | "rebase"
-  | "fastForward"
   | "squash"
   | "reorder"
   | "setUpstream"
@@ -84,7 +83,6 @@ export interface DropContext {
   head: string | null;
   oidOf: (item: DragPayload) => string | undefined;
   upstreamOf: (branch: string) => string | null;
-  canFastForward: (branch: string, to: DragPayload) => boolean;
 }
 
 const KINDS: readonly DragKind[] = ["commit", "branch", "remote", "tag", "step"];
@@ -180,22 +178,17 @@ function setUpstream(branch: string, upstream: string, context: DropContext): Dr
   };
 }
 
-function fastForward(branch: string, to: DragPayload, context: DropContext): DropAction[] {
-  if (!context.canFastForward(branch, to)) return [];
-  return [{ id: "fastForward", title: `Fast-forward ${branch} to ${nameOf(to)}`, destructive: false, subject: to.id, object: branch }];
-}
-
 export function dropActions(source: DragPayload, target: DragPayload, context: DropContext): DropAction[] {
   if (source.kind === target.kind && source.id === target.id) return [];
   const { head } = context;
   const key = `${source.kind}>${target.kind}`;
   switch (key) {
     case "branch>branch":
-      return [merge(source, target.id, head), rebase(source.id, target, head), ...fastForward(target.id, source, context)];
+      return [merge(source, target.id, head), rebase(source.id, target, head)];
     case "branch>remote":
       return [setUpstream(source.id, target.id, context), rebase(source.id, target, head)];
     case "remote>branch":
-      return [merge(source, target.id, head), setUpstream(target.id, source.id, context), ...fastForward(target.id, source, context)];
+      return [merge(source, target.id, head), setUpstream(target.id, source.id, context)];
     case "branch>commit":
     case "branch>tag":
       return [rebase(source.id, target, head), moveBranch(source.id, target, context)];

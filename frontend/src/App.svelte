@@ -141,6 +141,7 @@
   import { removalQuestion, UNGROUPED } from "$lib/repo-groups";
   import { repoList } from "$stores/repo-list.svelte";
   import { compareUrl, diffWindowTitle } from "$lib/compare-params";
+  import { askMerge } from "$lib/merge-choice";
   import { dropActions, nameOf, parseDrag, type DropAction, type DropActionId, type DragPayload } from "$lib/drop-target";
   import { dragOver } from "$stores/drag-over.svelte";
   import { moveEntry, planPublished } from "$lib/rebase-plan";
@@ -1705,13 +1706,11 @@ ${event.error}`,
     const id = repository.current?.repo;
     const oid = commit.oid;
     if (!id || !oid) return;
+    const source = refAt(oid, repo?.branches ?? [], repo?.tags ?? []);
+    const way = await askMerge(id, source, repository.localBranches.find((branch) => branch.isHead)?.name ?? "HEAD");
+    if (!way) return;
     try {
-      await mergeInto(id, {
-        source: refAt(oid, repo?.branches ?? [], repo?.tags ?? []),
-        noFastForward: false,
-        squash: false,
-        message: null,
-      });
+      await mergeInto(id, { source, noFastForward: way.noFastForward, squash: false, message: null });
     } catch (err) {
       errors.report(err, "Could not merge");
     }
@@ -2141,8 +2140,6 @@ ${event.error}`,
       head,
       oidOf: oidOfDrag,
       upstreamOf: (name) => repository.localBranches.find((branch) => branch.name === name)?.upstream ?? null,
-      canFastForward: (branch, to) =>
-        branch === head && oidOfDrag({ kind: "branch", id: branch }) !== oidOfDrag(to),
     });
     if (source.kind === target.kind && source.id === target.id) return;
     dropMenu = { actions, source, target, x, y };
@@ -2159,7 +2156,6 @@ ${event.error}`,
 
   const DROP_FAILURE: Record<DropActionId, string> = {
     merge: "Could not merge",
-    fastForward: "Could not fast-forward",
     rebase: "Could not rebase",
     squash: "Could not squash",
     reorder: "Could not move the commit",
@@ -2194,8 +2190,11 @@ ${event.error}`,
 
     const revision = (name: string) => localRevision(name, repo?.branches ?? [], repo?.tags ?? []);
     try {
-      if (action.id === "merge" || action.id === "fastForward") {
-        await mergeInto(id, { source: revision(action.subject), noFastForward: false, squash: false, message: null });
+      if (action.id === "merge") {
+        const source = revision(action.subject);
+        const way = await askMerge(id, source, action.object);
+        if (!way) return;
+        await mergeInto(id, { source, noFastForward: way.noFastForward, squash: false, message: null });
       } else if (action.id === "rebase") {
         await rebaseOnto(id, { onto: revision(action.object), autostash: true });
       } else if (action.id === "setUpstream") {

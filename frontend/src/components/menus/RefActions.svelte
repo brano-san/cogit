@@ -102,6 +102,7 @@
   import { runWorkingTreeAction } from "$lib/working-tree-actions";
   import { refs } from "$stores/refs.svelte";
   import { repository } from "$stores/repository.svelte";
+  import { askMerge } from "$lib/merge-choice";
   import { settings } from "$stores/settings.svelte";
   import { stashView } from "$stores/stash-view.svelte";
   import { stashTarget } from "$lib/stash-target";
@@ -463,9 +464,11 @@
         // A Branches row brings its node; the graph's menus have none.
         return offerCheckout(at, at.node ? "branches" : "graph");
       case "merge":
-        if (oid) await attempt("Could not merge", () =>
-          mergeInto(id, { source: revisionOf(at, oid), noFastForward: false, squash: false, message: null }),
-        );
+        if (oid) {
+          const source = revisionOf(at, oid);
+          const way = await askMerge(id, source, repository.localBranches.find((branch) => branch.isHead)?.name ?? "HEAD");
+          if (way) await attempt("Could not merge", () => mergeInto(id, { source, ...way, squash: false, message: null }));
+        }
         return;
       case "cherry-pick":
         if (oid) await attempt("Cherry-pick failed", () => cherryPick(id, [oid]));
@@ -1081,7 +1084,8 @@
     note={confirmation.open.note}
     option={confirmation.open.option}
     choice={confirmation.open.choice}
-    onanswer={(yes, checked, choice) => confirmation.answer(yes, checked, choice)}
+    alternative={confirmation.open.alternative}
+    onanswer={(yes, checked, choice, alternative) => confirmation.answer(yes, checked, choice, alternative)}
   />
 {/if}
 

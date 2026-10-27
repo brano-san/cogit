@@ -15,10 +15,11 @@
     note?: string;
     option?: string;
     choice?: ConfirmChoice;
-    onanswer: (yes: boolean, checked: boolean, choice?: string) => void;
+    alternative?: string;
+    onanswer: (yes: boolean, checked: boolean, choice?: string, alternative?: boolean) => void;
   }
 
-  let { title, message, confirm, cancel = "Cancel", warning = false, items, fields, note, option, choice, onanswer }: Props = $props();
+  let { title, message, confirm, cancel = "Cancel", warning = false, items, fields, note, option, choice, alternative, onanswer }: Props = $props();
   let checked = $state(false);
   // svelte-ignore state_referenced_locally
   let picked = $state(choice?.value);
@@ -68,6 +69,9 @@
     <button class="btn" type="button" data-autofocus={warning || undefined} onclick={() => onanswer(false, false)}>
       {cancel}
     </button>
+    {#if alternative}
+      <button type="button" class="btn" onclick={() => onanswer(true, checked, picked, true)}>{alternative}</button>
+    {/if}
     <button
       type="button"
       class="btn"

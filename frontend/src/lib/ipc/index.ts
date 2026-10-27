@@ -837,6 +837,10 @@ export async function skipOperation(repo: RepoId) {
   return unwrap(await commands.skipOperation(repo));
 }
 
+export async function isAncestor(repo: RepoId, ancestor: string, descendant: string) {
+  return unwrap(await commands.isAncestor(repo, ancestor, descendant));
+}
+
 export async function mergeInto(repo: RepoId, options: MergeOptions) {
   return unwrap(await commands.merge(repo, options));
 }

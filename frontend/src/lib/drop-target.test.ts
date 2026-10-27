@@ -108,11 +108,10 @@ describe("dropActions", () => {
     "commit:c1": "c1",
     "commit:m1": "m1",
   };
-  const context = (head: string | null = null, upstream: string | null = null, ff = false): DropContext => ({
+  const context = (head: string | null = null, upstream: string | null = null): DropContext => ({
     head,
     oidOf: (item) => oids[`${item.kind}:${item.id}`],
     upstreamOf: () => upstream,
-    canFastForward: () => ff,
   });
   const feature = { kind: "branch", id: "feature" } as const;
   const main = { kind: "branch", id: "main" } as const;
@@ -124,9 +123,8 @@ describe("dropActions", () => {
   const find = (source: DragPayload, target: DragPayload, id: string, given = context()) =>
     dropActions(source, target, given).find((action) => action.id === id);
 
-  it("offers merge and rebase for a branch on a branch, fast-forward only when it can", () => {
+  it("offers merge and rebase for a branch on a branch", () => {
     expect(ids(feature, main)).toEqual(["merge", "rebase"]);
-    expect(ids(feature, main, context(null, null, true))).toContain("fastForward");
   });
 
   it("merges into and rebases only the checked-out branch", () => {
@@ -175,7 +173,7 @@ describe("dropActions", () => {
   });
 
   it("names both sides in every title", () => {
-    for (const action of dropActions(feature, main, context(null, null, true))) {
+    for (const action of dropActions(feature, main, context())) {
       expect(action.title).toContain("feature");
       expect(action.title).toContain("main");
     }

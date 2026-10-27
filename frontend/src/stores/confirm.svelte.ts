@@ -15,6 +15,8 @@ export interface ConfirmRequest {
   option?: string;
   /** A dropdown under the message; the option picked comes back from `askWithChoice`. */
   choice?: ConfirmChoice;
+  /** A third button between Cancel and the confirming one; `askWithAlternative` tells which. */
+  alternative?: string;
 }
 
 export interface ConfirmChoice {
@@ -24,7 +26,7 @@ export interface ConfirmChoice {
 }
 
 interface Pending extends ConfirmRequest {
-  settle: (value: boolean, checked: boolean, choice?: string) => void;
+  settle: (value: boolean, checked: boolean, choice?: string, alternative?: boolean) => void;
 }
 
 /** A yes-or-no question in the app's own modal, awaited like `prompt.ask`. */
@@ -43,21 +45,32 @@ class ConfirmStore {
     return this.#ask(request).then(({ yes, choice }) => ({ yes, choice }));
   }
 
-  #ask(request: ConfirmRequest): Promise<{ yes: boolean; checked: boolean; choice: string | null }> {
+  askWithAlternative(request: ConfirmRequest): Promise<"confirm" | "alternative" | null> {
+    return this.#ask(request).then(({ yes, alternative }) => (!yes ? null : alternative ? "alternative" : "confirm"));
+  }
+
+  #ask(
+    request: ConfirmRequest,
+  ): Promise<{ yes: boolean; checked: boolean; choice: string | null; alternative: boolean }> {
     this.open?.settle(false, false);
     return new Promise((resolve) => {
       this.open = {
         ...request,
-        settle: (yes, checked, choice) => {
+        settle: (yes, checked, choice, alternative) => {
           this.open = null;
-          resolve({ yes, checked: yes && checked, choice: yes ? (choice ?? request.choice?.value ?? null) : null });
+          resolve({
+            yes,
+            checked: yes && checked,
+            choice: yes ? (choice ?? request.choice?.value ?? null) : null,
+            alternative: yes && alternative === true,
+          });
         },
       };
     });
   }
 
-  answer(value: boolean, checked = false, choice?: string): void {
-    this.open?.settle(value, checked, choice);
+  answer(value: boolean, checked = false, choice?: string, alternative = false): void {
+    this.open?.settle(value, checked, choice, alternative);
   }
 }
 
