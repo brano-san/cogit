@@ -130,12 +130,16 @@ function merge(source: DragPayload, into: string, head: string | null): DropActi
   };
 }
 
-function rebase(branch: string, onto: DragPayload, head: string | null): DropAction {
+function rebase(branch: string, onto: DragPayload, context: DropContext): DropAction {
+  const here = context.oidOf({ kind: "branch", id: branch });
+  const same = here !== undefined && here === context.oidOf(onto);
   return {
     id: "rebase",
     title: `Rebase ${branch} onto ${nameOf(onto)}`,
     destructive: true,
-    disabled: checkedOut(branch, head, "a rebase moves the checked-out branch."),
+    disabled: same
+      ? `${branch} is already there.`
+      : checkedOut(branch, context.head, "a rebase moves the checked-out branch."),
     subject: branch,
     object: onto.id,
   };
@@ -184,14 +188,14 @@ export function dropActions(source: DragPayload, target: DragPayload, context: D
   const key = `${source.kind}>${target.kind}`;
   switch (key) {
     case "branch>branch":
-      return [merge(source, target.id, head), rebase(source.id, target, head)];
+      return [merge(source, target.id, head), rebase(source.id, target, context)];
     case "branch>remote":
-      return [setUpstream(source.id, target.id, context), rebase(source.id, target, head)];
+      return [setUpstream(source.id, target.id, context), rebase(source.id, target, context)];
     case "remote>branch":
       return [merge(source, target.id, head), setUpstream(target.id, source.id, context)];
     case "branch>commit":
     case "branch>tag":
-      return [rebase(source.id, target, head), moveBranch(source.id, target, context)];
+      return [rebase(source.id, target, context), moveBranch(source.id, target, context)];
     case "tag>branch":
       return [merge(source, target.id, head), moveTag(source.id, target, context)];
     case "tag>remote":

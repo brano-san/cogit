@@ -127,6 +127,11 @@ describe("dropActions", () => {
     expect(ids(feature, main)).toEqual(["merge", "rebase"]);
   });
 
+  it("does not rebase a branch onto its own commit", () => {
+    expect(find(main, { kind: "commit", id: "m1" }, "rebase", context("main"))?.disabled).toBeTruthy();
+    expect(find(main, remote, "rebase", context("main"))?.disabled).toBeTruthy();
+  });
+
   it("merges into and rebases only the checked-out branch", () => {
     expect(find(feature, main, "merge", context("dev"))?.disabled).toBeTruthy();
     expect(find(feature, main, "merge", context("main"))?.disabled).toBeUndefined();
