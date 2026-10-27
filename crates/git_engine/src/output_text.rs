@@ -144,7 +144,15 @@ fn header_value_at(line: &str) -> Option<(usize, usize)> {
     ))
 }
 
-const SECRET_WORDS: &[&str] = &["token", "password", "passwd", "secret", "apikey", "api_key"];
+const SECRET_WORDS: &[&str] = &[
+    "token",
+    "password",
+    "passwd",
+    "passphrase",
+    "secret",
+    "apikey",
+    "api_key",
+];
 
 /// `NAME=value` in an environment or config dump, where the name says the value is a
 /// secret. A name with spaces or a `/` is a sentence or a URL, not a variable.

@@ -78,6 +78,7 @@ fn an_environment_variable_that_names_a_secret_is_hidden() {
         "GITHUB_TOKEN=ghp_xyz",
         "MY_PASSWORD=hunter2",
         "some_secret=abc123",
+        "COGIT_SSH_PASSPHRASE=hunter2",
     ] {
         let clean = redact_secrets(line);
         assert!(!clean.contains("ghp_xyz"), "{clean}");
