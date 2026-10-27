@@ -170,3 +170,17 @@ fn a_folder_gone_from_disk_is_reported_as_missing() {
         "{err:?}"
     );
 }
+
+#[cfg(windows)]
+#[test]
+fn the_same_folder_in_another_letter_case_is_one_repository() {
+    let f = test_fixtures::linear(1).unwrap();
+    let state = AppState::new();
+    let lower = f.path().to_string_lossy().to_lowercase();
+    let upper = f.path().to_string_lossy().to_uppercase();
+
+    let first = state.open_repository(std::path::Path::new(&lower)).unwrap();
+    let second = state.open_repository(std::path::Path::new(&upper)).unwrap();
+
+    assert_eq!(first.repo, second.repo);
+}

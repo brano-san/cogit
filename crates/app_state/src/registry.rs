@@ -292,7 +292,7 @@ impl AppState {
         self.repos
             .read()
             .values()
-            .find(|r| r.listed && r.root == root)
+            .find(|r| r.listed && same_root(&r.root, root))
             .map(|r| r.id)
     }
 
@@ -338,7 +338,7 @@ impl AppState {
         let lane = owner
             .and_then(|owner| repos.get(&owner))
             .map_or(common_dir, |owner| owner.lane.clone());
-        if let Some(open) = repos.values_mut().find(|open| open.root == root) {
+        if let Some(open) = repos.values_mut().find(|open| same_root(&open.root, &root)) {
             open.listed |= listed;
             return Some(open.id);
         }
@@ -451,6 +451,19 @@ impl Steps {
             steps = %breakdown.join(" "),
             "repository read"
         );
+    }
+}
+
+fn same_root(a: &Path, b: &Path) -> bool {
+    a == b || root_key(a) == root_key(b)
+}
+
+fn root_key(path: &Path) -> PathBuf {
+    let path = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    if cfg!(windows) {
+        PathBuf::from(path.to_string_lossy().to_lowercase())
+    } else {
+        path
     }
 }
 
