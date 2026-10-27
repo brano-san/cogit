@@ -199,8 +199,12 @@ impl RepoHandle {
         let on_server = self
             .tracked_name(remote, &tracking)
             .unwrap_or_else(|| format!("refs/heads/{short}"));
-        let auth = self.auth_env(remote, gix::remote::Direction::Fetch, &credential);
-        let listed = self.run_streaming_read(&["ls-remote", remote, &on_server], &auth, |_| {})?;
+        let (server, direction) = match self.push_url_apart(remote) {
+            Some(url) => (url, gix::remote::Direction::Push),
+            None => (remote.to_owned(), gix::remote::Direction::Fetch),
+        };
+        let auth = self.auth_env(remote, direction, &credential);
+        let listed = self.run_streaming_read(&["ls-remote", &server, &on_server], &auth, |_| {})?;
         let there = listed.lines().any(|line| {
             line.split_once('\t')
                 .is_some_and(|(_, name)| name == on_server)
@@ -214,6 +218,13 @@ impl RepoHandle {
             self.run_git(&["update-ref", "-d", &tracking])?;
         }
         Ok(RemoteDeletion::AlreadyGone)
+    }
+
+    fn push_url_apart(&self, remote: &str) -> Option<String> {
+        let found = self.repo.find_remote(remote).ok()?;
+        let push = found.url(gix::remote::Direction::Push)?.to_bstring();
+        let fetch = found.url(gix::remote::Direction::Fetch)?.to_bstring();
+        (push != fetch).then(|| push.to_string())
     }
 
     /// The server's name for what `tracking` follows, by `remote`'s fetch refspecs.

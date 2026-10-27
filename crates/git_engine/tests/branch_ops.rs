@@ -238,3 +238,25 @@ fn a_remote_branch_is_named_without_its_remote_prefix() {
             .any(|branch| branch.name.ends_with("short"))
     );
 }
+
+#[test]
+fn a_remote_branch_is_deleted_where_pushes_go() {
+    let f = test_fixtures::with_remote().unwrap();
+    let fork = tempfile::tempdir().unwrap();
+    let fork_path = fork.path().join("fork.git");
+    let fork_url = fork_path.to_string_lossy().replace('\\', "/");
+    f.git(&["init", "-q", "--bare", &fork_url]).unwrap();
+    f.git(&["remote", "set-url", "--push", "origin", &fork_url])
+        .unwrap();
+    f.git(&["push", "origin", "HEAD:refs/heads/topic"]).unwrap();
+    f.git(&["update-ref", "refs/remotes/origin/topic", "HEAD"])
+        .unwrap();
+
+    let result = open(&f)
+        .delete_remote_branch("origin", "origin/topic", |_| None)
+        .unwrap();
+
+    assert_eq!(result, RemoteDeletion::Deleted);
+    let left = f.git(&["ls-remote", &fork_url]).unwrap();
+    assert!(!left.contains("refs/heads/topic"), "{left}");
+}
