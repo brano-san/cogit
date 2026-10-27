@@ -113,6 +113,10 @@ describe("selectAllKeys", () => {
     expect(selectAllKeys(panes, null, new Set())).toEqual(["0:a", "0:b"]);
     expect(selectAllKeys([], null, new Set())).toEqual([]);
   });
+  it("leaves a touched pane that emptied or went", () => {
+    expect(selectAllKeys([[], ["1:a"]], 0, new Set())).toEqual(["1:a"]);
+    expect(selectAllKeys([["0:a"]], -1, new Set())).toEqual(["0:a"]);
+  });
 });
 
 // Each click on a file made the panel build its sections anew: the content search started
