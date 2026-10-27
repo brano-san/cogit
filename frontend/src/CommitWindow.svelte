@@ -125,6 +125,7 @@
       unborn,
       busy: worktree.loading || !loaded,
       committing,
+      conflicted: selected.filter((file) => file.status === "conflicted").length,
     }),
   );
   const canCommit = $derived(blocked === null);
@@ -253,6 +254,7 @@
         mode,
         selected.map((file) => file.path),
         worktree.staged,
+        worktree.unstaged,
       );
       if (plan.stage.length > 0) await worktree.stage(request.repo, plan.stage);
       await worktree.commit(request.repo, message, amend, noVerify, plan.only, signoff);

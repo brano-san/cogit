@@ -113,13 +113,16 @@ describe("counter", () => {
 describe("planCommit", () => {
   const staged = [file("a"), file("b")];
   it("commits everything staged when every staged file is ticked", () => {
-    expect(planCommit("staged", ["a", "b"], staged)).toEqual({ stage: [], only: [] });
+    expect(planCommit("staged", ["a", "b"], staged, [])).toEqual({ stage: [], only: [] });
   });
   it("narrows a staged commit to the ticked files", () => {
-    expect(planCommit("staged", ["a"], staged)).toEqual({ stage: [], only: ["a"] });
+    expect(planCommit("staged", ["a"], staged, [])).toEqual({ stage: [], only: ["a"] });
   });
-  it("stages the local files that are not in the index and commits exactly the ticked ones", () => {
-    expect(planCommit("local", ["a", "c"], staged)).toEqual({ stage: ["c"], only: ["a", "c"] });
+  it("stages the ticked local files with working tree changes and commits exactly the ticked ones", () => {
+    expect(planCommit("local", ["a", "c"], staged, [file("c")])).toEqual({ stage: ["c"], only: ["a", "c"] });
+  });
+  it("stages a partly staged file whole", () => {
+    expect(planCommit("local", ["a"], staged, [file("a")])).toEqual({ stage: ["a"], only: ["a"] });
   });
 });
 
@@ -133,11 +136,15 @@ describe("ready", () => {
     unborn: false,
     busy: false,
     committing: false,
+    conflicted: 0,
   };
   it("needs a message and a ticked file", () => {
     expect(ready(base)).toBe(true);
     expect(ready({ ...base, message: " " })).toBe(false);
     expect(ready({ ...base, ticked: 0 })).toBe(false);
+  });
+  it("holds while a ticked file is conflicted", () => {
+    expect(ready({ ...base, conflicted: 1 })).toBe(false);
   });
   it("lets Amend reword when nothing is staged at all", () => {
     expect(ready({ ...base, ticked: 0, stagedTotal: 0, amend: true })).toBe(true);

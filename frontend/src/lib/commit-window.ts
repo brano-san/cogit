@@ -114,12 +114,17 @@ export interface CommitPlan {
 
 /** Staged mode narrows the commit to the ticked files unless they are all of the staged
     ones; local mode stages what is not staged yet and commits exactly the ticked files. */
-export function planCommit(mode: CommitMode, ticked: readonly string[], staged: readonly FileEntry[]): CommitPlan {
-  const inIndex = new Set(staged.map((file) => file.path));
+export function planCommit(
+  mode: CommitMode,
+  ticked: readonly string[],
+  staged: readonly FileEntry[],
+  unstaged: readonly FileEntry[],
+): CommitPlan {
   if (mode === "staged") {
     return { stage: [], only: ticked.length === staged.length ? [] : [...ticked] };
   }
-  return { stage: ticked.filter((path) => !inIndex.has(path)), only: [...ticked] };
+  const changed = new Set(unstaged.map((file) => file.path));
+  return { stage: ticked.filter((path) => changed.has(path)), only: [...ticked] };
 }
 
 export interface ReadyState {
@@ -131,12 +136,14 @@ export interface ReadyState {
   unborn: boolean;
   busy: boolean;
   committing: boolean;
+  conflicted: number;
 }
 
 /** Why Commit holds, shown on it; `null` when it may go. Amend may reword with no file
     ticked, but only when nothing is staged: with staged files, an empty selection would
     commit all of them. */
 export function readyBlocker(state: ReadyState): string | null {
+  if (state.conflicted > 0) return "Resolve the conflicts first: a ticked file still has conflict markers";
   const rewordOnly = state.amend && !state.unborn && state.ticked === 0;
   const box = {
     message: state.message,
