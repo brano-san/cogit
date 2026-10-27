@@ -35,6 +35,40 @@ impl<Id: Copy> Walked<Id> for (Id, Vec<Id>, i64) {
     }
 }
 
+pub(crate) struct AfterHead<T, Id> {
+    pub(crate) item: T,
+    parents: Vec<Id>,
+}
+
+impl<Id: Copy, T: Walked<Id>> Walked<Id> for AfterHead<T, Id> {
+    fn id(&self) -> Id {
+        self.item.id()
+    }
+
+    fn parents(&self) -> &[Id] {
+        &self.parents
+    }
+}
+
+pub(crate) fn merged_after_head<Id, T, I>(
+    walk: I,
+    head: Id,
+    merge: Id,
+) -> impl Iterator<Item = AfterHead<T, Id>>
+where
+    Id: Copy + Eq,
+    T: Walked<Id>,
+    I: Iterator<Item = T>,
+{
+    walk.map(move |item| {
+        let mut parents = item.parents().to_vec();
+        if item.id() == head {
+            parents.push(merge);
+        }
+        AfterHead { item, parents }
+    })
+}
+
 pub(crate) struct Ordered<Id, T, I> {
     source: I,
     drained: bool,
@@ -237,6 +271,30 @@ where
 #[cfg(test)]
 mod tests {
     use super::in_date_order as order;
+
+    #[test]
+    fn a_merge_in_progress_comes_after_head_in_both_orders() {
+        let commits: Vec<(u32, Vec<u32>)> =
+            vec![(9, vec![1]), (5, vec![2]), (2, vec![1]), (1, vec![])];
+        let date: Vec<u32> = order(
+            super::merged_after_head(commits.clone().into_iter(), 2, 9),
+            16,
+            Some(2),
+        )
+        .map(|ordered| ordered.item.0)
+        .collect();
+        let graph: Vec<u32> = super::in_graph_order(
+            super::merged_after_head(commits.into_iter(), 2, 9),
+            Some(2),
+            false,
+        )
+        .map(|ordered| ordered.item.0)
+        .collect();
+        for order in [date, graph] {
+            let at = |id: u32| order.iter().position(|seen| *seen == id);
+            assert!(at(2) < at(9), "{order:?}");
+        }
+    }
     use std::collections::HashSet;
 
     fn run(commits: &[(u32, &[u32])], lookahead: usize) -> Vec<u32> {

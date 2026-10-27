@@ -607,3 +607,32 @@ fn the_working_tree_row_of_a_merge_comes_out_when_rows_are_held_back_too() {
     assert_eq!(rows, [(0, 0), (1, 1), (2, 0)]);
     assert!(state.graph_working_tree(repo, generation).is_some());
 }
+
+#[test]
+fn a_merge_of_a_newer_branch_keeps_its_commit_below_the_working_tree() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["switch", "-q", "-c", "other"]).unwrap();
+    f.commit_file(30, "x.txt", "other\n").unwrap();
+    let merged = f.oid("HEAD").unwrap();
+    f.git(&["switch", "-q", "main"]).unwrap();
+    let head = f.commit_file(10, "x.txt", "main\n").unwrap();
+    f.git(&["switch", "-q", "-c", "feature"]).unwrap();
+    f.commit_file(20, "y.txt", "feature\n").unwrap();
+    f.git(&["switch", "-q", "main"]).unwrap();
+    assert!(f.git(&["merge", "other"]).is_err());
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    for date_order in [false, true] {
+        let mut query = visible(&["HEAD", "refs/heads/feature", "refs/heads/other"]);
+        query.view.date_order = date_order;
+        let generation = state.begin_graph();
+        state
+            .build_graph(repo, &query, generation, 100, |_| true)
+            .unwrap();
+        let window = state.graph_window(repo, generation, 0, u32::MAX).unwrap();
+        let at = |oid: &str| window.commits.iter().position(|c| c.oid == oid).unwrap();
+
+        assert!(at(&head) < at(&merged), "date order {date_order}");
+    }
+}

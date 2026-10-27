@@ -2,7 +2,7 @@ use rayon::prelude::*;
 
 use crate::graph_walk::{ByTime, CommitReader, CutParents, Reuse, WalkedHistory};
 use crate::text_search::TextMatch;
-use crate::topo::{LOOKAHEAD, in_date_order, in_graph_order};
+use crate::topo::{LOOKAHEAD, in_date_order, in_graph_order, merged_after_head};
 use crate::{CommitRow, Mailmap, RepoHandle, Result, TextFields};
 use serde::{Deserialize, Serialize};
 
@@ -239,10 +239,22 @@ impl RepoHandle {
                 passed,
             };
             // A filtered list keeps the graph's order: it only leaves rows out.
-            let ordered: Box<dyn Iterator<Item = _>> = if query.view.date_order {
-                Box::new(in_date_order(walk, LOOKAHEAD, head))
-            } else {
-                Box::new(in_graph_order(walk, head, first_parent))
+            let merging = head.zip(self.merge_head()).filter(|_| !first_parent);
+            let ordered: Box<dyn Iterator<Item = _>> = match (merging, query.view.date_order) {
+                (Some((head, merge)), true) => Box::new(
+                    in_date_order(merged_after_head(walk, head, merge), LOOKAHEAD, Some(head))
+                        .map(|ordered| ordered.item),
+                ),
+                (Some((head, merge)), false) => Box::new(
+                    in_graph_order(
+                        merged_after_head(walk, head, merge),
+                        Some(head),
+                        first_parent,
+                    )
+                    .map(|ordered| ordered.item),
+                ),
+                (None, true) => Box::new(in_date_order(walk, LOOKAHEAD, head)),
+                (None, false) => Box::new(in_graph_order(walk, head, first_parent)),
             };
             self.stream_rows(query, chunk_size, ordered, rows, on_chunk)?;
         }
