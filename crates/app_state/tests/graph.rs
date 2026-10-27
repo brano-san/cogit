@@ -636,3 +636,29 @@ fn a_merge_of_a_newer_branch_keeps_its_commit_below_the_working_tree() {
         assert!(at(&head) < at(&merged), "date order {date_order}");
     }
 }
+
+#[test]
+fn a_cut_line_from_the_working_tree_points_at_head() {
+    let f = test_fixtures::conflicted().unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let head = f.oid("HEAD").unwrap();
+    let generation = state.begin_graph();
+    let query = git_engine::CommitQuery {
+        long_link_rows: Some(1),
+        ..visible(&["HEAD"])
+    };
+    state
+        .build_graph(repo, &query, generation, 100, |_| true)
+        .unwrap();
+    let window = state.graph_window(repo, generation, 0, u32::MAX).unwrap();
+
+    let links: Vec<&str> = window
+        .rows
+        .iter()
+        .flat_map(|row| &row.links)
+        .map(|link| link.oid.as_str())
+        .collect();
+    assert!(!links.contains(&"working-tree"), "{links:?}");
+    assert!(links.contains(&head.as_str()), "{links:?}");
+}

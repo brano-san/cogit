@@ -271,6 +271,11 @@ impl WorkingTree {
             if row.row > at {
                 row.row -= 1;
             }
+            for link in &mut row.links {
+                if link.oid == Self::OID {
+                    link.oid.clone_from(&self.head);
+                }
+            }
             true
         });
         taken
