@@ -16,7 +16,7 @@ async fn a_subscriber_that_falls_behind_recovers_instead_of_dying() {
     let state = AppState::new();
     let mut slow = state.subscribe();
 
-    for _ in 0..600 {
+    for _ in 0..10_000 {
         state.emit(AppEvent::RepoOpened {
             repo: app_state::RepoId(1),
         });
@@ -39,7 +39,7 @@ async fn a_forwarding_loop_keeps_going_after_it_falls_behind() {
     let state = AppState::new();
     let mut slow = state.subscribe();
 
-    for _ in 0..600 {
+    for _ in 0..10_000 {
         state.emit(AppEvent::RepoOpened {
             repo: app_state::RepoId(1),
         });
@@ -68,7 +68,7 @@ async fn one_slow_subscriber_does_not_stop_another() {
     });
     assert!(fast.try_recv().is_ok());
 
-    for _ in 0..600 {
+    for _ in 0..10_000 {
         state.emit(AppEvent::RepoClosed {
             repo: app_state::RepoId(1),
         });
