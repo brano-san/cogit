@@ -4,7 +4,7 @@ use crate::{AppState, RepoId};
 use git_engine::{BranchDeletion, GitError, NetworkStop};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum RefDeletionKind {
     Branch,
@@ -12,7 +12,7 @@ pub enum RefDeletionKind {
     Tag,
 }
 
-#[derive(Debug, Clone, Deserialize, specta::Type)]
+#[derive(Debug, Clone, serde::Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RefDeletion {
     pub kind: RefDeletionKind,
@@ -23,21 +23,21 @@ pub struct RefDeletion {
     pub force: bool,
 }
 
-#[derive(Debug, Serialize, specta::Type)]
+#[derive(Debug, Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SkippedDeletion {
     pub name: String,
     pub reason: String,
 }
 
-#[derive(Debug, Serialize, specta::Type)]
+#[derive(Debug, Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FailedDeletion {
     pub name: String,
     pub error: GitError,
 }
 
-#[derive(Debug, Default, Serialize, specta::Type)]
+#[derive(Debug, Default, Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RefDeletionReport {
     pub deleted: Vec<String>,
@@ -72,7 +72,7 @@ pub fn split_deletable(
 }
 
 impl AppState {
-    pub fn delete_refs(
+    pub(crate) fn local_delete_refs(
         &self,
         repo: RepoId,
         request: &RefDeletion,

@@ -3,7 +3,7 @@ use serde::Serialize;
 use std::collections::BTreeMap;
 
 /// What went; empty: nothing qualified and nothing ran.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Pushed {
     pub branches: Vec<String>,
@@ -81,7 +81,7 @@ impl RepoHandle {
     }
 }
 /// Detached, a pull only fetches: there is no branch to merge into.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum PullOutcome {
     /// Fast-forwarded, or nothing to take.

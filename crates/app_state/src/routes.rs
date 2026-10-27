@@ -38,9 +38,9 @@ macro_rules! routed {
         }
 
         impl RepoCall {
-            pub(crate) fn run(self, state: &AppState, stop: &NetworkStop) -> Result<Value, Value> {
+            pub(crate) fn run(self, state: &AppState, call: &agent::Call) -> Result<Value, Value> {
                 match self {
-                    $(Self::$name(call) => $name::run(call, state, stop),)*
+                    $(Self::$name(each) => $name::run(each, state, call),)*
                 }
             }
 
@@ -51,39 +51,50 @@ macro_rules! routed {
             }
         }
 
-        $(route!(@munch [call stop] [$($mode)?] $name $local [$answer] [] [] [] [] [] [None]; $($args)*);)*
+        $(route!(@munch [call agent] [$($mode)?] $name $local [$answer] [] [] [] [] [] [None] [None]; $($args)*);)*
     };
 }
 
 macro_rules! route {
-    (@munch [$call:ident $stopv:ident] [$($mode:ident)?] $name:ident $local:ident [$answer:ty] [$($p:tt)*] [$($f:tt)*] [$($o:tt)*] [$($l:tt)*] [$($c:tt)*] [$stop:expr];
+    (@munch [$call:ident $agent:ident] [$($mode:ident)?] $name:ident $local:ident [$answer:ty] [$($p:tt)*] [$($f:tt)*] [$($o:tt)*] [$($l:tt)*] [$($c:tt)*] [$stop:expr] [$sink:expr];
         $n:ident: &NetworkStop $(, $($rest:tt)*)?) => {
-        route!(@munch [$call $stopv] [$($mode)?] $name $local [$answer] [$($p)* $n: &NetworkStop,] [$($f)*] [$($o)*] [$($l)* $stopv,] [$($c)* $n,] [Some($n)]; $($($rest)*)?);
+        route!(@munch [$call $agent] [$($mode)?] $name $local [$answer] [$($p)* $n: &NetworkStop,] [$($f)*] [$($o)*] [$($l)* $agent.stop(),] [$($c)* $n,] [Some($n)] [$sink]; $($($rest)*)?);
     };
-    (@munch [$call:ident $stopv:ident] [$($mode:ident)?] $name:ident $local:ident [$answer:ty] [$($p:tt)*] [$($f:tt)*] [$($o:tt)*] [$($l:tt)*] [$($c:tt)*] [$stop:expr];
+    (@munch [$call:ident $agent:ident] [$($mode:ident)?] $name:ident $local:ident [$answer:ty] [$($p:tt)*] [$($f:tt)*] [$($o:tt)*] [$($l:tt)*] [$($c:tt)*] [$stop:expr] [$sink:expr];
+        $n:ident: impl FnMut(&str) $(, $($rest:tt)*)?) => {
+        route!(@munch [$call $agent] [$($mode)?] $name $local [$answer]
+            [$($p)* mut $n: impl FnMut(&str),]
+            [$($f)*]
+            [$($o)*]
+            [$($l)* |line: &str| {
+                $agent.chunk(Value::String(line.to_owned()));
+            },]
+            [$($c)* $n,] [$stop] [Some(&mut $n as &mut dyn FnMut(&str))]; $($($rest)*)?);
+    };
+    (@munch [$call:ident $agent:ident] [$($mode:ident)?] $name:ident $local:ident [$answer:ty] [$($p:tt)*] [$($f:tt)*] [$($o:tt)*] [$($l:tt)*] [$($c:tt)*] [$stop:expr] [$sink:expr];
         $n:ident: Option<&$t:ty> $(, $($rest:tt)*)?) => {
-        route!(@munch [$call $stopv] [$($mode)?] $name $local [$answer]
+        route!(@munch [$call $agent] [$($mode)?] $name $local [$answer]
             [$($p)* $n: Option<&$t>,]
             [$($f)* $n: Option<<$t as ToOwned>::Owned>,]
             [$($o)* $n: $n.map(ToOwned::to_owned),]
             [$($l)* $call.$n.as_ref().map(<<$t as ToOwned>::Owned as Borrow<$t>>::borrow),]
-            [$($c)* $n,] [$stop]; $($($rest)*)?);
+            [$($c)* $n,] [$stop] [$sink]; $($($rest)*)?);
     };
-    (@munch [$call:ident $stopv:ident] [$($mode:ident)?] $name:ident $local:ident [$answer:ty] [$($p:tt)*] [$($f:tt)*] [$($o:tt)*] [$($l:tt)*] [$($c:tt)*] [$stop:expr];
+    (@munch [$call:ident $agent:ident] [$($mode:ident)?] $name:ident $local:ident [$answer:ty] [$($p:tt)*] [$($f:tt)*] [$($o:tt)*] [$($l:tt)*] [$($c:tt)*] [$stop:expr] [$sink:expr];
         $n:ident: &$t:ty $(, $($rest:tt)*)?) => {
-        route!(@munch [$call $stopv] [$($mode)?] $name $local [$answer]
+        route!(@munch [$call $agent] [$($mode)?] $name $local [$answer]
             [$($p)* $n: &$t,]
             [$($f)* $n: <$t as ToOwned>::Owned,]
             [$($o)* $n: $n.to_owned(),]
             [$($l)* <<$t as ToOwned>::Owned as Borrow<$t>>::borrow(&$call.$n),]
-            [$($c)* $n,] [$stop]; $($($rest)*)?);
+            [$($c)* $n,] [$stop] [$sink]; $($($rest)*)?);
     };
-    (@munch [$call:ident $stopv:ident] [$($mode:ident)?] $name:ident $local:ident [$answer:ty] [$($p:tt)*] [$($f:tt)*] [$($o:tt)*] [$($l:tt)*] [$($c:tt)*] [$stop:expr];
+    (@munch [$call:ident $agent:ident] [$($mode:ident)?] $name:ident $local:ident [$answer:ty] [$($p:tt)*] [$($f:tt)*] [$($o:tt)*] [$($l:tt)*] [$($c:tt)*] [$stop:expr] [$sink:expr];
         $n:ident: $t:ty $(, $($rest:tt)*)?) => {
-        route!(@munch [$call $stopv] [$($mode)?] $name $local [$answer]
-            [$($p)* $n: $t,] [$($f)* $n: $t,] [$($o)* $n,] [$($l)* $call.$n,] [$($c)* $n,] [$stop]; $($($rest)*)?);
+        route!(@munch [$call $agent] [$($mode)?] $name $local [$answer]
+            [$($p)* $n: $t,] [$($f)* $n: $t,] [$($o)* $n,] [$($l)* $call.$n,] [$($c)* $n,] [$stop] [$sink]; $($($rest)*)?);
     };
-    (@munch [$call:ident $stopv:ident] [] $name:ident $local:ident [$answer:ty] [$($p:tt)*] [$($f:tt)*] [$($o:tt)*] [$($l:tt)*] [$($c:tt)*] [$stop:expr];) => {
+    (@munch [$call:ident $agent:ident] [] $name:ident $local:ident [$answer:ty] [$($p:tt)*] [$($f:tt)*] [$($o:tt)*] [$($l:tt)*] [$($c:tt)*] [$stop:expr] [$sink:expr];) => {
         #[allow(non_camel_case_types)]
         #[derive(Debug, Serialize, Deserialize)]
         pub(crate) struct $name {
@@ -93,24 +104,26 @@ macro_rules! route {
 
         impl $name {
             #[allow(unused_variables)]
-            fn run($call: Self, state: &AppState, $stopv: &NetworkStop) -> Result<Value, Value> {
+            fn run($call: Self, state: &AppState, $agent: &agent::Call) -> Result<Value, Value> {
                 answer(state.$local($call.repo, $($l)*))
             }
         }
 
         impl AppState {
+            #[allow(clippy::too_many_arguments)]
             pub fn $name(&self, repo: RepoId, $($p)*) -> $answer {
                 match self.remote(repo) {
                     None => self.$local(repo, $($c)*),
-                    Some(remote) => remote.ask(
+                    Some(remote) => remote.call(
                         &Request::Repo(RepoCall::$name($name { repo: remote.id(), $($o)* })),
                         $stop,
+                        $sink,
                     ),
                 }
             }
         }
     };
-    (@munch [$call:ident $stopv:ident] [quiet] $name:ident $local:ident [$answer:ty] [$($p:tt)*] [$($f:tt)*] [$($o:tt)*] [$($l:tt)*] [$($c:tt)*] [$stop:expr];) => {
+    (@munch [$call:ident $agent:ident] [quiet] $name:ident $local:ident [$answer:ty] [$($p:tt)*] [$($f:tt)*] [$($o:tt)*] [$($l:tt)*] [$($c:tt)*] [$stop:expr] [$sink:expr];) => {
         #[allow(non_camel_case_types)]
         #[derive(Debug, Serialize, Deserialize)]
         pub(crate) struct $name {
@@ -120,19 +133,21 @@ macro_rules! route {
 
         impl $name {
             #[allow(unused_variables)]
-            fn run($call: Self, state: &AppState, $stopv: &NetworkStop) -> Result<Value, Value> {
+            fn run($call: Self, state: &AppState, $agent: &agent::Call) -> Result<Value, Value> {
                 answer(Ok::<_, GitError>(state.$local($call.repo, $($l)*)))
             }
         }
 
         impl AppState {
+            #[allow(clippy::too_many_arguments)]
             pub fn $name(&self, repo: RepoId, $($p)*) -> $answer {
                 match self.remote(repo) {
                     None => self.$local(repo, $($c)*),
                     Some(remote) => remote
-                        .ask(
+                        .call(
                             &Request::Repo(RepoCall::$name($name { repo: remote.id(), $($o)* })),
                             $stop,
+                            $sink,
                         )
                         .unwrap_or_else(|err| {
                             tracing::error!(error = ?err, context = stringify!($name));
@@ -144,7 +159,45 @@ macro_rules! route {
     };
 }
 
+pub(crate) type ConflictsReader = Box<dyn Fn() -> Result<Vec<String>, GitError> + Send>;
+
+impl AppState {
+    pub(crate) fn conflicts_reader(&self, repo: RepoId) -> Result<ConflictsReader, GitError> {
+        Ok(match self.remote(repo) {
+            Some(remote) => Box::new(move || {
+                remote.ask(
+                    &Request::Repo(RepoCall::conflicted_paths(conflicted_paths {
+                        repo: remote.id(),
+                    })),
+                    None,
+                )
+            }),
+            None => {
+                let handle = self.handle(repo)?;
+                Box::new(move || handle.conflicted_paths())
+            }
+        })
+    }
+}
+
 routed! {
+    fn preset_statuses(presets: &[(git_engine::Preset, bool)]) -> Result<Vec<crate::PresetStatus>, GitError> = local_preset_statuses;
+    fn merge_sides(path: &str) -> Result<crate::solver::MergeSides, GitError> = local_merge_sides;
+    fn merge_tool_config() -> Result<git_engine::MergeToolConfig, GitError> = local_merge_tool_config;
+    fn fetch(remote: &str, stop: &NetworkStop, sign_in: Option<&crate::SignIn>, on_line: impl FnMut(&str)) -> Result<(), GitError> = local_fetch;
+    fn pull(remote: &str, autostash: bool, stop: &NetworkStop, sign_in: Option<&crate::SignIn>, on_line: impl FnMut(&str)) -> Result<git_engine::PullOutcome, GitError> = local_pull;
+    fn push(remote: &str, force: bool, stop: &NetworkStop, sign_in: Option<&crate::SignIn>, on_line: impl FnMut(&str)) -> Result<Option<git_engine::Pushed>, GitError> = local_push;
+    fn fetch_more(remote: &str, stop: &NetworkStop, sign_in: Option<&crate::SignIn>, on_line: impl FnMut(&str)) -> Result<bool, GitError> = local_fetch_more;
+    fn fetch_depth(remote: &str, depth: u32, stop: &NetworkStop, sign_in: Option<&crate::SignIn>, on_line: impl FnMut(&str)) -> Result<(), GitError> = local_fetch_depth;
+    fn push_to(remote: &str, refspec: &str, track: bool, stop: &NetworkStop, sign_in: Option<&crate::SignIn>, on_line: impl FnMut(&str)) -> Result<(), GitError> = local_push_to;
+    fn fetch_with(remote: &str, options: git_engine::FetchOptions, stop: &NetworkStop, sign_in: Option<&crate::SignIn>, on_line: impl FnMut(&str)) -> Result<git_engine::NotesFetch, GitError> = local_fetch_with;
+    fn pull_with(remote: &str, options: git_engine::PullOptions, stop: &NetworkStop, sign_in: Option<&crate::SignIn>, on_line: impl FnMut(&str)) -> Result<git_engine::Pulled, GitError> = local_pull_with;
+    fn push_with(options: &PushOptions, stop: &NetworkStop, sign_in: Option<&crate::SignIn>, on_line: impl FnMut(&str)) -> Result<git_engine::PushOutcome, GitError> = local_push_with;
+    fn push_dry_run(options: &PushOptions, stop: &NetworkStop, sign_in: Option<&crate::SignIn>, on_line: impl FnMut(&str)) -> Result<git_engine::GitOutput, GitError> = local_push_dry_run;
+    fn push_notes(remote: &str, stop: &NetworkStop, sign_in: Option<&crate::SignIn>, on_line: impl FnMut(&str)) -> Result<git_engine::PushOutcome, GitError> = local_push_notes;
+    fn delete_remote_branch(remote: &str, branch: &str, stop: &NetworkStop, sign_in: Option<&crate::SignIn>) -> Result<git_engine::RemoteDeletion, GitError> = local_delete_remote_branch;
+    fn delete_remote_tag(remote: &str, name: &str, stop: &NetworkStop, sign_in: Option<&crate::SignIn>) -> Result<(), GitError> = local_delete_remote_tag;
+    fn delete_refs(request: &crate::RefDeletion, stop: &NetworkStop, sign_in: Option<&crate::SignIn>) -> Result<crate::RefDeletionReport, GitError> = local_delete_refs;
     fn graph_window(generation: u32, start: u32, count: u32) -> Option<GraphWindow> = local_graph_window, quiet;
     fn graph_working_tree(generation: u32) -> Option<graph_engine::GraphRow> = local_graph_working_tree, quiet;
     fn graph_row_of(generation: u32, oid: &str) -> Option<u32> = local_graph_row_of, quiet;

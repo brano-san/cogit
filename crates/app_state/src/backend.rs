@@ -149,6 +149,25 @@ impl Host {
         }
     }
 
+    fn source_path(&self, source: &str) -> String {
+        let windows_drive = source.as_bytes().get(1) == Some(&b':')
+            && source
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_ascii_alphabetic());
+        match self {
+            Self::Wsl { .. } if Host::of(Path::new(source)).as_ref() == Some(self) => {
+                self.agent_path(Path::new(source))
+            }
+            Self::Wsl { .. } if windows_drive => format!(
+                "/mnt/{}{}",
+                source[..1].to_ascii_lowercase(),
+                source[2..].replace('\\', "/")
+            ),
+            _ => source.to_owned(),
+        }
+    }
+
     pub(crate) fn local_path(&self, path: &str) -> PathBuf {
         match self {
             Self::Loopback(_) => PathBuf::from(path),
@@ -247,10 +266,13 @@ impl Agent {
     fn start(
         host: &Host,
         on_event: impl Fn(Value) + Send + Clone + 'static,
+        on_ask: impl Fn(Value) -> Value + Send + Sync + Clone + 'static,
         on_lost: impl FnOnce(String) + Send + 'static,
     ) -> Result<Self, GitError> {
-        let (client, spawned) = match Self::connect(host, on_event.clone()) {
-            Err((Some(NOT_INSTALLED), _)) if host.install()? => Self::connect(host, on_event),
+        let (client, spawned) = match Self::connect(host, on_event.clone(), on_ask.clone()) {
+            Err((Some(NOT_INSTALLED), _)) if host.install()? => {
+                Self::connect(host, on_event, on_ask)
+            }
             other => other,
         }
         .map_err(|(_, err)| err)?;
@@ -260,6 +282,7 @@ impl Agent {
     fn connect(
         host: &Host,
         on_event: impl Fn(Value) + Send + 'static,
+        on_ask: impl Fn(Value) -> Value + Send + Sync + 'static,
     ) -> Result<(agent::Client, Spawned), Failure> {
         let mut command = host.command().map_err(|err| (None, err))?;
         command
@@ -298,7 +321,7 @@ impl Agent {
             words,
             listener,
         };
-        match agent::Client::connect_with_events(output, input, on_event) {
+        match agent::Client::connect_with(output, input, on_event, on_ask) {
             Ok(client) => Ok((client, spawned)),
             Err(err) => {
                 let (code, told) = spawned.finish();
@@ -391,6 +414,37 @@ impl Drop for Agent {
     }
 }
 
+fn check_git(host: &Host, agent: &Agent) -> Result<(), GitError> {
+    let version: String = agent.ask(&Request::GitVersion, None).map_err(|err| {
+        GitError::Unavailable(format!(
+            "Git is not installed in {}, and Cogit needs it there: sudo apt install git\n{err}",
+            host.label()
+        ))
+    })?;
+    let version = version.trim_start_matches("git version ").to_owned();
+    if git_engine::is_below_min_git(&version) {
+        tracing::warn!(host = ?host, version, "git in the distribution is older than Cogit is tested with");
+    }
+    tracing::info!(host = ?host, version, "git of the agent");
+    Ok(())
+}
+
+fn linux_trash(paths: &[PathBuf]) -> std::io::Result<()> {
+    let platform = crate::desktop::Platform::current();
+    let Some(launch) = crate::desktop::trash_command(platform, paths) else {
+        return Err(std::io::Error::other("there is no bin on this system"));
+    };
+    crate::desktop::run(&launch).map_err(|err| {
+        if err.kind() == std::io::ErrorKind::NotFound {
+            std::io::Error::other(
+                "gio is not installed, so there is no bin to delete to: sudo apt install libglib2.0-bin",
+            )
+        } else {
+            err
+        }
+    })
+}
+
 fn garbled(err: &serde_json::Error) -> GitError {
     GitError::Internal(format!(
         "Cogit's agent sent an answer that does not parse: {err}"
@@ -428,6 +482,23 @@ impl Remote {
     ) -> Result<T, GitError> {
         self.agent.ask(request, stop)
     }
+
+    pub(crate) fn call<T: DeserializeOwned>(
+        &self,
+        request: &Request,
+        stop: Option<&NetworkStop>,
+        on_line: Option<&mut dyn FnMut(&str)>,
+    ) -> Result<T, GitError> {
+        let canceled = || stop.is_some_and(NetworkStop::is_stopped);
+        match on_line {
+            None => self.agent.stream(request, &canceled, &mut |_| {}),
+            Some(on_line) => self.agent.stream(request, &canceled, &mut |chunk| {
+                if let Value::String(line) = chunk {
+                    on_line(&line);
+                }
+            }),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -460,9 +531,21 @@ pub(crate) enum Request {
         repo: RepoId,
     },
     SafetyLog,
+    Trash {
+        repo: RepoId,
+        paths: Vec<String>,
+    },
     Overview {
         repo: RepoId,
     },
+    Clone {
+        request: git_engine::CloneRequest,
+        sign_in: Option<crate::SignIn>,
+    },
+    Init {
+        path: String,
+    },
+    GitVersion,
     Show {
         repo: Option<RepoId>,
     },
@@ -514,6 +597,20 @@ pub fn serve_agent(state: &AppState, request: Value, call: &agent::Call) -> Resu
         } => answer(state.save_config_file(Some(repo), scope, &text, crlf)),
         Request::Close { repo } => answer(Ok(state.close_repository(repo))),
         Request::SafetyLog => answer(Ok(state.safety_log())),
+        Request::Clone { request, sign_in } => answer(
+            state
+                .clone_repository(&request, sign_in.as_ref(), call.stop(), |line| {
+                    call.chunk(Value::String(line.to_owned()));
+                })
+                .map(|done| git_engine::slash_path(&done)),
+        ),
+        Request::GitVersion => answer(git_engine::git_version()),
+        Request::Init { path } => answer(
+            state
+                .init_repository(Path::new(&path))
+                .map(|done| git_engine::slash_path(&done)),
+        ),
+        Request::Trash { repo, paths } => answer(state.move_to_trash(repo, &paths, linux_trash)),
         Request::Overview { repo } => answer(
             state
                 .get(repo)
@@ -535,7 +632,7 @@ pub fn serve_agent(state: &AppState, request: Value, call: &agent::Call) -> Resu
         }),
         Request::Repo(repo_call) => {
             tracing::debug!(call = repo_call.name(), "agent call");
-            repo_call.run(state, call.stop())
+            repo_call.run(state, call)
         }
     }
 }
@@ -688,6 +785,41 @@ impl AppState {
         }
     }
 
+    pub(crate) fn clone_through(
+        &self,
+        host: &Host,
+        request: &git_engine::CloneRequest,
+        sign_in: Option<&crate::SignIn>,
+        stop: &NetworkStop,
+        mut on_line: impl FnMut(&str),
+    ) -> Result<PathBuf, GitError> {
+        let agent = self.agent(host)?;
+        let request = Request::Clone {
+            request: git_engine::CloneRequest {
+                source: host.source_path(request.source.trim()),
+                target: host.agent_path(Path::new(request.target.trim())),
+                ..request.clone()
+            },
+            sign_in: sign_in.cloned(),
+        };
+        let done: String = agent.stream(&request, &|| stop.is_stopped(), &mut |chunk| {
+            if let Value::String(line) = chunk {
+                on_line(&line);
+            }
+        })?;
+        Ok(host.local_path(&done))
+    }
+
+    pub(crate) fn init_through(&self, host: &Host, path: &Path) -> Result<PathBuf, GitError> {
+        let done: String = self.agent(host)?.ask(
+            &Request::Init {
+                path: host.agent_path(path),
+            },
+            None,
+        )?;
+        Ok(host.local_path(&done))
+    }
+
     pub(crate) fn overview_through(
         &self,
         open: &crate::OpenRepo,
@@ -788,9 +920,11 @@ impl AppState {
         };
         tell(BackendState::Starting);
         let lost = tell.clone();
+        let (asked, passwords) = (host.clone(), Arc::clone(&self.passwords));
         let started = Agent::start(
             host,
             move |event| sink.take(event),
+            move |question| crate::agent_events::answer_agent(&asked, &passwords, question),
             move |reason| lost(BackendState::Lost { reason }),
         );
         tell(if started.is_ok() {
@@ -799,6 +933,9 @@ impl AppState {
             BackendState::Failed
         });
         let agent = Arc::new(started?);
+        if let Host::Wsl { .. } = host {
+            check_git(host, &agent)?;
+        }
         if let Some(bytes) = self.graph_cache_budget()
             && let Err(err) = agent.ask::<()>(&Request::GraphBudget { bytes }, None)
         {

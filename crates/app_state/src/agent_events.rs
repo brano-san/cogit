@@ -22,7 +22,49 @@ enum AgentEvent {
     Command(git_engine::GitOutput),
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) enum Question {
+    Credential { url: String },
+    Remember { sign_in: crate::SignIn },
+}
+
+pub(crate) fn ask_window<T: serde::de::DeserializeOwned>(
+    window: &agent::Events,
+    question: &Question,
+) -> Option<T> {
+    let answer = window.ask(to_json(question))?;
+    serde_json::from_value(answer)
+        .inspect_err(|err| tracing::error!(error = ?err, context = "the window's answer"))
+        .ok()
+}
+
+pub(crate) fn answer_agent(
+    host: &Host,
+    passwords: &crate::credentials::Passwords,
+    question: Value,
+) -> Value {
+    match serde_json::from_value(question) {
+        Ok(Question::Credential { url }) => to_json(
+            &crate::credentials::stored_in(passwords, &url)
+                .filter(|credential| credential.key.is_none() || matches!(host, Host::Loopback(_))),
+        ),
+        Ok(Question::Remember { sign_in }) => {
+            if let Err(err) = crate::credentials::store_in(passwords, &sign_in) {
+                tracing::error!(error = ?err, host = %sign_in.host, context = "remembering a sign-in from the agent");
+            }
+            Value::Null
+        }
+        Err(err) => {
+            tracing::error!(error = ?err, context = "a question of the agent");
+            Value::Null
+        }
+    }
+}
+
 pub fn forward_agent_events(state: Arc<AppState>, events: agent::Events) {
+    if state.window.set(events.clone()).is_err() {
+        tracing::error!(context = "a second window for one agent");
+    }
     let commands = events.clone();
     state.tap_commands(Box::new(move |output| {
         commands.send(to_json(&AgentEvent::Command(output.clone())));

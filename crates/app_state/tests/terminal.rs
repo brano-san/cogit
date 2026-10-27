@@ -214,3 +214,31 @@ fn git_bash_comes_from_the_install_that_was_found() {
 
     assert_eq!(bash, std::path::Path::new("D:/Tools/Git/bin/bash.exe"));
 }
+
+#[test]
+fn a_folder_in_wsl_opens_a_shell_inside_its_distribution() {
+    let folder = r"\\wsl.localhost\Ubuntu\home\me\re;po";
+    let system = launch_for(Platform::Windows, Terminal::PowerShell, folder, None);
+    assert_eq!(system.program, "cmd.exe");
+    assert_eq!(
+        system.args,
+        [
+            "/C",
+            "start",
+            "",
+            "wsl.exe",
+            "-d",
+            "Ubuntu",
+            "--cd",
+            "/home/me/re;po"
+        ]
+    );
+    let wt = launch_for(Platform::Windows, Terminal::WindowsTerminal, folder, None);
+    assert_eq!(wt.program, "wt.exe");
+    assert_eq!(
+        wt.args,
+        ["wsl.exe", "-d", "Ubuntu", "--cd", r"/home/me/re\;po"]
+    );
+    assert_eq!(app_state::terminal::working_dir(folder), None);
+    assert!(app_state::terminal::working_dir(r"C:\repo").is_some());
+}

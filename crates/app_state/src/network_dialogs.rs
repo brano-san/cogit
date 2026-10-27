@@ -9,7 +9,7 @@ use git_engine::{
 
 impl AppState {
     /// Fetch Only.
-    pub fn fetch_with(
+    pub(crate) fn local_fetch_with(
         &self,
         repo: RepoId,
         remote: &str,
@@ -27,7 +27,7 @@ impl AppState {
 
     /// A branch that tracks nothing has nothing to merge: the dialog's Pull only fetches,
     /// as the toolbar's does (R-552).
-    pub fn pull_with(
+    pub(crate) fn local_pull_with(
         &self,
         repo: RepoId,
         remote: &str,
@@ -68,7 +68,7 @@ impl AppState {
         })
     }
 
-    pub fn push_with(
+    pub(crate) fn local_push_with(
         &self,
         repo: RepoId,
         options: &PushOptions,
@@ -83,7 +83,7 @@ impl AppState {
         })
     }
 
-    pub fn push_dry_run(
+    pub(crate) fn local_push_dry_run(
         &self,
         repo: RepoId,
         options: &PushOptions,
@@ -98,7 +98,7 @@ impl AppState {
     }
 
     /// Retry of the notes alone, after Fetch notes and merge.
-    pub fn push_notes(
+    pub(crate) fn local_push_notes(
         &self,
         repo: RepoId,
         remote: &str,

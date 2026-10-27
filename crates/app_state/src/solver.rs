@@ -4,6 +4,14 @@ use crate::{AppState, RepoId, merge_tool};
 use git_engine::{ConflictContext, GitError};
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MergeSides {
+    base: Option<Vec<u8>>,
+    ours: Option<Vec<u8>>,
+    theirs: Option<Vec<u8>>,
+    submodule: bool,
+}
+
 /// Past this a side is not merged line by line: the solver offers to take a side whole.
 pub const MAX_SOLVER_BYTES: usize = 4 * 1024 * 1024;
 
@@ -130,6 +138,27 @@ impl AppState {
     /// Launches the external tool on a copy of the three sides; the tool writes the working
     /// file itself, as `git mergetool` has it do. `program` empty falls back to git's
     /// `merge.tool`. `on_exit` runs on the waiter thread, after the temp files are removed.
+    pub(crate) fn local_merge_sides(
+        &self,
+        repo: RepoId,
+        path: &str,
+    ) -> Result<MergeSides, GitError> {
+        let sides = self.handle(repo)?.conflict_sides(path)?;
+        Ok(MergeSides {
+            submodule: sides.kind == git_engine::EntryKind::Submodule,
+            base: sides.base,
+            ours: sides.ours,
+            theirs: sides.theirs,
+        })
+    }
+
+    pub(crate) fn local_merge_tool_config(
+        &self,
+        repo: RepoId,
+    ) -> Result<git_engine::MergeToolConfig, GitError> {
+        self.handle(repo)?.merge_tool_config()
+    }
+
     pub fn start_merge_tool(
         &self,
         repo: RepoId,
@@ -139,16 +168,15 @@ impl AppState {
         temp_root: &std::path::Path,
         on_exit: impl FnOnce(MergeToolOutcome) + Send + 'static,
     ) -> Result<(), GitError> {
-        let handle = self.handle(repo)?;
-        let sides = handle.conflict_sides(path)?;
+        let sides = self.merge_sides(repo, path)?;
         // The tool would write its result over the submodule's folder.
-        if sides.kind == git_engine::EntryKind::Submodule {
+        if sides.submodule {
             return Err(GitError::InvalidState(format!(
                 "{path} is a submodule: take ours or theirs, a merge tool cannot merge it"
             )));
         }
         let (program, args) = if program.trim().is_empty() {
-            let config = handle.merge_tool_config()?;
+            let config = self.merge_tool_config(repo)?;
             merge_tool::from_git_config(&merge_tool::GitToolConfig {
                 tool: config.tool,
                 cmd: config.cmd,
@@ -158,9 +186,10 @@ impl AppState {
         } else {
             (program.to_owned(), args.to_owned())
         };
+        let root = self.root_of(repo)?;
         let files = merge_tool::prepare(
             temp_root,
-            handle.root(),
+            &root,
             path,
             sides.base.as_deref(),
             sides.ours.as_deref(),
@@ -179,15 +208,14 @@ impl AppState {
             path: path.to_owned(),
         };
         let owned = path.to_owned();
-        let root = handle.root().to_path_buf();
+        let conflicted_now = self.conflicts_reader(repo)?;
         let cwd = root.clone();
         self.merge_tools
             .start(key, command, &cwd, files, move |exit| {
                 let markers_left = std::fs::read(root.join(&owned))
                     .map(|bytes| merge_tool::has_conflict_markers(&String::from_utf8_lossy(&bytes)))
                     .unwrap_or(false);
-                let conflicted = handle
-                    .conflicted_paths()
+                let conflicted = conflicted_now()
                     .map(|paths| paths.contains(&owned))
                     .unwrap_or(true);
                 on_exit(MergeToolOutcome {

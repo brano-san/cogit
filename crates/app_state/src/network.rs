@@ -72,7 +72,7 @@ impl AppState {
         self.handle(repo)?.remotes()
     }
 
-    pub fn fetch(
+    pub(crate) fn local_fetch(
         &self,
         repo: RepoId,
         remote: &str,
@@ -91,7 +91,7 @@ impl AppState {
     /// remote and says nothing more (R-552). On a detached HEAD it only fetches `remote`
     /// and never moves HEAD (F-710). Own commits are merged or rebased as the repository
     /// remembers for the Pull dialog (R-841).
-    pub fn pull(
+    pub(crate) fn local_pull(
         &self,
         repo: RepoId,
         remote: &str,
@@ -150,7 +150,7 @@ impl AppState {
     /// On a detached HEAD there is no current branch: every branch ahead of where it
     /// pushes goes instead, never forced, and `Some` says what went — empty when nothing
     /// could, and then nothing ran; tags are not pushed (F-710).
-    pub fn push(
+    pub(crate) fn local_push(
         &self,
         repo: RepoId,
         remote: &str,
@@ -171,7 +171,7 @@ impl AppState {
     }
 
     /// Remote ▸ Fetch More; `false` when nothing new came (R-553).
-    pub fn fetch_more(
+    pub(crate) fn local_fetch_more(
         &self,
         repo: RepoId,
         remote: &str,
@@ -186,7 +186,7 @@ impl AppState {
         })
     }
 
-    pub fn fetch_depth(
+    pub(crate) fn local_fetch_depth(
         &self,
         repo: RepoId,
         remote: &str,
@@ -230,7 +230,7 @@ impl AppState {
         clippy::too_many_arguments,
         reason = "one IPC command's arguments, passed through as they came"
     )]
-    pub fn push_to(
+    pub(crate) fn local_push_to(
         &self,
         repo: RepoId,
         remote: &str,

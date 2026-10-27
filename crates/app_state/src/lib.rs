@@ -227,7 +227,7 @@ pub struct AppState {
     journal: Arc<RwLock<std::collections::VecDeque<git_engine::GitOutput>>>,
     safety: RwLock<Vec<safety::Undoable>>,
     next_entry_id: AtomicU32,
-    passwords: RwLock<Option<password_store::PasswordStore>>,
+    passwords: credentials::Passwords,
     pictures: RwLock<Option<Avatars>>,
     preset_dir: RwLock<Option<std::path::PathBuf>>,
     /// The newest diff batch asked for per repository. An older answer never displaces
@@ -251,6 +251,7 @@ pub struct AppState {
     merge_tools: merge_tool::MergeTools,
     agents: parking_lot::Mutex<HashMap<backend::Host, Arc<backend::Agent>>>,
     command_tap: Arc<std::sync::OnceLock<journal::CommandTap>>,
+    window: std::sync::OnceLock<agent::Events>,
     remotes: Arc<RwLock<HashMap<RepoId, backend::Remote>>>,
 }
 
@@ -286,7 +287,7 @@ impl AppState {
             ))),
             safety: RwLock::new(Vec::new()),
             next_entry_id: AtomicU32::new(1),
-            passwords: RwLock::new(None),
+            passwords: Arc::default(),
             pictures: RwLock::new(None),
             preset_dir: RwLock::new(None),
             newest_diff: RwLock::new(HashMap::new()),
@@ -302,6 +303,7 @@ impl AppState {
             merge_tools: merge_tool::MergeTools::default(),
             agents: parking_lot::Mutex::new(HashMap::new()),
             command_tap: Arc::default(),
+            window: std::sync::OnceLock::new(),
             remotes: Arc::new(RwLock::new(HashMap::new())),
         }
     }

@@ -100,20 +100,30 @@ impl AppState {
 
     /// The catalogue told against one repository: tools resolved and config files checked.
     pub fn presets_for(&self, repo: RepoId) -> Result<Vec<PresetStatus>, git_engine::GitError> {
-        let root = self.get(repo).ok_or_else(|| crate::not_open(repo))?.root;
-
-        let mut all: Vec<PresetStatus> = git_engine::builtin_presets()
+        let mut all: Vec<(git_engine::Preset, bool)> = git_engine::builtin_presets()
             .into_iter()
-            .map(|preset| presets::status_for(preset, &root, false))
+            .map(|preset| (preset, false))
             .collect();
         if let Some(dir) = self.preset_dir.read().clone() {
             all.extend(
                 presets::user_presets(&dir)
                     .into_iter()
-                    .map(|preset| presets::status_for(preset, &root, true)),
+                    .map(|preset| (preset, true)),
             );
         }
-        Ok(all)
+        self.preset_statuses(repo, &all)
+    }
+
+    pub(crate) fn local_preset_statuses(
+        &self,
+        repo: RepoId,
+        presets: &[(git_engine::Preset, bool)],
+    ) -> Result<Vec<PresetStatus>, git_engine::GitError> {
+        let root = self.get(repo).ok_or_else(|| crate::not_open(repo))?.root;
+        Ok(presets
+            .iter()
+            .map(|(preset, user)| presets::status_for(preset.clone(), &root, *user))
+            .collect())
     }
 
     /// Saves the hook as it stands now as a preset the user can install elsewhere.
@@ -136,7 +146,7 @@ impl AppState {
             )));
         }
         let dir = self.preset_dir()?;
-        let script = self.handle(repo)?.read_hook(hook)?;
+        let script = self.read_hook(repo, hook)?;
         presets::write_preset(&dir, id, name, hook, description, &script).map(drop)
     }
 
@@ -170,7 +180,6 @@ impl AppState {
             .ok_or_else(|| {
                 git_engine::GitError::InvalidState(format!("there is no preset {id}"))
             })?;
-        let _quiet = self.quiet(repo);
-        self.handle(repo)?.install_preset(&preset)
+        self.write_hook(repo, &preset.hook, &preset.script)
     }
 }

@@ -3,16 +3,30 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::{self, Read, Write};
 
-pub const PROTOCOL: u32 = 2;
+pub const PROTOCOL: u32 = 3;
 
 const LARGEST_FRAME: u32 = 256 * 1024 * 1024;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "frame", rename_all = "camelCase")]
 pub enum ToAgent {
-    Hello { protocol: u32, version: String },
-    Call { id: u64, request: Value },
-    Cancel { id: u64 },
+    Hello {
+        protocol: u32,
+        version: String,
+    },
+    Call {
+        id: u64,
+        request: Value,
+        #[serde(default)]
+        stopped: bool,
+    },
+    Cancel {
+        id: u64,
+    },
+    Answer {
+        id: u64,
+        answer: Value,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -32,6 +46,10 @@ pub enum FromAgent {
     },
     Event {
         event: Value,
+    },
+    Ask {
+        id: u64,
+        question: Value,
     },
 }
 

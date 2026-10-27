@@ -50,5 +50,7 @@ not (
     | (binary(graph) & test(=refusing_a_chunk_stops_the_stream))
     | (binary(graph_reuse) & test(/^(the_graph_being_replaced_is_still_read_while_the_new_one_is_walked|a_walk_replaced_before_it_ended_is_still_read_while_the_next_one_is_walked)$/))
     | (kind(lib) & test(=graph_cache::tests::a_window_waiting_for_texts_holds_no_copy_of_the_graph))
+    | (binary(cancel_network) & test(=a_cancelled_fetch_ends_journalled_and_frees_the_lane))
+    | (binary(undo) & test(/^(deleting_a_changed_file_can_be_undone|undoing_a_delete_never_writes_over_a_file_made_since)$/))
 )
 """

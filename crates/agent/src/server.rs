@@ -5,11 +5,19 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::io::{self, Read, Write};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc;
 
 type Outbox = Arc<Mutex<dyn Write + Send>>;
 
+#[derive(Default)]
+struct Asks {
+    next: AtomicU64,
+    waiting: Mutex<HashMap<u64, mpsc::Sender<Value>>>,
+}
+
 #[derive(Clone)]
-pub struct Events(Outbox);
+pub struct Events(Outbox, Arc<Asks>);
 
 impl std::fmt::Debug for Events {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -22,6 +30,19 @@ impl Events {
         send(&self.0, &FromAgent::Event { event })
             .inspect_err(|err| tracing::error!(error = ?err, context = "agent event"))
             .is_ok()
+    }
+
+    #[must_use]
+    pub fn ask(&self, question: Value) -> Option<Value> {
+        let id = self.1.next.fetch_add(1, Ordering::Relaxed);
+        let (answer, answered) = mpsc::channel();
+        self.1.waiting.lock().insert(id, answer);
+        if let Err(err) = send(&self.0, &FromAgent::Ask { id, question }) {
+            tracing::error!(error = ?err, id, context = "agent ask");
+            self.1.waiting.lock().remove(&id);
+            return None;
+        }
+        answered.recv().ok()
     }
 }
 
@@ -68,16 +89,21 @@ where
         return Ok(());
     }
     tracing::info!(version, "client connected");
-    on_start(Events(outbox.clone()));
+    let asks = Arc::new(Asks::default());
+    on_start(Events(outbox.clone(), asks.clone()));
     let running: Mutex<HashMap<u64, NetworkStop>> = Mutex::default();
     std::thread::scope(|scope| {
         let read = read_calls(
             &mut input,
-            |id, request| {
+            |id, request, stopped| {
+                let stop = NetworkStop::default();
+                if stopped {
+                    stop.stop();
+                }
                 let call = Call {
                     id,
-                    stop: NetworkStop::default(),
-                    outbox: Events(outbox.clone()),
+                    stop,
+                    outbox: Events(outbox.clone(), asks.clone()),
                 };
                 running.lock().insert(id, call.stop.clone());
                 let (running, handler) = (&running, &handler);
@@ -94,7 +120,13 @@ where
                     stop.stop();
                 }
             },
+            |id, answer| {
+                if let Some(waiting) = asks.waiting.lock().remove(&id) {
+                    waiting.send(answer).ok();
+                }
+            },
         );
+        asks.waiting.lock().clear();
         for stop in running.lock().values() {
             stop.stop();
         }
@@ -104,13 +136,19 @@ where
 
 fn read_calls<R: Read>(
     input: &mut R,
-    mut call: impl FnMut(u64, Value),
+    mut call: impl FnMut(u64, Value, bool),
     cancel: impl Fn(u64),
+    answer: impl Fn(u64, Value),
 ) -> io::Result<()> {
     while let Some(frame) = read_frame(input)? {
         match frame {
-            ToAgent::Call { id, request } => call(id, request),
+            ToAgent::Call {
+                id,
+                request,
+                stopped,
+            } => call(id, request, stopped),
             ToAgent::Cancel { id } => cancel(id),
+            ToAgent::Answer { id, answer: value } => answer(id, value),
             ToAgent::Hello { .. } => return Err(invalid("a second hello")),
         }
     }

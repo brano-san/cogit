@@ -2,7 +2,7 @@
 
 use super::blocking;
 use app_state::desktop::{self, Platform};
-use app_state::terminal::{Terminal, choices, launch_for};
+use app_state::terminal::{Terminal, choices, launch_for, working_dir};
 use git_engine::GitError;
 
 /// The terminals this platform can offer, for the settings dropdown.
@@ -38,7 +38,7 @@ pub async fn open_in_terminal(path: String, terminal: String) -> Result<(), GitE
             .then(desktop::find_git_bash)
             .flatten();
         let launch = launch_for(platform, kind, &path, git_bash.as_deref());
-        desktop::spawn(&launch, Some(std::path::Path::new(&path)))
+        desktop::spawn(&launch, working_dir(&path))
             .map_err(|err| GitError::Io(format!("cannot start {}: {err}", launch.program)))
     })
     .await

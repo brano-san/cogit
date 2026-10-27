@@ -52,7 +52,7 @@ fn merged_role(message: Option<&str>) -> String {
 }
 
 /// `merge.tool` and what `mergetool.<tool>.cmd|path` say about it.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct MergeToolConfig {
     pub tool: Option<String>,

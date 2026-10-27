@@ -20,6 +20,15 @@ impl AppState {
         paths: &[String],
         trash: impl FnOnce(&[PathBuf]) -> std::io::Result<()>,
     ) -> Result<()> {
+        if let Some(remote) = self.remote(repo) {
+            return remote.ask(
+                &crate::backend::Request::Trash {
+                    repo: remote.id(),
+                    paths: paths.to_vec(),
+                },
+                None,
+            );
+        }
         let _quiet = self.quiet(repo);
         let root = self.root_of(repo)?;
         let absolute: Vec<PathBuf> = paths.iter().map(|path| root.join(path)).collect();

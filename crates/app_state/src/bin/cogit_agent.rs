@@ -8,6 +8,9 @@ use std::sync::Arc;
 static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 fn main() -> ExitCode {
+    if let Some(code) = git_engine::run_as_helper() {
+        return ExitCode::from(u8::try_from(code).unwrap_or(1));
+    }
     if std::env::args().nth(1).as_deref() != Some("serve") {
         return ExitCode::from(2);
     }

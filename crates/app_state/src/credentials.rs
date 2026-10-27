@@ -1,8 +1,10 @@
 use crate::AppState;
 use crate::password_store::{PasswordStore, StoreError, StoreState};
 use git_engine::Credential;
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::Arc;
 use zeroize::Zeroizing;
 
 #[derive(Debug, thiserror::Error)]
@@ -107,7 +109,7 @@ pub fn host_of(url: &str) -> Option<String> {
 }
 
 /// What the Sign in dialog sends with a retry, and Preferences ▸ Authentication ▸ Add….
-#[derive(Clone, Deserialize, specta::Type)]
+#[derive(Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SignIn {
     /// Used only for URLs of this host: a retry never hands it to another one.
@@ -260,6 +262,72 @@ fn serialize(entries: &[Stored]) -> Result<Zeroizing<Vec<u8>>, StoreError> {
         .map_err(|err| StoreError::Damaged(err.to_string()))
 }
 
+pub(crate) type Passwords = Arc<RwLock<Option<PasswordStore>>>;
+
+fn with_store_in<T>(
+    passwords: &Passwords,
+    run: impl FnOnce(&PasswordStore) -> Result<T, SecretError>,
+) -> Result<T, SecretError> {
+    let store = passwords.read();
+    run(store.as_ref().ok_or(SecretError::NoStore)?)
+}
+
+fn change_entries_in(
+    passwords: &Passwords,
+    change: impl FnOnce(&mut Vec<Stored>),
+) -> Result<(), SecretError> {
+    with_store_in(passwords, |store| {
+        store
+            .update(|plain| {
+                let mut entries = parse(plain).map_err(|err| match err {
+                    SecretError::Store(err) => err,
+                    other => StoreError::Damaged(other.to_string()),
+                })?;
+                change(&mut entries);
+                serialize(&entries)
+            })
+            .map_err(SecretError::from)
+    })
+}
+
+pub(crate) fn store_in(passwords: &Passwords, sign_in: &SignIn) -> Result<(), SecretError> {
+    let host = host_input(&sign_in.host).ok_or(SecretError::NoHost)?;
+    let credential = sign_in.credential();
+    let ssh = credential.key.is_some();
+    if credential.secret.is_empty() && !ssh {
+        return Err(SecretError::Empty);
+    }
+    change_entries_in(passwords, |entries| {
+        entries.retain(|entry| !entry.is(&host, ssh));
+        entries.push(Stored {
+            host,
+            username: credential.username,
+            secret: credential.secret,
+            key: credential.key,
+        });
+    })
+}
+
+pub(crate) fn stored_in(passwords: &Passwords, url: &str) -> Option<Credential> {
+    let (host, ssh) = credential_target(url)?;
+    let entries = match with_store_in(passwords, |store| parse(&store.read()?)) {
+        Ok(entries) => entries,
+        Err(SecretError::Store(StoreError::Locked) | SecretError::NoStore) => return None,
+        Err(err) => {
+            tracing::error!(error = ?err, context = "reading the password store");
+            return None;
+        }
+    };
+    entries
+        .into_iter()
+        .find(|entry| entry.is(&host, ssh))
+        .map(|entry| Credential {
+            username: entry.username,
+            secret: entry.secret,
+            key: entry.key,
+        })
+}
+
 impl AppState {
     pub fn use_password_store(&self, path: PathBuf) {
         *self.passwords.write() = Some(PasswordStore::new(path));
@@ -269,27 +337,11 @@ impl AppState {
         &self,
         run: impl FnOnce(&PasswordStore) -> Result<T, SecretError>,
     ) -> Result<T, SecretError> {
-        let store = self.passwords.read();
-        run(store.as_ref().ok_or(SecretError::NoStore)?)
-    }
-
-    fn entries(&self) -> Result<Vec<Stored>, SecretError> {
-        self.with_store(|store| parse(&store.read()?))
+        with_store_in(&self.passwords, run)
     }
 
     fn change_entries(&self, change: impl FnOnce(&mut Vec<Stored>)) -> Result<(), SecretError> {
-        self.with_store(|store| {
-            store
-                .update(|plain| {
-                    let mut entries = parse(plain).map_err(|err| match err {
-                        SecretError::Store(err) => err,
-                        other => StoreError::Damaged(other.to_string()),
-                    })?;
-                    change(&mut entries);
-                    serialize(&entries)
-                })
-                .map_err(SecretError::from)
-        })
+        change_entries_in(&self.passwords, change)
     }
 
     pub fn credential_store(&self) -> Result<CredentialStore, SecretError> {
@@ -340,21 +392,16 @@ impl AppState {
     }
 
     pub fn store_credential(&self, sign_in: &SignIn) -> Result<(), SecretError> {
-        let host = host_input(&sign_in.host).ok_or(SecretError::NoHost)?;
-        let credential = sign_in.credential();
-        let ssh = credential.key.is_some();
-        if credential.secret.is_empty() && !ssh {
-            return Err(SecretError::Empty);
+        if let Some(window) = self.window.get() {
+            crate::agent_events::ask_window::<()>(
+                window,
+                &crate::agent_events::Question::Remember {
+                    sign_in: sign_in.clone(),
+                },
+            );
+            return Ok(());
         }
-        self.change_entries(|entries| {
-            entries.retain(|entry| !entry.is(&host, ssh));
-            entries.push(Stored {
-                host,
-                username: credential.username,
-                secret: credential.secret,
-                key: credential.key,
-            });
-        })
+        store_in(&self.passwords, sign_in)
     }
 
     pub fn forget_credential(&self, host: &str, ssh: bool) -> Result<(), SecretError> {
@@ -369,23 +416,15 @@ impl AppState {
     /// What Cogit holds for the host of `url`, of `url`'s kind. A locked store holds nothing
     /// yet: the page unlocks it before a command that may ask (R-891).
     pub fn stored_credential(&self, url: &str) -> Option<Credential> {
-        let (host, ssh) = credential_target(url)?;
-        let entries = match self.entries() {
-            Ok(entries) => entries,
-            Err(SecretError::Store(StoreError::Locked) | SecretError::NoStore) => return None,
-            Err(err) => {
-                tracing::error!(error = ?err, context = "reading the password store");
-                return None;
-            }
-        };
-        entries
-            .into_iter()
-            .find(|entry| entry.is(&host, ssh))
-            .map(|entry| Credential {
-                username: entry.username,
-                secret: entry.secret,
-                key: entry.key,
-            })
+        if let Some(window) = self.window.get() {
+            return crate::agent_events::ask_window(
+                window,
+                &crate::agent_events::Question::Credential {
+                    url: url.to_owned(),
+                },
+            );
+        }
+        stored_in(&self.passwords, url)
     }
 
     /// Moves the keychain sign-ins listed in `list` into a new store without a master

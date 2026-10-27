@@ -127,6 +127,7 @@ fn closing_the_pipe_stops_the_running_calls_and_ends_the_agent() {
         &ToAgent::Call {
             id: 1,
             request: json!("fetch"),
+            stopped: false,
         },
     )
     .unwrap();
@@ -269,4 +270,51 @@ fn a_cancel_gets_through_a_stream_that_never_pauses() {
         })
         .unwrap();
     assert_eq!(answer, Err(json!("canceled")));
+}
+
+#[test]
+fn a_call_asks_the_window_and_waits_for_its_answer() {
+    let wires = wires();
+    let asker: Arc<parking_lot::Mutex<Option<agent::Events>>> = Arc::default();
+    let kept = asker.clone();
+    thread::spawn(move || {
+        serve(
+            wires.agent_in,
+            wires.agent_out,
+            move |events| *kept.lock() = Some(events),
+            move |request, _| {
+                let events = asker.lock().clone().unwrap();
+                Ok(json!([
+                    events.ask(request.clone()),
+                    events.ask(json!("second"))
+                ]))
+            },
+        )
+    });
+    let client = Client::connect_with(
+        wires.client_in,
+        wires.client_out,
+        |_| {},
+        |question| json!({ "heard": question }),
+    )
+    .unwrap();
+    assert_eq!(
+        client.call(json!("secret?"), None).unwrap(),
+        Ok(json!([{ "heard": "secret?" }, { "heard": "second" }]))
+    );
+}
+
+#[test]
+fn a_call_stopped_before_it_was_sent_starts_stopped() {
+    let (client, _server) = pair(Box::new(|_, call| Ok(json!(call.stop().is_stopped()))));
+    let stop = NetworkStop::default();
+    stop.stop();
+    assert_eq!(
+        client.call(json!("delete"), Some(&stop)).unwrap(),
+        Ok(json!(true))
+    );
+    assert_eq!(
+        client.call(json!("delete"), None).unwrap(),
+        Ok(json!(false))
+    );
 }

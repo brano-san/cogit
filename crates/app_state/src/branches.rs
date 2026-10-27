@@ -53,7 +53,7 @@ impl AppState {
 
     /// Reaches the server, so it is tracked and journalled like any other network call,
     /// and `stop` can end it.
-    pub fn delete_remote_branch(
+    pub(crate) fn local_delete_remote_branch(
         &self,
         repo: RepoId,
         remote: &str,
@@ -118,7 +118,7 @@ impl AppState {
         self.handle(repo)?.create_tag(request)
     }
 
-    pub fn delete_remote_tag(
+    pub(crate) fn local_delete_remote_tag(
         &self,
         repo: RepoId,
         remote: &str,

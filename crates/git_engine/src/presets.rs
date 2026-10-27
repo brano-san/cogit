@@ -9,7 +9,7 @@ const BUILTIN: &[&str] = &[
     include_str!("../presets/secrets.toml"),
 ];
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, Deserialize)]
 pub struct PresetTool {
     pub command: String,
     pub install_hint: String,
@@ -17,7 +17,7 @@ pub struct PresetTool {
     pub search_paths: Vec<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, Deserialize)]
 pub struct Preset {
     pub id: String,
     pub name: String,

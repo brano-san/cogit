@@ -123,7 +123,12 @@ fn dunce_root(path: &std::path::Path) -> std::path::PathBuf {
     state.get(repo).unwrap().root
 }
 
-const BY_HAND: [&str; 13] = [
+const BY_HAND: [&str; 18] = [
+    "move_to_trash",
+    "start_merge_tool",
+    "presets_for",
+    "export_preset",
+    "install_preset",
     "build_graph",
     "graph_window_wire",
     "search_contents",
@@ -139,7 +144,9 @@ const BY_HAND: [&str; 13] = [
     "save_config_file",
 ];
 
-const ON_WINDOWS: [(&str, &str); 7] = [
+const ON_WINDOWS: [(&str, &str); 9] = [
+    ("cancel_merge_tool", "the merge tool runs on Windows"),
+    ("merge_tools_running", "the merge tool runs on Windows"),
     ("agent_process_id", "the agent process itself"),
     ("is_remote", "the routing table itself"),
     ("close_repository", "the registry; tells the agent itself"),
@@ -147,45 +154,6 @@ const ON_WINDOWS: [(&str, &str); 7] = [
     ("get", "the registry"),
     ("root_of", "the registry"),
     ("forget_row", "the Windows tree-row cache"),
-];
-
-const LATER: [(&str, &str); 21] = [
-    (
-        "presets_for",
-        "the preset library is on Windows; settings reach the agent: step 6",
-    ),
-    (
-        "export_preset",
-        "the preset library is on Windows; settings reach the agent: step 6",
-    ),
-    (
-        "install_preset",
-        "the preset library is on Windows; settings reach the agent: step 6",
-    ),
-    ("fetch", "streams git's output, sign-in: steps 4 and 6"),
-    ("pull", "streams git's output, sign-in: steps 4 and 6"),
-    ("push", "streams git's output, sign-in: steps 4 and 6"),
-    ("fetch_more", "streams git's output, sign-in: steps 4 and 6"),
-    (
-        "fetch_depth",
-        "streams git's output, sign-in: steps 4 and 6",
-    ),
-    ("push_to", "streams git's output, sign-in: steps 4 and 6"),
-    ("fetch_with", "streams git's output, sign-in: steps 4 and 6"),
-    ("pull_with", "streams git's output, sign-in: steps 4 and 6"),
-    ("push_with", "streams git's output, sign-in: steps 4 and 6"),
-    (
-        "push_dry_run",
-        "streams git's output, sign-in: steps 4 and 6",
-    ),
-    ("push_notes", "streams git's output, sign-in: steps 4 and 6"),
-    ("delete_remote_branch", "sign-in: step 6"),
-    ("delete_remote_tag", "sign-in: step 6"),
-    ("delete_refs", "sign-in: step 6"),
-    ("move_to_trash", "the Windows recycle bin callback: step 6"),
-    ("start_merge_tool", "a Windows program on the files: step 6"),
-    ("cancel_merge_tool", "with start_merge_tool: step 6"),
-    ("merge_tools_running", "with start_merge_tool: step 6"),
 ];
 
 fn repo_methods() -> Vec<String> {
@@ -227,7 +195,6 @@ fn every_repository_method_goes_through_the_agent_or_says_why_not() {
         routed.iter().any(|r| r == name)
             || BY_HAND.contains(&name)
             || ON_WINDOWS.iter().any(|(n, _)| *n == name)
-            || LATER.iter().any(|(n, _)| *n == name)
     };
     let mut strays: Vec<String> = repo_methods()
         .into_iter()
@@ -415,7 +382,7 @@ fn a_repository_in_wsl_opens_through_its_agent() {
     let folder = format!("/tmp/cogit-wsl-test-{}", std::process::id());
     let made = std::process::Command::new("wsl.exe")
         .args(["-d", &distro, "-e", "sh", "-c"])
-        .arg(r#"set -e; rm -rf "$1"; mkdir -p "$1"; cd "$1"; git init -q; echo a > a.txt; echo b > b.txt; git add b.txt"#)
+        .arg(r#"set -e; rm -rf "$1"; mkdir -p "$1"; cd "$1"; git init -q; git config user.name Cogit; git config user.email cogit@example.com; echo a > a.txt; echo b > b.txt; git add b.txt"#)
         .args(["sh", &folder])
         .output()
         .unwrap();
@@ -455,5 +422,70 @@ fn a_repository_in_wsl_opens_through_its_agent() {
     ));
     state.reread_repository(summary.repo).unwrap();
     assert_eq!(state.repo_status(summary.repo).unwrap().untracked, 1);
+
+    let wsl = |script: &str| {
+        let out = std::process::Command::new("wsl.exe")
+            .args(["-d", &distro, "-e", "sh", "-c", script, "sh", &folder])
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "{out:?}");
+        String::from_utf8(out.stdout).unwrap()
+    };
+    state
+        .write_hook(
+            summary.repo,
+            "pre-commit",
+            "#!/bin/sh\nuname -s > \"$(git rev-parse --git-dir)/hook-ran\"\n",
+        )
+        .unwrap();
+    state
+        .commit(
+            summary.repo,
+            &git_engine::CommitRequest {
+                message: "first".to_owned(),
+                amend: false,
+                no_verify: false,
+                signoff: false,
+                only: Vec::new(),
+            },
+        )
+        .unwrap();
+    assert_eq!(wsl(r#"cat "$1/.git/hook-ran""#).trim(), "Linux");
+
+    let clone = format!("{path}-clone");
+    let request = git_engine::CloneRequest {
+        source: path.clone(),
+        target: clone.clone(),
+        submodules: false,
+        all_branches: true,
+        branch: None,
+        skip_larger_than: None,
+    };
+    let mut lines = 0;
+    let cloned = state
+        .clone_repository(&request, None, &git_engine::NetworkStop::default(), |_| {
+            lines += 1
+        })
+        .unwrap();
+    assert_eq!(cloned, std::path::PathBuf::from(&clone));
+    let copy = state.open_repository(&cloned).unwrap();
+    assert!(state.is_remote(copy.repo));
+    assert_eq!(wsl(r#"git -C "$1-clone" log --format=%s"#).trim(), "first");
+
+    let fresh = format!("{path}-init");
+    let made = state.init_repository(std::path::Path::new(&fresh)).unwrap();
+    assert_eq!(made, std::path::PathBuf::from(&fresh));
+    wsl(r#"test -d "$1-init/.git""#);
+
+    let helper = wsl(concat!(
+        r#"printf 'protocol=https\nhost=h.example\n\n' | "#,
+        r#"COGIT_CREDENTIAL_0_URL=https://h.example COGIT_CREDENTIAL_0_USERNAME=ann COGIT_CREDENTIAL_0_SECRET=pw "#,
+        r#""$(ls -d "$HOME"/.cache/cogit/agent/*/cogit-agent | head -n 1)" cogit-credential 0 get"#
+    ));
+    assert!(
+        helper.contains("username=ann") && helper.contains("password=pw"),
+        "{helper}"
+    );
+    wsl(r#"rm -rf "$1" "$1-clone" "$1-init""#);
     assert!(state.close_repository(summary.repo));
 }

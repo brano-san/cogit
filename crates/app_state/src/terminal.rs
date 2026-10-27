@@ -5,6 +5,7 @@
 //! ignores its inherited directory is told the path, and then as one argument.
 
 use crate::desktop::{Launch, Platform, native_path};
+use crate::location::RepoLocation;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -101,6 +102,14 @@ pub fn launch_for(
     path: &str,
     git_bash: Option<&Path>,
 ) -> Launch {
+    if platform == Platform::Windows
+        && let RepoLocation::Wsl {
+            distro,
+            path: inside,
+        } = RepoLocation::of(Path::new(path))
+    {
+        return wsl_shell(kind, &distro, &inside);
+    }
     let (program, args) = command_for(platform, kind, path, git_bash);
     let windows = platform == Platform::Windows;
     let console = windows
@@ -122,6 +131,35 @@ pub fn launch_for(
         program,
         args,
     }
+}
+
+fn wsl_shell(kind: Terminal, distro: &str, inside: &str) -> Launch {
+    let shell = [
+        "wsl.exe".to_owned(),
+        "-d".to_owned(),
+        distro.to_owned(),
+        "--cd".to_owned(),
+        inside.to_owned(),
+    ];
+    if kind == Terminal::WindowsTerminal {
+        return Launch {
+            program: "wt.exe".to_owned(),
+            args: shell.map(|arg| arg.replace(';', "\\;")).to_vec(),
+            hidden: false,
+        };
+    }
+    let mut args = vec!["/C".to_owned(), "start".to_owned(), String::new()];
+    args.extend(shell);
+    Launch {
+        program: "cmd.exe".to_owned(),
+        args,
+        hidden: true,
+    }
+}
+
+#[must_use]
+pub fn working_dir(path: &str) -> Option<&Path> {
+    matches!(RepoLocation::of(Path::new(path)), RepoLocation::Local).then(|| Path::new(path))
 }
 
 /// The bash beside the `git-bash.exe` the Git Shell item found (registry, PATH, the

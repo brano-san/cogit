@@ -2,7 +2,7 @@ use crate::{GitError, RepoHandle, Result};
 use serde::{Deserialize, Serialize};
 
 /// What deleting a branch on the server came to (R-480).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum RemoteDeletion {
     Deleted,

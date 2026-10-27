@@ -38,8 +38,10 @@ struct Waiting {
     gone: Option<String>,
 }
 
+type Output = Arc<Mutex<Box<dyn Write + Send>>>;
+
 pub struct Client {
-    output: Mutex<Box<dyn Write + Send>>,
+    output: Output,
     waiting: Arc<Mutex<Waiting>>,
     next: AtomicU64,
     version: String,
@@ -63,14 +65,29 @@ impl Client {
     }
 
     pub fn connect_with_events<R, W, E>(
-        mut input: R,
-        mut output: W,
+        input: R,
+        output: W,
         on_event: E,
     ) -> Result<Self, AgentError>
     where
         R: Read + Send + 'static,
         W: Write + Send + 'static,
         E: Fn(Value) + Send + 'static,
+    {
+        Self::connect_with(input, output, on_event, |_| Value::Null)
+    }
+
+    pub fn connect_with<R, W, E, A>(
+        mut input: R,
+        mut output: W,
+        on_event: E,
+        on_ask: A,
+    ) -> Result<Self, AgentError>
+    where
+        R: Read + Send + 'static,
+        W: Write + Send + 'static,
+        E: Fn(Value) + Send + 'static,
+        A: Fn(Value) -> Value + Send + Sync + 'static,
     {
         let hello = ToAgent::Hello {
             protocol: PROTOCOL,
@@ -93,12 +110,28 @@ impl Client {
         tracing::info!(version, "agent connected");
         let waiting = Arc::new(Mutex::new(Waiting::default()));
         let replies = waiting.clone();
+        let output: Output = Arc::new(Mutex::new(Box::new(output)));
+        let answers = output.clone();
+        let on_ask = Arc::new(on_ask);
         std::thread::Builder::new()
             .name("agent-replies".into())
-            .spawn(move || deliver_replies(&mut input, &replies, &on_event))
+            .spawn(move || {
+                deliver_replies(&mut input, &replies, &on_event, &|id, question| {
+                    let (answers, on_ask) = (answers.clone(), on_ask.clone());
+                    std::thread::spawn(move || {
+                        let answer = ToAgent::Answer {
+                            id,
+                            answer: on_ask(question),
+                        };
+                        if let Err(err) = write_frame(&mut *answers.lock(), &answer) {
+                            tracing::error!(error = ?err, id, context = "answer to the agent");
+                        }
+                    });
+                });
+            })
             .map_err(|err| AgentError::Handshake(err.to_string()))?;
         Ok(Self {
-            output: Mutex::new(Box::new(output)),
+            output,
             waiting,
             next: AtomicU64::new(1),
             version,
@@ -138,8 +171,12 @@ impl Client {
             }
             waiting.calls.insert(id, reply);
         }
-        self.send(&ToAgent::Call { id, request })?;
-        let mut asked_to_stop = false;
+        let mut asked_to_stop = canceled();
+        self.send(&ToAgent::Call {
+            id,
+            request,
+            stopped: asked_to_stop,
+        })?;
         loop {
             match answer.recv_timeout(STOP_POLL) {
                 Ok(Message::Done(outcome)) => return Ok(outcome),
@@ -168,7 +205,12 @@ impl Client {
     }
 }
 
-fn deliver_replies<R: Read>(input: &mut R, waiting: &Mutex<Waiting>, on_event: &dyn Fn(Value)) {
+fn deliver_replies<R: Read>(
+    input: &mut R,
+    waiting: &Mutex<Waiting>,
+    on_event: &dyn Fn(Value),
+    on_ask: &dyn Fn(u64, Value),
+) {
     let reason = loop {
         match read_frame(input) {
             Ok(Some(FromAgent::Reply { id, outcome })) => {
@@ -182,6 +224,7 @@ fn deliver_replies<R: Read>(input: &mut R, waiting: &Mutex<Waiting>, on_event: &
                 }
             }
             Ok(Some(FromAgent::Event { event })) => on_event(event),
+            Ok(Some(FromAgent::Ask { id, question })) => on_ask(id, question),
             Ok(Some(other)) => break format!("unexpected frame {other:?}"),
             Ok(None) => break "the agent closed its output".to_owned(),
             Err(err) => break err.to_string(),

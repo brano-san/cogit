@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// No username: a token, sent under `x-access-token`. With `key`, an ssh private key and
 /// `secret` its passphrase (empty: none).
-#[derive(Clone, PartialEq, Eq, Deserialize)]
+#[derive(Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
 pub struct Credential {
     pub username: Option<String>,
     pub secret: String,

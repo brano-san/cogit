@@ -44,7 +44,7 @@ pub struct PullOptions {
 
 /// `stash_needed`: the pull only fetched, because the branch has to move and the working
 /// tree has changes to tracked files; pull again with `autostash` once the user agrees.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Pulled {
     pub notes: NotesFetch,
@@ -90,7 +90,7 @@ pub struct NetworkDefaults {
 }
 
 /// Namespaces fetched from a remote whose notes and the local ones both moved.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct NotesFetch {
     pub remote: String,
@@ -98,7 +98,7 @@ pub struct NotesFetch {
     pub diverged: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PushOutcome {
     /// Git's own words when the remote refused the notes as non-fast-forward; the branch
