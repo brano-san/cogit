@@ -51,7 +51,7 @@ jobs:
             echo "prerelease=$pre"; echo "bundles_windows=$bundles"
           } >> "$GITHUB_OUTPUT"
 
-  # CI itself (deny, lint, every test) on the tagged commit: nothing is built while it is red.
+  # CI itself (deny, lint, every test) on the tagged commit: builds run beside it, publish waits.
   # Its run on master is no proof: the next push there cancels it.
   ci:
     needs: meta
@@ -61,7 +61,7 @@ jobs:
 
   agent:
     name: Agent (linux-x64 musl)
-    needs: [meta, ci]
+    needs: meta
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     steps:
@@ -88,7 +88,7 @@ jobs:
 
   build:
     name: Build (${{ matrix.name }})
-    needs: [meta, ci, agent]
+    needs: [meta, agent]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     # A job marked experimental may fail without blocking the release: its files are simply
@@ -298,7 +298,7 @@ jobs:
           retention-days: 7
 
   publish:
-    needs: [meta, build]
+    needs: [meta, ci, build]
     # Not ubuntu-latest: the manifest script runs on the image's own node, and the image moves.
     runs-on: ubuntu-22.04
     permissions:
