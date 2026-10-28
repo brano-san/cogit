@@ -132,7 +132,7 @@ export interface Settings {
 }
 
 /** 1: a stored graph `date` became `dateTime` (R-370). */
-export const SETTINGS_VERSION = 1;
+export const SETTINGS_VERSION = 2;
 /** Kept in the file but never shown in Preferences. */
 export const INTERNAL_SETTINGS: readonly (keyof Settings)[] = ["settingsVersion"];
 
@@ -158,7 +158,7 @@ export const DEFAULT_SETTINGS: Settings = {
   mergeExternalToolArgs: "",
   logLevel: "info",
   avatars: "gravatar",
-  autoUpdate: false,
+  autoUpdate: true,
   startupShowWelcome: true,
   confirmExit: true,
   confirmLocalCheckout: true,
@@ -243,11 +243,14 @@ function knownColumns(value: unknown): GraphColumn[] | undefined {
 
 /** Before the graph had its own time format it followed `dateFormat`: a file written then
     keeps the graph as it looked. */
+function storedVersion(stored: Record<string, unknown>): number {
+  return typeof stored.settingsVersion === "number" ? stored.settingsVersion : 0;
+}
+
 function migratedTimeFormat(stored: Record<string, unknown>): GraphTimeFormat | undefined {
   // The whole file is written on every save, so an old `date` was most likely never chosen:
   // `dateTime` became the default for everyone, once (R-370).
-  const version = typeof stored.settingsVersion === "number" ? stored.settingsVersion : 0;
-  if (stored.graphTimeFormat === "date" && version < 1) return "dateTime";
+  if (stored.graphTimeFormat === "date" && storedVersion(stored) < 1) return "dateTime";
   if (stored.graphTimeFormat !== undefined) return undefined;
   return stored.dateFormat === "relative" ? "relative" : undefined;
 }
@@ -303,6 +306,7 @@ export function merge(stored: Partial<Settings> | null | undefined): Settings {
     (merged[key] as unknown) = value;
   }
   merged.graphTimeFormat = migratedTimeFormat(record) ?? merged.graphTimeFormat;
+  if (storedVersion(record) < 2) merged.autoUpdate = true;
   merged.settingsVersion = SETTINGS_VERSION;
   merged.graphColoring = migratedColoring(record) ?? merged.graphColoring;
   return merged;

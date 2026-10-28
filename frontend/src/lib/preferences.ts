@@ -562,7 +562,7 @@ export const CATEGORIES: Category[] = [
           {
             key: "autoUpdate",
             label: "Check for updates when Cogit starts",
-            hint: "Off by default: nothing is asked of the network until this is ticked.",
+            hint: "Once per start, quietly: Cogit speaks only when there is a new version.",
             keywords: ["update", "upgrade", "version", "network", "release", "download"],
           },
         ],

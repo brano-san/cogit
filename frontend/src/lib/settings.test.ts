@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { THEME_FILES } from "./theme";
-import { DEFAULT_SETTINGS, THEMES, merge, needsRestart } from "./settings";
+import { DEFAULT_SETTINGS, SETTINGS_VERSION, THEMES, merge, needsRestart } from "./settings";
 import { GRAPH, LANE_WIDTH, setLaneWidth } from "./graph-geometry";
 
 describe("merge", () => {
@@ -158,11 +158,17 @@ describe("graph display settings (#23)", () => {
   it("moves an older file's date to dateTime once, then keeps a date chosen after", () => {
     const old = merge({ graphTimeFormat: "date" });
     expect(old.graphTimeFormat).toBe("dateTime");
-    expect(old.settingsVersion).toBe(1);
+    expect(old.settingsVersion).toBe(SETTINGS_VERSION);
     expect(merge({ graphTimeFormat: "date", settingsVersion: 1 }).graphTimeFormat).toBe("date");
     expect(merge({ ...old, graphTimeFormat: "date" }).graphTimeFormat).toBe("date");
     expect(merge({ graphTimeFormat: "relative" }).graphTimeFormat).toBe("relative");
     expect(merge({ theme: "light" }).graphTimeFormat).toBe("dateTime");
+  });
+
+  it("turns the start-up update check on once, then keeps it off when unticked after", () => {
+    expect(DEFAULT_SETTINGS.autoUpdate).toBe(true);
+    expect(merge({ autoUpdate: false, settingsVersion: 1 }).autoUpdate).toBe(true);
+    expect(merge({ autoUpdate: false, settingsVersion: SETTINGS_VERSION }).autoUpdate).toBe(false);
   });
 
   it("lets a stored graph time format win over the old date setting", () => {
