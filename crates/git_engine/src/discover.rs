@@ -1,6 +1,6 @@
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use rayon::prelude::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -51,7 +51,15 @@ pub fn is_system_folder(path: &Path) -> bool {
         && path
             .file_name()
             .and_then(|name| name.to_str())
-            .is_some_and(|name| SYSTEM.iter().any(|skip| skip.eq_ignore_ascii_case(name)))
+            .is_some_and(|name| {
+                SYSTEM.iter().any(|skip| skip.eq_ignore_ascii_case(name))
+                    || (name == "mnt" && in_wsl())
+            })
+}
+
+fn in_wsl() -> bool {
+    static WSL: OnceLock<bool> = OnceLock::new();
+    *WSL.get_or_init(|| !cfg!(windows) && std::env::var_os("WSL_DISTRO_NAME").is_some())
 }
 
 /// What a drive is, as far as the search of every drive cares.
@@ -106,7 +114,7 @@ fn drive_kind(_root: &Path) -> DriveKind {
     DriveKind::Fixed
 }
 
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Found {
     pub path: PathBuf,

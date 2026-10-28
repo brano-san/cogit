@@ -477,6 +477,29 @@ fn a_repository_in_wsl_opens_through_its_agent() {
     assert_eq!(made, std::path::PathBuf::from(&fresh));
     wsl(r#"test -d "$1-init/.git""#);
 
+    let parent = format!(r"\\wsl.localhost\{distro}\tmp");
+    let mut found = Vec::new();
+    state
+        .scan_for_repositories(
+            std::path::Path::new(&parent),
+            1,
+            || false,
+            |hit| {
+                found.push(hit);
+                true
+            },
+        )
+        .unwrap();
+    for (root, open) in [(&path, true), (&clone, true), (&fresh, false)] {
+        let root = root.replace('\\', "/");
+        let hit = found.iter().find(|hit| hit.root == root);
+        assert_eq!(
+            hit.map(|hit| hit.already_open),
+            Some(open),
+            "{root}: {found:?}"
+        );
+    }
+
     let helper = wsl(concat!(
         r#"printf 'protocol=https\nhost=h.example\n\n' | "#,
         r#"COGIT_CREDENTIAL_0_URL=https://h.example COGIT_CREDENTIAL_0_USERNAME=ann COGIT_CREDENTIAL_0_SECRET=pw "#,

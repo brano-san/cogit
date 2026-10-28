@@ -91,7 +91,7 @@ pub async fn scan_for_repositories(
                     listening = on_found.send(ScanChunk::Found { hit }).is_ok();
                     listening
                 },
-            );
+            )?;
         }
         Ok(found)
     })

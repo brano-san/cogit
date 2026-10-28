@@ -69,16 +69,25 @@ impl AppState {
         max_depth: usize,
         cancelled: impl Fn() -> bool + Sync,
         mut on_found: impl FnMut(ScanHit) -> bool + Send,
-    ) {
-        let options = git_engine::discover::ScanOptions { max_depth };
-        git_engine::discover::scan_cancellable(root, &options, cancelled, |found| {
+    ) -> Result<(), git_engine::GitError> {
+        let mut hit = |found: git_engine::discover::Found| {
             on_found(ScanHit {
                 root: git_engine::slash_path(&found.path),
                 name: found.name,
                 bare: found.bare,
                 already_open: self.find_by_root(&found.path).is_some(),
             })
-        });
+        };
+        #[cfg(feature = "loopback")]
+        if let Some(host) = crate::backend::loopback() {
+            return self.find_repositories_through(&host, root, max_depth, &cancelled, &mut hit);
+        }
+        if let Some(host) = crate::Host::of(root) {
+            return self.find_repositories_through(&host, root, max_depth, &cancelled, &mut hit);
+        }
+        let options = git_engine::discover::ScanOptions { max_depth };
+        git_engine::discover::scan_cancellable(root, &options, cancelled, hit);
+        Ok(())
     }
 
     /// Blocking by design; the Tauri layer wraps it in `spawn_blocking`.

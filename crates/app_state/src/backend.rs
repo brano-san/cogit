@@ -546,6 +546,10 @@ pub(crate) enum Request {
         path: String,
     },
     GitVersion,
+    Scan {
+        root: String,
+        max_depth: usize,
+    },
     Show {
         repo: Option<RepoId>,
     },
@@ -605,6 +609,15 @@ pub fn serve_agent(state: &AppState, request: Value, call: &agent::Call) -> Resu
                 .map(|done| git_engine::slash_path(&done)),
         ),
         Request::GitVersion => answer(git_engine::git_version()),
+        Request::Scan { root, max_depth } => {
+            git_engine::discover::scan_cancellable(
+                Path::new(&root),
+                &git_engine::discover::ScanOptions { max_depth },
+                || call.stop().is_stopped(),
+                |found| call.chunk(to_json(&found)),
+            );
+            answer(Ok(()))
+        }
         Request::Init { path } => answer(
             state
                 .init_repository(Path::new(&path))
@@ -808,6 +821,36 @@ impl AppState {
             }
         })?;
         Ok(host.local_path(&done))
+    }
+
+    pub(crate) fn find_repositories_through(
+        &self,
+        host: &Host,
+        root: &Path,
+        max_depth: usize,
+        cancelled: &dyn Fn() -> bool,
+        on_found: &mut dyn FnMut(git_engine::discover::Found) -> bool,
+    ) -> Result<(), GitError> {
+        let agent = self.agent(host)?;
+        let listening = std::cell::Cell::new(true);
+        let request = Request::Scan {
+            root: host.agent_path(root),
+            max_depth,
+        };
+        agent.stream(
+            &request,
+            &|| !listening.get() || cancelled(),
+            &mut |chunk| match serde_json::from_value::<git_engine::discover::Found>(chunk) {
+                Ok(found) if listening.get() => {
+                    let path = host.local_path(&found.path.to_string_lossy());
+                    listening.set(on_found(git_engine::discover::Found { path, ..found }));
+                }
+                Ok(_) => {}
+                Err(err) => {
+                    tracing::error!(error = ?err, context = "repository found by the agent")
+                }
+            },
+        )
     }
 
     pub(crate) fn init_through(&self, host: &Host, path: &Path) -> Result<PathBuf, GitError> {
