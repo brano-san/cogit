@@ -216,7 +216,7 @@
 
   textarea::selection {
     background: var(--bg-selected);
-    color: transparent;
+    color: var(--text-primary);
   }
 
   .grow {
