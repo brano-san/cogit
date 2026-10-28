@@ -89,6 +89,11 @@ fn log_gtk() {
         xft_hinting = settings.as_ref().map_or(-1, GtkSettingsExt::gtk_xft_hinting),
         xft_hintstyle = settings.as_ref().and_then(GtkSettingsExt::gtk_xft_hintstyle).as_deref().unwrap_or("-"),
         xft_rgba = settings.as_ref().and_then(GtkSettingsExt::gtk_xft_rgba).as_deref().unwrap_or("-"),
+        nvidia = std::path::Path::new("/proc/driver/nvidia/version").exists(),
+        vmwgfx = std::path::Path::new("/sys/module/vmwgfx").exists(),
+        webkit_disable_dmabuf_renderer = %var("WEBKIT_DISABLE_DMABUF_RENDERER"),
+        webkit_disable_compositing_mode = %var("WEBKIT_DISABLE_COMPOSITING_MODE"),
+        nv_disable_explicit_sync = %var("__NV_DISABLE_EXPLICIT_SYNC"),
         "display: GTK"
     );
 }

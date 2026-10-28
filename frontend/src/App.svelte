@@ -110,6 +110,7 @@
   import { commitScope } from "$lib/commit-scope";
   import { activity, applyOperation, cancellable, trackCancellable, trackStarting } from "$lib/operations";
   import { measurer } from "$lib/timing";
+  import { watchFrameStalls } from "$lib/frame-stalls";
   import { item as menuItem, refMenu, setMenuKeys } from "$lib/context-menu";
   import RefActions from "$components/menus/RefActions.svelte";
   import RefGroupActions from "$components/menus/RefGroupActions.svelte";
@@ -451,6 +452,7 @@
       startTracing();
       trace("startup", "the window is running");
       uiMetricsStore.logRendered();
+      watchFrameStalls(window, (message) => trace("frames", message, "warn"));
       // Nothing in a Git client is a web page (R-127), nor has the browser's find bar.
       suppressNativeMenu(document);
       suppressBrowserFind(window);
