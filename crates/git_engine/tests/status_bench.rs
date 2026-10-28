@@ -49,3 +49,26 @@ fn status_rounds_of_a_fresh_clone() {
         );
     }
 }
+
+#[test]
+#[ignore = "needs COGIT_BENCH_COMMIT"]
+fn files_of_a_big_commit() {
+    let Ok(path) = std::env::var("COGIT_BENCH_COMMIT") else {
+        return;
+    };
+    let handle = RepoHandle::open_exact(std::path::Path::new(&path)).unwrap();
+    let mut samples = Vec::new();
+    for _ in 0..5 {
+        let started = Instant::now();
+        let files = handle.commit_files("HEAD").unwrap();
+        samples.push(started.elapsed());
+        assert!(!files.is_empty());
+    }
+    let files = handle.commit_files("HEAD").unwrap();
+    let renamed = files.iter().filter(|file| file.old_path.is_some()).count();
+    println!(
+        "{path}: {} files, {renamed} renamed or copied, median {:?}",
+        files.len(),
+        median(samples)
+    );
+}

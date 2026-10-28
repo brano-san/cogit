@@ -197,6 +197,8 @@ pub struct SubmoduleChange {
 /// Git's own default: below this the two sides are an add and a delete, not a rename.
 pub const DEFAULT_SIMILARITY: u32 = 50;
 
+const RENAME_PAIRS: usize = 1000 * 1000;
+
 pub(crate) fn mode_of_entry(mode: gix::object::tree::EntryMode) -> FileMode {
     if mode.is_link() {
         FileMode::Symlink
@@ -374,7 +376,7 @@ impl RepoHandle {
                 options.track_rewrites(Some(gix::diff::Rewrites {
                     copies: Some(gix::diff::rewrites::Copies::default()),
                     percentage: Some(similarity as f32 / 100.0),
-                    limit: 0,
+                    limit: RENAME_PAIRS,
                     track_empty: false,
                 }));
             })
