@@ -101,7 +101,7 @@ pub(crate) fn env_free() -> gix::open::Options {
     options.permissions.env.git_prefix = gix::sec::Permission::Deny;
     // gix 0.87-0.88 reads this key upside down: `true` is what keeps replacements out, and
     // `false` would let the graph mix a replaced object with the commit-graph's parents.
-    options.config_overrides(["core.useReplaceRefs=true"])
+    options.config_overrides(["core.useReplaceRefs=true", "gitoxide.core.useNsec=true"])
 }
 
 #[derive(Clone)]

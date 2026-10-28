@@ -31,3 +31,21 @@ fn pass_status_reads() {
     }
     println!("{path}: list + counters {:?}", median(pass));
 }
+
+#[test]
+#[ignore = "needs COGIT_BENCH_FRESH"]
+fn status_rounds_of_a_fresh_clone() {
+    let Ok(path) = std::env::var("COGIT_BENCH_FRESH") else {
+        return;
+    };
+    let handle = RepoHandle::open_exact(std::path::Path::new(&path)).unwrap();
+    for round in 0..4 {
+        let started = Instant::now();
+        let files = handle.worktree_files().unwrap();
+        println!(
+            "{path} round {round}: {:?} ({} entries)",
+            started.elapsed(),
+            files.unstaged.len()
+        );
+    }
+}
