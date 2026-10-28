@@ -31,6 +31,8 @@ pub fn init<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) {
     #[cfg(target_os = "linux")]
     log_gtk();
     #[cfg(target_os = "linux")]
+    crate::linux_report::log_at_start();
+    #[cfg(target_os = "linux")]
     if let Some(family) = font.0 {
         std::thread::spawn(move || log_fc_match(&family));
     }

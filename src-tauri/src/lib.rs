@@ -10,6 +10,8 @@ mod events;
 mod fatal;
 mod investigate_window;
 mod key_capture;
+#[cfg(target_os = "linux")]
+mod linux_report;
 mod logging;
 mod menu;
 mod native_theme;
