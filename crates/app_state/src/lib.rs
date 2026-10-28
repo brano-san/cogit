@@ -16,6 +16,7 @@ pub mod graph_overlay;
 pub mod graph_wire;
 mod handles;
 mod hooking;
+mod host_memory;
 pub mod investigation;
 pub mod legacy_dirs;
 pub mod licences;
@@ -252,6 +253,7 @@ pub struct AppState {
     /// External merge tools running, one per conflicted file.
     merge_tools: merge_tool::MergeTools,
     agents: parking_lot::Mutex<HashMap<backend::Host, Arc<backend::Agent>>>,
+    hosts_used: parking_lot::Mutex<host_memory::HostMemory>,
     command_tap: Arc<std::sync::OnceLock<journal::CommandTap>>,
     window: std::sync::OnceLock<agent::Events>,
     remotes: Arc<RwLock<HashMap<RepoId, backend::Remote>>>,
@@ -305,6 +307,7 @@ impl AppState {
             reads: reads::Cancellations::default(),
             merge_tools: merge_tool::MergeTools::default(),
             agents: parking_lot::Mutex::new(HashMap::new()),
+            hosts_used: parking_lot::Mutex::default(),
             command_tap: Arc::default(),
             window: std::sync::OnceLock::new(),
             remotes: Arc::new(RwLock::new(HashMap::new())),

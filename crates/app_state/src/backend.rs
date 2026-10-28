@@ -1007,7 +1007,28 @@ impl AppState {
         entries
     }
 
+    pub fn start_agents_of_last_run(&self, file: PathBuf) {
+        let distros = self.hosts_used.lock().begin(file);
+        for distro in distros {
+            let started = std::time::Instant::now();
+            match self.started_agent(&Host::Wsl { distro }) {
+                Ok(_) => tracing::info!(
+                    elapsed_ms = started.elapsed().as_millis(),
+                    "agent of the last run started ahead"
+                ),
+                Err(err) => tracing::error!(error = ?err, context = "agent of the last run"),
+            }
+        }
+    }
+
     fn agent(&self, host: &Host) -> Result<Arc<Agent>, GitError> {
+        if let Host::Wsl { distro } = host {
+            self.hosts_used.lock().remember(distro);
+        }
+        self.started_agent(host)
+    }
+
+    fn started_agent(&self, host: &Host) -> Result<Arc<Agent>, GitError> {
         let mut agents = self.agents.lock();
         if let Some(agent) = agents.get(host).filter(|agent| !agent.is_gone()) {
             return Ok(agent.clone());

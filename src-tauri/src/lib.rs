@@ -573,6 +573,11 @@ pub fn run() -> anyhow::Result<()> {
                 let list = config_dir.join("credentials.json");
                 std::thread::spawn(move || state.move_keychain_sign_ins(&list));
             }
+            {
+                let state = Arc::clone(&state);
+                let file = config_dir.join("wsl-used.json");
+                std::thread::spawn(move || state.start_agents_of_last_run(file));
+            }
             app.manage(AppContext {
                 state: Arc::clone(&state),
                 log_path,
