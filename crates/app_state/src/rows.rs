@@ -128,8 +128,9 @@ impl AppState {
             row.ahead = current.ahead;
             row.behind = current.behind;
         }
-        if let Ok(status) = handle
-            .status()
+        if let Ok(status) = self
+            .walked(open.id)
+            .map(|files| files.state.status)
             .inspect_err(logged("repository row: status"))
         {
             row.dirty = !status.is_clean();

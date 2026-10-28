@@ -8,6 +8,9 @@ impl AppState {
         repo: RepoId,
         view: git_engine::WorktreeView,
     ) -> Result<git_engine::WorktreeFiles, git_engine::GitError> {
+        if view == git_engine::WorktreeView::default() {
+            return self.walked(repo).map(|files| (*files).clone());
+        }
         self.handle(repo)?.worktree_files_with(view)
     }
 
@@ -17,7 +20,7 @@ impl AppState {
         &self,
         repo: RepoId,
     ) -> Result<git_engine::RepoStatus, git_engine::GitError> {
-        self.handle(repo)?.status()
+        self.walked(repo).map(|files| files.state.status)
     }
 
     /// `repo_status` and `conflicted_paths` in one read: after a mutation the cascade wants
@@ -26,7 +29,7 @@ impl AppState {
         &self,
         repo: RepoId,
     ) -> Result<git_engine::WorkingState, git_engine::GitError> {
-        self.handle(repo)?.working_state()
+        self.walked(repo).map(|files| files.state.clone())
     }
 
     pub(crate) fn local_stage_paths(

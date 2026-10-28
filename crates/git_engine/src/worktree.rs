@@ -30,6 +30,26 @@ pub struct WorktreeFiles {
     pub state: crate::WorkingState,
 }
 
+impl WorktreeFiles {
+    #[must_use]
+    pub fn change_counts(&self) -> (u32, u32) {
+        let untracked = self
+            .unstaged
+            .iter()
+            .filter(|file| file.status == FileStatus::Untracked)
+            .count();
+        let changed: std::collections::HashSet<&str> = self
+            .staged
+            .iter()
+            .chain(&self.unstaged)
+            .filter(|file| !matches!(file.status, FileStatus::Untracked | FileStatus::Ignored))
+            .map(|file| file.path.as_str())
+            .collect();
+        let count = |n: usize| u32::try_from(n).unwrap_or(u32::MAX);
+        (count(changed.len()), count(untracked))
+    }
+}
+
 impl RepoHandle {
     #[must_use]
     pub fn sparse_checkout(&self) -> bool {

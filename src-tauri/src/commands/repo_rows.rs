@@ -6,9 +6,14 @@ use std::path::PathBuf;
 
 #[tauri::command]
 #[specta::specta]
-pub async fn submodule_outline(root: String, parent: String) -> Result<Vec<Submodule>, GitError> {
+pub async fn submodule_outline(
+    state: tauri::State<'_, crate::AppContext>,
+    root: String,
+    parent: String,
+) -> Result<Vec<Submodule>, GitError> {
+    let app_state = state.state.clone();
     blocking("submodule_outline", move || {
-        app_state::repo_rows::submodule_outline(&PathBuf::from(root), &parent)
+        app_state.submodule_outline(&PathBuf::from(root), &parent)
     })
     .await
 }

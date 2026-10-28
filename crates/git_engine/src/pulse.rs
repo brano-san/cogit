@@ -4,7 +4,7 @@ use crate::{RepoHandle, Result};
 use serde::Serialize;
 use std::path::Path;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RepoPulse {
     pub missing: bool,

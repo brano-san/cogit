@@ -674,3 +674,23 @@ fn a_broken_submodule_leaves_the_rest_of_the_status_readable() {
     assert!(repo.has_changes().unwrap());
     assert!(repo.change_counts().unwrap().1 >= 1);
 }
+
+#[test]
+fn the_files_list_counts_changes_as_the_worktree_count_does() {
+    let f = test_fixtures::linear(4).unwrap();
+    f.write_file("file0.txt", "staged edit\n").unwrap();
+    f.git(&["add", "--", "file0.txt"]).unwrap();
+    f.write_file("file0.txt", "staged, then edited again\n")
+        .unwrap();
+    f.git(&["rm", "-q", "--", "file1.txt"]).unwrap();
+    f.write_file("file2.txt", "unstaged edit\n").unwrap();
+    f.write_file("loose.txt", "new\n").unwrap();
+    f.write_file("fresh/a.txt", "new\n").unwrap();
+    f.write_file("fresh/b.txt", "new\n").unwrap();
+    let repo = RepoHandle::open(f.path()).unwrap();
+
+    assert_eq!(
+        repo.worktree_files().unwrap().change_counts(),
+        repo.change_counts().unwrap()
+    );
+}

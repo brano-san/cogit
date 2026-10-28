@@ -5,7 +5,8 @@ impl AppState {
         &self,
         repo: RepoId,
     ) -> Result<Vec<git_engine::WorktreeEntry>, git_engine::GitError> {
-        self.handle(repo)?.worktrees()
+        let here = self.walked(repo)?.change_counts();
+        self.handle(repo)?.worktrees_knowing(here)
     }
 
     /// Which worktree already has this branch, so a checkout can offer to go there instead

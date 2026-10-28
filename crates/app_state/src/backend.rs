@@ -194,6 +194,14 @@ fn hide_window(command: &mut Command) {
     let _ = command;
 }
 
+pub(crate) fn host_of(root: &Path) -> Option<Host> {
+    #[cfg(feature = "loopback")]
+    if let Some(host) = loopback() {
+        return Some(host);
+    }
+    Host::of(root)
+}
+
 #[cfg(feature = "loopback")]
 pub(crate) fn loopback() -> Option<Host> {
     if std::env::var_os(INSIDE_AGENT).is_some() {
@@ -557,6 +565,16 @@ pub(crate) enum Request {
         root: String,
         max_depth: usize,
     },
+    Pulse {
+        root: String,
+    },
+    SubmoduleOutline {
+        root: String,
+        parent: String,
+    },
+    PullProbe {
+        root: String,
+    },
     Show {
         repo: Option<RepoId>,
     },
@@ -616,6 +634,12 @@ pub fn serve_agent(state: &AppState, request: Value, call: &agent::Call) -> Resu
                 .map(|done| git_engine::slash_path(&done)),
         ),
         Request::GitVersion => answer(git_engine::git_version()),
+        Request::Pulse { root } => answer(Ok(crate::repo_rows::pulse(Path::new(&root)))),
+        Request::SubmoduleOutline { root, parent } => answer(crate::repo_rows::submodule_outline(
+            Path::new(&root),
+            &parent,
+        )),
+        Request::PullProbe { root } => answer(state.pull_probe(Path::new(&root))),
         Request::Scan { root, max_depth } => {
             git_engine::discover::scan_cancellable(
                 Path::new(&root),
@@ -828,6 +852,19 @@ impl AppState {
             }
         })?;
         Ok(host.local_path(&done))
+    }
+
+    pub(crate) fn on_host_of<T: DeserializeOwned>(
+        &self,
+        root: &Path,
+        request: impl FnOnce(String) -> Request,
+    ) -> Option<Result<T, GitError>> {
+        let host = host_of(root)?;
+        let request = request(host.agent_path(root));
+        Some(
+            self.agent(&host)
+                .and_then(|agent| agent.ask(&request, None)),
+        )
     }
 
     pub(crate) fn find_repositories_through(

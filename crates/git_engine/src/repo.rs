@@ -104,6 +104,7 @@ pub(crate) fn env_free() -> gix::open::Options {
     options.config_overrides(["core.useReplaceRefs=true"])
 }
 
+#[derive(Clone)]
 pub struct RepoHandle {
     pub(crate) repo: gix::Repository,
     root: PathBuf,

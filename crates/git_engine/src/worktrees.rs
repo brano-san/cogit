@@ -68,16 +68,20 @@ impl WorktreeBranch {
 
 impl RepoHandle {
     pub fn worktrees(&self) -> Result<Vec<WorktreeEntry>> {
-        self.listed(true)
+        self.listed(true, None)
+    }
+
+    pub fn worktrees_knowing(&self, here: (u32, u32)) -> Result<Vec<WorktreeEntry>> {
+        self.listed(true, Some(here))
     }
 
     /// Branches read from each record's `HEAD`, as git reads them before it refuses a branch
     /// held elsewhere: no status walk, no `dirty` and `has_submodules` (R-487).
     pub fn worktree_heads(&self) -> Result<Vec<WorktreeEntry>> {
-        self.listed(false)
+        self.listed(false, None)
     }
 
-    fn listed(&self, full: bool) -> Result<Vec<WorktreeEntry>> {
+    fn listed(&self, full: bool, known: Option<(u32, u32)>) -> Result<Vec<WorktreeEntry>> {
         use rayon::prelude::*;
         let here = normalise(self.root());
         let linked = self
@@ -113,7 +117,14 @@ impl RepoHandle {
                 .par_iter()
                 .map(|item| match &item.folder {
                     Some(path) => {
-                        Self::describe(path.clone(), item.is_main, item.locked.clone(), &here)
+                        let counts = known.filter(|_| normalise(path) == here);
+                        Self::describe(
+                            path.clone(),
+                            item.is_main,
+                            item.locked.clone(),
+                            &here,
+                            counts,
+                        )
                     }
                     None => item.gone(),
                 })
@@ -190,7 +201,7 @@ impl RepoHandle {
         }
         let here = normalise(self.root());
         let path = std::path::PathBuf::from(&held.path);
-        let mut entry = Self::describe(path, held.is_main, held.locked.clone(), &here);
+        let mut entry = Self::describe(path, held.is_main, held.locked.clone(), &here, None);
         if entry.missing {
             (entry.branch, entry.head) = (held.branch, held.head);
         }
@@ -432,6 +443,7 @@ impl RepoHandle {
         is_main: bool,
         locked: Option<String>,
         here: &str,
+        known: Option<(u32, u32)>,
     ) -> WorktreeEntry {
         let mut entry = unread(&path, is_main, locked, here);
         // Discovery would climb to whatever repository holds the parent folder.
@@ -454,7 +466,7 @@ impl RepoHandle {
         }
         // A linked worktree of a bare repository reads `core.bare = true` too.
         entry.bare = is_main && handle.repo.is_bare();
-        match handle.change_counts() {
+        match known.map_or_else(|| handle.change_counts(), Ok) {
             Ok((changed, untracked)) => {
                 (entry.changed, entry.untracked) = (changed, untracked);
                 entry.dirty = changed > 0 || untracked > 0;

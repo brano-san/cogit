@@ -196,7 +196,9 @@ impl AppState {
         let tap = Arc::clone(&self.command_tap);
         let events = self.events.clone();
         let watchers = Arc::clone(&self.watchers);
+        let walks = self.walks.epoch();
         Arc::new(move |entry| {
+            walks.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
             if let Some(watcher) = watchers.read().get(&repo) {
                 watcher.quiet_for(fs_watcher::DEFAULT_QUIET);
             }

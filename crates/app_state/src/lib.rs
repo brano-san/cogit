@@ -41,6 +41,7 @@ mod stashing;
 mod streams;
 pub mod taskbar;
 pub mod terminal;
+mod walks;
 mod watching;
 mod worktrees;
 
@@ -224,6 +225,7 @@ pub struct AppState {
     shown: parking_lot::Mutex<Option<RepoId>>,
     /// Each repository's quiet window, outliving its watchers (see `fs_watcher::Silence`).
     silences: parking_lot::Mutex<HashMap<RepoId, fs_watcher::Silence>>,
+    walks: walks::Walks,
     journal: Arc<RwLock<std::collections::VecDeque<git_engine::GitOutput>>>,
     safety: RwLock<Vec<safety::Undoable>>,
     next_entry_id: AtomicU32,
@@ -282,6 +284,7 @@ impl AppState {
             watchers: Arc::new(RwLock::new(HashMap::new())),
             shown: parking_lot::Mutex::new(None),
             silences: parking_lot::Mutex::new(HashMap::new()),
+            walks: walks::Walks::default(),
             journal: Arc::new(RwLock::new(std::collections::VecDeque::with_capacity(
                 JOURNAL_CAPACITY,
             ))),

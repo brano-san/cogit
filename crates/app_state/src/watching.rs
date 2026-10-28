@@ -83,7 +83,7 @@ impl AppState {
     /// pulse, read from the disk, does. One that agrees keeps the row: a row costs a status.
     #[must_use]
     pub fn pulse(&self, root: &Path) -> git_engine::RepoPulse {
-        let pulse = crate::repo_rows::pulse(root);
+        let pulse = self.pulse_of(root);
         let Some(repo) = self.find_by_root(root) else {
             return pulse;
         };
@@ -149,6 +149,7 @@ impl AppState {
         }
         let events = self.events.clone();
         let rows = Arc::clone(&self.cached_rows);
+        let walks = self.walks.epoch();
         let silence = self.silence_of(repo);
         match fs_watcher::RepoWatcher::start_silenced(
             root,
@@ -156,6 +157,7 @@ impl AppState {
             common_dir,
             silence,
             move |change| {
+                walks.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
                 rows.write().forget(repo);
                 let _ = events.send(AppEvent::RepoChanged {
                     repo,
@@ -227,6 +229,7 @@ impl AppState {
 
     fn silence(&self, repo: RepoId) {
         // The watcher will not report these writes, so the row has to be dropped here.
+        self.walks.moved();
         self.forget_row(repo);
         self.silence_of(repo).quiet_for(fs_watcher::DEFAULT_QUIET);
     }

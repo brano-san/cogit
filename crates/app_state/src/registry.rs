@@ -183,13 +183,28 @@ impl AppState {
         // taking 7.7 s on a repository with sixteen branches, and one number for the whole
         // thing does not say which read to go after (doc/12-risks.md, R-121).
         let root = handle.root().to_path_buf();
-        let head = handle.head()?;
-        watch.done("head");
-        let branches = handle.branches()?;
-        watch.done("branches");
-        let tags = handle.tags()?;
-        watch.done("tags");
-        let status = handle.status()?;
+        let beside = handle.clone();
+        let (refs, status) = std::thread::scope(|scope| {
+            let status =
+                scope.spawn(move || self.walked_at(&beside).map(|files| files.state.status));
+            let refs = (|| {
+                let head = handle.head()?;
+                watch.done("head");
+                let branches = handle.branches()?;
+                watch.done("branches");
+                let tags = handle.tags()?;
+                watch.done("tags");
+                Ok::<_, git_engine::GitError>((head, branches, tags))
+            })();
+            let status = status.join().unwrap_or_else(|_| {
+                Err(git_engine::GitError::Internal(
+                    "the status read panicked".to_owned(),
+                ))
+            });
+            (refs, status)
+        });
+        let (head, branches, tags) = refs?;
+        let status = status?;
         watch.done("status");
         let state = handle.state()?;
         watch.done("state");
