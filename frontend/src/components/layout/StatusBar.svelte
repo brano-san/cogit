@@ -111,7 +111,7 @@
 
   <span class="spacer"></span>
 
-  <span class="item activity {activity.tone}" role="status">
+  <span class="item activity {activity.tone}" role="status" title={activity.label}>
     {#if activity.busy}
       <!-- Determinate while the step says how far it is, else a sweep: an operation is under way. -->
       <span class="bar" class:sweep={activity.fraction === null} aria-hidden="true">
