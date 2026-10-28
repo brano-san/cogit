@@ -43,6 +43,9 @@ impl std::fmt::Debug for SharedRepo {
 impl SharedRepo {
     /// Opens the repository whose root is `root`, as [`RepoHandle::open_root`] does.
     pub fn open(root: &Path) -> Result<Self> {
+        if !root.exists() {
+            return Err(GitError::RepoMissing(root.display().to_string()));
+        }
         let options = env_free();
         let mut template = gix::ThreadSafeRepository::discover_opts(
             root,

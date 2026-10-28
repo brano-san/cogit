@@ -394,7 +394,14 @@ impl Agent {
             .map_err(|err| self.lost(&err))?
         {
             Ok(answer) => serde_json::from_value(answer).map_err(|err| garbled(&err)),
-            Err(error) => Err(serde_json::from_value(error).unwrap_or_else(|err| garbled(&err))),
+            Err(error) => Err(
+                match serde_json::from_value(error).unwrap_or_else(|err| garbled(&err)) {
+                    GitError::RepoMissing(path) => {
+                        GitError::RepoMissing(self.host.local_path(&path).display().to_string())
+                    }
+                    other => other,
+                },
+            ),
         }
     }
 

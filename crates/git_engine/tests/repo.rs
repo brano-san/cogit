@@ -166,3 +166,13 @@ fn an_inherited_git_index_file_is_ignored() {
         "a foreign GIT_INDEX_FILE leaked in: {out}"
     );
 }
+
+#[test]
+fn a_shared_repository_whose_folder_is_gone_is_missing_not_unfound() {
+    let f = test_fixtures::linear(1).unwrap();
+    let root = f.path().join("gone");
+    assert!(matches!(
+        git_engine::SharedRepo::open(&root),
+        Err(git_engine::GitError::RepoMissing(_))
+    ));
+}

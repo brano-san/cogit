@@ -186,3 +186,29 @@ fn the_same_folder_in_another_letter_case_is_one_repository() {
 
     assert_eq!(first.repo, second.repo);
 }
+
+#[test]
+fn a_read_of_a_repository_deleted_from_disk_says_it_is_missing() {
+    let f = test_fixtures::linear(1).unwrap();
+    let copy = tempfile::tempdir().unwrap();
+    let root = copy.path().join("repo");
+    test_fixtures::git_command_in(copy.path())
+        .args(["clone", "-q"])
+        .arg(f.path())
+        .arg(&root)
+        .output()
+        .unwrap();
+    let state = app_state::AppState::new();
+    let repo = state.open_repository(&root).unwrap().repo;
+
+    std::fs::remove_dir_all(&root).unwrap();
+
+    assert!(
+        matches!(
+            state.repo_status(repo),
+            Err(git_engine::GitError::RepoMissing(_))
+        ),
+        "{:?}",
+        state.repo_status(repo)
+    );
+}

@@ -594,9 +594,7 @@
   $effect(() => {
     const failed = repository.error;
     // Untracked: the answer closes the repository, and a re-run would ask again.
-    const detail = failed?.detail;
-    if (detail?.kind === "repoMissing") untrack(() => void askMissing(detail.data));
-    else errors.report(failed, "Could not load the repository");
+    untrack(() => reportOrAskMissing(failed, "Could not load the repository"));
   });
   // An open that only took long: its timeout notice does not outlive the success.
   $effect(() => {
@@ -687,7 +685,7 @@
       output.open ? output.refresh() : Promise.resolve(),
     ]);
     const failed = settled.find((result) => result.status === "rejected");
-    if (failed) errors.report(failed.reason, "Could not refresh after a change");
+    if (failed) reportOrAskMissing(failed.reason, "Could not refresh after a change");
     // Last and not waited for: the first scan of a repository's objects can take seconds
     // on a cold disk and competes for the same cores, while nothing an open or a mutation
     // finishes needs the lost commits (R-731).
@@ -1075,7 +1073,7 @@
     SETTLE_MS,
     MAX_WAIT_MS,
     (kinds, arrived) => applyDiskChanges(kinds, arrived),
-    (err) => errors.report(err, "Could not refresh after a change on disk"),
+    (err) => reportOrAskMissing(err, "Could not refresh after a change on disk"),
   );
 
   function onDiskChange(change: import("$lib/ipc").RepoChanged) {
@@ -3041,8 +3039,26 @@ ${event.error}`,
 
   /** The folder of a listed repository is gone: Remove takes it off the list, Close leaves
       it there, closed and marked missing. */
+  const askingMissing = new Set<string>();
+
+  function reportOrAskMissing(err: unknown, title: string) {
+    const detail = (err as { detail?: { kind: string; data: string } } | null)?.detail;
+    if (detail?.kind === "repoMissing") void askMissing(detail.data);
+    else errors.report(err, title);
+  }
+
   async function askMissing(path: string) {
     const root = path.replaceAll("\\", "/").replace(/\/+$/, "");
+    if (askingMissing.has(root)) return;
+    askingMissing.add(root);
+    try {
+      await askRemoving(root);
+    } finally {
+      askingMissing.delete(root);
+    }
+  }
+
+  async function askRemoving(root: string) {
     const overview = repository.openRepos.find((entry) => entry.root === root) ?? null;
     const remove = await confirmation.ask({
       title: "Repository Deleted",
