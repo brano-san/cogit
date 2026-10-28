@@ -20,7 +20,8 @@ export interface PulseDeps {
   onFetch(root: string, ok: boolean): void;
 }
 
-/** The status of the rows of the Repositories list, in two lanes (R-353). Reads — branch,
+/** The status of the rows of the Repositories list, in two lanes (R-353, R-913). Neither starts
+    while the repository on screen is busy. Reads — branch,
     changes, ahead/behind of the local tracking ref — run `PARALLEL` at a time, at once: they
     are what the list shows. Servers are asked one at a time, with a pause between two and
     none while the repository on screen is busy; each answer is followed by a read. A request
@@ -87,6 +88,10 @@ export class PulseQueue {
   }
 
   async #read(root: string, generation: number): Promise<void> {
+    while (this.#deps.busy()) {
+      await this.#deps.sleep(BUSY_POLL_MS);
+      if (generation !== this.#generation || this.#dropped.has(root)) return;
+    }
     if (this.#deps.owned(root)) return;
     const read = await this.#deps.pulse(root).catch(() => null);
     if (generation === this.#generation && read && !this.#dropped.has(root)) this.#deps.onPulse(root, read);

@@ -86,8 +86,9 @@ describe("the status queue of the Repositories list", () => {
     expect([...h.pulses.keys()].sort()).toEqual(roots);
   });
 
-  // Reads are cheap and local; only the server's lane waits for the repository on screen.
-  it("reads while the repository on screen is busy, but asks no server then", async () => {
+  // A read of a repository in WSL goes through the agent and costs what the click on screen
+  // needs: opening a repository waited seconds behind the rows read on focus.
+  it("neither reads nor asks a server while the repository on screen is busy", async () => {
     const asked: string[] = [];
     const h = harness({
       fetch: async (root) => {
@@ -99,12 +100,13 @@ describe("the status queue of the Repositories list", () => {
     h.queue.request("/a");
     h.queue.request("/b", { fetch: true });
     await h.settle();
-    expect(h.asked).toEqual(["/a"]);
+    expect(h.asked).toEqual([]);
     expect(asked).toEqual([]);
     expect(h.sleeps.every((ms) => ms === BUSY_POLL_MS)).toBe(true);
 
     h.state.busy = false;
     await h.settle();
+    expect(h.asked).toEqual(["/a", "/b"]);
     expect(asked).toEqual(["/b"]);
   });
 

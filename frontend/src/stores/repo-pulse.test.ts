@@ -114,6 +114,27 @@ describe("the rows no watcher covers", () => {
     expect(readPulse).toHaveBeenCalledWith("C:/repos/closed");
   });
 
+  it("are read only after the click that brought the focus back has started", async () => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    const { repoPulse } = await import("./repo-pulse.svelte");
+    let opening = false;
+    repoPulse.setBusy(() => opening);
+    repoPulse.watch(["C:/repos/closed"]);
+    await vi.advanceTimersByTimeAsync(2_000);
+    readPulse.mockClear();
+
+    repoPulse.revisit();
+    await vi.advanceTimersByTimeAsync(50);
+    opening = true;
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(readPulse).not.toHaveBeenCalled();
+
+    opening = false;
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(readPulse).toHaveBeenCalledWith("C:/repos/closed");
+  });
+
   it("are not read again on every focus change", async () => {
     vi.useFakeTimers();
     vi.resetModules();

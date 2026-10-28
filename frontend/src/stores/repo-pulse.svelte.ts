@@ -8,6 +8,7 @@ const PROBE_TIMEOUT_MS = 120_000;
 /** Past the 150 ms of quiet that ends a switch or a close, so the read is not part of it. */
 const LEFT_READ_DELAY_MS = 500;
 const REVISIT_MS = 60_000;
+const FOCUS_SETTLE_MS = 300;
 /** Submodule nodes are read once the tree has not been read again for this long: an open, a
     write or a click reads it, and a status of every node inside that action held the next
     one up (R-617). */
@@ -116,19 +117,14 @@ class RepoPulseStore {
       the minute is answered when it is over: dropped, a commit made in a terminal waited
       for the next focus change after it. */
   revisit(): void {
-    const now = Date.now();
-    const wait = this.#revisited + REVISIT_MS - now;
-    if (wait > 0) {
-      this.#revisitLater ??= setTimeout(() => {
-        this.#revisitLater = null;
-        this.revisit();
-      }, wait);
-      return;
-    }
-    this.#revisited = now;
-    for (const root of this.#roots) {
-      if (root !== this.#owned) this.#queue.request(root);
-    }
+    const wait = Math.max(FOCUS_SETTLE_MS, this.#revisited + REVISIT_MS - Date.now());
+    this.#revisitLater ??= setTimeout(() => {
+      this.#revisitLater = null;
+      this.#revisited = Date.now();
+      for (const root of this.#roots) {
+        if (root !== this.#owned) this.#queue.request(root);
+      }
+    }, wait);
   }
 
   /** Something happened in it just now. */
