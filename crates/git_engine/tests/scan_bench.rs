@@ -46,3 +46,38 @@ fn stage_timings() {
         );
     }
 }
+
+#[test]
+#[ignore = "needs COGIT_DRIVE_BENCH"]
+fn drive_scan_by_top_folder() {
+    use git_engine::discover::{ScanOptions, is_system_folder, scan_cancellable};
+    let Ok(root) = std::env::var("COGIT_DRIVE_BENCH") else {
+        return;
+    };
+    let root = std::path::PathBuf::from(root);
+    let total = Instant::now();
+    let mut rows = Vec::new();
+    for entry in std::fs::read_dir(&root).unwrap().flatten() {
+        let path = entry.path();
+        if !path.is_dir() || is_system_folder(&path) {
+            continue;
+        }
+        let started = Instant::now();
+        let mut found = 0;
+        scan_cancellable(
+            &path,
+            &ScanOptions { max_depth: 5 },
+            || false,
+            |_| {
+                found += 1;
+                true
+            },
+        );
+        rows.push((started.elapsed(), path, found));
+    }
+    rows.sort_by_key(|row| std::cmp::Reverse(row.0));
+    for (took, path, found) in rows.iter().take(12) {
+        println!("{took:>12.2?} {found:>4} {}", path.display());
+    }
+    println!("{} total {:?}", root.display(), total.elapsed());
+}
