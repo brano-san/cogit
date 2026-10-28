@@ -82,7 +82,7 @@ describe("the first page", () => {
 
     await wizard.next();
 
-    expect(ipc.remoteBranches).toHaveBeenCalledWith("https://host/app.git", null);
+    expect(ipc.remoteBranches).toHaveBeenCalledWith("https://host/app.git", null, "D:\\src");
     expect(wizard.page).toBe("selection");
     expect(wizard.branch).toBe("main");
     expect(wizard.branches[0]).toEqual(["main", "main (default)"]);
@@ -107,7 +107,7 @@ describe("the first page", () => {
     await wizard.next();
 
     expect(signIns.asked).toEqual([{ host: "host", username: null, error: null }]);
-    expect(ipc.remoteBranches).toHaveBeenLastCalledWith("https://host/private.git", typed);
+    expect(ipc.remoteBranches).toHaveBeenLastCalledWith("https://host/private.git", typed, "D:\\src");
     expect(wizard.page).toBe("selection");
     expect(wizard.credential).toEqual(typed);
     wizard.close();

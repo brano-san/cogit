@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// The branches a clone can check out, as `git ls-remote --symref` listed them.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoteBranches {
     /// What the server's HEAD names: the branch a clone checks out unless told otherwise.

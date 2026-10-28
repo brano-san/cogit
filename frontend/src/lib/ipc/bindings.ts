@@ -731,7 +731,7 @@ export const commands = {
 	keyPath?: string | null,
 	/**  Kept once a command has succeeded with it. */
 	remember: boolean,
-} | null) => typedError<RemoteBranches, GitError>(__TAURI_INVOKE("remote_branches", { source, credential })),
+} | null, into: string | null) => typedError<RemoteBranches, GitError>(__TAURI_INVOKE("remote_branches", { source, credential, into })),
 	cloneDestination: (path: string) => typedError<CloneDestination, GitError>(__TAURI_INVOKE("clone_destination", { path })),
 	/**  What a picked folder is, for the Welcome dialog and its list of recent repositories. */
 	folderKind: (path: string) => typedError<FolderKind, GitError>(__TAURI_INVOKE("folder_kind", { path })),

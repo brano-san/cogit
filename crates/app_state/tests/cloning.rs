@@ -53,7 +53,7 @@ fn the_check_lists_what_the_server_has() {
     let state = AppState::new();
 
     let found = state
-        .remote_branches(&f.path().to_string_lossy(), None)
+        .remote_branches(&f.path().to_string_lossy(), None, None)
         .unwrap();
 
     assert_eq!(found.default_branch.as_deref(), Some("main"));

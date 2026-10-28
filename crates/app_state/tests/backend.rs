@@ -453,6 +453,7 @@ fn a_repository_in_wsl_opens_through_its_agent() {
     assert_eq!(wsl(r#"cat "$1/.git/hook-ran""#).trim(), "Linux");
 
     let clone = format!("{path}-clone");
+    let parent_folder = format!(r"\\wsl.localhost\{distro}\tmp");
     let request = git_engine::CloneRequest {
         source: path.clone(),
         target: clone.clone(),
@@ -468,6 +469,10 @@ fn a_repository_in_wsl_opens_through_its_agent() {
         })
         .unwrap();
     assert_eq!(cloned, std::path::PathBuf::from(&clone));
+    let listing = state
+        .remote_branches(&path, None, Some(std::path::Path::new(&parent_folder)))
+        .unwrap();
+    assert!(listing.default_branch.is_some(), "{listing:?}");
     let copy = state.open_repository(&cloned).unwrap();
     assert!(state.is_remote(copy.repo));
     assert_eq!(wsl(r#"git -C "$1-clone" log --format=%s"#).trim(), "first");

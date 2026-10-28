@@ -12,10 +12,12 @@ pub async fn remote_branches(
     state: tauri::State<'_, crate::AppContext>,
     source: String,
     credential: Option<SignIn>,
+    into: Option<String>,
 ) -> Result<RemoteBranches, GitError> {
     let app_state = state.state.clone();
     blocking("remote_branches", move || {
-        app_state.remote_branches(&source, credential.as_ref())
+        let into = into.map(std::path::PathBuf::from);
+        app_state.remote_branches(&source, credential.as_ref(), into.as_deref())
     })
     .await
 }

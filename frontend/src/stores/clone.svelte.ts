@@ -191,7 +191,7 @@ export class CloneWizard {
     try {
       // A refusal opens the Sign in dialog and checks again with what was typed (F-082).
       const { listing, credential } = await signedIn(async (credential) => ({
-        listing: await remoteBranches(source, credential),
+        listing: await remoteBranches(source, credential, this.parent.trim() || null),
         credential,
       }));
       if (stale()) return;

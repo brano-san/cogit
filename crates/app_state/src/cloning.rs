@@ -10,7 +10,11 @@ impl AppState {
         &self,
         source: &str,
         sign_in: Option<&crate::SignIn>,
+        into: Option<&std::path::Path>,
     ) -> Result<RemoteBranches, GitError> {
+        if let Some(host) = into.and_then(crate::Host::of) {
+            return self.remote_branches_through(&host, source, sign_in);
+        }
         self.signed_in(sign_in, |credential| {
             let credential = credential(source.trim());
             git_engine::remote_branches(source, credential.as_ref(), Some(&self.unowned_sink()))

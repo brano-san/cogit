@@ -6,8 +6,8 @@ export type { CloneDestination, CloneRequest, FolderKind, RemoteBranches, SignIn
 import type { CloneRequest, SignIn } from "./bindings";
 
 /** Repository ▸ Clone… (F-575). The check behind Next: `git ls-remote`; the credential helper may ask. */
-export async function remoteBranches(source: string, credential: SignIn | null = null) {
-  return unwrap(await commands.remoteBranches(source, credential));
+export async function remoteBranches(source: string, credential: SignIn | null = null, into: string | null = null) {
+  return unwrap(await commands.remoteBranches(source, credential, into));
 }
 
 export async function cloneDestination(path: string) {

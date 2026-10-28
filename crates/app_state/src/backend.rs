@@ -561,6 +561,10 @@ pub(crate) enum Request {
         path: String,
     },
     GitVersion,
+    RemoteBranches {
+        source: String,
+        sign_in: Option<crate::SignIn>,
+    },
     Scan {
         root: String,
         max_depth: usize,
@@ -634,6 +638,9 @@ pub fn serve_agent(state: &AppState, request: Value, call: &agent::Call) -> Resu
                 .map(|done| git_engine::slash_path(&done)),
         ),
         Request::GitVersion => answer(git_engine::git_version()),
+        Request::RemoteBranches { source, sign_in } => {
+            answer(state.remote_branches(&source, sign_in.as_ref(), None))
+        }
         Request::Pulse { root } => answer(Ok(crate::repo_rows::pulse(Path::new(&root)))),
         Request::SubmoduleOutline { root, parent } => answer(crate::repo_rows::submodule_outline(
             Path::new(&root),
@@ -894,6 +901,21 @@ impl AppState {
                     tracing::error!(error = ?err, context = "repository found by the agent")
                 }
             },
+        )
+    }
+
+    pub(crate) fn remote_branches_through(
+        &self,
+        host: &Host,
+        source: &str,
+        sign_in: Option<&crate::SignIn>,
+    ) -> Result<git_engine::RemoteBranches, GitError> {
+        self.agent(host)?.ask(
+            &Request::RemoteBranches {
+                source: host.source_path(source.trim()),
+                sign_in: sign_in.cloned(),
+            },
+            None,
         )
     }
 
