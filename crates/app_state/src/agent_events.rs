@@ -67,7 +67,9 @@ pub fn forward_agent_events(state: Arc<AppState>, events: agent::Events) {
     }
     let commands = events.clone();
     state.tap_commands(Box::new(move |output| {
-        commands.send(to_json(&AgentEvent::Command(output.clone())));
+        let mut output = output.clone();
+        output.answered |= crate::network::asks_sign_in(output.credential_trouble);
+        commands.send(to_json(&AgentEvent::Command(output)));
     }));
     let mut heard = state.subscribe();
     let forwarding = std::thread::Builder::new()

@@ -160,10 +160,29 @@ fn auth_required(result: Result<(), GitError>) -> git_engine::AuthRequired {
 
 fn a_refusal_asks_a_retry_signs_in_and_remember_keeps_it() {
     let (_f, _store, state, repo) = repository();
+    let mut events = state.subscribe();
 
     let asked = auth_required(fetch(&state, repo, None));
     assert_eq!(asked.host, "127.0.0.1");
     assert_eq!(asked.username, None);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let notice = loop {
+        match events.try_recv() {
+            Ok(app_state::AppEvent::CommandRecorded(notice))
+                if notice.severity == git_engine::Severity::Failure =>
+            {
+                break notice;
+            }
+            _ => {
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "no notice of the refused fetch"
+                );
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+        }
+    };
+    assert!(notice.answered, "{notice:?}");
 
     fetch(&state, repo, Some(&sign_in(PASSWORD, true))).unwrap();
     let known = state.credential_store().unwrap().known;
