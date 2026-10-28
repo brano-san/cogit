@@ -252,7 +252,9 @@ impl AppState {
         init: bool,
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet_briefly(repo);
-        self.handle(repo)?.update_submodule(path, init)
+        self.handle(repo)?
+            .signed_for_submodules(&[], self.stored())
+            .update_submodule(path, init)
     }
 
     /// Closing froze the application with nothing in the log. Dropping a `RepoWatcher`

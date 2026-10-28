@@ -51,6 +51,7 @@ impl AppState {
         let _quiet = self.guard(repo, &op);
         self.handle(repo)?
             .with_stop(stop.clone())
+            .signed_for_submodules(&[], self.stored())
             .submodule_op(op, paths)
     }
 
@@ -65,6 +66,7 @@ impl AppState {
         let _quiet = self.quiet_briefly(repo);
         self.handle(repo)?
             .with_stop(stop.clone())
+            .signed_for_submodules(&[url.trim()], self.stored())
             .add_submodule(url, path, branch)
     }
 

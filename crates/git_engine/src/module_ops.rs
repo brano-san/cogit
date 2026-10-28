@@ -173,6 +173,7 @@ impl RepoHandle {
         if let Some(stop) = &self.stop {
             inner = inner.with_stop(stop.clone());
         }
+        inner.signed.clone_from(&self.signed);
         Some(inner)
     }
 

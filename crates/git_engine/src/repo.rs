@@ -109,6 +109,7 @@ pub struct RepoHandle {
     root: PathBuf,
     journal: Option<crate::CommandSink>,
     pub(crate) stop: Option<crate::NetworkStop>,
+    pub(crate) signed: Vec<(String, crate::Credential)>,
 }
 
 impl std::fmt::Debug for RepoHandle {
@@ -150,6 +151,7 @@ impl RepoHandle {
             root,
             journal: None,
             stop: None,
+            signed: Vec::new(),
         }
     }
 
@@ -168,6 +170,25 @@ impl RepoHandle {
     #[must_use]
     pub fn with_stop(mut self, stop: crate::NetworkStop) -> Self {
         self.stop = Some(stop);
+        self
+    }
+
+    #[must_use]
+    pub fn signed_for_submodules(
+        mut self,
+        urls: &[&str],
+        credential: impl Fn(&str) -> Option<crate::Credential>,
+    ) -> Self {
+        let modules = self.submodules().unwrap_or_default();
+        let known = modules
+            .iter()
+            .map(|module| module.resolved_url.as_deref().unwrap_or(&module.url));
+        self.signed = urls
+            .iter()
+            .copied()
+            .chain(known)
+            .filter_map(|url| Some((url.to_owned(), credential(url)?)))
+            .collect();
         self
     }
 

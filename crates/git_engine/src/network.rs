@@ -407,7 +407,8 @@ impl RepoHandle {
 
     /// A command that talks to a remote and shows no progress: stoppable and watched.
     pub(crate) fn run_network(&self, args: &[&str]) -> Result<()> {
-        self.run_streaming(args, &[], |_| {})
+        let auth = crate::credentials::credential_env(&self.signed);
+        self.run_streaming(args, &auth, |_| {})
     }
 
     /// `run_streaming` for output that is parsed: the whole stdout, a journal entry only

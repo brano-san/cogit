@@ -62,7 +62,9 @@ impl AppState {
             );
             let pulled = result?;
             if let Some(known) = known.filter(|_| !pulled.stash_needed) {
-                handle.init_submodules_added_since(&known)?;
+                handle
+                    .signed_for_submodules(&[], credential)
+                    .init_submodules_added_since(&known)?;
             }
             Ok(pulled)
         })

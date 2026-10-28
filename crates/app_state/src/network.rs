@@ -141,7 +141,9 @@ impl AppState {
                 return Ok(outcome);
             }
             if let Some(known) = known {
-                handle.init_submodules_added_since(&known)?;
+                handle
+                    .signed_for_submodules(&[], credential)
+                    .init_submodules_added_since(&known)?;
             }
             Ok(outcome)
         })

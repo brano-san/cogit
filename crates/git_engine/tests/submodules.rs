@@ -412,3 +412,25 @@ fn an_outline_of_a_repository_without_submodules_is_empty() {
     let f = test_fixtures::linear(2).unwrap();
     assert!(open(&f).submodule_outline().unwrap().is_empty());
 }
+
+#[test]
+fn submodule_commands_ask_for_the_sign_in_of_each_submodule_url() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let repo = RepoHandle::open(f.path()).unwrap();
+    let module = &repo.submodules().unwrap()[0];
+    let wanted = module
+        .resolved_url
+        .clone()
+        .unwrap_or_else(|| module.url.clone());
+    let asked = std::cell::RefCell::new(Vec::new());
+
+    let _ = repo.signed_for_submodules(&["https://added.example/x.git"], |url| {
+        asked.borrow_mut().push(url.to_owned());
+        None
+    });
+
+    assert_eq!(
+        asked.into_inner(),
+        vec!["https://added.example/x.git".to_owned(), wanted]
+    );
+}
