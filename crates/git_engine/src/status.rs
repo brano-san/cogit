@@ -43,10 +43,13 @@ impl RepoHandle {
         if self.repo.is_bare() {
             return Ok(WorkingState::default());
         }
+        past_broken_submodules(|skip| self.working_state_reading(skip))
+    }
 
+    fn working_state_reading(&self, skip_submodules: bool) -> Result<WorkingState> {
         let mut status = RepoStatus::default();
         let mut conflicted = Vec::new();
-        for item in self.status_items()? {
+        for item in self.status_items(skip_submodules)? {
             let item = item.map_err(|err| GitError::Internal(format!("status failed: {err}")))?;
             status.dirty_submodules += u32::from(crate::worktree::changed_submodule(&item));
             if crate::worktree::inert(&item) {
@@ -109,7 +112,11 @@ impl RepoHandle {
         if self.repo.is_bare() {
             return Ok(false);
         }
-        for item in self.status_items()? {
+        past_broken_submodules(|skip| self.changed_reading(untracked, skip))
+    }
+
+    fn changed_reading(&self, untracked: bool, skip_submodules: bool) -> Result<bool> {
+        for item in self.status_items(skip_submodules)? {
             let item = item.map_err(|err| GitError::Internal(format!("status failed: {err}")))?;
             if crate::worktree::inert(&item) {
                 continue;
@@ -143,9 +150,13 @@ impl RepoHandle {
         if self.repo.workdir().is_none() {
             return Ok((0, 0));
         }
+        past_broken_submodules(|skip| self.change_counts_reading(skip))
+    }
+
+    fn change_counts_reading(&self, skip_submodules: bool) -> Result<(u32, u32)> {
         let mut changed = std::collections::HashSet::new();
         let mut untracked = 0;
-        for item in self.status_items()? {
+        for item in self.status_items(skip_submodules)? {
             let item = item.map_err(|err| GitError::Internal(format!("status failed: {err}")))?;
             if crate::worktree::inert(&item) {
                 continue;
@@ -171,10 +182,28 @@ impl RepoHandle {
 
     /// Collapsed, like the Files list: a folder of new files is one entry in both, so the
     /// header counts and the list agree and one walk can serve both (R-316).
-    fn status_items(&self) -> Result<gix::status::Iter> {
-        self.status_platform()?
-            .untracked_files(UntrackedFiles::Files)
+    fn status_items(&self, skip_submodules: bool) -> Result<gix::status::Iter> {
+        let mut platform = self
+            .status_platform()?
+            .untracked_files(UntrackedFiles::Files);
+        if skip_submodules {
+            platform = platform.index_worktree_submodules(gix::status::Submodule::Given {
+                ignore: gix::submodule::config::Ignore::All,
+                check_dirty: false,
+            });
+        }
+        platform
             .into_iter(None::<gix::bstr::BString>)
             .map_err(|err| GitError::Internal(format!("cannot read status: {err}")))
+    }
+}
+
+pub(crate) fn past_broken_submodules<T>(read: impl Fn(bool) -> Result<T>) -> Result<T> {
+    match read(false) {
+        Err(GitError::Internal(message)) if message.contains("for submodule at") => {
+            tracing::error!(error = %message, context = "a submodule's status, read without submodules");
+            read(true)
+        }
+        other => other,
     }
 }

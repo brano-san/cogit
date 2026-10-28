@@ -654,3 +654,23 @@ fn a_plain_change_has_no_conflict_kind() {
     f.write_file("file0.txt", "changed\n").unwrap();
     assert_eq!(conflict_row(&f, "file0.txt").conflict, None);
 }
+
+#[test]
+fn a_broken_submodule_leaves_the_rest_of_the_status_readable() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let module = f.path().join("vendor/lib");
+    std::fs::remove_dir_all(module.join(".git")).ok();
+    std::fs::remove_file(module.join(".git")).ok();
+    std::fs::write(module.join(".git"), "gitdir: ../../.git/modules/gone\n").unwrap();
+    f.write_file("loose.txt", "new\n").unwrap();
+    let repo = RepoHandle::open(f.path()).unwrap();
+
+    let listed = repo.worktree_files().unwrap();
+    assert!(
+        listed.unstaged.iter().any(|file| file.path == "loose.txt"),
+        "{listed:?}"
+    );
+    assert!(repo.status().unwrap().untracked >= 1);
+    assert!(repo.has_changes().unwrap());
+    assert!(repo.change_counts().unwrap().1 >= 1);
+}
