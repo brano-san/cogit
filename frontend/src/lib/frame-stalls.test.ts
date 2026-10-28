@@ -2,9 +2,13 @@ import { describe, expect, it } from "vitest";
 import { stallReport } from "./frame-stalls";
 
 describe("stallReport", () => {
-  it("stays quiet while every frame is in time", () => {
-    expect(stallReport("wheel", [16, 17, 16, 33, 99])).toBeNull();
+  it("stays quiet while frames keep pace and none waits 50ms", () => {
+    expect(stallReport("wheel", [8, 8, 9, 33, 49])).toBeNull();
     expect(stallReport("wheel", [])).toBeNull();
+  });
+
+  it("reports a steady rate below 50 frames a second", () => {
+    expect(stallReport("wheel", [25, 25, 25])).toBe("after wheel: 3 frames in 75ms, median 25ms, worst 25ms, 0 over 50ms");
   });
 
   it("names the input, the median, the worst gap and the slow frames", () => {

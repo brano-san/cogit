@@ -68,7 +68,6 @@ class UiMetricsStore {
   logRendered(): void {
     if (typeof document === "undefined") return;
     trace("metrics", `devicePixelRatio=${window.devicePixelRatio} fontPx=${this.current.fontPx} listRow=${this.current.listRow}`);
-    trace("metrics", `renderer: ${gpuRenderer()}`);
     const waiting = new Map(Object.entries(SAMPLES));
     let tries = 0;
     const look = () => {
@@ -100,16 +99,3 @@ class UiMetricsStore {
 }
 
 export const uiMetricsStore = new UiMetricsStore();
-
-function gpuRenderer(): string {
-  try {
-    const gl = document.createElement("canvas").getContext("webgl");
-    if (!gl) return "no WebGL";
-    const info = gl.getExtension("WEBGL_debug_renderer_info");
-    const name = info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
-    gl.getExtension("WEBGL_lose_context")?.loseContext();
-    return String(name);
-  } catch (err) {
-    return `unknown (${String(err)})`;
-  }
-}

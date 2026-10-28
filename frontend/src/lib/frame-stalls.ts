@@ -1,4 +1,5 @@
-export const STALL_MS = 100;
+export const STALL_MS = 50;
+export const SLOW_MEDIAN_MS = 20;
 export const SAMPLE_MS = 1000;
 export const QUIET_MS = 2000;
 export const WATCHDOG_MS = 500;
@@ -12,8 +13,9 @@ export interface Breakdown {
 
 export function stallReport(cause: string, gaps: number[], breakdown?: Breakdown, where = ""): string | null {
   const worst = Math.max(...gaps);
-  if (gaps.length === 0 || worst < STALL_MS) return null;
+  if (gaps.length === 0) return null;
   const median = [...gaps].sort((a, b) => a - b)[Math.floor(gaps.length / 2)] ?? 0;
+  if (worst < STALL_MS && median < SLOW_MEDIAN_MS) return null;
   const slow = gaps.filter((gap) => gap >= 50).length;
   const total = Math.round(gaps.reduce((a, b) => a + b, 0));
   let report = `after ${cause}: ${gaps.length} frames in ${total}ms, median ${Math.round(median)}ms, worst ${Math.round(worst)}ms, ${slow} over 50ms`;
