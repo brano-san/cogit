@@ -17,9 +17,9 @@ describe("stallReport", () => {
     );
   });
 
-  it("splits the wait into input delay, handlers and the first frame, and says where", () => {
-    expect(stallReport("wheel", [300], { delay: 4.2, handlers: 180.6, firstFrame: 300 }, "div.graph")).toBe(
-      "after wheel: 1 frames in 300ms, median 300ms, worst 300ms, 1 over 50ms; input delay 4ms, handlers 181ms, first frame 300ms; on div.graph",
+  it("splits the wait into input delay, handlers, the first frame and the work of each frame, and says where", () => {
+    expect(stallReport("wheel", [300], { delay: 4.2, handlers: 180.6, firstFrame: 300, busy: [3, 9, 4] }, "div.graph")).toBe(
+      "after wheel: 1 frames in 300ms, median 300ms, worst 300ms, 1 over 50ms; input delay 4ms, handlers 181ms, first frame 300ms, frame work median 4ms worst 9ms; on div.graph",
     );
   });
 });

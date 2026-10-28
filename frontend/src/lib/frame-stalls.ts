@@ -9,6 +9,7 @@ export interface Breakdown {
   delay: number;
   handlers: number;
   firstFrame: number;
+  busy: number[];
 }
 
 export function stallReport(cause: string, gaps: number[], breakdown?: Breakdown, where = ""): string | null {
@@ -21,6 +22,10 @@ export function stallReport(cause: string, gaps: number[], breakdown?: Breakdown
   let report = `after ${cause}: ${gaps.length} frames in ${total}ms, median ${Math.round(median)}ms, worst ${Math.round(worst)}ms, ${slow} over 50ms`;
   if (breakdown) {
     report += `; input delay ${Math.round(breakdown.delay)}ms, handlers ${Math.round(breakdown.handlers)}ms, first frame ${Math.round(breakdown.firstFrame)}ms`;
+    if (breakdown.busy.length > 0) {
+      const busy = [...breakdown.busy].sort((a, b) => a - b);
+      report += `, frame work median ${Math.round(busy[Math.floor(busy.length / 2)] ?? 0)}ms worst ${Math.round(Math.max(...busy))}ms`;
+    }
   }
   if (where) report += `; on ${where}`;
   return report;
@@ -49,7 +54,12 @@ export function watchFrameStalls(target: Window, log: (message: string) => void)
     if (event.type === "pointermove" && (event as PointerEvent).buttons === 0) return;
     sampling = true;
     const started = performance.now();
-    const breakdown: Breakdown = { delay: Math.max(0, started - event.timeStamp), handlers: 0, firstFrame: 0 };
+    const breakdown: Breakdown = { delay: Math.max(0, started - event.timeStamp), handlers: 0, firstFrame: 0, busy: [] };
+    const channel = new MessageChannel();
+    let frameStart = 0;
+    channel.port1.onmessage = () => {
+      breakdown.busy.push(performance.now() - frameStart);
+    };
     setTimeout(() => {
       breakdown.handlers = performance.now() - started;
     }, 0);
@@ -59,11 +69,14 @@ export function watchFrameStalls(target: Window, log: (message: string) => void)
       if (gaps.length === 0) breakdown.firstFrame = now - started;
       gaps.push(now - previous);
       previous = now;
+      frameStart = now;
+      channel.port2.postMessage(0);
       if (now - started < SAMPLE_MS) {
         target.requestAnimationFrame(frame);
         return;
       }
       sampling = false;
+      channel.port1.close();
       const nodes = document.getElementsByTagName("*").length;
       const report = stallReport(event.type, gaps, breakdown, `${where} (${nodes} DOM nodes)`);
       if (report) {
