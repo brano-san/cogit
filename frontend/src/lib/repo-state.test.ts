@@ -135,15 +135,24 @@ describe("workingTreeLabel", () => {
     expect(workingTreeLabel(none)).toBe("Working Tree/Index (clean)");
   });
 
-  it("counts changed, staged and conflicted apart, untracked and submodules as changed", () => {
-    for (const key of ["unstaged", "untracked", "dirtySubmodules"]) {
+  it("counts changed, staged and conflicted apart, untracked as changed", () => {
+    for (const key of ["unstaged", "untracked"]) {
       expect(workingTreeLabel({ ...none, [key]: 1 }), key).toBe("Working Tree/Index (1 changed)");
     }
     expect(workingTreeLabel({ ...none, conflicted: 5 })).toBe("Working Tree/Index (5 conflicted)");
     expect(workingTreeLabel({ ...none, unstaged: 1, conflicted: 4 })).toBe("Working Tree/Index (1 changed, 4 conflicted)");
     expect(workingTreeLabel({ ...none, unstaged: 3, staged: 2 })).toBe("Working Tree/Index (3 changed, 2 staged)");
     const status = { staged: 1, unstaged: 2, untracked: 3, conflicted: 4, dirtySubmodules: 5 };
-    expect(workingTreeLabel(status)).toBe("Working Tree/Index (10 changed, 1 staged, 4 conflicted)");
+    expect(workingTreeLabel(status)).toBe(
+      "Working Tree/Index (5 changed, 1 staged, 4 conflicted, 5 submodules with modifications)",
+    );
+  });
+
+  it("names submodules with modifications inside apart from the changes", () => {
+    expect(workingTreeLabel({ ...none, dirtySubmodules: 1 })).toBe("Working Tree/Index (1 submodule with modifications)");
+    expect(workingTreeLabel({ ...none, unstaged: 1, dirtySubmodules: 2 })).toBe(
+      "Working Tree/Index (1 changed, 2 submodules with modifications)",
+    );
   });
 
   it("says neither before the status is read", () => {

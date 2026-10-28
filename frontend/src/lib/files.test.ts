@@ -1,16 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fileName, matchesMask, submoduleTooltip } from "./files";
-
-describe("submoduleTooltip", () => {
-  it("explains what staging a submodule records", () => {
-    const dirty = submoduleTooltip({ newCommits: false, modified: true, untracked: true });
-    expect(dirty).toContain("modified files and untracked files inside");
-    expect(dirty).toContain("Nothing to stage");
-    expect(submoduleTooltip({ newCommits: true, modified: true, untracked: false })).toContain(
-      "changes inside the submodule are not included",
-    );
-  });
-});
+import { fileName, matchesMask } from "./files";
 
 describe("fileName", () => {
   it("takes the last segment of a path", () => {

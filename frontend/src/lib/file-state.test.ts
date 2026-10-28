@@ -47,14 +47,11 @@ describe("fileState text by side", () => {
   });
 
   it.each([
-    [{ newCommits: true, modified: false, untracked: false }, "Modified (new commits)"],
-    [{ newCommits: false, modified: true, untracked: false }, "Modified (dirty)"],
-    [{ newCommits: false, modified: false, untracked: true }, "Modified (dirty)"],
-    [{ newCommits: true, modified: true, untracked: true }, "Modified (new commits, dirty)"],
-    [{ newCommits: false, modified: false, untracked: false }, "Modified"],
-  ])("a submodule %j reads %s", (submodule, text) => {
+    { newCommits: true, modified: false, untracked: false },
+    { newCommits: true, modified: true, untracked: true },
+  ])("a moved submodule %j reads just Modified", (submodule) => {
     const state = fileState(f({ mode: "submodule", submodule }), "worktree");
-    expect(state).toMatchObject({ text, icon: "modified" });
+    expect(state).toMatchObject({ text: "Modified", icon: "modified" });
   });
 
   it("a staged submodule pointer is Staged", () => {
@@ -81,7 +78,7 @@ describe("fileState icon", () => {
 
   it("the tooltip of a submodule explains what staging does", () => {
     const state = fileState(f({ mode: "submodule", submodule: { newCommits: true, modified: false, untracked: false } }), "worktree");
-    expect(state.tooltip).toContain("Modified (new commits)");
+    expect(state.tooltip).not.toContain("new commits");
     expect(state.tooltip).toContain("Staging records");
   });
 });
