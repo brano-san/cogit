@@ -4,10 +4,15 @@ export type UpdateOutcome =
   | { kind: "available"; version: string; notes: string }
   | { kind: "failed"; reason: string };
 
+export type DownloadEvent =
+  | { event: "Started"; data: { contentLength?: number } }
+  | { event: "Progress"; data: { chunkLength: number } }
+  | { event: "Finished" };
+
 export interface UpdateHandle {
   version: string;
   body?: string | null;
-  downloadAndInstall: () => Promise<void>;
+  downloadAndInstall: (onEvent?: (event: DownloadEvent) => void) => Promise<void>;
 }
 
 export interface Updates {
@@ -18,6 +23,7 @@ export interface Updates {
   report: (outcome: UpdateOutcome) => void | Promise<void>;
   /** Unsaved work and running operations: false keeps the app as it is (the Exit question). */
   mayInstall: () => Promise<boolean>;
+  progress?: (label: string | null) => void;
 }
 
 /** Split from the plugin so the branches can be tested without a release to point at. */
@@ -83,9 +89,23 @@ export async function checkForUpdates(
   // Installing ends the app like Exit does, so it asks what Exit asks first.
   if (!(await io.mayInstall())) return outcome;
 
+  const name = `Cogit ${found.version}`;
+  let total = 0;
+  let received = 0;
+  io.progress?.(`Downloading ${name}…`);
   try {
-    await found.downloadAndInstall();
+    await found.downloadAndInstall((event) => {
+      if (event.event === "Started") total = event.data.contentLength ?? 0;
+      if (event.event === "Progress") received += event.data.chunkLength;
+      if (event.event === "Finished") {
+        io.progress?.(`Installing ${name}…`);
+        return;
+      }
+      const percent = total > 0 ? ` ${Math.min(Math.floor((received * 100) / total), 100)}%` : "";
+      io.progress?.(`Downloading ${name}…${percent}`);
+    });
   } catch (err) {
+    io.progress?.(null);
     const failed: UpdateOutcome = { kind: "failed", reason: String(err) };
     io.report(failed);
     return failed;

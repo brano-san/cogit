@@ -206,3 +206,42 @@ group("installing while there is something to lose", () => {
     expect(side.mayInstall).not.toHaveBeenCalled();
   });
 });
+
+group("install progress", () => {
+  it("names the download with its percent, then the install, then clears", async () => {
+    const said: (string | null)[] = [];
+    const found = handle({
+      downloadAndInstall: vi.fn(async (onEvent) => {
+        onEvent?.({ event: "Started", data: { contentLength: 200 } });
+        onEvent?.({ event: "Progress", data: { chunkLength: 50 } });
+        onEvent?.({ event: "Progress", data: { chunkLength: 150 } });
+        onEvent?.({ event: "Finished" });
+      }),
+    });
+
+    await checkForUpdates(io({ check: vi.fn().mockResolvedValue(found), progress: (label) => said.push(label) }));
+
+    expect(said).toEqual([
+      "Downloading Cogit 0.2.0…",
+      "Downloading Cogit 0.2.0… 0%",
+      "Downloading Cogit 0.2.0… 25%",
+      "Downloading Cogit 0.2.0… 100%",
+      "Installing Cogit 0.2.0…",
+    ]);
+  });
+
+  it("says no percent when the size is unknown, and clears on a failure", async () => {
+    const said: (string | null)[] = [];
+    const found = handle({
+      downloadAndInstall: vi.fn(async (onEvent) => {
+        onEvent?.({ event: "Started", data: {} });
+        onEvent?.({ event: "Progress", data: { chunkLength: 50 } });
+        throw new Error("network");
+      }),
+    });
+
+    await checkForUpdates(io({ check: vi.fn().mockResolvedValue(found), progress: (label) => said.push(label) }));
+
+    expect(said).toEqual(["Downloading Cogit 0.2.0…", "Downloading Cogit 0.2.0…", "Downloading Cogit 0.2.0…", null]);
+  });
+});

@@ -323,6 +323,7 @@
   let info = $state<AppInfo | null>(null);
   /** The last update check this session, for the line in About. */
   let lastUpdate = $state.raw<UpdateOutcome | null>(null);
+  let updateProgress = $state<string | null>(null);
   let opening = $state(false);
   let scanOpen = $state(false);
   let markedFiles = $state.raw<string[]>([]);
@@ -399,6 +400,7 @@
             ? notices.message(message(outcome), "Check for Updates")
             : notices.inform("Check for Updates", message(outcome)),
         mayInstall: () => mayInstallUpdate(),
+        progress: (label) => (updateProgress = label),
       },
       { quiet },
     );
@@ -4598,6 +4600,7 @@ ${event.error}`,
     {...fileFormat(diff.diff)}
     activity={activity({
       operations: running,
+      update: updateProgress ?? undefined,
       bulk: networkActions?.bulkProgress(),
       network: network.running ?? undefined,
       networkProgress: network.progress ?? undefined,

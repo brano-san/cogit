@@ -49,6 +49,7 @@ export interface BulkProgress {
 
 export interface ActivityInput {
   operations: ReadonlyMap<number, string>;
+  update?: string;
   bulk?: BulkProgress;
   network?: string;
   networkProgress?: string;
@@ -76,6 +77,7 @@ export function trackStarting(starting: readonly string[], event: BackendChanged
 /** One line for the whole app: the toolbar and the footer showed the same thing twice. */
 export function activity(input: ActivityInput): Activity {
   const busy =
+    input.update ??
     (input.bulk === undefined ? null : describeBulk(input.bulk)) ??
     input.networkProgress ??
     (input.network === undefined ? null : `${input.network}…`) ??

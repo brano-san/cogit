@@ -176,3 +176,15 @@ describe("trackCancellable", () => {
     expect(cancellable([])).toBeNull();
   });
 });
+
+describe("activity of an update", () => {
+  it("shows the update's download over everything else, with its percent as the bar", () => {
+    const shown = activity({
+      operations: new Map([[1, "Fetch"]]),
+      update: "Downloading Cogit 0.3.2… 40%",
+      opening: false,
+      failed: false,
+    });
+    expect(shown).toMatchObject({ label: "Downloading Cogit 0.3.2… 40%", busy: true, fraction: 0.4 });
+  });
+});
