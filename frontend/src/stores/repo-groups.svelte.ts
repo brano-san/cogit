@@ -1,4 +1,5 @@
 import {
+  BACKEND,
   UNGROUPED,
   addGroup,
   assign,
@@ -26,7 +27,9 @@ class RepoGroupsStore {
   #expanded = $state.raw<ReadonlySet<string>>(new Set());
 
   get collapsed(): ReadonlySet<string> {
-    return new Set([...this.groups.order, UNGROUPED].filter((id) => !this.#expanded.has(id)));
+    const folded = [...this.groups.order, UNGROUPED].filter((id) => !this.#expanded.has(id));
+    const foldedBackends = [...this.#expanded].filter((id) => id.startsWith(BACKEND));
+    return new Set([...folded, ...foldedBackends]);
   }
 
   add(name: string): void {

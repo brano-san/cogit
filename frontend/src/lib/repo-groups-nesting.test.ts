@@ -76,7 +76,7 @@ describe("groupRows with nesting", () => {
 
     const rows = groupRows(next, ["C:/b"], new Set([outer, inner]));
 
-    expect(rows.map((row) => (row.kind === "group" ? row.id : row.root))).toEqual([outer]);
+    expect(rows.map((row) => (row.kind !== "repo" ? row.id : row.root))).toEqual([outer]);
   });
 
   it("counts a parent's own repositories, not its children's", () => {

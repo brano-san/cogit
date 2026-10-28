@@ -3,11 +3,13 @@ import {
   UNGROUPED,
   addGroup,
   assign,
+  backendRows,
   groupRows,
   mergeGroups,
   removalQuestion,
   removeGroup,
   renameGroup,
+  rowKey,
   showsFilter,
   type RepoGroups,
 } from "./repo-groups";
@@ -152,7 +154,7 @@ describe("groupRows", () => {
 describe("groupRows while filtering", () => {
   const everyFolded = new Set(["g1", "g2", UNGROUPED]);
   const ids = (rows: ReturnType<typeof groupRows>) =>
-    rows.map((row) => (row.kind === "group" ? `g:${row.id}` : row.root));
+    rows.map((row) => (row.kind !== "repo" ? `g:${row.id}` : row.root));
 
   it("shows the matches of a folded group", () => {
     const folds = shownFolds(everyFolded, "alp", NO_FILTER_FOLDS);
@@ -211,5 +213,75 @@ describe("showsFilter", () => {
   it("keeps the box while a filter is typed, however few repositories are left", () => {
     expect(showsFilter(1, "beta")).toBe(true);
     expect(showsFilter(0, "beta")).toBe(true);
+  });
+});
+
+describe("backendRows", () => {
+  const where = new Map([
+    ["/w/alpha", "local"],
+    ["/w/beta", "WSL: Ubuntu"],
+    ["/w/gamma", "local"],
+    ["/w/loose", "WSL: Ubuntu"],
+  ]);
+  const roots = ["/w/beta", "/w/alpha", "/w/gamma", "/w/loose"];
+  const ids = (rows: ReturnType<typeof backendRows>) =>
+    rows.map((row) => (row.kind === "repo" ? `${row.depth}${row.root}` : `${row.depth}${row.kind}:${row.id}`));
+
+  it("is the plain list while every repository lives on one backend", () => {
+    const local = new Map(roots.map((root) => [root, "local"]));
+    expect(backendRows(withTwo, roots, local, new Set())).toEqual(groupRows(withTwo, roots, new Set()));
+  });
+
+  it("puts Local first and each backend's repositories under it", () => {
+    const rows = backendRows(empty, roots, where, new Set());
+    expect(ids(rows)).toEqual([
+      "0backend:backend:local",
+      "1/w/alpha",
+      "1/w/gamma",
+      "0backend:backend:WSL: Ubuntu",
+      "1/w/beta",
+      "1/w/loose",
+    ]);
+    expect(rows[0]).toMatchObject({ name: "Local", count: 2, open: true });
+  });
+
+  it("shows a group under each backend that has a repository in it", () => {
+    const rows = backendRows(withTwo, roots, where, new Set());
+    expect(ids(rows)).toEqual([
+      "0backend:backend:local",
+      "1group:g1",
+      "2/w/alpha",
+      "1group:g2",
+      "2/w/gamma",
+      "0backend:backend:WSL: Ubuntu",
+      "1group:g1",
+      "2/w/beta",
+      "1group:",
+      "2/w/loose",
+    ]);
+  });
+
+  it("keys a group shown twice apart", () => {
+    const rows = backendRows(withTwo, roots, where, new Set());
+    const keys = rows.flatMap((row) => (row.kind === "group" ? [rowKey(row)] : []));
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it("shows an empty group under the first backend so it can be dropped into", () => {
+    const withEmpty: RepoGroups = { ...withTwo, order: [...withTwo.order, "g3"], names: { ...withTwo.names, g3: "New" } };
+    const rows = backendRows(withEmpty, roots, where, new Set());
+    expect(rows.filter((row) => row.kind === "group" && row.id === "g3")).toHaveLength(1);
+    expect(ids(rows).indexOf("1group:g3")).toBeLessThan(ids(rows).indexOf("0backend:backend:WSL: Ubuntu"));
+  });
+
+  it("hides what a folded backend holds", () => {
+    const rows = backendRows(empty, roots, where, new Set(["backend:local"]));
+    expect(ids(rows)).toEqual(["0backend:backend:local", "0backend:backend:WSL: Ubuntu", "1/w/beta", "1/w/loose"]);
+    expect(rows[0]).toMatchObject({ count: 2, open: false });
+  });
+
+  it("leaves out a backend with no match while filtering", () => {
+    const rows = backendRows(empty, ["/w/beta"], where, new Set(), true);
+    expect(ids(rows)).toEqual(["0backend:backend:WSL: Ubuntu", "1/w/beta"]);
   });
 });

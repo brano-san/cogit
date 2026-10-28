@@ -22,7 +22,7 @@
   import { submodules } from "$stores/submodules.svelte";
   import { moduleForest } from "$stores/module-forest.svelte";
   import { moduleMemory } from "$stores/module-memory.svelte";
-  import { UNGROUPED, groupRows } from "$lib/repo-groups";
+  import { UNGROUPED, backendRows, rowKey } from "$lib/repo-groups";
   import { NO_FILTER_FOLDS, shownFolds, toggleFilterFold } from "$lib/tree";
   import type { RepoOverview } from "$lib/ipc";
   import { folderName, listedRepos, type ListedRepo } from "$lib/repo-list";
@@ -90,18 +90,9 @@
   const order = $derived(entries.map((entry) => entry.root));
   const byRoot = $derived(new Map(entries.map((entry) => [entry.root, entry])));
   const filtering = $derived(filter.trim() !== "");
-  const rows = $derived(
-    groupRows(repoGroups.groups, order, shownFolds(repoGroups.collapsed, filter, filterFolds), filtering),
-  );
-
-  function fold(group: string) {
-    if (filtering) filterFolds = toggleFilterFold(filterFolds, filter, group);
-    else repoGroups.collapse(group);
-  }
-
   const everyListed = $derived(listedRepos(repository.openRepos, repoList.list));
   const everyRoot = $derived(everyListed.map((each) => each.root));
-  /** Shown only when the list mixes backends: a list of one says nothing by naming it. */
+  /** Filled only when the list mixes backends: a list of one gets no backend headings. */
   let backends = $state.raw(new Map<string, string>());
   $effect(() => {
     const roots = everyRoot;
@@ -109,6 +100,15 @@
       backends = new Set(labels).size > 1 ? new Map(roots.map((root, at) => [root, labels[at] ?? ""])) : new Map();
     });
   });
+  const rows = $derived(
+    backendRows(repoGroups.groups, order, backends, shownFolds(repoGroups.collapsed, filter, filterFolds), filtering),
+  );
+
+  function fold(group: string) {
+    if (filtering) filterFolds = toggleFilterFold(filterFolds, filter, group);
+    else repoGroups.collapse(group);
+  }
+
   const ownsTree = (entry: RepoOverview | null) =>
     entry !== null && submodules.owner?.valueOf() === entry.repo.valueOf();
   /** The submodule rows drawn under a repository: its full tree if the panels own it. */
@@ -122,7 +122,7 @@
   const starts = $derived(
     rowStarts(
       rows.map((row) => {
-        if (row.kind === "group") return 1;
+        if (row.kind !== "repo") return 1;
         const listed = byRoot.get(row.root);
         if (!listed) return 0;
         return 1 + moduleRowsOf(row.root, ownsTree(listed.overview)).length;
@@ -322,8 +322,21 @@
 <div class="wrapper tree-rows key-list" bind:this={wrapper} use:pointerDrag={rowDrag} {onkeydown}>
 
 
-    {#each rows as row, at (row.kind === "group" ? `g:${row.id}` : row.root)}
-      {#if row.kind === "group"}
+    {#each rows as row, at (rowKey(row))}
+      {#if row.kind === "backend"}
+        <div
+          class="group"
+          role="button"
+          tabindex="0"
+          data-key-row={row.id}
+          data-key-label={row.name}
+          onclick={() => fold(row.id)}
+          onkeydown={(event) => event.key === "Enter" && fold(row.id)}
+        >
+          <Disclosure open={row.open} />
+          <span class="truncate">{row.name} ({row.count})</span>
+        </div>
+      {:else if row.kind === "group"}
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
           class="group"
@@ -332,7 +345,7 @@
           tabindex="0"
           data-drag={row.id === UNGROUPED ? undefined : GROUP_DRAG + row.id}
           data-drop={row.id}
-          data-key-row={GROUP_DRAG + row.id}
+          data-key-row={GROUP_DRAG + (row.backend ?? "") + ":" + row.id}
           data-key-label={row.name}
           style:padding-left="calc(var(--tree-base) + {row.depth} * var(--tree-step))"
           onclick={() => fold(row.id)}
@@ -388,7 +401,6 @@
         {@render topDisclosure(entry.root, submodules.owner?.valueOf() === entry.repo.valueOf())}
         {@render repoMarks(sync)}
         <span class="name truncate shrink-last">{listed.name}</span>
-        {#if backends.get(entry.root)}<span class="backend" title="Where this repository lives">{backends.get(entry.root)}</span>{/if}
         {#if listed.pinned}<span class="pin" title="Pinned to the top of its group">⊤</span>{/if}
         {#if worktrees.ownerRoot === entry.root && repository.current}
           <KindIcon kind="worktree" title="The panels show its worktree {repository.current.root}" />
@@ -425,7 +437,6 @@
             {@render topDisclosure(listed.root, false, true)}
             {@render repoMarks(sync)}
             <span class="name truncate shrink-last">{listed.name}</span>
-            {#if backends.get(listed.root)}<span class="backend" title="Where this repository lives">{backends.get(listed.root)}</span>{/if}
             {#if listed.pinned}<span class="pin" title="Pinned to the top of its group">⊤</span>{/if}
             {#if sync.missing}<span class="gone" title={MISSING_REPOSITORY}>missing</span>{/if}
             {#if sync.branch ?? sync.branchAt}<span class="branch truncate shrink-first">({sync.branch ?? sync.branchAt})</span>{/if}
@@ -489,12 +500,6 @@
   .row.closed :global(.kind),
   .row.module:not(.opened) :global(.kind) {
     opacity: 0.5;
-  }
-
-  .backend {
-    flex: none;
-    color: var(--text-secondary);
-    font-size: var(--fs-small);
   }
 
   .pin {

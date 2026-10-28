@@ -13,8 +13,17 @@ export interface RepoGroups {
 export const UNGROUPED = "";
 
 export type GroupRow =
-  | { kind: "group"; id: string; name: string; count: number; depth: number; open: boolean }
+  | { kind: "backend"; id: string; name: string; count: number; depth: number; open: boolean }
+  | { kind: "group"; id: string; name: string; count: number; depth: number; open: boolean; backend?: string }
   | { kind: "repo"; root: string; group: string; depth: number };
+
+export const BACKEND = "backend:";
+
+export function rowKey(row: GroupRow): string {
+  if (row.kind === "repo") return row.root;
+  if (row.kind === "backend") return row.id;
+  return `g:${row.backend ?? ""}:${row.id}`;
+}
 
 export function addGroup(
   groups: RepoGroups,
@@ -128,6 +137,7 @@ export function groupRows(
   roots: readonly string[],
   collapsed: ReadonlySet<string>,
   filtering = false,
+  kept: ReadonlySet<string> = new Set(),
 ): GroupRow[] {
   if (groups.order.length === 0) {
     return roots.map((root) => ({ kind: "repo", root, group: UNGROUPED, depth: 0 }));
@@ -159,7 +169,7 @@ export function groupRows(
   const holdsMatch = (id: string): boolean => {
     let found = matched.get(id);
     if (found === undefined) {
-      found = inGroup.has(id) || (children.get(id) ?? []).some(holdsMatch);
+      found = inGroup.has(id) || kept.has(id) || (children.get(id) ?? []).some(holdsMatch);
       matched.set(id, found);
     }
     return found;
@@ -198,6 +208,42 @@ export function groupRows(
   rows.push({ kind: "group", id: UNGROUPED, name: "Ungrouped", count: loose.length, depth: 0, open });
   if (open) {
     for (const root of loose) rows.push({ kind: "repo", root, group: UNGROUPED, depth: 1 });
+  }
+  return rows;
+}
+
+export function backendRows(
+  groups: RepoGroups,
+  roots: readonly string[],
+  backendOf: ReadonlyMap<string, string>,
+  collapsed: ReadonlySet<string>,
+  filtering = false,
+): GroupRow[] {
+  const labels = [...new Set(backendOf.values())].sort((a, b) =>
+    a === "local" ? -1 : b === "local" ? 1 : a.localeCompare(b),
+  );
+  if (labels.length < 2) return groupRows(groups, roots, collapsed, filtering);
+
+  const holding = new Set<string>();
+  for (const root of roots) {
+    for (let at = groups.of[root]; at !== undefined && !holding.has(at); at = groups.under[at]) holding.add(at);
+  }
+  const empty = new Set(filtering ? [] : groups.order.filter((id) => !holding.has(id)));
+
+  const rows: GroupRow[] = [];
+  let first = true;
+  for (const label of labels) {
+    const inside = roots.filter((root) => backendOf.get(root) === label);
+    if (inside.length === 0 && (filtering || !first)) continue;
+    const id = BACKEND + label;
+    const open = !collapsed.has(id);
+    rows.push({ kind: "backend", id, name: label === "local" ? "Local" : label, count: inside.length, depth: 0, open });
+    if (open) {
+      for (const row of groupRows(groups, inside, collapsed, true, first ? empty : new Set())) {
+        rows.push(row.kind === "group" ? { ...row, depth: row.depth + 1, backend: label } : { ...row, depth: row.depth + 1 });
+      }
+    }
+    first = false;
   }
   return rows;
 }
