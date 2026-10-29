@@ -211,4 +211,20 @@ fn a_read_of_a_repository_deleted_from_disk_says_it_is_missing() {
         "{:?}",
         state.repo_status(repo)
     );
+    assert!(
+        matches!(
+            state.lost_commits(repo, 10),
+            Err(git_engine::GitError::RepoMissing(_))
+        ),
+        "{:?}",
+        state.lost_commits(repo, 10)
+    );
+    assert!(
+        matches!(
+            state.worktree_files(repo, git_engine::WorktreeView::default()),
+            Err(git_engine::GitError::RepoMissing(_))
+        ),
+        "{:?}",
+        state.worktree_files(repo, git_engine::WorktreeView::default())
+    );
 }

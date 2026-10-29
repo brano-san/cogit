@@ -9,12 +9,19 @@ const QUIET_MS = 10_000;
 const lastShown = new Map<string, { text: string; at: number }>();
 
 export const errors = {
+  onMissing: null as ((root: string) => void) | null,
+
   /** `source` (a path, a ref) names what the failing operation was about; with it, the same
       failure of the same operation on the same source is shown once while it is pending
       and not again for `QUIET_MS` after. Nothing else is dropped. Called from effects, so
       untracked: reading the queue it writes to made a dismissed error come straight back. */
   report(error: unknown, title: string, source?: string): void {
     untrack(() => {
+      const missing = asCogitError(error)?.detail;
+      if (missing?.kind === "repoMissing" && errors.onMissing) {
+        errors.onMissing(missing.data);
+        return;
+      }
       const text = asCogitError(error)?.message;
       if (source !== undefined && text !== undefined) {
         const key = `${title}\u0000${source}`;

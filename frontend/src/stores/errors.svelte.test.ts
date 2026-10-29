@@ -36,3 +36,17 @@ describe("errors.report called from an effect", () => {
     stop();
   });
 });
+
+describe("errors.report of a repository deleted from disk", () => {
+  it("asks about the repository instead of showing an error", () => {
+    notices.dismissAll();
+    const asked: string[] = [];
+    errors.onMissing = (root) => asked.push(root);
+    errors.report(new CogitError({ kind: "repoMissing", data: "D:/gone" }), "Could not load the graph");
+    errors.report(new CogitError({ kind: "repoMissing", data: "D:/gone" }), "Could not read the working tree");
+    errors.onMissing = null;
+
+    expect(notices.all).toHaveLength(0);
+    expect(asked).toEqual(["D:/gone", "D:/gone"]);
+  });
+});

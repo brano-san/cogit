@@ -598,7 +598,7 @@
   $effect(() => {
     const failed = repository.error;
     // Untracked: the answer closes the repository, and a re-run would ask again.
-    untrack(() => reportOrAskMissing(failed, "Could not load the repository"));
+    untrack(() => errors.report(failed, "Could not load the repository"));
   });
   // An open that only took long: its timeout notice does not outlive the success.
   $effect(() => {
@@ -689,7 +689,7 @@
       output.open ? output.refresh() : Promise.resolve(),
     ]);
     const failed = settled.find((result) => result.status === "rejected");
-    if (failed) reportOrAskMissing(failed.reason, "Could not refresh after a change");
+    if (failed) errors.report(failed.reason, "Could not refresh after a change");
     // Last and not waited for: the first scan of a repository's objects can take seconds
     // on a cold disk and competes for the same cores, while nothing an open or a mutation
     // finishes needs the lost commits (R-731).
@@ -1077,7 +1077,7 @@
     SETTLE_MS,
     MAX_WAIT_MS,
     (kinds, arrived) => applyDiskChanges(kinds, arrived),
-    (err) => reportOrAskMissing(err, "Could not refresh after a change on disk"),
+    (err) => errors.report(err, "Could not refresh after a change on disk"),
   );
 
   function onDiskChange(change: import("$lib/ipc").RepoChanged) {
@@ -3051,11 +3051,7 @@ ${event.error}`,
       it there, closed and marked missing. */
   const askingMissing = new Set<string>();
 
-  function reportOrAskMissing(err: unknown, title: string) {
-    const detail = (err as { detail?: { kind: string; data: string } } | null)?.detail;
-    if (detail?.kind === "repoMissing") void askMissing(detail.data);
-    else errors.report(err, title);
-  }
+  errors.onMissing = (path) => void askMissing(path);
 
   async function askMissing(path: string) {
     const root = path.replaceAll("\\", "/").replace(/\/+$/, "");
