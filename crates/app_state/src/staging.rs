@@ -74,6 +74,17 @@ impl AppState {
 
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
+        let known = handle.submodule_paths();
+        let (modules, files): (Vec<String>, Vec<String>) =
+            paths.iter().cloned().partition(|path| known.contains(path));
+        if !modules.is_empty() {
+            handle.submodule_op(git_engine::SubmoduleOp::Reset, &modules)?;
+            self.record(repo, format!("Reset {}", named(&modules)), Recovery::None);
+        }
+        if files.is_empty() {
+            return Ok(());
+        }
+        let paths = files.as_slice();
         if matches!(handle.head()?, git_engine::Head::Unborn { .. }) {
             let kept = handle
                 .keep_files(paths)

@@ -1645,3 +1645,29 @@ fn a_discard_before_the_first_commit_can_be_undone() {
     assert_eq!(text(&f, "added.txt"), "staged and edited\n");
     assert_eq!(text(&f, "loose.txt"), "untracked\n");
 }
+
+#[test]
+fn discarding_a_moved_submodule_checks_out_the_commit_the_parent_records() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let (state, repo) = open(&f);
+    let module = f.path().join("vendor/lib");
+    let head = |dir: &std::path::Path| {
+        let out = test_fixtures::git_command_in(dir)
+            .args(["rev-parse", "HEAD"])
+            .output()
+            .unwrap();
+        String::from_utf8(out.stdout).unwrap()
+    };
+    let recorded = head(&module);
+    let moved = test_fixtures::git_command_in(&module)
+        .args(["checkout", "--quiet", "HEAD~1"])
+        .status()
+        .unwrap();
+    assert!(moved.success());
+
+    state
+        .discard_paths(repo, &["vendor/lib".to_owned()])
+        .unwrap();
+
+    assert_eq!(head(&module), recorded);
+}

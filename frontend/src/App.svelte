@@ -1191,13 +1191,20 @@ ${event.error}`,
     }
   }
 
+  function discardQuestion(paths: string[]) {
+    const what = paths.length === 1 ? paths[0] : `${paths.length} files`;
+    const modules = paths.filter((path) => rowFile(path).mode === "submodule");
+    if (modules.length === 0) return `Discard the changes in ${what}? Undo can bring them back.`;
+    const named = modules.length === 1 ? `Submodule ${modules[0]}` : `${modules.length} submodules`;
+    return `Discard the changes in ${what}? ${named} will be reset to the commit this repository records; Undo cannot move it back.`;
+  }
+
   async function discard(paths: string[]) {
     const id = repository.current?.repo;
     if (!id) return;
-    const what = paths.length === 1 ? paths[0] : `${paths.length} files`;
     const confirmed = await confirmation.ask({
       title: "Discard",
-      message: listedMessage(`Discard the changes in ${what}? Undo can bring them back.`, paths),
+      message: listedMessage(discardQuestion(paths), paths),
       confirm: "Discard",
       warning: true,
     });
@@ -1208,10 +1215,9 @@ ${event.error}`,
   /** Toolbar Discard asks in the app's own modal, focus on Cancel (R-255). */
   async function discardFromToolbar(paths: string[]) {
     if (paths.length === 0) return;
-    const what = paths.length === 1 ? paths[0] : `${paths.length} files`;
     const go = await confirmation.ask({
       title: "Discard Changes",
-      message: `Discard the changes in ${what}? Undo can bring them back.`,
+      message: discardQuestion(paths),
       confirm: "Discard",
       warning: true,
     });
