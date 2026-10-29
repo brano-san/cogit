@@ -152,7 +152,7 @@ class RepoPulseStore {
     if (this.remoteAhead.has(root)) this.#queue.request(root, { fetch: true, first: true });
   }
 
-  /** The server is asked, nothing is fetched: `ls-remote` writes no ref (R-354). `false`
+  /** A quiet fetch of the remotes the background check may ask (R-922). `false`
       while the one before is still out: whether there is anything to pull is still unknown. */
   #probe(root: string): Promise<boolean> {
     if (this.#probing.has(root)) return Promise.resolve(false);

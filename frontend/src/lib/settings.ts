@@ -193,7 +193,7 @@ export const DEFAULT_SETTINGS: Settings = {
   protectedBranches: ["main", "master", "develop"],
   fetchStaleHours: 24,
 
-  backgroundFetchMinutes: 0,
+  backgroundFetchMinutes: 5,
 };
 
 /** Read once at startup, so changing them needs a restart to take effect. */

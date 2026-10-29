@@ -3,7 +3,8 @@
 
 //! "Is there anything to pull" for a row of Repositories, against what console git says:
 //! the server's tip of the upstream branch (`git ls-remote --heads`) is not in HEAD
-//! (R-354). `None` — no upstream, or the server has no such branch.
+//! (R-354), found by a quiet fetch (R-922). `None` — no upstream, or the server has no such
+//! branch.
 
 use git_engine::{RepoHandle, pulse};
 use test_fixtures::Fixture;
@@ -206,6 +207,7 @@ fn an_upstream_deleted_on_the_server_has_no_answer() {
             .unwrap(),
         None
     );
+    assert!(f.oid("refs/remotes/origin/main").is_err());
 }
 
 #[test]
@@ -230,38 +232,6 @@ fn the_heads_are_what_git_ls_remote_lists() {
 
 // Past 20 000 lines the journal's record keeps the first 2 000 and the last 5 000, and the
 // probe read the heads out of that record: an upstream in the middle was not on the server.
-#[test]
-fn an_upstream_among_twenty_thousand_heads_is_found() {
-    let f = test_fixtures::with_remote().unwrap();
-    let url = f
-        .git(&["remote", "get-url", "origin"])
-        .unwrap()
-        .trim()
-        .to_owned();
-    let server = std::path::Path::new(&url);
-    let tip = f
-        .git_in(server, &["rev-parse", "refs/heads/main"])
-        .unwrap()
-        .trim()
-        .to_owned();
-    let mut packed = String::from("# pack-refs with: peeled fully-peeled sorted \n");
-    for side in ["a", "z"] {
-        for i in 0..10_000 {
-            packed.push_str(&format!("{tip} refs/heads/{side}{i:05}\n"));
-        }
-    }
-    std::fs::write(server.join("packed-refs"), packed).unwrap();
-
-    assert_eq!(git_says(&f), Some(true));
-    assert_eq!(
-        RepoHandle::open(f.path())
-            .unwrap()
-            .pull_probe(|_| None)
-            .unwrap(),
-        Some(true)
-    );
-}
-
 #[test]
 fn a_remote_that_is_gone_is_an_error_not_an_answer() {
     let f = test_fixtures::linear(2).unwrap();

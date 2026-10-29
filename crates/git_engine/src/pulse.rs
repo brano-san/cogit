@@ -158,13 +158,13 @@ impl RepoHandle {
             .collect())
     }
 
-    /// Whether the server's tip of HEAD's upstream is missing from HEAD (R-354); a tracking
-    /// ref the server moved, back too, is fetched to its tip (R-921). `None`: no upstream,
-    /// or no such branch there.
-    /// `credential`: what Cogit has stored for the host, never a question (F-082).
+    /// Fetches every remote the background check may ask (`--prune`, nothing else written),
+    /// then says whether HEAD lacks its upstream's tip (R-922). `None`: no upstream, or no
+    /// such branch there. `credential`: what Cogit has stored for the host, never a
+    /// question (F-082).
     pub fn pull_probe(
         &self,
-        credential: impl FnOnce(&str) -> Option<crate::Credential>,
+        credential: impl Fn(&str) -> Option<crate::Credential>,
     ) -> Result<Option<bool>> {
         let crate::Head::Branch { name, oid } = self.head()? else {
             return Ok(None);
@@ -172,80 +172,62 @@ impl RepoHandle {
         let Ok(full) = gix::refs::FullName::try_from(format!("refs/heads/{name}")) else {
             return Ok(None);
         };
-        let Some(remote) = self
+        let upstream = self
             .repo
             .branch_remote_name(full.as_ref().shorten(), gix::remote::Direction::Fetch)
-        else {
+            .map(|remote| remote.as_bstr().to_string());
+        for remote in self.remotes()? {
+            if !self.background_fetch_of(&remote) {
+                continue;
+            }
+            let auth = self.auth_env(&remote, gix::remote::Direction::Fetch, &credential);
+            match self.fetch_quietly(&remote, &auth) {
+                Err(err) if upstream.as_deref() == Some(remote.as_str()) => return Err(err),
+                Err(err) => {
+                    tracing::warn!(remote = %remote, error = %err, "background fetch failed");
+                }
+                Ok(()) => {}
+            }
+        }
+        let Some(upstream) = upstream else {
             return Ok(None);
         };
-        let Some(Ok(merge)) = self
+        if !self.background_fetch_of(&upstream) {
+            return Ok(None);
+        }
+        let Some(Ok(tracking)) = self
             .repo
-            .branch_remote_ref_name(full.as_ref(), gix::remote::Direction::Fetch)
+            .branch_remote_tracking_ref_name(full.as_ref(), gix::remote::Direction::Fetch)
         else {
             return Ok(None);
         };
-        let remote = remote.as_bstr().to_string();
-        if !self.background_fetch_of(&remote) {
-            return Ok(None);
-        }
-        let merge = merge.as_bstr().to_string();
-        let auth = self.auth_env(&remote, gix::remote::Direction::Fetch, credential);
         let Some(tip) = self
-            .heads_matching(&remote, &[&merge], &auth)?
-            .into_iter()
-            .find_map(|(name, tip)| (name == merge).then_some(tip))
+            .repo
+            .try_find_reference(tracking.as_ref())
+            .ok()
+            .flatten()
+            .and_then(|mut reference| reference.peel_to_id().ok())
+            .map(gix::Id::detach)
         else {
             return Ok(None);
         };
-        self.follow_server(full.as_ref(), &remote, &merge, &tip, &auth);
-        let (Ok(tip), Ok(head)) = (
-            gix::ObjectId::from_hex(tip.as_bytes()),
-            gix::ObjectId::from_hex(oid.as_bytes()),
-        ) else {
+        let Ok(head) = gix::ObjectId::from_hex(oid.as_bytes()) else {
             return Ok(None);
         };
-        if self.repo.find_header(tip).is_err() {
-            return Ok(Some(true));
-        }
         let base = self.repo.merge_base(head, tip).map(gix::Id::detach);
         Ok(Some(!matches!(base, Ok(base) if base == tip)))
     }
 
-    fn follow_server(
-        &self,
-        branch: &gix::refs::FullNameRef,
-        remote: &str,
-        merge: &str,
-        tip: &str,
-        auth: &[(String, String)],
-    ) {
-        let Some(Ok(tracking)) = self
-            .repo
-            .branch_remote_tracking_ref_name(branch, gix::remote::Direction::Fetch)
-        else {
-            return;
-        };
-        let tracking = tracking.as_bstr().to_string();
-        let known = self
-            .repo
-            .try_find_reference(tracking.as_str())
-            .ok()
-            .flatten()
-            .and_then(|mut reference| reference.peel_to_id().ok())
-            .map(|id| id.to_string());
-        if known.as_deref() == Some(tip) {
-            return;
-        }
-        let refspec = format!("+{merge}:{tracking}");
+    fn fetch_quietly(&self, remote: &str, auth: &[(String, String)]) -> Result<()> {
         let mut args = self.background_options();
         args.extend([
             "fetch",
             "--quiet",
+            "--prune",
             "--no-auto-gc",
             "--no-write-fetch-head",
             "--recurse-submodules=no",
             remote,
-            &refspec,
         ]);
         let refusal = askpass_refusal(self.has_own_ssh_command());
         let mut env = quiet_env(&refusal);
@@ -253,9 +235,7 @@ impl RepoHandle {
             auth.iter()
                 .map(|(key, value)| (key.as_str(), value.as_str())),
         );
-        if let Err(err) = self.run_git_with_env(&args, &env) {
-            tracing::error!(error = ?err, context = "fetch of an upstream the server moved");
-        }
+        self.run_git_with_env(&args, &env).map(drop)
     }
 
     pub(crate) fn background_options(&self) -> Vec<&'static str> {
