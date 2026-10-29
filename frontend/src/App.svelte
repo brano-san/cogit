@@ -3153,7 +3153,7 @@ ${event.error}`,
 
   async function scanEverywhere() {
     const watch = measure("scan-drives");
-    await scan.run(null, 6);
+    await scan.run(null, 6, listedRepos(repository.openRepos, repoList.list).map((row) => row.root));
     watch.stop(`${scan.hits.length} repositories`);
   }
 
@@ -3161,7 +3161,7 @@ ${event.error}`,
     const picked = await openFolderDialog({ directory: true, title: "Scan Folder" });
     if (typeof picked !== "string") return;
     const watch = measure("scan-folder");
-    await scan.run(picked, 6);
+    await scan.run(picked, 6, listedRepos(repository.openRepos, repoList.list).map((row) => row.root));
     watch.stop(`${scan.hits.length} repositories`);
   }
 

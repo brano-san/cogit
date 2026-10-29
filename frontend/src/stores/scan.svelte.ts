@@ -1,3 +1,4 @@
+import { pathKey } from "$lib/welcome";
 import { cancelOperation, type CogitError, scanForRepositories, type ScanHit, toCogitError } from "$lib/ipc";
 
 /** What the dialog names as the scanned place when no folder was chosen. */
@@ -26,7 +27,8 @@ class ScanStore {
   }
 
   /** `folder` null: every drive. */
-  async run(folder: string | null, depth: number): Promise<void> {
+  async run(folder: string | null, depth: number, listed: readonly string[] = []): Promise<void> {
+    const known = new Set(listed.map(pathKey));
     this.#stopWalk();
     const generation = ++this.#generation;
     this.folder = folder ?? ALL_DRIVES;
@@ -44,7 +46,7 @@ class ScanStore {
           if (generation !== this.#generation) return;
           // Nothing ticked until the user ticks it: a search of a whole drive found dozens
           // and one click opened them all (R-821).
-          this.hits = [...this.hits, hit];
+          this.hits = [...this.hits, { ...hit, alreadyOpen: hit.alreadyOpen || known.has(pathKey(hit.root)) }];
         },
         (id) => {
           if (generation === this.#generation) this.#walking = id;

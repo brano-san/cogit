@@ -55,6 +55,12 @@ describe("scan store", () => {
     expect(scan.hits).toHaveLength(2);
   });
 
+  it("marks a repository already in the Repositories list, open or closed, in any spelling", async () => {
+    findsBackend([hit("//wsl.localhost/Ubuntu/home/u/app"), hit("//wsl.localhost/Ubuntu/srv/lib.git"), hit("/w/new")]);
+    await scan.run("/w", 6, [String.raw`\\wsl.localhost\ubuntu\home\u\app`,"//wsl.localhost/Ubuntu/srv/lib.git/"]);
+    expect(scan.hits.map((each) => each.alreadyOpen)).toEqual([true, true, false]);
+  });
+
   it("ticks nothing until the user does", async () => {
     findsBackend([hit("/w/alpha"), hit("/w/open-one", true)]);
     await scan.run("/w", 6);
