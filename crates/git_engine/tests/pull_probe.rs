@@ -78,7 +78,12 @@ fn remote_moves_on(f: &Fixture, reset_to: Option<&str>) {
     }
 }
 
-/// Every ref and `FETCH_HEAD`: the probe must leave all of them as they were.
+fn server_tip(f: &Fixture) -> String {
+    let listed = f.git(&["ls-remote", "--heads", "origin", "main"]).unwrap();
+    listed.split('\t').next().unwrap().trim().to_owned()
+}
+
+/// Every ref and `FETCH_HEAD`: the probe moves only the tracking ref, to the server's tip.
 fn refs_of(f: &Fixture) -> (String, bool) {
     (
         f.git(&["for-each-ref", "--format=%(refname) %(objectname)"])
@@ -90,6 +95,7 @@ fn refs_of(f: &Fixture) -> (String, bool) {
 fn agree(f: &Fixture, expected: Option<bool>) {
     let truth = git_says(f);
     assert_eq!(truth, expected, "the fixture is not what the test thinks");
+    let server = server_tip(f);
     let before = refs_of(f);
     assert_eq!(
         RepoHandle::open(f.path())
@@ -98,7 +104,19 @@ fn agree(f: &Fixture, expected: Option<bool>) {
             .unwrap(),
         truth
     );
-    assert_eq!(refs_of(f), before, "the probe wrote something");
+    let (refs, fetch_head) = refs_of(f);
+    let expected: String = before
+        .0
+        .lines()
+        .map(|line| match line.split_once(' ') {
+            Some((name @ ("refs/remotes/origin/main" | "refs/remotes/origin/HEAD"), _)) => {
+                format!("{name} {server}\n")
+            }
+            _ => format!("{line}\n"),
+        })
+        .collect();
+    assert_eq!(refs, expected, "the probe wrote more than the tracking ref");
+    assert_eq!(fetch_head, before.1, "the probe wrote FETCH_HEAD");
     assert_eq!(fetched_says(f), truth);
 }
 
