@@ -154,6 +154,7 @@
         >
       {:else}
         <CopyButton class="btn" text={notice.report} />
+        <button type="button" class="btn" onclick={() => notices.dismiss()}>Close</button>
       {/if}
     </footer>
   </section>
