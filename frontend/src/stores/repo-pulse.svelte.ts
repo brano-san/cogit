@@ -28,6 +28,7 @@ class RepoPulseStore {
   #ownedMarks: RepoPulse | null = null;
   #seen = new Set<string>();
   #roots: readonly string[] = [];
+  #open: ReadonlySet<string> = new Set();
   #timer: ReturnType<typeof setInterval> | null = null;
   #every = 0;
   #revisited = -Infinity;
@@ -42,6 +43,7 @@ class RepoPulseStore {
     fetch: (root) => this.#probe(root),
     busy: () => this.#busy(),
     owned: (root) => root === this.#owned,
+    rank: (root) => this.#rank(root),
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     onPulse: (root, pulse) => {
       // Read before the panels took it over; they keep it current now.
@@ -87,14 +89,21 @@ class RepoPulseStore {
   }
 
   /** Every row of the list; a row never read is read once. */
-  watch(roots: readonly string[], modules: readonly string[] = []): void {
+  watch(roots: readonly string[], modules: readonly string[] = [], open: readonly string[] = []): void {
     this.#roots = [...roots, ...modules];
+    this.#open = new Set(open);
     for (const root of this.#roots) {
       if (this.#seen.has(root)) continue;
       this.#seen.add(root);
       if (modules.includes(root)) this.#later(root);
       else this.#queue.request(root);
     }
+  }
+
+  #rank(root: string): number {
+    if (this.#open.has(root)) return 1;
+    for (const top of this.#open) if (root.startsWith(`${top}/`)) return 2;
+    return 3;
   }
 
   /** A node's read waits for the reads of the tree to stop for a while; each one starts the

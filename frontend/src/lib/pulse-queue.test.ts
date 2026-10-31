@@ -22,7 +22,7 @@ function harness(over: Partial<PulseDeps> = {}) {
   const sleeps: number[] = [];
   let inFlight = 0;
   let widest = 0;
-  const state = { busy: false, owned: new Set<string>() };
+  const state = { busy: false, owned: new Set<string>(), ranks: new Map<string, number>() };
   const queue = new PulseQueue({
     pulse: (root) => {
       asked.push(root);
@@ -38,6 +38,7 @@ function harness(over: Partial<PulseDeps> = {}) {
     fetch: async () => true,
     busy: () => state.busy,
     owned: (root) => state.owned.has(root),
+    rank: (root) => state.ranks.get(root) ?? 1,
     // A macrotask, as a real timer is: a busy loop on microtasks would never let go.
     sleep: (ms) => {
       sleeps.push(ms);
@@ -197,5 +198,69 @@ describe("the status queue of the Repositories list", () => {
     await h.settle();
     expect(h.fetched).toEqual([["/a", true]]);
     expect(h.asked).toEqual(["/b"]);
+  });
+
+  describe("by rank", () => {
+    const fill = (h: ReturnType<typeof harness>) => {
+      for (const root of ["/1", "/2", "/3", "/4"]) h.queue.request(root);
+    };
+
+    it("reads an open repository before a closed one asked for earlier", async () => {
+      const h = harness();
+      h.state.ranks.set("/closed", 3);
+      fill(h);
+      h.queue.request("/closed");
+      h.queue.request("/open");
+      await h.settle();
+      await h.answer("/1");
+      expect(h.asked.at(-1)).toBe("/open");
+    });
+
+    it("reads a submodule of an open repository before a closed row", async () => {
+      const h = harness();
+      h.state.ranks.set("/closed", 3);
+      h.state.ranks.set("/open/lib", 2);
+      fill(h);
+      h.queue.request("/closed");
+      h.queue.request("/open/lib");
+      await h.settle();
+      await h.answer("/1");
+      expect(h.asked.at(-1)).toBe("/open/lib");
+    });
+
+    it("keeps the order of the requests within a rank", async () => {
+      const h = harness();
+      fill(h);
+      h.queue.request("/b");
+      h.queue.request("/a");
+      await h.settle();
+      await h.answer("/1");
+      await h.answer("/2");
+      expect(h.asked.slice(-2)).toEqual(["/b", "/a"]);
+    });
+
+    it("reads a repository that just changed before any rank", async () => {
+      const h = harness();
+      h.state.ranks.set("/closed", 3);
+      fill(h);
+      h.queue.request("/open");
+      h.queue.request("/closed", { first: true });
+      await h.settle();
+      await h.answer("/1");
+      expect(h.asked.at(-1)).toBe("/closed");
+    });
+
+    it("asks the server of an open repository before a closed one asked for earlier", async () => {
+      const replies = new Map<string, (ok: boolean) => void>();
+      const h = harness({ fetch: (root) => new Promise((resolve) => replies.set(root, resolve)) });
+      h.state.ranks.set("/closed", 3);
+      h.queue.request("/busy", { fetch: true });
+      h.queue.request("/closed", { fetch: true });
+      h.queue.request("/open", { fetch: true });
+      await h.settle();
+      replies.get("/busy")?.(true);
+      await h.settle();
+      expect([...replies.keys()]).toEqual(["/busy", "/open"]);
+    });
   });
 });

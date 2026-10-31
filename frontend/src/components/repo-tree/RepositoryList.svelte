@@ -157,7 +157,8 @@
   const conflictsIn = (root: string, owned: boolean) =>
     conflictedTree(moduleRowsOf(root, owned), (key) => nodeSync(root, owned, key).conflicted);
 
-  $effect(() => repoPulse.watch(everyRoot, moduleRoots));
+  const openRoots = $derived(repository.openRepos.map((each) => each.root));
+  $effect(() => repoPulse.watch(everyRoot, moduleRoots, openRoots));
 
   $effect(() => {
     void submodules.children;

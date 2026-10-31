@@ -7,6 +7,8 @@ export const BUSY_POLL_MS = 500;
 /** Rows read side by side: each is a few milliseconds of local reads (R-353). */
 export const PARALLEL = 4;
 
+const NONE: ReadonlySet<string> = new Set();
+
 export interface PulseDeps {
   pulse(root: string): Promise<RepoPulse>;
   /** `false` when the fetch failed; it never throws for that. */
@@ -15,6 +17,7 @@ export interface PulseDeps {
   busy(): boolean;
   /** The panels own this one and read its full status themselves: no pulse. */
   owned(root: string): boolean;
+  rank(root: string): number;
   sleep(ms: number): Promise<void>;
   onPulse(root: string, pulse: RepoPulse): void;
   onFetch(root: string, ok: boolean): void;
@@ -32,6 +35,7 @@ export class PulseQueue {
   #reads = new Set<string>();
   #fetches = new Set<string>();
   #reading = new Set<string>();
+  #first = new Set<string>();
   #dropped = new Set<string>();
   #fetching = false;
   /** The root whose server is being asked now, and whether it was cancelled meanwhile. */
@@ -55,14 +59,17 @@ export class PulseQueue {
       this.#kickFetches();
       return;
     }
-    if (first) this.#reads = new Set([root, ...[...this.#reads].filter((each) => each !== root)]);
-    else this.#reads.add(root);
+    if (first) {
+      this.#reads = new Set([root, ...[...this.#reads].filter((each) => each !== root)]);
+      this.#first.add(root);
+    } else this.#reads.add(root);
     this.#kickReads();
   }
 
   cancel(root: string): void {
     this.#reads.delete(root);
     this.#fetches.delete(root);
+    this.#first.delete(root);
     if (this.#reading.has(root)) this.#dropped.add(root);
     if (this.#asking === root) this.#askDropped = true;
   }
@@ -70,14 +77,30 @@ export class PulseQueue {
   stop(): void {
     this.#reads.clear();
     this.#fetches.clear();
+    this.#first.clear();
     this.#generation += 1;
+  }
+
+  #next(waiting: ReadonlySet<string>, taken: ReadonlySet<string>, first: ReadonlySet<string>): string | undefined {
+    let best: string | undefined;
+    let bestRank = Infinity;
+    for (const root of waiting) {
+      if (taken.has(root)) continue;
+      const rank = first.has(root) ? 0 : this.#deps.rank(root);
+      if (rank < bestRank) {
+        best = root;
+        bestRank = rank;
+      }
+    }
+    return best;
   }
 
   #kickReads(): void {
     while (this.#reading.size < PARALLEL) {
-      const root = [...this.#reads].find((each) => !this.#reading.has(each));
+      const root = this.#next(this.#reads, this.#reading, this.#first);
       if (root === undefined) return;
       this.#reads.delete(root);
+      this.#first.delete(root);
       this.#reading.add(root);
       void this.#read(root, this.#generation).finally(() => {
         this.#reading.delete(root);
@@ -114,7 +137,7 @@ export class PulseQueue {
         await this.#deps.sleep(BUSY_POLL_MS);
         if (!live()) return;
       }
-      const root = this.#fetches.values().next().value;
+      const root = this.#next(this.#fetches, NONE, NONE);
       if (root === undefined) return;
       this.#fetches.delete(root);
       this.#asking = root;

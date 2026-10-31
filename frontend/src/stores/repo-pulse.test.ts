@@ -395,3 +395,21 @@ describe("the pull arrow of a row whose pulse finds nothing behind", () => {
     expect(await readWith(2)).toBe(true);
   });
 });
+
+describe("the rows of open repositories", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("are read before closed rows listed above them", async () => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    const { repoPulse } = await import("./repo-pulse.svelte");
+    readPulse.mockClear();
+    const closed = ["C:/c1", "C:/c2", "C:/c3", "C:/c4", "C:/c5"];
+    repoPulse.watch([...closed, "C:/open"], ["C:/open/lib"], ["C:/open"]);
+    await vi.advanceTimersByTimeAsync(2_000);
+    repoPulse.revisit();
+    readPulse.mockClear();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(readPulse.mock.calls.flat().slice(4, 6)).toEqual(["C:/open", "C:/open/lib"]);
+  });
+});
