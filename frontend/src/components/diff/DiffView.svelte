@@ -52,6 +52,8 @@
   import FileSummary from "./FileSummary.svelte";
   import { binaryReason, tooLargeReason } from "$lib/diff-summary";
   import SidewaysScrollbar from "$components/common/SidewaysScrollbar.svelte";
+  import ScrollMarks from "$components/common/ScrollMarks.svelte";
+  import { rowMarks } from "$lib/scroll-marks";
   import {
     NO_NEWLINE_COLUMNS,
     REVEAL_MARGIN_COLUMNS,
@@ -531,6 +533,36 @@
     const top = Math.floor(navTop / ROW_HEIGHT);
     const bottom = Math.floor((navTop + viewportHeight) / ROW_HEIGHT) - 1;
     steps = changeSteps(starts, top, bottom, lead);
+  }
+
+  const paneTone = (row: PaneRow | undefined, left: boolean) =>
+    row?.kind === "line" ? toneOf(row.blockKind, left, true) : "";
+  const marks = $derived(
+    mode === "unified"
+      ? rowMarks(
+          model.unified.map((row) => (row.kind === "line" ? toneOf(row.blockKind, row.type === "delete") : "")),
+          ROW_HEIGHT,
+          viewportHeight,
+        )
+      : rowMarks(
+          model.right.map((row, at) => paneTone(row, false) || paneTone(model.left[at], true)),
+          ROW_HEIGHT,
+          viewportHeight,
+        ),
+  );
+
+  function placeRow(row: number) {
+    const top = revealTop(row, lead, ROW_HEIGHT);
+    if (mode === "unified") {
+      if (unifiedEl) unifiedEl.scrollTop = top;
+      return;
+    }
+    for (const [side, el] of [
+      ["left", leftEl],
+      ["right", rightEl],
+    ] as const) {
+      if (el && guard.write(side, el.scrollTop, top)) el.scrollTop = top;
+    }
   }
 
   /** Change `index` `lead` rows below the top of every pane, each at its own row. */
@@ -1060,6 +1092,8 @@
   {:else if diff.kind === "tooLarge"}
     <FileSummary reason={tooLargeReason(diff.limit)} old={diff.old} next={diff.new} />
   {:else if mode === "unified"}
+    <div class="frame">
+    <ScrollMarks {marks} onpick={placeRow} />
     <div class="scroll" data-select-text="diff" bind:this={unifiedEl} onscroll={onunified} {onwheel}>
       <div
         class="rows"
@@ -1096,6 +1130,7 @@
         {/if}
       </div>
     </div>
+    </div>
     <SidewaysScrollbar offset={shift} max={sidewaysMax} onscroll={(offset) => (sideways = offset)} />
   {:else}
     {#if captionsShown}
@@ -1108,6 +1143,7 @@
       </div>
     {/if}
     <div class="panes" style:--shift="{shift}px" bind:clientWidth={rowsWidth}>
+      <ScrollMarks {marks} onpick={placeRow} />
       <div
         class="pane left"
         data-select-text="diff"
@@ -1336,7 +1372,16 @@
   }
 
   /* Side by side: two scrollers, kept level by `diff-sync`. Only the right one shows its bar. */
+  .frame {
+    position: relative;
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+  }
+
   .panes {
+    position: relative;
     display: flex;
     flex: 1 1 auto;
     min-height: 0;

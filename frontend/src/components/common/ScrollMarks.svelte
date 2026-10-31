@@ -1,10 +1,8 @@
 <script lang="ts">
-  import type { Tone } from "$lib/solver-model";
-
   /** Change marks over the right edge of a pane, where its scrollbar is: one per hunk, in
       the hunk's color; a click brings the hunk into view. */
   interface Props {
-    marks: { id: number; top: number; height: number; tone: Tone | null }[];
+    marks: { id: number; top: number; height: number; tone: string | null }[];
     onpick: (id: number) => void;
   }
 
@@ -58,6 +56,14 @@
 
   .mark.changed {
     background: var(--diff-changed-word);
+  }
+
+  .mark.auto {
+    background: var(--c-stash-bg);
+  }
+
+  .mark.move {
+    background: var(--diff-move-word);
   }
 
   .mark.conflict {

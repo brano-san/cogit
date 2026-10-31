@@ -5,7 +5,7 @@
   import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
   import SolverBand from "$components/solver/SolverBand.svelte";
-  import SolverMarks from "$components/solver/SolverMarks.svelte";
+  import ScrollMarks from "$components/common/ScrollMarks.svelte";
   import SolverMenuBar from "$components/solver/SolverMenuBar.svelte";
   import ResolveCloseDialog from "$components/solver/ResolveCloseDialog.svelte";
   import SolverToolbar from "$components/solver/SolverToolbar.svelte";
@@ -713,7 +713,7 @@
           >
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div class="host" bind:this={resultEl} oncontextmenu={(e) => void oncontext(e, "result")}>
-            <SolverMarks {marks} onpick={(id) => editors?.goTo(id)} />
+            <ScrollMarks {marks} onpick={(id) => editors?.goTo(id)} />
             {#each belowButtons as button (button.id)}
               <span class="below" style:top="{button.y}px">
                 {#if shows("ours")(button.id)}

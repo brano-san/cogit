@@ -3,6 +3,8 @@
   import { ON_MAC, primary } from "$lib/platform";
   import VirtualList from "$components/common/VirtualList.svelte";
   import SidewaysScrollbar from "$components/common/SidewaysScrollbar.svelte";
+  import ScrollMarks from "$components/common/ScrollMarks.svelte";
+  import { rowMarks } from "$lib/scroll-marks";
   import { TRAILING_COLUMNS, clampOffset, maxOffset, textColumns, wheelSideways } from "$lib/code-scroll";
   import {
     autoResolvedCount,
@@ -64,6 +66,15 @@
     sideways = clampOffset(shift + delta, sidewaysMax);
   }
 
+  let panesHeight = $state(0);
+  const marks = $derived(
+    rowMarks(
+      rows.map((row) => (row.conflict ? "changed" : row.origin !== null && row.origin !== "unchanged" ? "auto" : "")),
+      22,
+      panesHeight,
+    ),
+  );
+
   function step(direction: 1 | -1) {
     at = nextConflict(conflicts, at, direction);
   }
@@ -112,7 +123,8 @@
   </div>
 
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="panes" style:--shift="{shift}px" {onwheel}>
+  <div class="panes" style:--shift="{shift}px" bind:clientHeight={panesHeight} {onwheel}>
+    <ScrollMarks {marks} onpick={(row) => (at = row)} />
     <div class="line ruler" aria-hidden="true">
       <span class="cell mono" bind:clientWidth={cellWidth}
         ><span class="probe" bind:offsetWidth={probeWidth}>{PROBE}</span></span
