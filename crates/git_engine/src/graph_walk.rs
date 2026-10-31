@@ -4,35 +4,39 @@
 
 use crate::RepoHandle;
 use gix::ObjectId;
-use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::collections::{BinaryHeap, HashSet};
 
 /// What a walk listed of each commit: its commit time and every parent.
 #[derive(Debug, Default, Clone)]
 pub struct WalkedHistory {
-    index: HashMap<ObjectId, (i64, Vec<ObjectId>)>,
+    index: gix::hashtable::HashMap<ObjectId, (i64, Box<[ObjectId]>)>,
 }
 
 impl WalkedHistory {
     /// Roughly what it holds, for a cache that counts bytes.
     #[must_use]
     pub fn bytes(&self) -> usize {
-        self.index
-            .values()
-            .map(|(_, parents)| {
-                size_of::<(ObjectId, (i64, Vec<ObjectId>))>()
-                    + size_of::<ObjectId>() * parents.len()
-                    + 8
-            })
-            .sum()
+        self.index.capacity() * (size_of::<(ObjectId, (i64, Box<[ObjectId]>))>() + 1)
+            + self
+                .index
+                .values()
+                .map(|(_, parents)| size_of::<ObjectId>() * parents.len())
+                .sum::<usize>()
     }
 
     pub(crate) fn push(&mut self, id: ObjectId, time: i64, parents: Vec<ObjectId>) {
-        self.index.insert(id, (time, parents));
+        self.index.insert(id, (time, parents.into_boxed_slice()));
     }
+}
 
-    fn get(&self, id: &ObjectId) -> Option<(i64, &[ObjectId])> {
+pub trait KnownCommits: std::fmt::Debug {
+    fn time_and_parents(&self, id: &ObjectId) -> Option<(i64, Vec<ObjectId>)>;
+}
+
+impl KnownCommits for WalkedHistory {
+    fn time_and_parents(&self, id: &ObjectId) -> Option<(i64, Vec<ObjectId>)> {
         let (time, parents) = self.index.get(id)?;
-        Some((*time, parents))
+        Some((*time, parents.to_vec()))
     }
 }
 
@@ -70,14 +74,12 @@ impl CutParents {
 /// reading the objects again (R-301).
 #[derive(Debug, Clone, Copy)]
 pub struct Reuse<'a> {
-    pub history: &'a WalkedHistory,
+    pub history: &'a dyn KnownCommits,
 }
 
 impl Reuse<'_> {
     pub(crate) fn read(&self, id: &ObjectId) -> Option<(i64, Vec<ObjectId>)> {
-        self.history
-            .get(id)
-            .map(|(time, parents)| (time, parents.to_vec()))
+        self.history.time_and_parents(id)
     }
 }
 

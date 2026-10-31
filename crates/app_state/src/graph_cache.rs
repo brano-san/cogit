@@ -6,8 +6,8 @@
 use crate::graph_overlay::PaintMemo;
 use crate::{AppState, GraphChunk, RepoId};
 use git_engine::{
-    CommitQuery, CommitRow, CommitText, GitError, GraphRows, Mailmap, RepoHandle, Reuse,
-    SkippedRef, WalkedHistory,
+    CommitQuery, CommitRow, CommitText, GitError, GraphRows, KnownCommits, Mailmap, ObjectId,
+    ObjectMap, RepoHandle, Reuse, SkippedRef, WalkedHistory,
 };
 use graph_engine::GraphRow;
 use parking_lot::{Mutex, RwLock, RwLockWriteGuard};
@@ -20,7 +20,7 @@ use std::sync::{Arc, Weak};
 const PREFILL_BATCH: usize = 256;
 
 /// Graphs stay until together they pass this; the one asked for last always stays. A
-/// 50 000-commit history takes about 20 MB: four such repositories, or dozens of usual ones.
+/// 50 000-commit history takes about 13 MB: seven such repositories, or dozens of usual ones.
 const GRAPH_CACHE_BYTES: usize = 96 << 20;
 
 /// Between two progress reports after the first: often enough for the scrollbar, rare
@@ -69,12 +69,86 @@ pub struct GraphWindow {
     pub rows: Vec<GraphRow>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Node {
+    pub(crate) id: ObjectId,
+    pub(crate) time: i64,
+    pub(crate) parents: Box<[ObjectId]>,
+}
+
+fn object_id(hex: &str) -> ObjectId {
+    ObjectId::from_hex(hex.as_bytes()).unwrap_or_else(|err| {
+        tracing::error!(error = ?err, context = "graph cache: object id");
+        ObjectId::null(git_engine::HashKind::Sha1)
+    })
+}
+
+pub(crate) fn take_text(commit: &mut CommitRow) -> CommitText {
+    CommitText {
+        summary: std::mem::take(&mut commit.summary),
+        author_name: std::mem::take(&mut commit.author_name),
+        author_email: std::mem::take(&mut commit.author_email),
+        tz_offset_minutes: commit.tz_offset_minutes,
+    }
+}
+
+impl Node {
+    pub(crate) fn of(commit: &CommitRow) -> Self {
+        Self {
+            id: object_id(&commit.oid),
+            time: commit.timestamp,
+            parents: commit.parents.iter().map(|p| object_id(p)).collect(),
+        }
+    }
+
+    fn row(&self, text: CommitText) -> CommitRow {
+        CommitRow {
+            oid: self.id.to_string(),
+            parents: self.parents.iter().map(ToString::to_string).collect(),
+            summary: text.summary,
+            author_name: text.author_name,
+            author_email: text.author_email,
+            timestamp: self.time,
+            tz_offset_minutes: text.tz_offset_minutes,
+        }
+    }
+
+    fn bytes(&self) -> usize {
+        size_of::<Self>() + self.parents.len() * size_of::<ObjectId>()
+    }
+}
+
+#[derive(Debug)]
+struct NodeIndex<'a> {
+    nodes: &'a [Node],
+    at: ObjectMap<ObjectId, u32>,
+}
+
+impl<'a> NodeIndex<'a> {
+    fn new(nodes: &'a [Node]) -> Self {
+        let mut at = ObjectMap::default();
+        at.reserve(nodes.len());
+        for (row, node) in nodes.iter().enumerate() {
+            at.insert(node.id, u32::try_from(row).unwrap_or(u32::MAX));
+        }
+        Self { nodes, at }
+    }
+}
+
+impl KnownCommits for NodeIndex<'_> {
+    fn time_and_parents(&self, id: &ObjectId) -> Option<(i64, Vec<ObjectId>)> {
+        let node = self.nodes.get(usize::try_from(*self.at.get(id)?).ok()?)?;
+        Some((node.time, node.parents.to_vec()))
+    }
+}
+
 #[derive(Debug, Default, Clone)]
 struct Laid {
-    commits: Vec<CommitRow>,
+    commits: Vec<Node>,
+    texts: Vec<CommitText>,
     rows: Vec<GraphRow>,
     /// Filled once the walk is over; what the next walk takes time and parents from.
-    history: WalkedHistory,
+    history: Option<WalkedHistory>,
     /// Merges folded by `collapse_merged` and how many commits each holds (#26).
     folds: BTreeMap<u32, u32>,
     /// A merge in progress: the Working Tree row, laid out with the commits (07 §4).
@@ -92,15 +166,15 @@ impl Laid {
 #[derive(Debug)]
 struct Texts {
     mailmap: Arc<Mailmap>,
-    by_oid: HashMap<String, CommitText>,
+    by_oid: ObjectMap<ObjectId, CommitText>,
     bytes: usize,
     /// A background reader is at work on these.
     filling: bool,
 }
 
-fn text_bytes(oid: &str, text: &CommitText) -> usize {
-    size_of::<(String, CommitText)>()
-        + oid.len()
+fn text_bytes(text: &CommitText) -> usize {
+    size_of::<(ObjectId, CommitText)>()
+        + 1
         + text.summary.len()
         + text.author_name.len()
         + text.author_email.len()
@@ -111,26 +185,26 @@ impl Texts {
     fn new(mailmap: Arc<Mailmap>) -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self {
             mailmap,
-            by_oid: HashMap::new(),
+            by_oid: ObjectMap::default(),
             bytes: 0,
             filling: false,
         }))
     }
 
-    fn insert(&mut self, oid: String, text: CommitText) {
-        self.bytes += text_bytes(&oid, &text);
+    fn insert(&mut self, oid: ObjectId, text: CommitText) {
+        self.bytes += text_bytes(&text);
         self.by_oid.insert(oid, text);
     }
 
     /// `row` with its text, read now if nothing read it yet.
-    fn fill(&mut self, row: &CommitRow, handle: Option<&RepoHandle>) -> CommitRow {
-        let text = match self.by_oid.get(&row.oid) {
+    fn fill(&mut self, node: &Node, handle: Option<&RepoHandle>) -> CommitRow {
+        let text = match self.by_oid.get(&node.id) {
             Some(text) => text.clone(),
             None => {
-                let read = handle.map(|handle| handle.commit_text(&row.oid, &self.mailmap));
+                let read = handle.map(|handle| handle.commit_text_of(node.id, &self.mailmap));
                 match read {
                     Some(Ok(text)) => {
-                        self.insert(row.oid.clone(), text.clone());
+                        self.insert(node.id, text.clone());
                         text
                     }
                     Some(Err(err)) => {
@@ -141,15 +215,7 @@ impl Texts {
                 }
             }
         };
-        CommitRow {
-            oid: row.oid.clone(),
-            parents: row.parents.clone(),
-            summary: text.summary,
-            author_name: text.author_name,
-            author_email: text.author_email,
-            timestamp: row.timestamp,
-            tz_offset_minutes: text.tz_offset_minutes,
-        }
+        node.row(text)
     }
 }
 
@@ -260,7 +326,7 @@ impl Graph {
         let (old, new) = (&base.laid, &self.shown.laid);
         for at in from..new.rows.len() {
             let same = old.rows.get(at) == new.rows.get(at)
-                && old.commits.get(at).map(|c| &c.oid) == new.commits.get(at).map(|c| &c.oid);
+                && old.commits.get(at).map(|c| c.id) == new.commits.get(at).map(|c| c.id);
             if !same {
                 self.parted = true;
                 return;
@@ -377,23 +443,23 @@ impl Prefill {
             if from >= to {
                 return Ok(read);
             }
-            let (mailmap, wanted): (Arc<Mailmap>, Vec<&str>) = {
+            let (mailmap, wanted): (Arc<Mailmap>, Vec<ObjectId>) = {
                 let texts = texts.lock();
                 let wanted = laid.commits[from..to]
                     .iter()
-                    .map(|c| c.oid.as_str())
-                    .filter(|oid| !texts.by_oid.contains_key(*oid))
+                    .map(|c| c.id)
+                    .filter(|oid| !texts.by_oid.contains_key(oid))
                     .collect();
                 (Arc::clone(&texts.mailmap), wanted)
             };
-            let got: Vec<(String, CommitText)> = wanted
+            let got: Vec<(ObjectId, CommitText)> = wanted
                 .into_iter()
                 .filter_map(|oid| {
                     handle
-                        .commit_text(oid, &mailmap)
+                        .commit_text_of(oid, &mailmap)
                         .inspect_err(|err| tracing::error!(error = ?err, context = "graph text"))
                         .ok()
-                        .map(|text| (oid.to_owned(), text))
+                        .map(|text| (oid, text))
                 })
                 .collect();
             read += got.len();
@@ -508,21 +574,18 @@ fn evicted<K: Copy + Eq>(graphs: &[(K, usize, u64)], keep: K, budget: usize) -> 
     out
 }
 
-fn commit_bytes(commit: &CommitRow) -> usize {
-    size_of::<CommitRow>()
-        + commit.oid.len()
-        + commit.summary.len()
-        + commit.author_name.len()
-        + commit.author_email.len()
-        + commit
-            .parents
-            .iter()
-            .map(|parent| size_of::<String>() + parent.len())
-            .sum::<usize>()
+fn carried_bytes(text: &CommitText) -> usize {
+    size_of::<CommitText>() + text.summary.len() + text.author_name.len() + text.author_email.len()
 }
 
 fn row_bytes(row: &GraphRow) -> usize {
-    size_of::<GraphRow>() + row.segments.len() * size_of::<graph_engine::Segment>()
+    size_of::<GraphRow>()
+        + row.segments.capacity() * size_of::<graph_engine::Segment>()
+        + row
+            .links
+            .iter()
+            .map(|link| size_of::<graph_engine::LongLink>() + link.oid.len())
+            .sum::<usize>()
 }
 
 impl AppState {
@@ -653,12 +716,24 @@ impl AppState {
         // Out of the lock: a graph cut short by a newer request held its rows alone.
         drop(replaced);
 
-        let mut record = WalkedHistory::default();
+        let raw = lazy && !query.view.first_parent && !query.view.collapse_merged;
+        let mut record = (!raw).then(WalkedHistory::default);
+        let index = source
+            .as_ref()
+            .filter(|source| source.laid.history.is_none())
+            .map(|source| NodeIndex::new(&source.laid.commits));
+        let known: Option<&dyn KnownCommits> = match (&source, &index) {
+            (_, Some(index)) => Some(index),
+            (Some(source), None) => source
+                .laid
+                .history
+                .as_ref()
+                .map(|history| history as &dyn KnownCommits),
+            (None, None) => None,
+        };
         let rows = GraphRows {
-            reuse: source.as_ref().map(|source| Reuse {
-                history: &source.laid.history,
-            }),
-            record: Some(&mut record),
+            reuse: known.map(|history| Reuse { history }),
+            record: record.as_mut(),
             text: !lazy,
             cut: None,
         };
@@ -673,11 +748,13 @@ impl AppState {
                 };
                 graph.ended |= chunk.is_last;
                 // Rows lag commits by the long-link lookahead (R-330), so each is counted alone.
-                graph.bytes += chunk.commits.iter().map(commit_bytes).sum::<usize>()
+                graph.bytes += chunk.commits.iter().map(Node::bytes).sum::<usize>()
+                    + chunk.texts.iter().map(carried_bytes).sum::<usize>()
                     + chunk.rows.iter().map(row_bytes).sum::<usize>();
                 let from = graph.shown.laid.rows.len();
                 let laid = Arc::make_mut(&mut graph.shown.laid);
                 laid.commits.extend(chunk.commits);
+                laid.texts.extend(chunk.texts);
                 laid.rows.extend(chunk.rows);
                 laid.folds
                     .extend(chunk.folds.iter().map(|fold| (fold.row, fold.hidden)));
@@ -698,7 +775,7 @@ impl AppState {
         repo: RepoId,
         generation: u32,
         skipped: Vec<SkippedRef>,
-        record: WalkedHistory,
+        record: Option<WalkedHistory>,
         copied: bool,
         started: std::time::Instant,
     ) -> Vec<SkippedRef> {
@@ -709,8 +786,10 @@ impl AppState {
             graph.skipped.clone_from(&skipped);
             if graph.ended {
                 graph.complete = true;
-                graph.bytes += record.bytes();
-                Arc::make_mut(&mut graph.shown.laid).history = record;
+                if let Some(record) = record {
+                    graph.bytes += record.bytes();
+                    Arc::make_mut(&mut graph.shown.laid).history = Some(record);
+                }
                 graph.base = None;
                 graph.replaced = None;
                 graph.base_bytes = 0;
@@ -781,7 +860,7 @@ impl AppState {
             .ok();
         // The rows are copied under the lock and the texts read after it: a walk's next chunk
         // waits for neither, and no second `Arc<Laid>` makes its `make_mut` copy the graph.
-        let (total, commits, rows, texts, complete) = {
+        let (total, commits, carried, rows, texts, complete) = {
             let cache = self.graph.read();
             let (shown, complete) = cache.view(repo, generation)?;
             let laid = &shown.laid;
@@ -793,20 +872,29 @@ impl AppState {
             (
                 laid.total(),
                 laid.commits[from..to].to_vec(),
+                laid.texts.get(from..to).map(<[CommitText]>::to_vec),
                 laid.rows[from..to].to_vec(),
                 shown.texts.clone(),
                 complete,
             )
         };
-        let commits = match &texts {
-            Some(texts) => {
+        let commits = match (&texts, carried) {
+            (Some(texts), _) => {
                 let mut texts = texts.lock();
                 commits
                     .iter()
-                    .map(|row| texts.fill(row, handle.as_ref()))
+                    .map(|node| texts.fill(node, handle.as_ref()))
                     .collect()
             }
-            None => commits,
+            (None, Some(carried)) => commits
+                .iter()
+                .zip(carried)
+                .map(|(node, text)| node.row(text))
+                .collect(),
+            (None, None) => commits
+                .iter()
+                .map(|node| node.row(CommitText::default()))
+                .collect(),
         };
         Some(GraphWindow {
             start,
@@ -855,13 +943,14 @@ impl AppState {
         generation: u32,
         oid: &str,
     ) -> Option<u32> {
+        let id = ObjectId::from_hex(oid.as_bytes()).ok()?;
         let cache = self.graph.read();
         let (shown, _) = cache.view(repo, generation)?;
         let row = shown
             .laid
             .commits
             .iter()
-            .position(|commit| commit.oid == oid)?;
+            .position(|commit| commit.id == id)?;
         // A commit walked but not laid out yet (R-330) has no row to scroll to.
         if row >= shown.laid.rows.len() {
             return None;
@@ -875,7 +964,7 @@ impl AppState {
         &self,
         repo: RepoId,
         generation: u32,
-        read: impl FnOnce(&[CommitRow], &[GraphRow], &BTreeMap<u32, u32>, &Mutex<PaintMemo>, bool) -> R,
+        read: impl FnOnce(&[Node], &[GraphRow], &BTreeMap<u32, u32>, &Mutex<PaintMemo>, bool) -> R,
     ) -> Option<R> {
         let cache = self.graph.read();
         let (shown, complete) = cache.view(repo, generation)?;

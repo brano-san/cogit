@@ -120,7 +120,10 @@ pub use git_candidates::{
 };
 pub use git_probe::{GitProbe, parse_git_version, probe_git, switch_git};
 pub use gitlink::{ModuleProblem, is_foreign_path};
-pub use graph_walk::{CutParents, Reuse, WalkedHistory};
+pub use gix::ObjectId;
+pub use gix::hash::Kind as HashKind;
+pub use gix::hashtable::HashMap as ObjectMap;
+pub use graph_walk::{CutParents, KnownCommits, Reuse, WalkedHistory};
 pub use health::{HealthFinding, HealthIssue, case_sensitive};
 pub use history::{CommitRow, CommitText};
 pub use hook_run::HookRun;

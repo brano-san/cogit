@@ -1,9 +1,8 @@
 //! `graph_engine::paint` over the cached graph, handed out by window like the rows.
 
-use std::collections::HashMap;
-
+use crate::graph_cache::Node;
 use crate::{AppState, RepoId};
-use git_engine::CommitRow;
+use git_engine::{ObjectId, ObjectMap};
 use graph_engine::{GraphRow, Paint, PaintSpec};
 use serde::{Deserialize, Serialize};
 
@@ -50,29 +49,32 @@ pub struct GraphOverlay {
 #[derive(Debug, Default)]
 pub(crate) struct PaintMemo {
     rows: usize,
-    index: HashMap<String, u32>,
+    index: ObjectMap<ObjectId, u32>,
     parents: Vec<Vec<Option<u32>>>,
     /// Parents not seen yet, with the commit and slot of each that waits for it.
-    pending: HashMap<String, Vec<(usize, usize)>>,
+    pending: ObjectMap<ObjectId, Vec<(usize, usize)>>,
     /// The rows changed since `paint`.
     stale: bool,
     painted: Option<std::time::Instant>,
     cost: std::time::Duration,
     request: Option<GraphPaintRequest>,
     paint: Paint,
-    /// What `index` and `parents` hold, kept as they grow: the cache counts it (R-300).
-    index_bytes: usize,
+    /// What `parents` holds, kept as it grows: the cache counts it (R-300).
     parents_bytes: usize,
     /// `pending` too: parents a shallow or filtered history never shows wait there for good.
     pending_bytes: usize,
 }
 
 /// What `oid` waited for by `waiting` commits costs in `PaintMemo::pending`; none costs nothing.
-fn pending_cost(oid: &str, waiting: usize) -> usize {
+fn pending_cost(waiting: usize) -> usize {
     if waiting == 0 {
         return 0;
     }
-    size_of::<(String, Vec<(usize, usize)>)>() + oid.len() + waiting * size_of::<(usize, usize)>()
+    size_of::<(ObjectId, Vec<(usize, usize)>)>() + 1 + waiting * size_of::<(usize, usize)>()
+}
+
+fn parse(oid: &str) -> Option<ObjectId> {
+    ObjectId::from_hex(oid.as_bytes()).ok()
 }
 
 fn row_index(n: usize) -> u32 {
@@ -82,7 +84,7 @@ fn row_index(n: usize) -> u32 {
 impl PaintMemo {
     fn refresh(
         &mut self,
-        commits: &[CommitRow],
+        commits: &[Node],
         rows: &[GraphRow],
         request: &GraphPaintRequest,
         complete: bool,
@@ -90,16 +92,10 @@ impl PaintMemo {
         if self.rows != rows.len() {
             let known = self.parents.len();
             for (at, commit) in commits.iter().enumerate().skip(known) {
-                if self
-                    .index
-                    .insert(commit.oid.clone(), row_index(at))
-                    .is_none()
-                {
-                    self.index_bytes += size_of::<(String, u32)>() + commit.oid.len();
-                }
+                self.index.insert(commit.id, row_index(at));
                 // A parent that arrived with this chunk resolves rows laid out before it.
-                if let Some(waiting) = self.pending.remove(&commit.oid) {
-                    self.pending_bytes -= pending_cost(&commit.oid, waiting.len());
+                if let Some(waiting) = self.pending.remove(&commit.id) {
+                    self.pending_bytes -= pending_cost(waiting.len());
                     for (child, slot) in waiting {
                         self.parents[child][slot] = Some(row_index(at));
                     }
@@ -113,10 +109,10 @@ impl PaintMemo {
                     .map(|(slot, parent)| {
                         let row = self.index.get(parent).copied();
                         if row.is_none() {
-                            let waiting = self.pending.entry(parent.clone()).or_default();
-                            self.pending_bytes -= pending_cost(parent, waiting.len());
+                            let waiting = self.pending.entry(*parent).or_default();
+                            self.pending_bytes -= pending_cost(waiting.len());
                             waiting.push((at, slot));
-                            self.pending_bytes += pending_cost(parent, waiting.len());
+                            self.pending_bytes += pending_cost(waiting.len());
                         }
                         row
                     })
@@ -143,17 +139,22 @@ impl PaintMemo {
             tips: request
                 .tips
                 .iter()
-                .filter_map(|tip| self.index.get(&tip.oid).map(|row| (*row, tip.slot)))
+                .filter_map(|tip| {
+                    parse(&tip.oid)
+                        .and_then(|id| self.index.get(&id))
+                        .map(|row| (*row, tip.slot))
+                })
                 .collect(),
             ancestry_of: request
                 .ancestry_of
                 .as_ref()
-                .and_then(|oid| self.index.get(oid).copied()),
+                .and_then(|oid| parse(oid))
+                .and_then(|id| self.index.get(&id).copied()),
             mergeable: request.mergeable,
             varying: request.varying,
         };
         let watch = std::time::Instant::now();
-        let row_of = |oid: &str| self.index.get(oid).copied();
+        let row_of = |oid: &str| parse(oid).and_then(|id| self.index.get(&id).copied());
         self.paint = graph_engine::paint(rows, &self.parents, &row_of, &spec);
         self.cost = watch.elapsed();
         self.painted = Some(std::time::Instant::now());
@@ -171,7 +172,7 @@ impl PaintMemo {
         let paint = &self.paint;
         let lanes = paint.node_lane.len() + paint.segment_first.len() + paint.segment_lane.len();
         let styles = paint.node_style.len() + paint.segment_style.len();
-        self.index_bytes
+        self.index.capacity() * (size_of::<(ObjectId, u32)>() + 1)
             + self.parents_bytes
             + self.pending_bytes
             + lanes * size_of::<u32>()
@@ -237,32 +238,32 @@ mod tests {
     use graph_engine::{CommitNode, LayoutCursor};
     use std::time::{Duration, Instant};
 
-    /// A merge of two branches over a root, newest first: `m`, `a`, `b`, `r`.
-    fn history() -> (Vec<CommitRow>, Vec<GraphRow>) {
+    /// A merge of two branches over a root, newest first: `d`, `a`, `b`, `f`.
+    fn hex(name: char) -> String {
+        name.to_string().repeat(40)
+    }
+
+    fn history() -> (Vec<Node>, Vec<GraphRow>) {
         let shape = [
-            ("m", &["a", "b"][..]),
-            ("a", &["r"]),
-            ("b", &["r"]),
-            ("r", &[]),
+            ('d', &['a', 'b'][..]),
+            ('a', &['f']),
+            ('b', &['f']),
+            ('f', &[]),
         ];
-        let commits: Vec<CommitRow> = shape
+        let nodes: Vec<CommitNode> = shape
             .iter()
-            .map(|(oid, parents)| CommitRow {
-                oid: (*oid).to_owned(),
-                parents: parents.iter().map(|p| (*p).to_owned()).collect(),
-                summary: String::new(),
-                author_name: String::new(),
-                author_email: String::new(),
-                timestamp: 0,
-                tz_offset_minutes: 0,
+            .map(|(oid, parents)| CommitNode {
+                oid: hex(*oid),
+                parents: parents.iter().map(|p| hex(*p)).collect(),
+                hidden: Vec::new(),
             })
             .collect();
-        let nodes: Vec<CommitNode> = commits
+        let commits: Vec<Node> = nodes
             .iter()
-            .map(|c| CommitNode {
-                oid: c.oid.clone(),
-                parents: c.parents.clone(),
-                hidden: Vec::new(),
+            .map(|n| Node {
+                id: parse(&n.oid).unwrap(),
+                time: 0,
+                parents: n.parents.iter().map(|p| parse(p).unwrap()).collect(),
             })
             .collect();
         let rows = graph_engine::layout(&nodes, &mut LayoutCursor::default());
@@ -272,7 +273,7 @@ mod tests {
     fn request() -> GraphPaintRequest {
         GraphPaintRequest {
             tips: vec![PaintTip {
-                oid: "m".to_owned(),
+                oid: hex('d'),
                 slot: 3,
             }],
             ..GraphPaintRequest::default()
@@ -309,7 +310,7 @@ mod tests {
         let floor: usize = memo
             .pending
             .iter()
-            .map(|(oid, w)| pending_cost(oid, w.len()))
+            .map(|(_, w)| pending_cost(w.len()))
             .sum();
         assert!(
             floor > 0 && memo.bytes() >= floor,

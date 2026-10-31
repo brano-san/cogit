@@ -184,7 +184,8 @@ pub enum AppEvent {
 /// What the layout hands `build_graph` as it walks; the webview never sees it (R-193).
 #[derive(Debug, Clone)]
 pub(crate) struct GraphChunk {
-    pub(crate) commits: Vec<git_engine::CommitRow>,
+    pub(crate) commits: Vec<graph_cache::Node>,
+    pub(crate) texts: Vec<git_engine::CommitText>,
     /// One per commit, in the same order: the node and every segment of its row. Cutting
     /// long links holds the last rows back, so a chunk can have fewer rows than commits.
     pub(crate) rows: Vec<graph_engine::GraphRow>,

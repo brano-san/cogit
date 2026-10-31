@@ -77,6 +77,7 @@ fn one_open_large_repository_costs() {
     let (rss2, private2) = probe.read();
 
     let generation = state.begin_graph();
+    let walk = std::time::Instant::now();
     state
         .build_graph(
             id,
@@ -86,8 +87,10 @@ fn one_open_large_repository_costs() {
             |_| true,
         )
         .unwrap();
+    let walked = walk.elapsed();
     let total = state.graph_window(id, generation, 0, 0).unwrap().total;
     let (rss3, private3) = probe.read();
+    let footprint = state.graph_footprint(id);
 
     assert!(state.close_repository(id));
     let (rss4, private4) = probe.read();
@@ -103,9 +106,11 @@ fn one_open_large_repository_costs() {
         mib(private2, private1)
     );
     eprintln!(
-        "graph of {total} rows: rss {}, private {}",
+        "graph of {total} rows in {} ms: rss {}, private {}, counted {:.1} MiB",
+        walked.as_millis(),
         mib(rss3, rss2),
-        mib(private3, private2)
+        mib(private3, private2),
+        footprint as f64 / 1_048_576.0
     );
     eprintln!(
         "after close: rss {}, private {} against the start",

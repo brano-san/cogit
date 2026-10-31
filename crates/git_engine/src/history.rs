@@ -138,6 +138,14 @@ impl RepoHandle {
     pub fn commit_text(&self, oid: &str, mailmap: &crate::Mailmap) -> Result<CommitText> {
         let id = gix::ObjectId::from_hex(oid.as_bytes())
             .map_err(|err| GitError::Internal(format!("not an object id {oid}: {err}")))?;
+        self.commit_text_of(id, mailmap)
+    }
+
+    pub fn commit_text_of(
+        &self,
+        id: gix::ObjectId,
+        mailmap: &crate::Mailmap,
+    ) -> Result<CommitText> {
         Ok(self.read_text(id, mailmap)?.0)
     }
 

@@ -37,6 +37,7 @@ pub(crate) fn lay_out(
     let mut tree = WorkingTree::of(handle, query, flat, first_parent);
     // A shallow boundary or an unreadable parent: a line to it ends in an arrow (07 §4).
     let cut = git_engine::CutParents::default();
+    let carry = rows.text || flat;
     let rows = git_engine::GraphRows {
         cut: Some(&cut),
         ..rows
@@ -53,11 +54,19 @@ pub(crate) fn lay_out(
         if let Some(view) = view.as_mut() {
             commits.retain_mut(|c| view.admit(&c.oid, &mut c.parents));
         }
+        let laid: Vec<crate::graph_cache::Node> =
+            commits.iter().map(crate::graph_cache::Node::of).collect();
+        let texts: Vec<git_engine::CommitText> = if carry {
+            commits
+                .iter_mut()
+                .map(crate::graph_cache::take_text)
+                .collect()
+        } else {
+            Vec::new()
+        };
         let mut nodes: Vec<graph_engine::CommitNode> = commits
-            .iter()
+            .into_iter()
             .map(|c| graph_engine::CommitNode {
-                oid: c.oid.clone(),
-                parents: c.parents.clone(),
                 hidden: if let Some(shown) = &shown {
                     c.parents
                         .iter()
@@ -73,6 +82,8 @@ pub(crate) fn lay_out(
                         .cloned()
                         .collect()
                 },
+                oid: c.oid,
+                parents: c.parents,
             })
             .collect();
         if let Some(tree) = tree.as_mut() {
@@ -106,7 +117,8 @@ pub(crate) fn lay_out(
         let working_tree = tree.as_mut().and_then(|tree| tree.take(&mut rows));
 
         let keep = on_chunk(GraphChunk {
-            commits,
+            commits: laid,
+            texts,
             rows,
             folds,
             working_tree,
@@ -130,6 +142,7 @@ pub(crate) fn lay_out(
         let working_tree = tree.as_mut().and_then(|tree| tree.take(&mut rows));
         on_chunk(GraphChunk {
             commits: Vec::new(),
+            texts: Vec::new(),
             rows,
             working_tree,
             folds: view
