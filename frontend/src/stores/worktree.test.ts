@@ -81,3 +81,43 @@ describe("a write and the read after it", () => {
     expect(worktree.error).not.toBeNull();
   });
 });
+
+describe("the file list of a repository left", () => {
+  const OTHER = 2 as never;
+  const entry = (path: string) => ({ path, oldPath: null, status: "modified", mode: "plain", modeChange: null, similarity: null });
+
+  it("comes back at once when the panels show it again", () => {
+    worktree.clear();
+    expect(worktree.restore(REPO)).toBe(true);
+    expect(worktree.unstaged.map((file) => file.path)).toEqual(["a.txt", "b.txt"]);
+    expect(worktree.loaded).toBe(true);
+  });
+
+  it("is nothing for a repository never read", () => {
+    worktree.clear();
+    expect(worktree.restore(OTHER)).toBe(false);
+    expect(worktree.loaded).toBe(false);
+  });
+
+  it("is not kept past 5000 files", async () => {
+    ipc.worktreeFiles.mockResolvedValueOnce({
+      staged: [],
+      unstaged: Array.from({ length: 5_001 }, (_, at) => entry(`f${at}`)),
+    } as never);
+    await worktree.load(REPO);
+    worktree.clear();
+    expect(worktree.restore(REPO)).toBe(false);
+  });
+
+  it("does not take an answer for the repository left", async () => {
+    let answer: (files: unknown) => void = () => {};
+    ipc.worktreeFiles.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)) as never);
+    void worktree.load(OTHER);
+    worktree.clear();
+    worktree.restore(REPO);
+    answer({ staged: [], unstaged: [entry("late.txt")] });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(worktree.unstaged.map((file) => file.path)).toEqual(["a.txt", "b.txt"]);
+  });
+});

@@ -2134,6 +2134,7 @@ ${event.error}`,
     }
     const opened = repository.current;
     if (!opened) return;
+    worktree.restore(opened.repo);
     const epoch = repository.epoch;
     trace(story, "switch: showing what was kept, checking it");
     refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));

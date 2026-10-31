@@ -16,6 +16,9 @@ import {
   toCogitError,
 } from "$lib/ipc";
 
+const KEPT_LISTS = 8;
+const KEPT_FILES_MAX = 5_000;
+
 class WorktreeStore {
   staged = $state.raw<FileEntry[]>([]);
   unstaged = $state.raw<FileEntry[]>([]);
@@ -37,6 +40,8 @@ class WorktreeStore {
   /** Bumped by `clear()`: a write that finishes after it reads nothing back, since the
       panels it would read into belong to another repository by now. */
   #cleared = 0;
+  #listed: RepoId | null = null;
+  #keptByRepo = new Map<RepoId, { staged: FileEntry[]; unstaged: FileEntry[] }>();
 
   get total(): number {
     return this.staged.length + this.unstaged.length;
@@ -60,12 +65,14 @@ class WorktreeStore {
       // The search may have stopped while the read was on its way.
       this.found = apart && this.everyFile ? files.unstaged.filter((file) => file.status === "unchanged") : [];
       this.loaded = true;
+      this.#listed = repo;
       return files.state;
     } catch (err) {
       if (generation !== this.#generation) return null;
       this.staged = [];
       this.unstaged = [];
       this.found = [];
+      this.#listed = null;
       this.error = toCogitError(err);
       return null;
     } finally {
@@ -129,7 +136,32 @@ class WorktreeStore {
     await this.mutate(repo, () => createCommit(repo, { message, amend, noVerify, only, signoff }));
   }
 
+  restore(repo: RepoId): boolean {
+    const kept = this.#keptByRepo.get(repo);
+    this.#keptByRepo.delete(repo);
+    if (!kept) return false;
+    this.staged = kept.staged;
+    this.unstaged = kept.unstaged;
+    this.#listed = repo;
+    this.loaded = true;
+    return true;
+  }
+
+  #keep(): void {
+    const repo = this.#listed;
+    if (repo === null) return;
+    this.#keptByRepo.delete(repo);
+    if (!this.loaded || this.error !== null || this.total > KEPT_FILES_MAX) return;
+    this.#keptByRepo.set(repo, { staged: this.staged, unstaged: this.unstaged });
+    for (const oldest of this.#keptByRepo.keys()) {
+      if (this.#keptByRepo.size <= KEPT_LISTS) break;
+      this.#keptByRepo.delete(oldest);
+    }
+  }
+
   clear(): void {
+    this.#keep();
+    this.#listed = null;
     this.#generation += 1;
     this.#cleared += 1;
     this.staged = [];
