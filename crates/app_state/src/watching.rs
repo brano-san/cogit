@@ -1,9 +1,12 @@
-//! Only the repository the panels show is watched: Windows refuses to rename a folder
-//! while a watch handle is open anywhere below it (R-351).
+//! On Windows only the repository the panels show is watched: it refuses to rename a folder
+//! while a watch handle is open anywhere below it (R-351). Elsewhere the last three shown keep
+//! theirs, so a switch back does not walk the tree again (R-924).
 
 use crate::{AppEvent, AppState, RepoId, RepoOverview};
 use std::path::Path;
 use std::sync::Arc;
+
+const KEPT_WATCHERS: usize = if cfg!(windows) { 1 } else { 3 };
 
 impl AppState {
     /// What changed while it was not watched is read afresh: its row here, its graph by
@@ -13,10 +16,19 @@ impl AppState {
         let left: Vec<fs_watcher::RepoWatcher> = {
             let mut watchers = self.watchers.write();
             *self.shown.lock() = repo;
+            let kept = {
+                let mut recent = self.recently_shown.lock();
+                if let Some(repo) = repo {
+                    recent.retain(|id| *id != repo);
+                    recent.insert(0, repo);
+                    recent.truncate(KEPT_WATCHERS);
+                }
+                recent.clone()
+            };
             let others: Vec<RepoId> = watchers
                 .keys()
                 .copied()
-                .filter(|id| Some(*id) != repo)
+                .filter(|id| Some(*id) != repo && !kept.contains(id))
                 .collect();
             others.iter().filter_map(|id| watchers.remove(id)).collect()
         };

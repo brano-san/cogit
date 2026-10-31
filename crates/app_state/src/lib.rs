@@ -224,6 +224,7 @@ pub struct AppState {
     watchers: Arc<RwLock<HashMap<RepoId, fs_watcher::RepoWatcher>>>,
     /// The one repository a watcher is allowed for (R-351). Locked after `watchers`.
     shown: parking_lot::Mutex<Option<RepoId>>,
+    recently_shown: parking_lot::Mutex<Vec<RepoId>>,
     /// Each repository's quiet window, outliving its watchers (see `fs_watcher::Silence`).
     silences: parking_lot::Mutex<HashMap<RepoId, fs_watcher::Silence>>,
     walks: walks::Walks,
@@ -285,6 +286,7 @@ impl AppState {
             events,
             watchers: Arc::new(RwLock::new(HashMap::new())),
             shown: parking_lot::Mutex::new(None),
+            recently_shown: parking_lot::Mutex::new(Vec::new()),
             silences: parking_lot::Mutex::new(HashMap::new()),
             walks: walks::Walks::default(),
             journal: Arc::new(RwLock::new(std::collections::VecDeque::with_capacity(

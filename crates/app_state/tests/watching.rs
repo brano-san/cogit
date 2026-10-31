@@ -60,6 +60,42 @@ fn opening_a_repository_is_not_showing_it() {
     ));
 }
 
+#[cfg(not(windows))]
+#[test]
+fn the_last_three_repositories_shown_stay_watched() {
+    let fixtures: Vec<_> = (0..4).map(|_| test_fixtures::linear(1).unwrap()).collect();
+    let state = AppState::new();
+    let repos: Vec<RepoId> = fixtures
+        .iter()
+        .map(|f| state.open_repository(f.path()).unwrap().repo)
+        .collect();
+    for repo in &repos {
+        state.show_repository(Some(*repo));
+    }
+    let mut events = state.subscribe();
+
+    std::fs::write(
+        fixtures[0].path().join("file0.txt"),
+        "shown four switches ago
+",
+    )
+    .unwrap();
+    assert!(!heard(&mut events, repos[0], SETTLE));
+
+    std::fs::write(
+        fixtures[1].path().join("file0.txt"),
+        "shown three switches ago
+",
+    )
+    .unwrap();
+    assert!(heard(
+        &mut events,
+        repos[1],
+        test_fixtures::scaled(Duration::from_secs(5))
+    ));
+}
+
+#[cfg(windows)]
 #[test]
 fn a_repository_left_for_another_is_not_watched() {
     let a = test_fixtures::linear(2).unwrap();
