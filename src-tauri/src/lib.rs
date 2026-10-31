@@ -514,6 +514,10 @@ pub fn run() -> anyhow::Result<()> {
     builder
         .plugin(tauri_plugin_process::init())
         .on_window_event(|window, event| {
+            #[cfg(windows)]
+            if matches!(event, tauri::WindowEvent::Resized(_)) {
+                webview2::match_memory_to_minimized(window);
+            }
             // A child window closing is not the app closing (R-201).
             if matches!(event, tauri::WindowEvent::CloseRequested { .. })
                 && child_window::is_main(window.label())

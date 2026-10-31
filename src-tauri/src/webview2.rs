@@ -14,8 +14,10 @@ use tauri::Manager as _;
 use webview2_com::AcceleratorKeyPressedEventHandler;
 use webview2_com::Microsoft::Web::WebView2::Win32::{
     COREWEBVIEW2_KEY_EVENT_KIND, COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN,
-    COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN, GetAvailableCoreWebView2BrowserVersionString,
-    ICoreWebView2Settings3, ICoreWebView2Settings4, ICoreWebView2Settings5, ICoreWebView2Settings6,
+    COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW,
+    COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL, GetAvailableCoreWebView2BrowserVersionString,
+    ICoreWebView2_19, ICoreWebView2Settings3, ICoreWebView2Settings4, ICoreWebView2Settings5,
+    ICoreWebView2Settings6,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetKeyState, VIRTUAL_KEY, VK_CONTROL, VK_MENU, VK_RMENU, VK_SHIFT,
@@ -249,4 +251,44 @@ fn pressed(
 fn is_down(key: VIRTUAL_KEY) -> bool {
     let state = unsafe { GetKeyState(i32::from(key.0)) };
     (state as u16 & 0x8000) != 0
+}
+
+static LOW_MEMORY: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+
+pub fn match_memory_to_minimized(window: &tauri::Window) {
+    let minimized = window.is_minimized().unwrap_or(false);
+    let label = window.label().to_owned();
+    {
+        let Ok(mut low) = LOW_MEMORY.lock() else {
+            return;
+        };
+        if low.contains(&label) == minimized {
+            return;
+        }
+        if minimized {
+            low.push(label.clone());
+        } else {
+            low.retain(|each| *each != label);
+        }
+    }
+    let Some(webview) = window.app_handle().get_webview_window(&label) else {
+        return;
+    };
+    let level = if minimized {
+        COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW
+    } else {
+        COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL
+    };
+    let reached = webview.with_webview(move |platform| {
+        let set = unsafe { platform.controller().CoreWebView2() }
+            .and_then(|core| core.cast::<ICoreWebView2_19>())
+            .and_then(|core| unsafe { core.SetMemoryUsageTargetLevel(level) });
+        match set {
+            Ok(()) => tracing::debug!(window = %label, minimized, "WebView2 memory target set"),
+            Err(err) => tracing::warn!(error = %err, window = %label, "cannot set the WebView2 memory target"),
+        }
+    });
+    if let Err(err) = reached {
+        tracing::warn!(error = %err, "cannot reach the platform webview");
+    }
 }
