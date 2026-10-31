@@ -1,4 +1,4 @@
-use crate::frame::{FromAgent, PROTOCOL, ToAgent, read_frame, write_frame};
+use crate::frame::{FromAgent, Json, PROTOCOL, ToAgent, read_frame, write_frame};
 use git_engine::NetworkStop;
 use parking_lot::Mutex;
 use serde_json::Value;
@@ -25,10 +25,10 @@ pub enum AgentError {
     Gone(String),
 }
 
-type Outcome = Result<Value, Value>;
+type Outcome = Result<Json, Json>;
 
 enum Message {
-    Chunk(Value),
+    Chunk(Json),
     Done(Outcome),
 }
 
@@ -160,7 +160,7 @@ impl Client {
         &self,
         request: Value,
         canceled: &dyn Fn() -> bool,
-        on_chunk: &mut dyn FnMut(Value),
+        on_chunk: &mut dyn FnMut(Json),
     ) -> Result<Outcome, AgentError> {
         let id = self.next.fetch_add(1, Ordering::Relaxed);
         let (reply, answer) = mpsc::channel();

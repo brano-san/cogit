@@ -1,7 +1,7 @@
 #![allow(clippy::unwrap_used)]
 
 use agent::{
-    AgentError, Call, Client, FromAgent, PROTOCOL, ToAgent, read_frame, serve, write_frame,
+    AgentError, Call, Client, FromAgent, Json, PROTOCOL, ToAgent, read_frame, serve, write_frame,
 };
 use git_engine::NetworkStop;
 use serde_json::{Value, json};
@@ -10,6 +10,21 @@ use std::sync::{Arc, Barrier, mpsc};
 use std::thread::{self, JoinHandle};
 
 type Handler = Box<dyn Fn(Value, &Call) -> Result<Value, Value> + Send + Sync>;
+
+fn raw(value: Value) -> Json {
+    serde_json::value::to_raw_value(&value).unwrap()
+}
+
+fn plain(outcome: Result<Json, Json>) -> Result<Value, Value> {
+    let value = |json: Json| serde_json::from_str::<Value>(json.get()).unwrap();
+    outcome.map(value).map_err(value)
+}
+
+fn values(
+    handler: impl Fn(Value, &Call) -> Result<Value, Value> + Sync,
+) -> impl Fn(Value, &Call) -> Result<Json, Json> + Sync {
+    move |request, call| handler(request, call).map(raw).map_err(raw)
+}
 
 struct Wires {
     agent_in: PipeReader,
@@ -31,7 +46,8 @@ fn wires() -> Wires {
 
 fn pair(handler: Handler) -> (Client, JoinHandle<io::Result<()>>) {
     let wires = wires();
-    let server = thread::spawn(move || serve(wires.agent_in, wires.agent_out, |_| {}, handler));
+    let server =
+        thread::spawn(move || serve(wires.agent_in, wires.agent_out, |_| {}, values(handler)));
     let client = Client::connect(wires.client_in, wires.client_out).unwrap();
     (client, server)
 }
@@ -58,7 +74,7 @@ fn ten_parallel_calls_get_their_own_answers() {
         .collect();
     for caller in callers {
         let (n, answer) = caller.join().unwrap();
-        assert_eq!(answer.unwrap(), Ok(json!({ "echo": n })));
+        assert_eq!(plain(answer.unwrap()), Ok(json!({ "echo": n })));
     }
 }
 
@@ -66,7 +82,7 @@ fn ten_parallel_calls_get_their_own_answers() {
 fn an_error_of_the_handler_comes_back_as_an_error() {
     let (client, _server) = pair(Box::new(|_, _| Err(json!("no such repository"))));
     assert_eq!(
-        client.call(json!("open"), None).unwrap(),
+        plain(client.call(json!("open"), None).unwrap()),
         Err(json!("no such repository"))
     );
 }
@@ -89,7 +105,7 @@ fn a_cancel_reaches_the_running_call() {
         asker.stop();
     });
     assert_eq!(
-        client.call(json!("fetch"), Some(&stop)).unwrap(),
+        plain(client.call(json!("fetch"), Some(&stop)).unwrap()),
         Err(json!("canceled"))
     );
 }
@@ -104,13 +120,13 @@ fn closing_the_pipe_stops_the_running_calls_and_ends_the_agent() {
             wires.agent_in,
             wires.agent_out,
             |_| {},
-            move |_, call: &Call| {
+            values(move |_, call: &Call| {
                 started_tx.lock().send(()).unwrap();
                 while !call.stop().is_stopped() {
                     thread::yield_now();
                 }
                 Err(json!("canceled"))
-            },
+            }),
         )
     });
     let mut out = wires.client_out;
@@ -192,8 +208,14 @@ fn another_protocol_is_refused_at_the_handshake() {
 #[test]
 fn an_agent_hears_another_protocol_and_leaves_after_saying_its_own() {
     let wires = wires();
-    let server =
-        thread::spawn(move || serve(wires.agent_in, wires.agent_out, |_| {}, |r, _| Ok(r)));
+    let server = thread::spawn(move || {
+        serve(
+            wires.agent_in,
+            wires.agent_out,
+            |_| {},
+            values(|r, _| Ok(r)),
+        )
+    });
     let mut out = wires.client_out;
     let mut input = wires.client_in;
     write_frame(
@@ -216,15 +238,17 @@ fn an_agent_hears_another_protocol_and_leaves_after_saying_its_own() {
 fn the_chunks_of_a_call_arrive_in_order_before_its_answer() {
     let (client, _server) = pair(Box::new(|_, call| {
         for n in 0..50 {
-            assert!(call.chunk(json!(n)));
+            assert!(call.chunk(raw(json!(n))));
         }
         Ok(json!("done"))
     }));
     let mut seen = Vec::new();
     let answer = client
-        .call_streaming(json!("walk"), &|| false, &mut |chunk| seen.push(chunk))
+        .call_streaming(json!("walk"), &|| false, &mut |chunk| {
+            seen.push(serde_json::from_str::<Value>(chunk.get()).unwrap())
+        })
         .unwrap();
-    assert_eq!(answer, Ok(json!("done")));
+    assert_eq!(plain(answer), Ok(json!("done")));
     assert_eq!(seen, (0..50).map(|n| json!(n)).collect::<Vec<_>>());
 }
 
@@ -239,7 +263,7 @@ fn an_event_reaches_the_client_without_a_call() {
             |events| {
                 assert!(events.send(json!({ "changed": "index" })));
             },
-            |r, _| Ok(r),
+            values(|r, _| Ok(r)),
         )
     });
     let heard_tx = parking_lot::Mutex::new(heard_tx);
@@ -259,7 +283,7 @@ fn an_event_reaches_the_client_without_a_call() {
 fn a_cancel_gets_through_a_stream_that_never_pauses() {
     let (client, _server) = pair(Box::new(|_, call| {
         while !call.stop().is_stopped() {
-            call.chunk(json!("row"));
+            call.chunk(raw(json!("row")));
         }
         Err(json!("canceled"))
     }));
@@ -269,7 +293,7 @@ fn a_cancel_gets_through_a_stream_that_never_pauses() {
             seen.set(seen.get() + 1);
         })
         .unwrap();
-    assert_eq!(answer, Err(json!("canceled")));
+    assert_eq!(plain(answer), Err(json!("canceled")));
 }
 
 #[test]
@@ -282,13 +306,13 @@ fn a_call_asks_the_window_and_waits_for_its_answer() {
             wires.agent_in,
             wires.agent_out,
             move |events| *kept.lock() = Some(events),
-            move |request, _| {
+            values(move |request, _| {
                 let events = asker.lock().clone().unwrap();
                 Ok(json!([
                     events.ask(request.clone()),
                     events.ask(json!("second"))
                 ]))
-            },
+            }),
         )
     });
     let client = Client::connect_with(
@@ -299,7 +323,7 @@ fn a_call_asks_the_window_and_waits_for_its_answer() {
     )
     .unwrap();
     assert_eq!(
-        client.call(json!("secret?"), None).unwrap(),
+        plain(client.call(json!("secret?"), None).unwrap()),
         Ok(json!([{ "heard": "secret?" }, { "heard": "second" }]))
     );
 }
@@ -310,11 +334,11 @@ fn a_call_stopped_before_it_was_sent_starts_stopped() {
     let stop = NetworkStop::default();
     stop.stop();
     assert_eq!(
-        client.call(json!("delete"), Some(&stop)).unwrap(),
+        plain(client.call(json!("delete"), Some(&stop)).unwrap()),
         Ok(json!(true))
     );
     assert_eq!(
-        client.call(json!("delete"), None).unwrap(),
+        plain(client.call(json!("delete"), None).unwrap()),
         Ok(json!(false))
     );
 }

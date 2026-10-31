@@ -1,9 +1,12 @@
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use serde_json::value::RawValue;
+
+pub type Json = Box<RawValue>;
 use std::io::{self, Read, Write};
 
-pub const PROTOCOL: u32 = 3;
+pub const PROTOCOL: u32 = 4;
 
 const LARGEST_FRAME: u32 = 256 * 1024 * 1024;
 
@@ -30,7 +33,7 @@ pub enum ToAgent {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(tag = "frame", rename_all = "camelCase")]
+#[serde(tag = "frame", content = "body", rename_all = "camelCase")]
 pub enum FromAgent {
     Welcome {
         protocol: u32,
@@ -38,11 +41,11 @@ pub enum FromAgent {
     },
     Reply {
         id: u64,
-        outcome: Result<Value, Value>,
+        outcome: Result<Json, Json>,
     },
     Chunk {
         id: u64,
-        data: Value,
+        data: Json,
     },
     Event {
         event: Value,

@@ -1,10 +1,9 @@
-use crate::backend::{Remote, Request, answer, to_json};
+use crate::backend::{Remote, Request, answer, to_raw};
 use crate::graph_cache::GraphProgress;
 use crate::{AppState, RepoId, WorktreeScanChunk};
 use git_engine::{CommitQuery, GitError, OriginQuery, OriginReport, SearchScope, SkippedRef};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::cell::Cell;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -32,7 +31,11 @@ pub(crate) enum StreamCall {
 }
 
 impl StreamCall {
-    pub(crate) fn run(self, state: &AppState, call: &agent::Call) -> Result<Value, Value> {
+    pub(crate) fn run(
+        self,
+        state: &AppState,
+        call: &agent::Call,
+    ) -> Result<agent::Json, agent::Json> {
         let stopped = || call.stop().is_stopped();
         match self {
             Self::BuildGraph {
@@ -44,7 +47,7 @@ impl StreamCall {
                 state.adopt_graph_generation(generation);
                 answer(
                     state.build_graph(repo, &query, generation, chunk_size, |progress| {
-                        call.chunk(to_json(&progress)) && !stopped()
+                        call.chunk(to_raw(&progress)) && !stopped()
                     }),
                 )
             }
@@ -61,7 +64,7 @@ impl StreamCall {
                 };
                 answer(
                     state.search_contents(repo, &request, &stopped, &mut |batch| {
-                        call.chunk(to_json(&batch));
+                        call.chunk(to_raw(&batch));
                     }),
                 )
             }
@@ -75,7 +78,7 @@ impl StreamCall {
                     &path,
                     move || stop.is_stopped(),
                     |chunk| {
-                        call.chunk(to_json(&chunk));
+                        call.chunk(to_raw(&chunk));
                     },
                 ))
             }
@@ -83,8 +86,8 @@ impl StreamCall {
     }
 }
 
-fn each<T: DeserializeOwned>(mut take: impl FnMut(T)) -> impl FnMut(Value) {
-    move |value| match serde_json::from_value(value) {
+fn each<T: DeserializeOwned>(mut take: impl FnMut(T)) -> impl FnMut(agent::Json) {
+    move |value| match serde_json::from_str(value.get()) {
         Ok(item) => take(item),
         Err(err) => tracing::error!(error = ?err, context = "a chunk from the agent"),
     }

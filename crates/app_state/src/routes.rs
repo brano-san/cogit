@@ -2,7 +2,6 @@ use crate::backend::{Request, answer};
 use crate::{AppState, RepoId};
 use git_engine::{GitError, NetworkStop};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 use crate::DiffBatch;
 use crate::FileContent;
@@ -38,7 +37,7 @@ macro_rules! routed {
         }
 
         impl RepoCall {
-            pub(crate) fn run(self, state: &AppState, call: &agent::Call) -> Result<Value, Value> {
+            pub(crate) fn run(self, state: &AppState, call: &agent::Call) -> Result<agent::Json, agent::Json> {
                 match self {
                     $(Self::$name(each) => $name::run(each, state, call),)*
                 }
@@ -67,7 +66,7 @@ macro_rules! route {
             [$($f)*]
             [$($o)*]
             [$($l)* |line: &str| {
-                $agent.chunk(Value::String(line.to_owned()));
+                $agent.chunk(crate::backend::to_raw(&line));
             },]
             [$($c)* $n,] [$stop] [Some(&mut $n as &mut dyn FnMut(&str))]; $($($rest)*)?);
     };
@@ -104,7 +103,7 @@ macro_rules! route {
 
         impl $name {
             #[allow(unused_variables)]
-            fn run($call: Self, state: &AppState, $agent: &agent::Call) -> Result<Value, Value> {
+            fn run($call: Self, state: &AppState, $agent: &agent::Call) -> Result<agent::Json, agent::Json> {
                 answer(state.$local($call.repo, $($l)*))
             }
         }
@@ -133,7 +132,7 @@ macro_rules! route {
 
         impl $name {
             #[allow(unused_variables)]
-            fn run($call: Self, state: &AppState, $agent: &agent::Call) -> Result<Value, Value> {
+            fn run($call: Self, state: &AppState, $agent: &agent::Call) -> Result<agent::Json, agent::Json> {
                 answer(Ok::<_, GitError>(state.$local($call.repo, $($l)*)))
             }
         }

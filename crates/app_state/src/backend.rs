@@ -391,7 +391,7 @@ impl Agent {
         &self,
         request: &Request,
         canceled: &dyn Fn() -> bool,
-        on_chunk: &mut dyn FnMut(Value),
+        on_chunk: &mut dyn FnMut(agent::Json),
     ) -> Result<T, GitError> {
         let Some(client) = &self.client else {
             return Err(GitError::Internal("the agent is stopping".to_owned()));
@@ -401,9 +401,9 @@ impl Agent {
             .call_streaming(request, canceled, on_chunk)
             .map_err(|err| self.lost(&err))?
         {
-            Ok(answer) => serde_json::from_value(answer).map_err(|err| garbled(&err)),
+            Ok(answer) => serde_json::from_str(answer.get()).map_err(|err| garbled(&err)),
             Err(error) => Err(
-                match serde_json::from_value(error).unwrap_or_else(|err| garbled(&err)) {
+                match serde_json::from_str(error.get()).unwrap_or_else(|err| garbled(&err)) {
                     GitError::RepoMissing(path) => {
                         GitError::RepoMissing(self.host.local_path(&path).display().to_string())
                     }
@@ -485,7 +485,7 @@ impl Remote {
         &self,
         request: &Request,
         canceled: &dyn Fn() -> bool,
-        on_chunk: &mut dyn FnMut(Value),
+        on_chunk: &mut dyn FnMut(agent::Json),
     ) -> Result<T, GitError> {
         self.agent.stream(request, canceled, on_chunk)
     }
@@ -508,7 +508,7 @@ impl Remote {
         match on_line {
             None => self.agent.stream(request, &canceled, &mut |_| {}),
             Some(on_line) => self.agent.stream(request, &canceled, &mut |chunk| {
-                if let Value::String(line) = chunk {
+                if let Ok(line) = serde_json::from_str::<String>(chunk.get()) {
                     on_line(&line);
                 }
             }),
@@ -599,7 +599,10 @@ struct Opened {
     lane: Option<String>,
 }
 
-fn opened(state: &AppState, result: Result<RepoSummary, GitError>) -> Result<Value, Value> {
+fn opened(
+    state: &AppState,
+    result: Result<RepoSummary, GitError>,
+) -> Result<agent::Json, agent::Json> {
     answer(result.map(|summary| {
         Opened {
             lane: state
@@ -610,9 +613,13 @@ fn opened(state: &AppState, result: Result<RepoSummary, GitError>) -> Result<Val
     }))
 }
 
-pub fn serve_agent(state: &AppState, request: Value, call: &agent::Call) -> Result<Value, Value> {
+pub fn serve_agent(
+    state: &AppState,
+    request: Value,
+    call: &agent::Call,
+) -> Result<agent::Json, agent::Json> {
     let request: Request = serde_json::from_value(request).map_err(|err| {
-        to_json(&GitError::Internal(format!(
+        to_raw(&GitError::Internal(format!(
             "not a request of this agent: {err}"
         )))
     })?;
@@ -633,7 +640,7 @@ pub fn serve_agent(state: &AppState, request: Value, call: &agent::Call) -> Resu
         Request::Clone { request, sign_in } => answer(
             state
                 .clone_repository(&request, sign_in.as_ref(), call.stop(), |line| {
-                    call.chunk(Value::String(line.to_owned()));
+                    call.chunk(to_raw(&line));
                 })
                 .map(|done| git_engine::slash_path(&done)),
         ),
@@ -652,7 +659,7 @@ pub fn serve_agent(state: &AppState, request: Value, call: &agent::Call) -> Resu
                 Path::new(&root),
                 &git_engine::discover::ScanOptions { max_depth },
                 || call.stop().is_stopped(),
-                |found| call.chunk(to_json(&found)),
+                |found| call.chunk(to_raw(&found)),
             );
             answer(Ok(()))
         }
@@ -688,10 +695,19 @@ pub fn serve_agent(state: &AppState, request: Value, call: &agent::Call) -> Resu
     }
 }
 
-pub(crate) fn answer<T: Serialize>(result: Result<T, GitError>) -> Result<Value, Value> {
+pub(crate) fn answer<T: Serialize>(
+    result: Result<T, GitError>,
+) -> Result<agent::Json, agent::Json> {
     result
-        .map(|value| to_json(&value))
-        .map_err(|err| to_json(&err))
+        .map(|value| to_raw(&value))
+        .map_err(|err| to_raw(&err))
+}
+
+pub(crate) fn to_raw(value: &impl Serialize) -> agent::Json {
+    serde_json::value::to_raw_value(value).unwrap_or_else(|err| {
+        tracing::error!(error = ?err, context = "a reply of the agent");
+        serde_json::value::RawValue::NULL.to_owned()
+    })
 }
 
 pub(crate) fn to_json(value: &impl Serialize) -> Value {
@@ -854,7 +870,7 @@ impl AppState {
             sign_in: sign_in.cloned(),
         };
         let done: String = agent.stream(&request, &|| stop.is_stopped(), &mut |chunk| {
-            if let Value::String(line) = chunk {
+            if let Ok(line) = serde_json::from_str::<String>(chunk.get()) {
                 on_line(&line);
             }
         })?;
@@ -891,7 +907,7 @@ impl AppState {
         agent.stream(
             &request,
             &|| !listening.get() || cancelled(),
-            &mut |chunk| match serde_json::from_value::<git_engine::discover::Found>(chunk) {
+            &mut |chunk| match serde_json::from_str::<git_engine::discover::Found>(chunk.get()) {
                 Ok(found) if listening.get() => {
                     let path = host.local_path(&found.path.to_string_lossy());
                     listening.set(on_found(git_engine::discover::Found { path, ..found }));

@@ -1,4 +1,4 @@
-use crate::frame::{FromAgent, PROTOCOL, ToAgent, invalid, read_frame, write_frame};
+use crate::frame::{FromAgent, Json, PROTOCOL, ToAgent, invalid, read_frame, write_frame};
 use git_engine::NetworkStop;
 use parking_lot::Mutex;
 use serde_json::Value;
@@ -59,7 +59,7 @@ impl Call {
         &self.stop
     }
 
-    pub fn chunk(&self, data: Value) -> bool {
+    pub fn chunk(&self, data: Json) -> bool {
         send(&self.outbox.0, &FromAgent::Chunk { id: self.id, data })
             .inspect_err(|err| tracing::error!(error = ?err, id = self.id, context = "agent chunk"))
             .is_ok()
@@ -71,7 +71,7 @@ where
     R: Read,
     W: Write + Send + 'static,
     S: FnOnce(Events),
-    H: Fn(Value, &Call) -> Result<Value, Value> + Sync,
+    H: Fn(Value, &Call) -> Result<Json, Json> + Sync,
 {
     let Some(ToAgent::Hello { protocol, version }) = read_frame(&mut input)? else {
         return Err(invalid("the first frame is not a hello"));
