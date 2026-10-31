@@ -39,7 +39,7 @@ impl AppState {
         let watched_again = repo
             .filter(|_| remote.is_none())
             .is_some_and(|repo| self.watch_again(repo));
-        if let Some(repo) = remote {
+        if let Some(repo) = repo.filter(|_| !watched_again) {
             self.forget_row(repo);
         }
         self.show_on_agents(repo);
