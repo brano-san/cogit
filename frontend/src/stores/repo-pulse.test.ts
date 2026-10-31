@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-const readPulse = vi.fn(async () => ({ missing: false }));
+const readPulse = vi.fn(async (_root: string) => ({ missing: false }));
 vi.mock("$lib/ipc/repo-rows", () => ({ repoPulse: readPulse, pullProbe: vi.fn(async () => false) }));
 
 describe("the row a repository leaves on screen", () => {
@@ -405,11 +405,74 @@ describe("the rows of open repositories", () => {
     const { repoPulse } = await import("./repo-pulse.svelte");
     readPulse.mockClear();
     const closed = ["C:/c1", "C:/c2", "C:/c3", "C:/c4", "C:/c5"];
-    repoPulse.watch([...closed, "C:/open"], ["C:/open/lib"], ["C:/open"]);
+    repoPulse.watch([...closed, "C:/open"], [], ["C:/open"]);
     await vi.advanceTimersByTimeAsync(2_000);
-    repoPulse.revisit();
+    expect(readPulse.mock.calls.flat().slice(4)).toEqual(["C:/open", "C:/c5"]);
+  });
+});
+
+describe("an open repository the panels do not show", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    readPulse.mockImplementation(async () => ({ missing: false }));
+  });
+
+  async function opened() {
+    vi.useFakeTimers();
+    vi.resetModules();
+    const { repoPulse } = await import("./repo-pulse.svelte");
+    repoPulse.setOwned("C:/shown");
+    repoPulse.watch(["C:/shown", "C:/open", "C:/closed"], ["C:/open/lib"], ["C:/shown", "C:/open"]);
+    await vi.advanceTimersByTimeAsync(2_000);
     readPulse.mockClear();
-    await vi.advanceTimersByTimeAsync(2_000);
-    expect(readPulse.mock.calls.flat().slice(4, 6)).toEqual(["C:/open", "C:/open/lib"]);
+    return repoPulse;
+  }
+  const readsOf = (root: string) => readPulse.mock.calls.filter(([each]) => each === root).length;
+
+  it("is read every 15 s with its submodules, closed rows are not", async () => {
+    await opened();
+    await vi.advanceTimersByTimeAsync(31_000);
+    expect(readsOf("C:/open")).toBe(2);
+    expect(readsOf("C:/open/lib")).toBe(2);
+    expect(readsOf("C:/closed")).toBe(0);
+    expect(readsOf("C:/shown")).toBe(0);
+  });
+
+  it("is not read while the window is hidden", async () => {
+    vi.stubGlobal("document", { hidden: true });
+    await opened();
+    await vi.advanceTimersByTimeAsync(31_000);
+    expect(readsOf("C:/open")).toBe(0);
+  });
+
+  it("is read on every focus, a closed row once a minute", async () => {
+    const repoPulse = await opened();
+    repoPulse.revisit();
+    await vi.advanceTimersByTimeAsync(1_000);
+    repoPulse.revisit();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(readsOf("C:/open")).toBe(2);
+    expect(readsOf("C:/closed")).toBe(1);
+  });
+
+  it("is read less often the longer its read takes", async () => {
+    readPulse.mockImplementation(
+      (root: string) =>
+        new Promise<{ missing: boolean }>((resolve) =>
+          setTimeout(() => resolve({ missing: false }), root === "C:/open" ? 2_000 : 0),
+        ),
+    );
+    const repoPulse = await opened();
+    await vi.advanceTimersByTimeAsync(16_000);
+    repoPulse.revisit();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(readsOf("C:/open")).toBe(0);
+    await vi.advanceTimersByTimeAsync(28_000);
+    expect(readsOf("C:/open")).toBe(1);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(readsOf("C:/open")).toBe(1);
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(readsOf("C:/open")).toBe(2);
   });
 });

@@ -9,6 +9,9 @@ const PROBE_TIMEOUT_MS = 120_000;
 const LEFT_READ_DELAY_MS = 500;
 const REVISIT_MS = 60_000;
 const FOCUS_SETTLE_MS = 300;
+const CLOSED = 3;
+export const OPEN_EVERY_MS = 15_000;
+const READ_COST_FACTOR = 20;
 /** Submodule nodes are read once the tree has not been read again for this long: an open, a
     write or a click reads it, and a status of every node inside that action held the next
     one up (R-617). */
@@ -35,11 +38,21 @@ class RepoPulseStore {
   /** Roots whose probe has not ended, answered in time or not (R-482). */
   #probing = new Set<string>();
   #revisitLater: ReturnType<typeof setTimeout> | null = null;
+  #openLater: ReturnType<typeof setTimeout> | null = null;
+  #openTimer: ReturnType<typeof setInterval> | null = null;
+  #lastRead = new Map<string, { end: number; took: number }>();
   #modulesLater: ReturnType<typeof setTimeout> | null = null;
   #modulesDue = new Set<string>();
 
   readonly #queue = new PulseQueue({
-    pulse: readPulse,
+    pulse: async (root) => {
+      const start = Date.now();
+      try {
+        return await readPulse(root);
+      } finally {
+        this.#lastRead.set(root, { end: Date.now(), took: Date.now() - start });
+      }
+    },
     fetch: (root) => this.#probe(root),
     busy: () => this.#busy(),
     owned: (root) => root === this.#owned,
@@ -92,6 +105,9 @@ class RepoPulseStore {
   watch(roots: readonly string[], modules: readonly string[] = [], open: readonly string[] = []): void {
     this.#roots = [...roots, ...modules];
     this.#open = new Set(open);
+    this.#openTimer ??= setInterval(() => {
+      if (!(typeof document !== "undefined" && document.hidden)) this.#readOpen();
+    }, OPEN_EVERY_MS);
     for (const root of this.#roots) {
       if (this.#seen.has(root)) continue;
       this.#seen.add(root);
@@ -103,7 +119,7 @@ class RepoPulseStore {
   #rank(root: string): number {
     if (this.#open.has(root)) return 1;
     for (const top of this.#open) if (root.startsWith(`${top}/`)) return 2;
-    return 3;
+    return CLOSED;
   }
 
   /** A node's read waits for the reads of the tree to stop for a while; each one starts the
@@ -123,18 +139,31 @@ class RepoPulseStore {
 
   /** The window came back into focus. Whatever was done meanwhile in a repository the
       panels do not show has no watcher to report it (R-351), so every such row is read
-      again — at most once a minute, through the same queue (F-451). A focus change inside
-      the minute is answered when it is over: dropped, a commit made in a terminal waited
-      for the next focus change after it. */
+      again through the same queue: open ones and their submodules on every focus, closed
+      ones at most once a minute (F-451). A focus change inside the minute is answered when
+      it is over: dropped, a commit made in a terminal waited for the next focus change. */
   revisit(): void {
+    this.#openLater ??= setTimeout(() => {
+      this.#openLater = null;
+      this.#readOpen();
+    }, FOCUS_SETTLE_MS);
     const wait = Math.max(FOCUS_SETTLE_MS, this.#revisited + REVISIT_MS - Date.now());
     this.#revisitLater ??= setTimeout(() => {
       this.#revisitLater = null;
       this.#revisited = Date.now();
       for (const root of this.#roots) {
-        if (root !== this.#owned) this.#queue.request(root);
+        if (root !== this.#owned && this.#rank(root) === CLOSED) this.#queue.request(root);
       }
     }, wait);
+  }
+
+  #readOpen(): void {
+    const now = Date.now();
+    for (const root of this.#roots) {
+      if (root === this.#owned || this.#rank(root) === CLOSED) continue;
+      const last = this.#lastRead.get(root);
+      if (!last || now - last.end >= READ_COST_FACTOR * last.took) this.#queue.request(root);
+    }
   }
 
   /** Something happened in it just now. */
@@ -196,6 +225,7 @@ class RepoPulseStore {
       if (!gone(each)) continue;
       this.#queue.cancel(each);
       this.#seen.delete(each);
+      this.#lastRead.delete(each);
       this.#setAhead(each, false);
     }
     if ([...this.unknown].some(gone)) this.unknown = new Set([...this.unknown].filter((each) => !gone(each)));

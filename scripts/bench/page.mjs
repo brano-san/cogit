@@ -2,6 +2,7 @@
 
 export const PAGE = String.raw`(() => {
   if (window.__bench) return;
+  Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
   const state = {
     inflight: 0,
     calls: [],
