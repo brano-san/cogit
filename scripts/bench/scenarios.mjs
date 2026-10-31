@@ -8,6 +8,7 @@
 
 const GRAPH_ROWS = `document.querySelectorAll('[role="listitem"]').length > 0`;
 const REF_ROWS = `document.querySelectorAll('[role="treeitem"]').length > 0`;
+const FILE_ROWS = `document.querySelectorAll('.pane button.row').length > 0`;
 const ALL = ["small", "medium", "large", "submodules", "dirty"];
 /** medium and large with a commit-graph file: graph scenarios only, asked for with --sets. */
 const GRAPH_CG = ["medium-cg", "large-cg"];
@@ -391,7 +392,7 @@ export const SCENARIOS = [
       await ctx.ensureOpen("small");
       await ctx.prep.click(REPO_ROW("small"), { quiet: 300 });
     },
-    measure: (ctx) => ctx.measure.click(REPO_ROW(ctx.set), { quiet: 300 }),
+    measure: (ctx) => ctx.measure.click(REPO_ROW(ctx.set), { quiet: 300, probes: { files: FILE_ROWS, refs: REF_ROWS } }),
   },
   {
     id: "repo.open-submodule",
