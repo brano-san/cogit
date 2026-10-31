@@ -59,7 +59,6 @@ pub(crate) struct PaintMemo {
     cost: std::time::Duration,
     request: Option<GraphPaintRequest>,
     paint: Paint,
-    /// What `parents` holds, kept as it grows: the cache counts it (R-300).
     parents_bytes: usize,
     /// `pending` too: parents a shallow or filtered history never shows wait there for good.
     pending_bytes: usize,
