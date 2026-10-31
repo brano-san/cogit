@@ -204,7 +204,7 @@ describe("a server that does not answer", () => {
     probe.mockClear();
     probe.mockImplementation(() => new Promise<boolean>((resolve) => answers.push(resolve)) as never);
     const { repoPulse } = await import("./repo-pulse.svelte");
-    repoPulse.watch(["C:/repos/silent"]);
+    repoPulse.watch(["C:/repos/silent"], [], ["C:/repos/silent"]);
     repoPulse.fetchEvery(1);
     const done = () => {
       repoPulse.fetchEvery(0);
@@ -474,5 +474,34 @@ describe("an open repository the panels do not show", () => {
     expect(readsOf("C:/open")).toBe(1);
     await vi.advanceTimersByTimeAsync(15_000);
     expect(readsOf("C:/open")).toBe(2);
+  });
+});
+
+describe("the background fetch", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("asks the servers of open repositories soon after start, of closed ones every third tick", async () => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    const ipc = await import("$lib/ipc/repo-rows");
+    const probe = vi.mocked(ipc.pullProbe);
+    probe.mockClear();
+    const { repoPulse } = await import("./repo-pulse.svelte");
+    repoPulse.watch(["C:/open", "C:/closed"], ["C:/open/lib"], ["C:/open"]);
+    repoPulse.fetchEvery(1);
+    const asked = (root: string) => probe.mock.calls.filter(([each]) => each === root).length;
+
+    await vi.advanceTimersByTimeAsync(31_000);
+    expect([asked("C:/open"), asked("C:/open/lib"), asked("C:/closed")]).toEqual([1, 1, 0]);
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect([asked("C:/open"), asked("C:/closed")]).toEqual([2, 1]);
+
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect([asked("C:/open"), asked("C:/closed")]).toEqual([4, 1]);
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect([asked("C:/open"), asked("C:/closed")]).toEqual([5, 2]);
+    repoPulse.fetchEvery(0);
   });
 });

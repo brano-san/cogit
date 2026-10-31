@@ -16,6 +16,7 @@ export const SETTINGS = {
     dateFormat: "relative",
     avatars: "off",
     autoUpdate: false,
+    backgroundFetchMinutes: 0,
     confirmExit: false,
     logLevel: "info",
   },

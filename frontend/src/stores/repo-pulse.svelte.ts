@@ -12,6 +12,8 @@ const FOCUS_SETTLE_MS = 300;
 const CLOSED = 3;
 export const OPEN_EVERY_MS = 15_000;
 const READ_COST_FACTOR = 20;
+const FIRST_FETCH_MS = 30_000;
+const CLOSED_FETCH_EVERY = 3;
 /** Submodule nodes are read once the tree has not been read again for this long: an open, a
     write or a click reads it, and a status of every node inside that action held the next
     one up (R-617). */
@@ -34,6 +36,7 @@ class RepoPulseStore {
   #open: ReadonlySet<string> = new Set();
   #timer: ReturnType<typeof setInterval> | null = null;
   #every = 0;
+  #firstFetch: ReturnType<typeof setTimeout> | null = null;
   #revisited = -Infinity;
   /** Roots whose probe has not ended, answered in time or not (R-482). */
   #probing = new Set<string>();
@@ -234,24 +237,39 @@ class RepoPulseStore {
     }
   }
 
-  /** `0` stops the background check. Every tick asks each row's server once, in list order. */
+  /** `0` stops the background check. Open repositories and their submodules are asked soon
+      after start and on every tick, closed rows on every third tick from the first (R-928). */
   fetchEvery(minutes: number): void {
     if (minutes === this.#every) return;
     this.#every = minutes;
     if (this.#timer !== null) clearInterval(this.#timer);
+    if (this.#firstFetch !== null) clearTimeout(this.#firstFetch);
     this.#timer = null;
+    this.#firstFetch = null;
     if (minutes <= 0) {
       // What the servers said is no longer being kept current.
       this.unknown = new Set();
       this.remoteAhead = new Set();
       return;
     }
+    this.#firstFetch = setTimeout(() => {
+      this.#firstFetch = null;
+      this.#fetchRoots(false);
+    }, FIRST_FETCH_MS);
+    let tick = 0;
     this.#timer = setInterval(
       () => {
-        for (const root of this.#roots) this.#queue.request(root, { fetch: true });
+        this.#fetchRoots(tick % CLOSED_FETCH_EVERY === 0);
+        tick += 1;
       },
       minutes * 60_000,
     );
+  }
+
+  #fetchRoots(closedToo: boolean): void {
+    for (const root of this.#roots) {
+      if (closedToo || this.#rank(root) !== CLOSED) this.#queue.request(root, { fetch: true });
+    }
   }
 }
 
