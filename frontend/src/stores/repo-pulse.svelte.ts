@@ -47,6 +47,7 @@ class RepoPulseStore {
       // Read before the panels took it over; they keep it current now.
       if (root === this.#owned) return;
       this.pulses = new Map([...this.pulses, [root, pulse]]);
+      if (pulse.tracked && pulse.behind === 0) this.#setAhead(root, false);
     },
     onFetch: (root, ok) => {
       if (ok === this.unknown.has(root)) {

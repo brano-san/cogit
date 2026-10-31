@@ -370,3 +370,28 @@ describe("a row removed from the list", () => {
     expect(repoPulse.unknown.size).toBe(0);
   });
 });
+
+describe("the pull arrow of a row whose pulse finds nothing behind", () => {
+  afterEach(() => vi.useRealTimers());
+
+  async function readWith(behind: number) {
+    vi.useFakeTimers();
+    vi.resetModules();
+    const { repoPulse } = await import("./repo-pulse.svelte");
+    repoPulse.watch(["C:/repos/one"]);
+    await vi.advanceTimersByTimeAsync(2_000);
+    repoPulse.remoteAhead = new Set(["C:/repos/one"]);
+    readPulse.mockResolvedValueOnce({ missing: false, tracked: true, behind } as never);
+    repoPulse.changed("C:/repos/one");
+    await vi.advanceTimersByTimeAsync(100);
+    return repoPulse.remoteAhead.has("C:/repos/one");
+  }
+
+  it("goes once a pulse finds the tracking ref not ahead", async () => {
+    expect(await readWith(0)).toBe(false);
+  });
+
+  it("stays while the tracking ref is ahead", async () => {
+    expect(await readWith(2)).toBe(true);
+  });
+});
