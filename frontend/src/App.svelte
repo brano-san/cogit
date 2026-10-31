@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from "svelte";
+  import { tick, untrack } from "svelte";
   import { open as openFolderDialog } from "@tauri-apps/plugin-dialog";
   import { checkForUpdates, message, noSelfUpdateNote, type UpdateOutcome } from "$lib/updates";
   import { leaveRepositoryDialogs } from "$lib/leaving";
@@ -2113,25 +2113,55 @@ ${event.error}`,
       of the submodule or worktree on screen comes back from what was kept, keeping its
       submodule tree, and only another repository goes through a full open. */
   async function selectRepository(entry: import("$lib/ipc").RepoOverview) {
-    const step = repoClick(entry, panelsNow());
+    const step = repoClick(entry, { ...panelsNow(), kept: repository.kept(entry.root) });
     trace(`open:${entry.root}`, `repository click: ${step}`);
     if (step === "open") await activate(entry.root);
     else if (step === "return") await comeBack(entry.root);
   }
 
   async function comeBack(root: string) {
-    forgetPanelsKeepingTheTree();
+    const story = `open:${root}`;
+    const ownTree = submodules.ownerRoot === root;
+    if (ownTree) forgetPanelsKeepingTheTree();
+    else forgetPanels();
     worktrees.ownerRoot = null;
     submodules.open = null;
-    await repository.comeBack(root);
+    const watch = measure("switch-repository");
+    if (!repository.switchTo(root)) {
+      trace(story, "switch: nothing kept, opening");
+      await activate(root);
+      return;
+    }
     const opened = repository.current;
     if (!opened) return;
+    const epoch = repository.epoch;
+    trace(story, "switch: showing what was kept, checking it");
     refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));
-    void reloadGraph();
+    if (!ownTree) void submodules.own(opened.repo, opened.root);
+    void health.check(opened.repo, opened.root, opened.name);
+    session.setActive(opened.root);
+    session.opened(opened.root);
     void refs.loadUrls(opened.repo);
     void worktrees.refresh(opened.repo);
-    await afterMutation();
+    await repository.check(async () => {
+      const graphShown = reloadGraph();
+      await tick();
+      const files = worktree.load(opened.repo);
+      const before = refsPrint(opened);
+      await repository.refreshRefs();
+      if (repository.epoch !== epoch) return;
+      const now = repository.current;
+      if (now && refsPrint(now) !== before) void reloadGraph();
+      const state = await files;
+      if (repository.epoch !== epoch) return;
+      await afterMutation([], state, true, graphShown);
+    });
+    watch.stop(`${repository.current?.branches.length ?? 0} refs`);
+    trace(story, "switch: done");
   }
+
+  const refsPrint = (summary: import("$lib/ipc").RepoSummary) =>
+    JSON.stringify([summary.head, summary.branches, summary.tags, summary.state]);
 
   /** Restores a past version into the working tree; HEAD stays where it is. */
   async function rollbackFiles(paths: string[]) {
@@ -3044,6 +3074,7 @@ ${event.error}`,
     moduleMemory.forget(target.root);
     moduleMemory.closeModulesUnder(target.root);
     repoPulse.forget(target.root);
+    repository.forget(target.root);
     repoGroups.assign(target.root, UNGROUPED);
   }
 
@@ -3535,6 +3566,7 @@ ${event.error}`,
     () =>
       running.size > 0 ||
       repository.busy ||
+      repository.checking ||
       network.running !== null ||
       networkActions?.bulkProgress() !== undefined ||
       graph.loading,

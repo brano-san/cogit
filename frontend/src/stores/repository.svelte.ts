@@ -34,6 +34,7 @@ export type RepoPhase =
 /** Long enough that a cold repository with submodules is not called a failure, short
     enough that nobody watches a spinner wondering whether it is still alive. */
 const OPEN_TIMEOUT_MS = 30_000;
+const KEPT_REPOSITORIES = 8;
 
 function asCogitError(err: unknown): CogitError {
   return toCogitError(err);
@@ -60,9 +61,10 @@ class RepositoryStore {
   /** The timeout error of an open that then succeeded after all. */
   recovered = $state.raw<CogitError | null>(null);
   #timer: ReturnType<typeof setTimeout> | null = null;
-  /** What a listed repository looked like when a submodule or worktree of it replaced it
-      in the panels, so clicking it again switches back without reopening it (#50). */
+  /** What a listed repository looked like when the panels left it, so clicking it again
+      shows that at once and checks it with one read instead of reopening it (#50, R-930). */
   #kept = new Map<string, RepoSummary>();
+  #checks = $state(0);
   #epoch = 0;
   /** A change arrived while a re-read was on its way; that re-read may predate it. */
   #again = false;
@@ -83,7 +85,10 @@ class RepositoryStore {
   }
 
   #leaving(root: string): void {
-    if (this.current?.root !== root) this.#left();
+    const left = this.current;
+    if (left?.root === root) return;
+    if (left && this.openRepos.some((entry) => entry.repo === left.repo)) this.keep(left);
+    this.#left();
   }
 
   #left(): void {
@@ -242,25 +247,41 @@ class RepositoryStore {
   /** Called before a submodule or worktree takes the panels. `repo` is for an owner that
       was opened without ever being shown: a submodule reached from its light tree. */
   keep(repo: RepoSummary | null = this.current): void {
-    if (repo) this.#kept.set(repo.root, repo);
+    if (!repo) return;
+    this.#kept.delete(repo.root);
+    this.#kept.set(repo.root, repo);
+    for (const oldest of this.#kept.keys()) {
+      if (this.#kept.size <= KEPT_REPOSITORIES) break;
+      this.#kept.delete(oldest);
+    }
   }
 
-  /** Shows the kept summary at once and re-reads it quietly, with no `opening` phase: a
-      worktree may have moved a branch meanwhile. Nothing kept is an ordinary open. */
-  async comeBack(root: string): Promise<void> {
+  kept(root: string): boolean {
+    return this.#kept.has(root);
+  }
+
+  forget(root: string): void {
+    this.#kept.delete(root);
+  }
+
+  switchTo(root: string): boolean {
     const kept = this.#kept.get(root);
     this.#kept.delete(root);
-    if (!kept) {
-      await this.open(root);
-      return;
-    }
+    if (!kept) return false;
     this.adopt(kept);
-    const ticket = this.#ticket;
+    return true;
+  }
+
+  get checking(): boolean {
+    return this.#checks > 0;
+  }
+
+  async check<T>(work: () => Promise<T>): Promise<T> {
+    this.#checks += 1;
     try {
-      const fresh = await openRepository(root);
-      if (this.#ticket === ticket) this.#replace(fresh);
-    } catch (err) {
-      trace(`open:${root}`, `re-reading the kept repository failed: ${String(err)}`);
+      return await work();
+    } finally {
+      this.#checks -= 1;
     }
   }
 
@@ -334,6 +355,7 @@ class RepositoryStore {
   async closeOne(repo: RepoId): Promise<void> {
     trace("close", `asked to close repository ${repo}`);
     if (this.current?.repo === repo) this.close();
+    for (const [root, kept] of this.#kept) if (kept.repo === repo) this.#kept.delete(root);
     this.openRepos = this.openRepos.filter((entry) => entry.repo !== repo);
     // The close answers with the list that is left: a second call for it was one more
     // round trip, and one more frame, after the panels had already settled.

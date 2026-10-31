@@ -382,52 +382,87 @@ describe("the list of open repositories", () => {
   });
 });
 
-describe("coming back to a listed repository (#50)", () => {
+describe("switching to an open repository from what it showed last", () => {
+  const listed = (...roots: string[]) =>
+    (repository.openRepos = roots.map((root) => ({ repo: root.length, root, name: root }) as never));
+
+  async function shown(root: string) {
+    commands.openRepository.mockResolvedValueOnce({ status: "ok", data: summary(root) });
+    await repository.open(root);
+  }
+
   beforeEach(() => {
     vi.useRealTimers();
     commands.openRepository.mockReset();
     commands.rereadRepository.mockReset();
+    commands.repoRefs.mockReset();
     repository.close();
+    for (const each of repository.openRepos) repository.forget(each.root);
+    repository.openRepos = [];
   });
 
-  it("shows what was kept at once, never passing through opening", async () => {
-    commands.openRepository.mockResolvedValueOnce({ status: "ok", data: summary("C:/repos/one") });
-    await repository.open("C:/repos/one");
-    repository.keep();
-    repository.adopt(summary("C:/repos/one/sub") as never);
+  it("shows what it showed last at once, never passing through opening", async () => {
+    listed("C:/repos/one", "C:/repos/second");
+    await shown("C:/repos/one");
+    repository.adopt(summary("C:/repos/second") as never);
+    commands.openRepository.mockClear();
 
-    const answer = pending<unknown>();
-    commands.openRepository.mockReturnValue(answer.promise);
-    const back = repository.comeBack("C:/repos/one");
+    expect(repository.switchTo("C:/repos/one")).toBe(true);
 
     expect(repository.phase.kind).toBe("open");
     expect(repository.current?.root).toBe("C:/repos/one");
-    answer.settle({ status: "ok", data: { ...summary("C:/repos/one"), name: "fresh" } });
-    await back;
-    expect(repository.phase.kind).toBe("open");
-    expect(repository.current?.name).toBe("fresh");
+    expect(commands.openRepository).not.toHaveBeenCalled();
   });
 
-  it("does not let a late re-read undo a newer switch", async () => {
-    commands.openRepository.mockResolvedValueOnce({ status: "ok", data: summary("C:/repos/one") });
-    await repository.open("C:/repos/one");
-    repository.keep();
-
-    const answer = pending<unknown>();
-    commands.openRepository.mockReturnValue(answer.promise);
-    const back = repository.comeBack("C:/repos/one");
-    repository.adopt(summary("C:/repos/two") as never);
-    answer.settle({ status: "ok", data: summary("C:/repos/one") });
-    await back;
-
-    expect(repository.current?.root).toBe("C:/repos/two");
+  it("has nothing to switch to for a repository never left", () => {
+    listed("C:/repos/one");
+    expect(repository.switchTo("C:/repos/one")).toBe(false);
   });
 
-  it("opens in the ordinary way when nothing was kept", async () => {
-    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/three") });
-    await repository.comeBack("C:/repos/three");
-    expect(commands.openRepository).toHaveBeenCalledTimes(1);
-    expect(repository.current?.root).toBe("C:/repos/three");
+  it("does not let a late answer of the check undo a newer switch", async () => {
+    listed("C:/repos/one", "C:/repos/second");
+    await shown("C:/repos/one");
+    repository.adopt(summary("C:/repos/second") as never);
+    const refs = pending<unknown>();
+    commands.repoRefs.mockReturnValue(refs.promise);
+
+    repository.switchTo("C:/repos/one");
+    const check = repository.check(() => repository.refreshRefs());
+    repository.adopt(summary("C:/repos/second") as never);
+    refs.settle({ status: "ok", data: { ...summary("C:/repos/one"), branches: ["late"] } });
+    await check;
+
+    expect(repository.current?.root).toBe("C:/repos/second");
+  });
+
+  it("counts as busy while the check runs", async () => {
+    const done = pending<void>();
+    const check = repository.check(() => done.promise);
+    expect(repository.checking).toBe(true);
+    done.settle();
+    await check;
+    expect(repository.checking).toBe(false);
+  });
+
+  it("forgets what a closed repository showed", async () => {
+    listed("C:/repos/one", "C:/repos/second");
+    await shown("C:/repos/one");
+    repository.adopt(summary("C:/repos/second") as never);
+    commands.closeRepository.mockResolvedValue({ status: "ok", data: [] });
+
+    await repository.closeOne("C:/repos/one".length as never);
+
+    expect(repository.switchTo("C:/repos/one")).toBe(false);
+  });
+
+  it("keeps the last eight repositories left", async () => {
+    const roots = Array.from({ length: 10 }, (_, at) => `C:/repos/${"r".repeat(at + 1)}`);
+    listed(...roots);
+    for (const root of roots) repository.adopt(summary(root) as never);
+    repository.close();
+
+    expect(repository.switchTo(roots[0]!)).toBe(false);
+    expect(repository.switchTo(roots[1]!)).toBe(true);
   });
 });
 

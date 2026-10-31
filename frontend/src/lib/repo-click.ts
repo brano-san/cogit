@@ -1,8 +1,8 @@
 import type { RepoId } from "$lib/ipc";
 
 /** What a click on a listed repository does (#50): nothing for the one on screen, a switch
-    back from what was kept for the owner of the submodule or worktree on screen, and a
-    full open for any other. */
+    from what was kept for the owner of the submodule or worktree on screen and for an open
+    repository left before, and a full open for any other. */
 export type RepoClick = "stay" | "return" | "open";
 
 export interface RepoClickState {
@@ -14,6 +14,7 @@ export interface RepoClickState {
   moduleOwner: RepoId | null;
   /** The listed repository whose worktree is on screen, if one is. */
   worktreeOwner: string | null;
+  kept?: boolean;
 }
 
 const same = (a: string, b: string | null) =>
@@ -26,13 +27,13 @@ export function repoClick(entry: { repo: RepoId; root: string }, state: RepoClic
   if (state.moduleOwner !== null && state.moduleOwner.valueOf() === entry.repo.valueOf()) {
     return "return";
   }
-  return "open";
+  return state.kept ? "return" : "open";
 }
 
 /** The panels show this repository, one of its submodules or worktrees, or are opening it:
     closing it has to free them. */
 export function holdsPanels(entry: { repo: RepoId; root: string }, state: RepoClickState): boolean {
-  return repoClick(entry, state) !== "open";
+  return repoClick(entry, { ...state, kept: false }) !== "open";
 }
 
 export type CloseStep =

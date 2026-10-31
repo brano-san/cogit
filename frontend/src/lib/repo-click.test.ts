@@ -34,6 +34,14 @@ describe("repoClick", () => {
     expect(repoClick(beta, state({ shown: id(7), moduleOwner: id(1) }))).toBe("open");
   });
 
+  it("switches to an open repository from what it showed last", () => {
+    expect(repoClick(beta, state({ kept: true }))).toBe("return");
+  });
+
+  it("does not take a kept repository for one holding the panels", () => {
+    expect(holdsPanels(beta, state({ kept: true }))).toBe(false);
+  });
+
   it("opens when nothing is on screen yet", () => {
     expect(repoClick(alpha, state({ shown: null }))).toBe("open");
   });
