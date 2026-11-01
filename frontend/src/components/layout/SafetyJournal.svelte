@@ -35,7 +35,7 @@
 
   {#snippet footer()}
     <span class="hint">
-      Newest first. Each entry restores its own thing, so an older one can be undone first.
+      {#if entries.length > 0}Newest first. Each entry restores its own thing, so an older one can be undone first.{/if}
     </span>
     <button type="button" class="btn primary" data-autofocus onclick={onclose}>Close</button>
   {/snippet}
@@ -43,6 +43,8 @@
 
 <style>
   .rows {
+    display: flex;
+    flex-direction: column;
     flex: 1 1 auto;
     min-height: 80px;
     overflow: auto;
@@ -50,6 +52,7 @@
 
   .row {
     display: flex;
+    flex: none;
     align-items: center;
     gap: var(--sp-4);
     min-height: var(--h-row);
