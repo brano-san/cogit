@@ -119,7 +119,17 @@ export const PAGE = String.raw`(() => {
     );
   }
 
-  const frame = () => new Promise((ok) => requestAnimationFrame(() => ok(now())));
+  const frame = () =>
+    new Promise((ok) => {
+      let settled = false;
+      const once = () => {
+        if (settled) return;
+        settled = true;
+        ok(now());
+      };
+      requestAnimationFrame(once);
+      setTimeout(once, 50);
+    });
 
   async function idle(quiet, timeout) {
     patch();
