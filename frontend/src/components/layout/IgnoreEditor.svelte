@@ -102,16 +102,20 @@
 
   async function save() {
     saving = true;
+    let wrote = false;
     try {
       for (const file of files.filter(changed)) {
-        await saveIgnoreFile(repo, { scope: file.scope, dir: file.dir, text: texts[file.scope] });
+        const text = texts[file.scope];
+        await saveIgnoreFile(repo, { scope: file.scope, dir: file.dir, text });
+        wrote = true;
+        files = files.map((each) => (each === file ? { ...each, text, exists: true } : each));
       }
-      onsaved();
       onclose();
     } catch (err) {
       errors.report(err, "Could not save the ignore file");
     } finally {
       saving = false;
+      if (wrote) onsaved();
     }
   }
 </script>
