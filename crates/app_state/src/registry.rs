@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 
+const PARKED_REACHABLE: usize = 4;
+
 #[derive(Debug, Clone)]
 pub struct OpenRepo {
     pub id: RepoId,
@@ -309,11 +311,16 @@ impl AppState {
 
         self.newest_diff.write().remove(&repo);
         self.forget_row(repo);
+        let reachable = self.reachable.lock().remove(&repo);
         match root {
-            Some(root) => self.park_graph(repo, root),
+            Some(root) => {
+                if let Some(reachable) = reachable {
+                    self.park_reachable(root.clone(), reachable);
+                }
+                self.park_graph(repo, root);
+            }
             None => self.forget_graph(repo),
         }
-        self.reachable.lock().remove(&repo);
         watch.done("forget-state");
         watch.report_close(repo.0, removed);
 
@@ -431,8 +438,28 @@ impl AppState {
         );
         drop(repos);
         self.adopt_graph(&root, id);
+        self.adopt_reachable(&root, id);
         self.emit(AppEvent::RepoOpened { repo: id });
         Some(id)
+    }
+
+    fn park_reachable(&self, root: PathBuf, reachable: git_engine::Reachable) {
+        let mut parked = self.parked_reachable.lock();
+        parked.retain(|(other, _)| !same_root(other, &root));
+        if parked.len() >= PARKED_REACHABLE {
+            parked.remove(0);
+        }
+        parked.push((root, reachable));
+    }
+
+    fn adopt_reachable(&self, root: &Path, id: RepoId) {
+        let mut parked = self.parked_reachable.lock();
+        let Some(at) = parked.iter().position(|(other, _)| same_root(other, root)) else {
+            return;
+        };
+        let (_, reachable) = parked.remove(at);
+        drop(parked);
+        self.reachable.lock().insert(id, reachable);
     }
 
     pub fn unregister(&self, id: RepoId) -> bool {
@@ -539,6 +566,19 @@ fn root_key(path: &Path) -> PathBuf {
 mod tests {
     use super::*;
     use crate::safety;
+
+    #[test]
+    fn a_repository_opened_again_counts_its_lost_commits_from_what_it_had() {
+        let f = test_fixtures::linear(5).unwrap();
+        let state = AppState::new();
+        let first = state.open_repository(f.path()).unwrap().repo;
+        state.local_lost_commits(first, 10).unwrap();
+        state.close_repository(first);
+
+        let again = state.open_repository(f.path()).unwrap().repo;
+
+        assert!(state.reachable.lock().contains_key(&again));
+    }
 
     // Close does not wait for the lane, so a reset still running when the repository was
     // closed recorded its Undo afterwards — for an id nothing would ever clear again.

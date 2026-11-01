@@ -247,6 +247,7 @@ pub struct AppState {
     graph_generation: AtomicU32,
     graph: Arc<RwLock<graph_cache::GraphCache>>,
     reachable: parking_lot::Mutex<HashMap<RepoId, git_engine::Reachable>>,
+    parked_reachable: parking_lot::Mutex<Vec<(std::path::PathBuf, git_engine::Reachable)>>,
     handles: handles::HandleCache,
     /// The fetch, pull or push running as each queue operation, for `cancel_network`.
     network_runs: parking_lot::Mutex<HashMap<u32, git_engine::NetworkStop>>,
@@ -305,6 +306,7 @@ impl AppState {
             graph_generation: AtomicU32::new(0),
             graph: Arc::new(RwLock::new(graph_cache::GraphCache::default())),
             reachable: parking_lot::Mutex::new(HashMap::new()),
+            parked_reachable: parking_lot::Mutex::new(Vec::new()),
             handles: handles::HandleCache::default(),
             network_runs: parking_lot::Mutex::new(HashMap::new()),
             reads: reads::Cancellations::default(),
