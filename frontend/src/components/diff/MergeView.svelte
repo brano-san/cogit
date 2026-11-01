@@ -40,7 +40,10 @@
   const left = $derived(conflictCount(regions));
   const auto = $derived(autoResolvedCount(regions));
   const parsed = $derived(syntacticCount(regions));
-  const current = $derived(at === null ? 0 : conflicts.indexOf(at) + 1);
+  const current = $derived.by(() => {
+    const row = at;
+    return row === null ? 0 : conflicts.filter((each) => each <= row).length;
+  });
 
   /** The three columns move sideways together, as the two halves of a diff do (R-470). */
   const PROBE = "0".repeat(100);
