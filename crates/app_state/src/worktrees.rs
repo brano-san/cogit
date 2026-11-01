@@ -47,7 +47,7 @@ impl AppState {
         let folder = std::path::Path::new(path);
         let handle = git_engine::RepoHandle::open_exact(folder)?;
         watch.done("open");
-        self.open_with(handle, folder, Some(owner), watch, began)
+        self.open_with(handle, folder, Some(owner), watch, began, false)
     }
 
     pub(crate) fn local_add_worktree(

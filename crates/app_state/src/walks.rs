@@ -16,10 +16,10 @@ impl Walk {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub(crate) struct Walks {
     epoch: Arc<AtomicU64>,
-    by_root: parking_lot::Mutex<HashMap<PathBuf, Arc<Walk>>>,
+    by_root: Arc<parking_lot::Mutex<HashMap<PathBuf, Arc<Walk>>>>,
 }
 
 impl Walks {
@@ -30,18 +30,26 @@ impl Walks {
     pub(crate) fn epoch(&self) -> Arc<AtomicU64> {
         Arc::clone(&self.epoch)
     }
-}
 
-impl AppState {
-    pub(crate) fn walked(&self, repo: RepoId) -> Result<Arc<WorktreeFiles>, GitError> {
-        self.walked_at(&self.handle(repo)?)
+    pub(crate) fn start(&self, handle: RepoHandle) {
+        let walks = self.clone();
+        let spawned = std::thread::Builder::new()
+            .name("status-walk".to_owned())
+            .spawn(move || {
+                if let Err(err) = walks.walk(&handle) {
+                    tracing::warn!(error = ?err, context = "status walk started by an open");
+                }
+            });
+        if let Err(err) = spawned {
+            tracing::error!(error = ?err, context = "could not start the status walk of an open");
+        }
     }
 
-    pub(crate) fn walked_at(&self, handle: &RepoHandle) -> Result<Arc<WorktreeFiles>, GitError> {
-        let epoch = self.walks.epoch.load(Ordering::Acquire);
+    fn walk(&self, handle: &RepoHandle) -> Result<Arc<WorktreeFiles>, GitError> {
+        let epoch = self.epoch.load(Ordering::Acquire);
         let root = handle.root().to_path_buf();
         let (walk, leads) = {
-            let mut by_root = self.walks.by_root.lock();
+            let mut by_root = self.by_root.lock();
             by_root.retain(|_, walk| walk.joinable(epoch));
             match by_root.get(&root) {
                 Some(walk) => (Arc::clone(walk), false),
@@ -64,5 +72,15 @@ impl AppState {
         let result = handle.worktree_files().map(Arc::new);
         let _ = walk.done.set(result.as_ref().ok().map(Arc::clone));
         result
+    }
+}
+
+impl AppState {
+    pub(crate) fn walked(&self, repo: RepoId) -> Result<Arc<WorktreeFiles>, GitError> {
+        self.walked_at(&self.handle(repo)?)
+    }
+
+    pub(crate) fn walked_at(&self, handle: &RepoHandle) -> Result<Arc<WorktreeFiles>, GitError> {
+        self.walks.walk(handle)
     }
 }

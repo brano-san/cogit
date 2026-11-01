@@ -103,7 +103,7 @@ impl AppState {
         let mut watch = Steps::new();
         let handle = git_engine::RepoHandle::open(path)?;
         watch.done("open");
-        self.open_with(handle, path, None, watch, began)
+        self.open_with(handle, path, None, watch, began, true)
     }
 
     /// `open_repository` without the status, the registration and the watcher: after a
@@ -139,7 +139,7 @@ impl AppState {
         let mut watch = Steps::new();
         let handle = git_engine::RepoHandle::open_exact(&path)?;
         watch.done("open");
-        self.open_with(handle, &path, Some(owner), watch, began)
+        self.open_with(handle, &path, Some(owner), watch, began, false)
     }
 
     /// `open_repository` of one already open, by its id: listed or not stays as it was, so a
@@ -157,7 +157,7 @@ impl AppState {
             handle.git_dir().to_path_buf(),
             handle.common_dir().to_path_buf(),
         );
-        let summary = self.open_with(handle, &open.root, open.owner, watch, began)?;
+        let summary = self.open_with(handle, &open.root, open.owner, watch, began, false)?;
         // A folder recreated under a shown repository left its watcher dead.
         self.start_watching(repo, &open.root, &git_dir, &common_dir);
         Ok(summary)
@@ -178,34 +178,42 @@ impl AppState {
         owner: Option<RepoId>,
         mut watch: Steps,
         began: u64,
+        status_later: bool,
     ) -> Result<RepoSummary, git_engine::GitError> {
         // Timed step by step: the log of the three-monitor machine showed this command
         // taking 7.7 s on a repository with sixteen branches, and one number for the whole
         // thing does not say which read to go after (doc/12-risks.md, R-121).
         let root = handle.root().to_path_buf();
-        let beside = handle.clone();
-        let (refs, status) = std::thread::scope(|scope| {
-            let status =
-                scope.spawn(move || self.walked_at(&beside).map(|files| files.state.status));
-            let refs = (|| {
-                let head = handle.head()?;
-                watch.done("head");
-                let branches = handle.branches()?;
-                watch.done("branches");
-                let tags = handle.tags()?;
-                watch.done("tags");
-                Ok::<_, git_engine::GitError>((head, branches, tags))
-            })();
-            let status = status.join().unwrap_or_else(|_| {
-                Err(git_engine::GitError::Internal(
-                    "the status read panicked".to_owned(),
-                ))
+        let read = |watch: &mut Steps| {
+            let head = handle.head()?;
+            watch.done("head");
+            let branches = handle.branches()?;
+            watch.done("branches");
+            let tags = handle.tags()?;
+            watch.done("tags");
+            Ok::<_, git_engine::GitError>((head, branches, tags))
+        };
+        let ((head, branches, tags), status) = if status_later {
+            self.walks.start(handle.clone());
+            (read(&mut watch)?, git_engine::RepoStatus::default())
+        } else {
+            let beside = handle.clone();
+            let (refs, status) = std::thread::scope(|scope| {
+                let status =
+                    scope.spawn(move || self.walked_at(&beside).map(|files| files.state.status));
+                let refs = read(&mut watch);
+                let status = status.join().unwrap_or_else(|_| {
+                    Err(git_engine::GitError::Internal(
+                        "the status read panicked".to_owned(),
+                    ))
+                });
+                (refs, status)
             });
+            let refs = refs?;
+            let status = status?;
+            watch.done("status");
             (refs, status)
-        });
-        let (head, branches, tags) = refs?;
-        let status = status?;
-        watch.done("status");
+        };
         let state = handle.state()?;
         watch.done("state");
         let index_lock = handle.index_lock();

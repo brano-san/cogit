@@ -228,3 +228,14 @@ fn a_read_of_a_repository_deleted_from_disk_says_it_is_missing() {
         state.worktree_files(repo, git_engine::WorktreeView::default())
     );
 }
+
+#[test]
+fn an_open_leaves_the_status_to_the_file_list_read_after_it() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::write(f.path().join("new.txt"), "new").unwrap();
+    let state = AppState::new();
+    let summary = state.open_repository(f.path()).unwrap();
+
+    assert_eq!(summary.status, git_engine::RepoStatus::default());
+    assert_eq!(state.repo_status(summary.repo).unwrap().untracked, 1);
+}
