@@ -1,6 +1,7 @@
 <script lang="ts">
   import { shortOid } from "$lib/format";
   import Dialog from "$components/common/Dialog.svelte";
+  import { spellField } from "$lib/spell-field.svelte";
 
   interface Props {
     oid: string;
@@ -31,7 +32,14 @@
 </script>
 
 <Dialog title={title ?? `Edit Message of ${shortOid(oid)}`} {onclose} dirty={text.trim() !== message.trim()} width="min(600px, 92vw)">
-  <textarea bind:this={field} bind:value={text} rows="10" aria-label="Commit message"></textarea>
+  <textarea
+    bind:this={field}
+    bind:value={text}
+    rows="10"
+    aria-label="Commit message"
+    spellcheck="false"
+    {@attach spellField(() => text)}
+  ></textarea>
 
   {#snippet footer()}
     {#if problem && text.trim() !== message.trim()}<span class="problem">{problem}</span>{/if}

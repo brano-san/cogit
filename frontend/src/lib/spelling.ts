@@ -71,8 +71,8 @@ export function spellLanguages(settings: { spellEnUs: boolean; spellRuRu: boolea
 export const SPELL_USE = "spell-use-";
 export const SPELL_ADD = "spell-add";
 
-export function spellMenu(label: string, word: string, suggestions: readonly string[]): ContextItem[] {
-  const id = (action: string) => `${MENU_PREFIX}${label}:${action}`;
+export function spellMenu(label: string | null, word: string, suggestions: readonly string[]): ContextItem[] {
+  const id = (action: string) => (label === null ? action : `${MENU_PREFIX}${label}:${action}`);
   const offered =
     suggestions.length > 0
       ? suggestions.map((suggestion, at) => item(id(`${SPELL_USE}${at}`), suggestion))

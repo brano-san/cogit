@@ -5,6 +5,7 @@
   import { afterCommit, amends, commitBlocker, draftToSave, initialMessage, messageAfterCommit } from "$lib/commit-draft";
   import { SUBJECT_HARD, SUBJECT_SOFT, subjectOf, subjectState } from "$lib/commit-message";
   import { ON_MAC, primary } from "$lib/platform";
+  import { spellField } from "$lib/spell-field.svelte";
 
   interface Props {
     /** What the button will actually commit, given the active filter (T6.8). */
@@ -133,6 +134,8 @@
     rows="3"
     placeholder="Commit message — Ctrl+Enter to commit"
     aria-label="Commit message"
+    spellcheck="false"
+    {@attach spellField(() => message)}
   ></textarea>
 
   {#if scope.warning}

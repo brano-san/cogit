@@ -60,6 +60,10 @@ describe("spellMenu", () => {
     ]);
   });
 
+  it("uses the bare actions in the main window", () => {
+    expect(spellMenu(null, "teh", ["the"]).map((row) => row.id)).toEqual(["spell-use-0", "", "spell-add"]);
+  });
+
   it("says when there is nothing to suggest", () => {
     const menu = spellMenu("commit", "qqq", []);
     expect(menu.map((row) => [row.label, row.enabled])).toEqual([
