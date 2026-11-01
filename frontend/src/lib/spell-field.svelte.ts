@@ -31,6 +31,7 @@ const COPIED = [
 
 const spelled = new Map<string, boolean>();
 let spelledFor = "";
+let menuOwner: object | null = null;
 
 export function spellField(text: () => string): Attachment<HTMLTextAreaElement | HTMLInputElement> {
   return (field) => {
@@ -39,6 +40,7 @@ export function spellField(text: () => string): Attachment<HTMLTextAreaElement |
     if (!parent) return;
     if (getComputedStyle(parent).position === "static") parent.style.position = "relative";
     const mirror = document.createElement("div");
+    mirror.className = "spell-mirror";
     mirror.setAttribute("aria-hidden", "true");
     Object.assign(mirror.style, {
       position: "absolute",
@@ -121,7 +123,7 @@ export function spellField(text: () => string): Attachment<HTMLTextAreaElement |
     function chosenAction(action: string) {
       const at = open;
       open = null;
-      if (!at) return;
+      if (!at || menuOwner !== mirror) return;
       if (action === SPELL_ADD) {
         void settings.apply({ ...settings.current, spellWords: [...settings.current.spellWords, at.word] });
       } else if (action.startsWith(SPELL_USE)) {
@@ -144,6 +146,7 @@ export function spellField(text: () => string): Attachment<HTMLTextAreaElement |
         return [];
       });
       open = { start: Number(hit.dataset.at), word, suggestions };
+      menuOwner = mirror;
       await popupContextMenu(spellMenu(inMain ? null : label, word, suggestions), event.clientX, event.clientY).catch(
         (err: unknown) => notices.report(err, "Could not show the spelling suggestions"),
       );
@@ -158,6 +161,7 @@ export function spellField(text: () => string): Attachment<HTMLTextAreaElement |
     field.addEventListener("contextmenu", oncontextmenu);
     const watcher = new ResizeObserver(place);
     watcher.observe(field);
+    watcher.observe(parent);
     const stopChild = inMain ? () => {} : onMenuAction(window, chosenAction);
     const stopMain = inMain ? onMenuCommand(chosenAction) : null;
 

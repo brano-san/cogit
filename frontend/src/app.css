@@ -530,3 +530,8 @@ input.tick-box:disabled {
 .tok-url {
   color: var(--c-lane-4);
 }
+
+.spell-mirror .miss {
+  text-decoration: underline wavy var(--status-danger);
+  text-decoration-skip-ink: none;
+}
