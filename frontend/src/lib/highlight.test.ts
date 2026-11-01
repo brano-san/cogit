@@ -195,6 +195,16 @@ describe("highlightLines", () => {
       expect(languageOf("deploy.ps1")).toBe("powershell");
     });
 
+    it("maps formats that borrow another grammar", () => {
+      expect(languageOf(".vscode/settings.jsonc")).toBe("json");
+      expect(languageOf("App.csproj")).toBe("xml");
+      expect(languageOf("MainWindow.xaml")).toBe("xml");
+      expect(languageOf("Info.plist")).toBe("xml");
+      expect(languageOf(".env")).toBe("properties files");
+      expect(languageOf("config/.env")).toBe("properties files");
+      expect(languageOf("AppDelegate.m")).toBe("objective-c");
+    });
+
     it("returns null for unknown extensions or files without extension", () => {
       expect(languageOf("notes.xyz")).toBeNull();
       expect(languageOf("LICENSE")).toBeNull();

@@ -21,15 +21,23 @@ const EXTRA_EXTENSIONS: Record<string, string> = {
   gvy: "groovy",
   svelte: "svelte",
   mdx: "markdown",
+  jsonc: "json",
+  csproj: "xml",
+  xaml: "xml",
+  plist: "xml",
+  env: "properties files",
+  m: "objective-c",
 };
 
 /** The grammar name for a path, as `@codemirror/language-data` knows it. */
 export function languageOf(path: string): string | null {
   const name = path.slice(Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")) + 1);
   const dot = name.lastIndexOf(".");
-  const ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
-  const found = LanguageDescription.matchFilename(languages, dot > 0 ? `${name.slice(0, dot)}.${ext}` : name);
-  return found ? found.name.toLowerCase() : (EXTRA_EXTENSIONS[ext] ?? null);
+  const ext = dot >= 0 ? name.slice(dot + 1).toLowerCase() : "";
+  const extra = EXTRA_EXTENSIONS[ext];
+  if (extra) return extra;
+  const found = LanguageDescription.matchFilename(languages, dot >= 0 ? `${name.slice(0, dot)}.${ext}` : name);
+  return found ? found.name.toLowerCase() : null;
 }
 
 const parsers = new Map<string, Parser>();
