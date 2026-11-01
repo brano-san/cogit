@@ -166,29 +166,41 @@ impl RepoHandle {
         &self,
         credential: impl Fn(&str) -> Option<crate::Credential>,
     ) -> Result<Option<bool>> {
-        let crate::Head::Branch { name, oid } = self.head()? else {
-            return Ok(None);
+        let branch = match self.head()? {
+            crate::Head::Branch { name, oid } => {
+                gix::refs::FullName::try_from(format!("refs/heads/{name}"))
+                    .ok()
+                    .map(|full| (full, oid))
+            }
+            _ => None,
         };
-        let Ok(full) = gix::refs::FullName::try_from(format!("refs/heads/{name}")) else {
-            return Ok(None);
-        };
-        let upstream = self
-            .repo
-            .branch_remote_name(full.as_ref().shorten(), gix::remote::Direction::Fetch)
-            .map(|remote| remote.as_bstr().to_string());
+        let upstream = branch.as_ref().and_then(|(full, _)| {
+            self.repo
+                .branch_remote_name(full.as_ref().shorten(), gix::remote::Direction::Fetch)
+                .map(|remote| remote.as_bstr().to_string())
+        });
+        let mut upstream_failed = None;
         for remote in self.remotes()? {
             if !self.background_fetch_of(&remote) {
                 continue;
             }
             let auth = self.auth_env(&remote, gix::remote::Direction::Fetch, &credential);
             match self.fetch_quietly(&remote, &auth) {
-                Err(err) if upstream.as_deref() == Some(remote.as_str()) => return Err(err),
+                Err(err) if upstream.as_deref() == Some(remote.as_str()) => {
+                    upstream_failed = Some(err);
+                }
                 Err(err) => {
                     tracing::warn!(remote = %remote, error = %err, "background fetch failed");
                 }
                 Ok(()) => {}
             }
         }
+        if let Some(err) = upstream_failed {
+            return Err(err);
+        }
+        let Some((full, oid)) = branch else {
+            return Ok(None);
+        };
         let Some(upstream) = upstream else {
             return Ok(None);
         };

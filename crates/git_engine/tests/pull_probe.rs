@@ -280,3 +280,22 @@ fn the_probe_against_ls_remote_and_fetch_takes() {
     }));
     eprintln!("median/p90 µs: probe {probe:?}, git ls-remote {ls:?}, fetch+pulse {fetch:?}");
 }
+
+#[test]
+fn a_detached_head_still_fetches_every_remote() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&["merge", "--quiet", "--no-edit", "origin/main"])
+        .unwrap();
+    remote_moves_on(&f, None);
+    f.git(&["checkout", "--quiet", "--detach"]).unwrap();
+    let before = f.oid("origin/main").unwrap();
+
+    assert_eq!(
+        RepoHandle::open(f.path())
+            .unwrap()
+            .pull_probe(|_| None)
+            .unwrap(),
+        None
+    );
+    assert_ne!(f.oid("origin/main").unwrap(), before);
+}
