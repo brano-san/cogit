@@ -154,8 +154,9 @@
   .row {
     display: flex;
     align-items: center;
+    flex: none;
     gap: var(--sp-3);
-    height: var(--h-row);
+    height: calc(var(--h-button-sm) + var(--sp-2));
     padding: 0 var(--sp-2);
     font-size: var(--fs-dense);
     white-space: nowrap;
