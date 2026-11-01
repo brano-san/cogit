@@ -314,6 +314,7 @@ impl AppState {
         self.forget_row(repo);
         let reachable = self.reachable.lock().remove(&repo);
         match root {
+            Some(root) if self.find_by_root(&root).is_some() => self.forget_graph(repo),
             Some(root) => {
                 if let Some(reachable) = reachable {
                     self.park_reachable(root.clone(), reachable);
