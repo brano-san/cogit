@@ -1,5 +1,7 @@
 use crate::{GitError, RepoHandle, Result};
 use gix::bstr::{BStr, ByteSlice};
+use gix::ignore::search::Match;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 const MAX_HITS: usize = 500;
@@ -92,13 +94,26 @@ impl RepoHandle {
                 GitError::InvalidState(format!("core.excludesFile cannot be read: {err}"))
             })?;
         configured
-            .or_else(|| gix::path::env::xdg_config("ignore", &mut gix::path::env::var))
+            .or_else(|| {
+                gix::path::env::xdg_config("ignore", &mut |name| {
+                    gix::path::env::var(name).or_else(|| {
+                        (name == "HOME")
+                            .then(|| gix::path::env::var("USERPROFILE"))
+                            .flatten()
+                    })
+                })
+            })
             .ok_or_else(|| {
                 GitError::InvalidState("no home folder for the global ignore file".to_owned())
             })
     }
 
     fn ignore_file_path(&self, scope: IgnoreScope, dir: &str) -> Result<PathBuf> {
+        if self.is_bare() {
+            return Err(GitError::InvalidState(
+                "a bare repository has no working tree to ignore files in".to_owned(),
+            ));
+        }
         match scope {
             IgnoreScope::Folder => Ok(self.folder_file(dir)),
             IgnoreScope::Exclude => Ok(self.exclude_file()),
@@ -236,10 +251,22 @@ impl RepoHandle {
             .repo
             .index_or_empty()
             .map_err(|err| GitError::Internal(format!("cannot read the index: {err}")))?;
-        let tracked_folders = index
-            .entries()
+        let untracked = self.read_git(&["ls-files", "-z", "--others", "--directory"])?;
+        let candidates: Vec<(&BStr, bool)> = untracked
+            .split('\0')
+            .filter(|path| !path.is_empty())
+            .map(|path| (path.as_bytes().as_bstr(), false))
+            .chain(
+                index
+                    .entries()
+                    .iter()
+                    .filter(|entry| entry.stage_raw() == 0)
+                    .map(|entry| (entry.path(&index), true)),
+            )
+            .collect();
+        let rule_folders = candidates
             .iter()
-            .map(|entry| entry.path(&index))
+            .map(|(path, _)| *path)
             .filter(|path| *path == ".gitignore" || path.ends_with(b"/.gitignore"))
             .map(|path| {
                 path[..path.len() - ".gitignore".len()]
@@ -248,24 +275,14 @@ impl RepoHandle {
                     .to_owned()
             })
             .collect();
-        let search = self.ignore_search(drafts, tracked_folders)?;
+        let search = self.ignore_search(drafts, rule_folders)?;
         let case = if self.repo.config_snapshot().boolean("core.ignoreCase") == Some(true) {
             gix::glob::pattern::Case::Fold
         } else {
             gix::glob::pattern::Case::Sensitive
         };
-        let untracked = self.read_git(&["ls-files", "-z", "--others", "--directory"])?;
-        let candidates = untracked
-            .split('\0')
-            .filter(|path| !path.is_empty())
-            .map(|path| (path.as_bytes().as_bstr(), false))
-            .chain(
-                index
-                    .entries()
-                    .iter()
-                    .map(|entry| (entry.path(&index), true)),
-            );
 
+        let mut folders: HashMap<&BStr, Option<Match<'_>>> = HashMap::new();
         let mut preview = IgnorePreview::default();
         for (path, is_tracked) in candidates {
             let is_dir = path.ends_with(b"/");
@@ -274,13 +291,23 @@ impl RepoHandle {
             } else {
                 path
             };
-            let Some(found) = search.pattern_matching_relative_path(relative, Some(is_dir), case)
-            else {
+            let excluded = |path: &BStr, is_dir: bool| {
+                search
+                    .pattern_matching_relative_path(path, Some(is_dir), case)
+                    .filter(|found| !found.pattern.is_negative())
+            };
+            let by_folder = relative
+                .find_iter("/")
+                .map(|slash| relative[..slash].as_bstr())
+                .find_map(|folder| {
+                    folders
+                        .entry(folder)
+                        .or_insert_with(|| excluded(folder, true))
+                        .clone()
+                });
+            let Some(found) = by_folder.or_else(|| excluded(relative, is_dir)) else {
                 continue;
             };
-            if found.pattern.is_negative() {
-                continue;
-            }
             preview.total += 1;
             if preview.hits.len() < MAX_HITS {
                 let (scope, dir) = self.source_of(found.source);

@@ -151,3 +151,53 @@ fn saving_keeps_the_line_endings_the_file_had() {
         "*.pdf\n"
     );
 }
+
+#[test]
+fn files_under_an_ignored_folder_are_ignored_too() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file("build/.gitkeep", "").unwrap();
+    f.write_file("build/x.txt", "").unwrap();
+    f.git(&["add", "build"]).unwrap();
+    f.commit_staged(2, "track build").unwrap();
+    f.write_file("build/a.o", "").unwrap();
+    let (repo, _) = repo_with_global(&f);
+
+    let preview = repo
+        .ignore_preview(&[draft(IgnoreScope::Folder, "", "build/\n!build/a.o\n")])
+        .unwrap();
+
+    let untracked = hit(&preview.hits, "build/a.o").unwrap();
+    assert_eq!((untracked.line, untracked.tracked), (1, false));
+    assert!(hit(&preview.hits, "build/x.txt").unwrap().tracked);
+}
+
+#[test]
+fn an_untracked_gitignore_takes_part() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file("README.md", "").unwrap();
+    f.git(&["add", "README.md"]).unwrap();
+    f.commit_staged(2, "readme").unwrap();
+    f.write_file(".gitignore", "*.bak\n").unwrap();
+    f.write_file("old.bak", "").unwrap();
+    let (repo, _) = repo_with_global(&f);
+
+    let preview = repo
+        .ignore_preview(&[draft(IgnoreScope::Exclude, "", "")])
+        .unwrap();
+
+    assert_eq!(hit(&preview.hits, "old.bak").unwrap().line, 1);
+}
+
+#[test]
+fn a_bare_repository_has_no_ignore_files_to_edit() {
+    let f = test_fixtures::bare().unwrap();
+    let repo = RepoHandle::open(f.path()).unwrap();
+
+    assert!(repo.ignore_files("").is_err());
+    assert!(repo.ignore_preview(&[]).is_err());
+    assert!(
+        repo.save_ignore_file(&draft(IgnoreScope::Folder, "", "x\n"))
+            .is_err()
+    );
+    assert!(!f.path().join(".gitignore").exists());
+}
