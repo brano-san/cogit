@@ -148,19 +148,11 @@ impl RepoHandle {
         Ok(())
     }
 
-    fn tracked_paths(&self) -> Result<Vec<String>> {
-        let index = self
-            .repo
-            .index_or_empty()
-            .map_err(|err| GitError::Internal(format!("cannot read the index: {err}")))?;
-        Ok(index
-            .entries()
-            .iter()
-            .map(|entry| entry.path(&index).to_str_lossy().into_owned())
-            .collect())
-    }
-
-    fn ignore_search(&self, drafts: &[IgnoreDraft]) -> Result<gix::ignore::Search> {
+    fn ignore_search(
+        &self,
+        drafts: &[IgnoreDraft],
+        tracked_folders: Vec<String>,
+    ) -> Result<gix::ignore::Search> {
         let parse = gix::ignore::search::Ignore::default();
         let drafted = |scope: IgnoreScope, dir: &str| {
             drafts
@@ -193,16 +185,8 @@ impl RepoHandle {
             parse,
         );
 
-        let mut folders: Vec<String> = self
-            .tracked_paths()?
+        let mut folders: Vec<String> = tracked_folders
             .into_iter()
-            .filter(|path| path == ".gitignore" || path.ends_with("/.gitignore"))
-            .map(|path| {
-                path.strip_suffix(".gitignore")
-                    .unwrap_or_default()
-                    .trim_end_matches('/')
-                    .to_owned()
-            })
             .chain(
                 drafts
                     .iter()
@@ -248,24 +232,48 @@ impl RepoHandle {
     }
 
     pub fn ignore_preview(&self, drafts: &[IgnoreDraft]) -> Result<IgnorePreview> {
-        let search = self.ignore_search(drafts)?;
+        let index = self
+            .repo
+            .index_or_empty()
+            .map_err(|err| GitError::Internal(format!("cannot read the index: {err}")))?;
+        let tracked_folders = index
+            .entries()
+            .iter()
+            .map(|entry| entry.path(&index))
+            .filter(|path| *path == ".gitignore" || path.ends_with(b"/.gitignore"))
+            .map(|path| {
+                path[..path.len() - ".gitignore".len()]
+                    .to_str_lossy()
+                    .trim_end_matches('/')
+                    .to_owned()
+            })
+            .collect();
+        let search = self.ignore_search(drafts, tracked_folders)?;
         let case = if self.repo.config_snapshot().boolean("core.ignoreCase") == Some(true) {
             gix::glob::pattern::Case::Fold
         } else {
             gix::glob::pattern::Case::Sensitive
         };
         let untracked = self.read_git(&["ls-files", "-z", "--others", "--directory"])?;
-        let tracked = self.tracked_paths()?;
         let candidates = untracked
             .split('\0')
             .filter(|path| !path.is_empty())
-            .map(|path| (path.to_owned(), false))
-            .chain(tracked.into_iter().map(|path| (path, true)));
+            .map(|path| (path.as_bytes().as_bstr(), false))
+            .chain(
+                index
+                    .entries()
+                    .iter()
+                    .map(|entry| (entry.path(&index), true)),
+            );
 
         let mut preview = IgnorePreview::default();
         for (path, is_tracked) in candidates {
-            let is_dir = path.ends_with('/');
-            let relative: &BStr = path.trim_end_matches('/').as_bytes().as_bstr();
+            let is_dir = path.ends_with(b"/");
+            let relative: &BStr = if is_dir {
+                path[..path.len() - 1].as_bstr()
+            } else {
+                path
+            };
             let Some(found) = search.pattern_matching_relative_path(relative, Some(is_dir), case)
             else {
                 continue;
@@ -277,7 +285,7 @@ impl RepoHandle {
             if preview.hits.len() < MAX_HITS {
                 let (scope, dir) = self.source_of(found.source);
                 preview.hits.push(IgnoreHit {
-                    path,
+                    path: path.to_str_lossy().into_owned(),
                     tracked: is_tracked,
                     scope,
                     dir,
