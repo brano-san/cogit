@@ -439,6 +439,41 @@ export const CATEGORIES: Category[] = [
       },
     ],
   },
+  {
+    id: "spelling",
+    title: "Spelling",
+    parent: "ui",
+    groups: [
+      {
+        title: "Dictionaries",
+        fields: [
+          {
+            key: "spellEnUs",
+            label: "English (US)",
+            hint: "Misspelled words in the Commit window's message are underlined; right-click one for suggestions.",
+            keywords: ["spell", "spelling", "dictionary", "english", "en_us", "typo", "commit message"],
+          },
+          {
+            key: "spellRuRu",
+            label: "Russian",
+            hint: "Words in Latin letters are checked by English only, words in Cyrillic by Russian only.",
+            keywords: ["spell", "spelling", "dictionary", "russian", "ru_ru", "typo", "commit message"],
+          },
+        ],
+      },
+      {
+        title: "Your words",
+        fields: [
+          {
+            key: "spellWords",
+            label: "Words added to the dictionary",
+            hint: "Add to Dictionary in the message's right-click menu puts a word here. Separate the words with commas.",
+            keywords: ["spell", "spelling", "dictionary", "ignore", "custom", "personal", "words"],
+          },
+        ],
+      },
+    ],
+  },
   heading("diffmerge", "Diff & Merge"),
   {
     id: "diff",

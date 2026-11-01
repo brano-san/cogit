@@ -3,6 +3,7 @@ import type { Algorithm, Whitespace } from "$lib/ipc";
 import { LANE_WIDTH } from "$lib/graph-geometry";
 import { DEFAULT_FILTER_FIELDS, knownFields, type FilterField } from "$lib/filter-fields";
 import { knownPatterns } from "$lib/filter-patterns";
+import { knownWords } from "$lib/spelling";
 import { GRAPH_COLORINGS, migratedColoring, type GraphColoring } from "$lib/graph-coloring";
 
 /** Lightest first, by the panels' background; the grey ones sit between the extremes (#24). */
@@ -129,6 +130,10 @@ export interface Settings {
   /** Minutes between asking the remote of every listed repository what it has (R-354);
       `0` is off, which is the default: nothing reaches the network unasked. */
   backgroundFetchMinutes: number;
+
+  spellEnUs: boolean;
+  spellRuRu: boolean;
+  spellWords: string[];
 }
 
 /** 1: a stored graph `date` became `dateTime` (R-370). */
@@ -194,6 +199,10 @@ export const DEFAULT_SETTINGS: Settings = {
   fetchStaleHours: 24,
 
   backgroundFetchMinutes: 5,
+
+  spellEnUs: true,
+  spellRuRu: false,
+  spellWords: [],
 };
 
 /** Read once at startup, so changing them needs a restart to take effect. */
@@ -267,6 +276,7 @@ export function merge(stored: Partial<Settings> | null | undefined): Settings {
     graphFilterFields: [...DEFAULT_SETTINGS.graphFilterFields],
     graphFilterPatterns: [...DEFAULT_SETTINGS.graphFilterPatterns],
     protectedBranches: [...DEFAULT_SETTINGS.protectedBranches],
+    spellWords: [...DEFAULT_SETTINGS.spellWords],
   };
   if (typeof stored !== "object" || stored === null) return merged;
   const record = stored as Record<string, unknown>;
@@ -284,6 +294,10 @@ export function merge(stored: Partial<Settings> | null | undefined): Settings {
     }
     if (key === "graphFilterPatterns") {
       merged.graphFilterPatterns = knownPatterns(value) ?? merged.graphFilterPatterns;
+      continue;
+    }
+    if (key === "spellWords") {
+      merged.spellWords = knownWords(value) ?? merged.spellWords;
       continue;
     }
     if (key === "protectedBranches") {

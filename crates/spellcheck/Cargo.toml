@@ -1,0 +1,18 @@
+[package]
+name = "spellcheck"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Spelling of commit messages against the bundled en_US and ru_RU dictionaries."
+
+[dependencies]
+spellbook.workspace = true
+serde.workspace = true
+specta.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true

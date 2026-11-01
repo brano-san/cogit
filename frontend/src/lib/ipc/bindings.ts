@@ -824,6 +824,8 @@ export const commands = {
 	 *  recent messages of the Commit window.
 	 */
 	recentCommits: (repo: RepoId, limit: number) => typedError<CommitDetails[], GitError>(__TAURI_INVOKE("recent_commits", { repo, limit })),
+	spellingMisspelled: (languages: SpellLanguage[], words: string[]) => __TAURI_INVOKE<string[]>("spelling_misspelled", { languages, words }),
+	spellingSuggestions: (languages: SpellLanguage[], word: string) => __TAURI_INVOKE<string[]>("spelling_suggestions", { languages, word }),
 	commitTemplate: (repo: RepoId) => typedError<string | null, GitError>(__TAURI_INVOKE("commit_template", { repo })),
 	stageMode: (repo: RepoId, path: string, executable: boolean) => typedError<null, GitError>(__TAURI_INVOKE("stage_mode", { repo, path, executable })),
 	listPresets: (repo: RepoId) => typedError<PresetStatus[], GitError>(__TAURI_INVOKE("list_presets", { repo })),
@@ -2755,6 +2757,8 @@ export type SolverRegion = {
 
 /**  The part of its row a segment covers: the upper half, the lower half or all of it. */
 export type Span = "top" | "bottom" | "through";
+
+export type SpellLanguage = "en_US" | "ru_RU";
 
 /**  `~/.ssh` and the private keys in it, for the Sign in dialog's SSH key tab. */
 export type SshKeys = {

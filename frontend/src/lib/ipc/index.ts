@@ -56,9 +56,11 @@ import type {
   StashOptions,
   TagRequest,
   TodoEntry,
+  SpellLanguage,
 } from "./bindings";
 
 export type {
+  SpellLanguage,
   AuthRequired,
   CredentialStore,
   StoreState,
@@ -1400,6 +1402,14 @@ export async function openCommitWindow(repo: RepoId, root: string, paths: string
 
 export async function recentCommits(repo: RepoId, limit: number) {
   return unwrap(await commands.recentCommits(repo, limit));
+}
+
+export function spellingMisspelled(languages: SpellLanguage[], words: string[]): Promise<string[]> {
+  return commands.spellingMisspelled(languages, words);
+}
+
+export function spellingSuggestions(languages: SpellLanguage[], word: string): Promise<string[]> {
+  return commands.spellingSuggestions(languages, word);
 }
 
 export async function setTaskbarState(signals: TaskbarSignals) {

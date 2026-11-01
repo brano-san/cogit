@@ -4,22 +4,24 @@
 use app_state::licences::{document, write};
 
 const CRATES: &str = "Rust crates (1)\n\ngix 0.87.1 — MIT OR Apache-2.0\n";
+const NOTICES: &str = "Spelling dictionaries\n\nCopyright (c) 1997-2008, Alexander I. Lebedev\n";
 const FRONTEND: &str = "Frontend packages (1)\n\nsvelte 5.57.1 — MIT\n";
 
 #[test]
 fn the_document_names_the_build_and_carries_both_lists() {
-    let text = document("0.1.0", CRATES, Some(FRONTEND));
+    let text = document("0.1.0", CRATES, NOTICES, Some(FRONTEND));
     assert_eq!(
         text.lines().next().unwrap(),
         "Third-party licenses in Cogit 0.1.0"
     );
     assert!(text.contains("gix 0.87.1 — MIT OR Apache-2.0"));
     assert!(text.contains("svelte 5.57.1 — MIT"));
+    assert!(text.contains("Alexander I. Lebedev"));
 }
 
 #[test]
 fn a_build_without_a_frontend_list_says_where_to_find_one() {
-    let text = document("0.1.0", CRATES, None);
+    let text = document("0.1.0", CRATES, NOTICES, None);
     assert!(text.contains("gix 0.87.1"));
     assert!(text.contains("Frontend packages"));
     assert!(text.contains("release build"));

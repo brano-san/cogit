@@ -150,6 +150,7 @@ pub async fn open_third_party_licences(frontend: Option<String>) -> Result<(), G
     let text = app_state::licences::document(
         env!("CARGO_PKG_VERSION"),
         THIRD_PARTY_CRATES,
+        spellcheck::NOTICES,
         frontend.as_deref(),
     );
     let path = blocking("open_third_party_licences", move || {

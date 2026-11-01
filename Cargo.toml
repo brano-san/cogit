@@ -158,6 +158,10 @@ windows = { version = "0.62", features = [
 # Already in the tree through hyper-util, so nothing new is compiled (R-171).
 windows-registry = "0.6"
 
+# --- spelling ---
+# Hunspell-compatible, pure Rust: reads the bundled LibreOffice dictionaries as they are.
+spellbook = "0.4"
+
 # --- dev / testing ---
 insta = "1.48"
 tempfile = "3.27"
@@ -173,6 +177,7 @@ fs_watcher = { path = "crates/fs_watcher" }
 git_engine = { path = "crates/git_engine" }
 graph_engine = { path = "crates/graph_engine" }
 portable = { path = "crates/portable" }
+spellcheck = { path = "crates/spellcheck" }
 test_fixtures = { path = "crates/test_fixtures" }
 
 [workspace.lints.rust]

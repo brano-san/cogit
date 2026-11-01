@@ -409,6 +409,22 @@
                   onchange={(e) => set("protectedBranches", protectedNames(e.currentTarget.value))}
                 />
               </div>
+            {:else if field.key === "spellEnUs" || field.key === "spellRuRu"}
+              {@const key = field.key}
+              <div class="row check">
+                <Checkbox checked={draft[key]} onchange={(checked) => set(key, checked)} label={field.label} />
+              </div>
+            {:else if field.key === "spellWords"}
+              <div class="row">
+                {@render caption(field)}
+                <input
+                  type="text"
+                  class="text"
+                  aria-label={field.label}
+                  value={draft.spellWords.join(", ")}
+                  onchange={(e) => set("spellWords", protectedNames(e.currentTarget.value))}
+                />
+              </div>
             {:else if field.key === "fetchStaleHours"}
               <div class="row">
                 {@render caption(field)}

@@ -9,7 +9,8 @@
   import Radio from "$components/common/Radio.svelte";
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
   import VirtualList from "$components/common/VirtualList.svelte";
-  import { installChildWindow } from "$lib/child-window";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
+  import { installChildWindow, onMenuAction } from "$lib/child-window";
   import { draftToSave, initialMessage, messageAfterCommit } from "$lib/commit-draft";
   import {
     COUNTER_INFO,
@@ -47,15 +48,20 @@
     repoWritten,
     commitTemplate,
     isPublished,
+    popupContextMenu,
     recentCommits,
+    spellingMisspelled,
+    spellingSuggestions,
     repoRefs,
     type CommitDetails,
+    type SpellLanguage,
   } from "$lib/ipc";
   import { ON_MAC, primary } from "$lib/platform";
   import { publishedOrAssume } from "$lib/published";
   import { requestPush } from "$lib/push-head";
   import { placePopup, type Box, type Placed } from "$lib/popup-place";
   import { followSettings } from "$lib/settings-sync";
+  import { SPELL_ADD, SPELL_USE, accepted, mirrorHtml, spellLanguages, spellMenu, spellWords, type SpellWord } from "$lib/spelling";
   import type { ConfirmRequest } from "$stores/confirm.svelte";
   import { notices } from "$stores/notices.svelte";
   import { settings } from "$stores/settings.svelte";
@@ -114,6 +120,110 @@
     return { destroy: () => (placed = null) };
   }
   let field: HTMLTextAreaElement | undefined = $state();
+  let mirror: HTMLDivElement | undefined = $state();
+  const SPELL_PAUSE_MS = 250;
+  let misses = $state.raw<ReadonlySet<string>>(new Set());
+  let spellAt: { start: number; word: string; suggestions: string[] } | null = null;
+  let spellRun = 0;
+  let spelledFor = "";
+  const spelled = new Map<string, boolean>();
+  const languages = $derived(spellLanguages(settings.current));
+  const words = $derived(spellWords(message));
+  const mirrored = $derived(mirrorHtml(message, words, misses));
+
+  $effect(() => {
+    const chosen = languages;
+    const personal = settings.current.spellWords;
+    const found = words;
+    const timer = setTimeout(() => void spell(chosen, personal, found), SPELL_PAUSE_MS);
+    return () => clearTimeout(timer);
+  });
+
+  $effect(() => {
+    void mirrored;
+    syncMirror();
+  });
+
+  $effect(() => {
+    if (!field) return;
+    const watcher = new ResizeObserver(syncMirror);
+    watcher.observe(field);
+    return () => watcher.disconnect();
+  });
+
+  $effect(() =>
+    onMenuAction(window, (action) => {
+      const at = spellAt;
+      spellAt = null;
+      if (!at) return;
+      if (action === SPELL_ADD) {
+        void settings.apply({ ...settings.current, spellWords: [...settings.current.spellWords, at.word] });
+      } else if (action.startsWith(SPELL_USE)) {
+        const replacement = at.suggestions[Number(action.slice(SPELL_USE.length))];
+        if (replacement !== undefined) replaceWord(at.start, at.word, replacement);
+      }
+    }),
+  );
+
+  async function spell(chosen: SpellLanguage[], personal: readonly string[], found: readonly SpellWord[]) {
+    const run = ++spellRun;
+    const key = chosen.join(",");
+    if (key !== spelledFor) {
+      spelled.clear();
+      spelledFor = key;
+    }
+    const unknown = [...new Set(found.map((one) => one.word))].filter(
+      (word) => !spelled.has(word) && !accepted(word, personal),
+    );
+    if (chosen.length > 0 && unknown.length > 0) {
+      let wrong: Set<string>;
+      try {
+        wrong = new Set(await spellingMisspelled(chosen, unknown));
+      } catch (err) {
+        notices.report(err, "Could not check the spelling");
+        return;
+      }
+      if (run !== spellRun) return;
+      for (const word of unknown) spelled.set(word, wrong.has(word));
+    }
+    misses = new Set(
+      found.map((one) => one.word).filter((word) => chosen.length > 0 && spelled.get(word) === true && !accepted(word, personal)),
+    );
+  }
+
+  function syncMirror() {
+    if (!mirror || !field) return;
+    mirror.scrollTop = field.scrollTop;
+    mirror.style.paddingRight = `calc(var(--sp-3) + ${field.offsetWidth - field.clientWidth - 2}px)`;
+  }
+
+  function replaceWord(start: number, word: string, replacement: string) {
+    if (!field || message.slice(start, start + word.length) !== word) return;
+    field.focus();
+    field.setSelectionRange(start, start + word.length);
+    if (!document.execCommand("insertText", false, replacement)) {
+      message = message.slice(0, start) + replacement + message.slice(start + word.length);
+    }
+  }
+
+  async function onFieldMenu(event: MouseEvent) {
+    const hit = [...(mirror?.querySelectorAll<HTMLElement>(".miss") ?? [])].find((span) =>
+      [...span.getClientRects()].some(
+        (box) => event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top && event.clientY <= box.bottom,
+      ),
+    );
+    if (!hit) return;
+    event.preventDefault();
+    const word = hit.textContent ?? "";
+    const suggestions = await spellingSuggestions(languages, word).catch((err: unknown) => {
+      notices.report(err, "Could not read the spelling suggestions");
+      return [];
+    });
+    spellAt = { start: Number(hit.dataset.at), word, suggestions };
+    await popupContextMenu(spellMenu(getCurrentWindow().label, word, suggestions), event.clientX, event.clientY).catch(
+      (err: unknown) => notices.report(err, "Could not show the spelling suggestions"),
+    );
+  }
   let loaded = $state(false);
 
   const files = $derived(listedFiles(mode, worktree.staged, worktree.unstaged));
@@ -444,7 +554,17 @@
           Select <Caret open={menuAt !== null} />
         </button>
       </div>
-      <textarea bind:this={field} bind:value={message} aria-label="Commit message" spellcheck="false"></textarea>
+      <div class="message">
+        <div class="spell" aria-hidden="true" bind:this={mirror}>{@html mirrored}</div>
+        <textarea
+          bind:this={field}
+          bind:value={message}
+          aria-label="Commit message"
+          spellcheck="false"
+          onscroll={syncMirror}
+          oncontextmenu={(event) => void onFieldMenu(event)}
+        ></textarea>
+      </div>
 
       <div class="options">
         <Checkbox
@@ -773,15 +893,46 @@
     font-weight: 600;
   }
 
-  textarea {
-    display: block;
+  .message {
+    position: relative;
+    display: flex;
     flex: 2 1 0;
+    min-height: 90px;
+  }
+
+  .spell {
+    position: absolute;
+    inset: 0;
+    box-sizing: border-box;
+    padding: var(--sp-3);
+    overflow: hidden;
+    background: var(--surface-input);
+    color: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--r-sm);
+    font-family: var(--font-mono);
+    font-size: var(--fs-code);
+    line-height: var(--lh-code);
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    pointer-events: none;
+  }
+
+  .spell :global(.miss) {
+    text-decoration: underline wavy var(--status-danger);
+    text-decoration-skip-ink: none;
+  }
+
+  textarea {
+    position: relative;
+    display: block;
+    flex: 1 1 auto;
     box-sizing: border-box;
     width: 100%;
-    min-height: 90px;
+    min-height: 0;
     resize: none;
     padding: var(--sp-3);
-    background: var(--surface-input);
+    background: transparent;
     color: var(--text-primary);
     border: 1px solid var(--field-border);
     border-radius: var(--r-sm);

@@ -19,6 +19,7 @@ pub mod ref_ops;
 pub mod remote_ops;
 pub mod remotes;
 pub mod repo_rows;
+pub mod spelling;
 pub mod stash;
 pub mod toolbar;
 pub mod worktrees;
