@@ -32,8 +32,9 @@ const COPIED = [
 const spelled = new Map<string, boolean>();
 let spelledFor = "";
 
-export function spellField(text: () => string): Attachment<HTMLTextAreaElement> {
+export function spellField(text: () => string): Attachment<HTMLTextAreaElement | HTMLInputElement> {
   return (field) => {
+    const oneLine = field instanceof HTMLInputElement;
     const parent = field.parentElement;
     if (!parent) return;
     if (getComputedStyle(parent).position === "static") parent.style.position = "relative";
@@ -45,8 +46,8 @@ export function spellField(text: () => string): Attachment<HTMLTextAreaElement> 
       color: "transparent",
       background: "transparent",
       borderColor: "transparent",
-      whiteSpace: "pre-wrap",
-      overflowWrap: "break-word",
+      whiteSpace: oneLine ? "pre" : "pre-wrap",
+      overflowWrap: oneLine ? "normal" : "break-word",
       pointerEvents: "none",
       zIndex: "1",
     });
@@ -67,7 +68,8 @@ export function spellField(text: () => string): Attachment<HTMLTextAreaElement> 
       mirror.style.top = `${field.offsetTop}px`;
       mirror.style.width = `${field.offsetWidth}px`;
       mirror.style.height = `${field.offsetHeight}px`;
-      mirror.scrollTop = field.scrollTop;
+      if (oneLine) mirror.style.lineHeight = `${field.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)}px`;
+      onscroll();
     }
 
     async function spell(chosen: SpellLanguage[], personal: readonly string[], found: readonly string[]) {
@@ -147,8 +149,11 @@ export function spellField(text: () => string): Attachment<HTMLTextAreaElement> 
       );
     }
 
-    const onscroll = () => (mirror.scrollTop = field.scrollTop);
-    const oncontextmenu = (event: MouseEvent) => void onmenu(event);
+    function onscroll() {
+      mirror.scrollTop = field.scrollTop;
+      mirror.scrollLeft = field.scrollLeft;
+    }
+    const oncontextmenu = (event: Event) => void onmenu(event as MouseEvent);
     field.addEventListener("scroll", onscroll);
     field.addEventListener("contextmenu", oncontextmenu);
     const watcher = new ResizeObserver(place);

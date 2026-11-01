@@ -1,5 +1,6 @@
 <script lang="ts">
   import { shortOid } from "$lib/format";
+  import { spellField } from "$lib/spell-field.svelte";
   import { refNameField } from "$lib/names";
   import Dialog from "$components/common/Dialog.svelte";
   import Select from "$components/common/Select.svelte";
@@ -88,7 +89,13 @@
 
     <label class="field">
       <span class="caption">Message</span>
-      <textarea bind:value={message} rows="5" placeholder="Leave empty for a lightweight tag"></textarea>
+      <textarea
+        bind:value={message}
+        rows="5"
+        placeholder="Leave empty for a lightweight tag"
+        spellcheck="false"
+        {@attach spellField(() => message)}
+      ></textarea>
       <span class="hint">
         {kind === "annotated"
           ? "An annotated tag: the message, your name and the date are stored with it."

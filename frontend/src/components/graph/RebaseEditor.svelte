@@ -3,6 +3,7 @@
   import { shortOid, shortRev } from "$lib/format";
   import { moveEntry, planChanged, planProblem, previewCount } from "$lib/rebase-plan";
   import { pointerDrag } from "$lib/pointer-drag";
+  import { spellField } from "$lib/spell-field.svelte";
   import Checkbox from "$components/common/Checkbox.svelte";
   import Dialog from "$components/common/Dialog.svelte";
   import Select from "$components/common/Select.svelte";
@@ -98,6 +99,8 @@
             type="text"
             value={entry.message ?? ""}
             aria-label="New message"
+            spellcheck="false"
+            {@attach spellField(() => entry.message ?? "")}
             oninput={(event) => setMessage(index, event.currentTarget.value)}
           />
         {:else}

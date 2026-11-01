@@ -1,5 +1,6 @@
 <script lang="ts">
   import Dialog from "$components/common/Dialog.svelte";
+  import { spellField } from "$lib/spell-field.svelte";
   import { STASH_BUTTONS, stashNameProblem, type StashMode } from "$lib/stash-modes";
   import { stashDialog } from "$stores/stash-dialog.svelte";
 
@@ -40,6 +41,8 @@
         data-autofocus
         type="text"
         bind:value={name}
+        spellcheck="false"
+        {@attach spellField(() => name)}
         aria-invalid={problem !== null}
         aria-describedby={problem ? "stash-name-problem" : undefined}
       />
@@ -80,7 +83,14 @@
     </ul>
     <label class="field">
       <span>Message (optional)</span>
-      <input data-autofocus type="text" bind:value={message} placeholder="WIP on the branch" />
+      <input
+        data-autofocus
+        type="text"
+        bind:value={message}
+        placeholder="WIP on the branch"
+        spellcheck="false"
+        {@attach spellField(() => message)}
+      />
     </label>
 
     {#snippet footer()}
