@@ -1,4 +1,8 @@
-import { pullProbe, repoPulse as readPulse, type RepoPulse } from "$lib/ipc/repo-rows";
+import {
+  pullProbe,
+  repoPulse as readPulse,
+  type RepoPulse,
+} from "$lib/ipc/repo-rows";
 import { PulseQueue } from "$lib/pulse-queue";
 import { within } from "$lib/within";
 
@@ -44,16 +48,23 @@ class RepoPulseStore {
   #openLater: ReturnType<typeof setTimeout> | null = null;
   #openTimer: ReturnType<typeof setInterval> | null = null;
   #lastRead = new Map<string, { end: number; took: number }>();
+  #probesAnswered = new Map<string, number>();
+  #probesBeforeRead = new Map<string, number>();
   #modulesLater: ReturnType<typeof setTimeout> | null = null;
   #modulesDue = new Set<string>();
 
   readonly #queue = new PulseQueue({
     pulse: async (root) => {
       const start = Date.now();
+      this.#probesBeforeRead.set(root, this.#probesAnswered.get(root) ?? 0);
       try {
         return await readPulse(root);
       } finally {
-        this.#lastRead.set(root, { end: Date.now(), took: Date.now() - start });
+        if (this.#seen.has(root))
+          this.#lastRead.set(root, {
+            end: Date.now(),
+            took: Date.now() - start,
+          });
       }
     },
     fetch: (root) => this.#probe(root),
@@ -65,7 +76,16 @@ class RepoPulseStore {
       // Read before the panels took it over; they keep it current now.
       if (root === this.#owned) return;
       this.pulses = new Map([...this.pulses, [root, pulse]]);
-      if (pulse.tracked && pulse.behind === 0) this.#setAhead(root, false);
+      const fetchedSince =
+        (this.#probesAnswered.get(root) ?? 0) !==
+        this.#probesBeforeRead.get(root);
+      if (
+        pulse.tracked &&
+        pulse.behind === 0 &&
+        !fetchedSince &&
+        !this.#probing.has(root)
+      )
+        this.#setAhead(root, false);
     },
     onFetch: (root, ok) => {
       if (ok === this.unknown.has(root)) {
@@ -100,16 +120,22 @@ class RepoPulseStore {
     if (left === null || left === root || !this.#roots.includes(left)) return;
     if (leftMarks) this.pulses = new Map([...this.pulses, [left, leftMarks]]);
     setTimeout(() => {
-      if (left !== this.#owned && this.#roots.includes(left)) this.changed(left);
+      if (left !== this.#owned && this.#roots.includes(left))
+        this.changed(left);
     }, LEFT_READ_DELAY_MS);
   }
 
   /** Every row of the list; a row never read is read once. */
-  watch(roots: readonly string[], modules: readonly string[] = [], open: readonly string[] = []): void {
+  watch(
+    roots: readonly string[],
+    modules: readonly string[] = [],
+    open: readonly string[] = [],
+  ): void {
     this.#roots = [...roots, ...modules];
     this.#open = new Set(open);
     this.#openTimer ??= setInterval(() => {
-      if (!(typeof document !== "undefined" && document.hidden)) this.#readOpen();
+      if (!(typeof document !== "undefined" && document.hidden))
+        this.#readOpen();
     }, OPEN_EVERY_MS);
     for (const root of this.#roots) {
       if (this.#seen.has(root)) continue;
@@ -135,7 +161,8 @@ class RepoPulseStore {
       const due = [...this.#modulesDue];
       this.#modulesDue.clear();
       for (const each of due) {
-        if (each !== this.#owned && this.#seen.has(each)) this.#queue.request(each);
+        if (each !== this.#owned && this.#seen.has(each))
+          this.#queue.request(each);
       }
     }, MODULE_QUIET_MS);
   }
@@ -150,12 +177,16 @@ class RepoPulseStore {
       this.#openLater = null;
       this.#readOpen();
     }, FOCUS_SETTLE_MS);
-    const wait = Math.max(FOCUS_SETTLE_MS, this.#revisited + REVISIT_MS - Date.now());
+    const wait = Math.max(
+      FOCUS_SETTLE_MS,
+      this.#revisited + REVISIT_MS - Date.now(),
+    );
     this.#revisitLater ??= setTimeout(() => {
       this.#revisitLater = null;
       this.#revisited = Date.now();
       for (const root of this.#roots) {
-        if (root !== this.#owned && this.#rank(root) === CLOSED) this.#queue.request(root);
+        if (root !== this.#owned && this.#rank(root) === CLOSED)
+          this.#queue.request(root);
       }
     }, wait);
   }
@@ -165,7 +196,8 @@ class RepoPulseStore {
     for (const root of this.#roots) {
       if (root === this.#owned || this.#rank(root) === CLOSED) continue;
       const last = this.#lastRead.get(root);
-      if (!last || now - last.end >= READ_COST_FACTOR * last.took) this.#queue.request(root);
+      if (!last || now - last.end >= READ_COST_FACTOR * last.took)
+        this.#queue.request(root);
     }
   }
 
@@ -191,7 +223,8 @@ class RepoPulseStore {
   /** Its refs moved outside Cogit: a fetch in a terminal, or only a commit. The server is
       asked again rather than taken to have nothing more (R-354). */
   refsMoved(root: string): void {
-    if (this.remoteAhead.has(root)) this.#queue.request(root, { fetch: true, first: true });
+    if (this.remoteAhead.has(root))
+      this.#queue.request(root, { fetch: true, first: true });
   }
 
   /** A quiet fetch of the remotes the background check may ask (R-922). `false`
@@ -203,7 +236,12 @@ class RepoPulseStore {
     const asked = pullProbe(root)
       .then((ahead) => {
         // Given up on, removed, or the check turned off while the server took its time.
-        if (waiting && this.#seen.has(root) && this.#every > 0) this.#setAhead(root, ahead === true);
+        this.#probesAnswered.set(
+          root,
+          (this.#probesAnswered.get(root) ?? 0) + 1,
+        );
+        if (waiting && this.#seen.has(root) && this.#every > 0)
+          this.#setAhead(root, ahead === true);
         return true;
       })
       .finally(() => this.#probing.delete(root));
@@ -224,14 +262,22 @@ class RepoPulseStore {
   /** The row and the nodes of its submodule tree, whose folders lie below it (R-542). */
   forget(root: string): void {
     const gone = (each: string) => each === root || each.startsWith(`${root}/`);
-    for (const each of new Set([...this.#seen, ...this.pulses.keys(), ...this.unknown, ...this.remoteAhead])) {
+    for (const each of new Set([
+      ...this.#seen,
+      ...this.pulses.keys(),
+      ...this.unknown,
+      ...this.remoteAhead,
+    ])) {
       if (!gone(each)) continue;
       this.#queue.cancel(each);
       this.#seen.delete(each);
       this.#lastRead.delete(each);
+      this.#probesAnswered.delete(each);
+      this.#probesBeforeRead.delete(each);
       this.#setAhead(each, false);
     }
-    if ([...this.unknown].some(gone)) this.unknown = new Set([...this.unknown].filter((each) => !gone(each)));
+    if ([...this.unknown].some(gone))
+      this.unknown = new Set([...this.unknown].filter((each) => !gone(each)));
     if ([...this.pulses.keys()].some(gone)) {
       this.pulses = new Map([...this.pulses].filter(([each]) => !gone(each)));
     }
@@ -257,18 +303,16 @@ class RepoPulseStore {
       this.#fetchRoots(false);
     }, FIRST_FETCH_MS);
     let tick = 0;
-    this.#timer = setInterval(
-      () => {
-        this.#fetchRoots(tick % CLOSED_FETCH_EVERY === 0);
-        tick += 1;
-      },
-      minutes * 60_000,
-    );
+    this.#timer = setInterval(() => {
+      this.#fetchRoots(tick % CLOSED_FETCH_EVERY === 0);
+      tick += 1;
+    }, minutes * 60_000);
   }
 
   #fetchRoots(closedToo: boolean): void {
     for (const root of this.#roots) {
-      if (closedToo || this.#rank(root) !== CLOSED) this.#queue.request(root, { fetch: true });
+      if (closedToo || this.#rank(root) !== CLOSED)
+        this.#queue.request(root, { fetch: true });
     }
   }
 }

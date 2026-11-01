@@ -505,3 +505,28 @@ describe("the background fetch", () => {
     repoPulse.fetchEvery(0);
   });
 });
+
+describe("the pull mark", () => {
+  beforeAll(() => import("./repo-pulse.svelte"), 60_000);
+  afterEach(() => vi.useRealTimers());
+
+  it("is not cleared by a read that began before the fetch which set it", async () => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    let read: (pulse: object) => void = () => {};
+    readPulse.mockImplementationOnce(() => new Promise((resolve) => (read = resolve)) as never);
+    const ipc = await import("$lib/ipc/repo-rows");
+    vi.mocked(ipc.pullProbe).mockImplementationOnce(async () => true);
+    const { repoPulse } = await import("./repo-pulse.svelte");
+    repoPulse.watch(["C:/repos/race"]);
+    repoPulse.fetchEvery(1);
+    await vi.advanceTimersByTimeAsync(61_000);
+    expect(repoPulse.remoteAhead.has("C:/repos/race")).toBe(true);
+
+    read({ missing: false, tracked: true, behind: 0 });
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(repoPulse.remoteAhead.has("C:/repos/race")).toBe(true);
+    repoPulse.fetchEvery(0);
+  });
+});
