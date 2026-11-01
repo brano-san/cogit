@@ -57,10 +57,16 @@ import type {
   TagRequest,
   TodoEntry,
   SpellLanguage,
+  IgnoreDraft,
 } from "./bindings";
 
 export type {
   SpellLanguage,
+  IgnoreDraft,
+  IgnoreFile,
+  IgnoreHit,
+  IgnorePreview,
+  IgnoreScope,
   AuthRequired,
   CredentialStore,
   StoreState,
@@ -1348,6 +1354,18 @@ export async function addToExclude(repo: RepoId, paths: string[]) {
 
 export async function ignoreRules(repo: RepoId, paths: string[]) {
   return unwrap(await commands.ignoreRules(repo, paths));
+}
+
+export async function ignoreFiles(repo: RepoId, dir: string) {
+  return unwrap(await commands.ignoreFiles(repo, dir));
+}
+
+export async function ignorePreview(repo: RepoId, drafts: IgnoreDraft[]) {
+  return unwrap(await commands.ignorePreview(repo, drafts));
+}
+
+export async function saveIgnoreFile(repo: RepoId, draft: IgnoreDraft) {
+  return unwrap(await commands.saveIgnoreFile(repo, draft));
 }
 
 export async function lfsFileStates(repo: RepoId, paths: string[]) {

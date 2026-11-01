@@ -32,6 +32,8 @@
   import UnsavedDialog from "$components/common/UnsavedDialog.svelte";
   import { unsavedPrompt } from "$stores/unsaved-prompt.svelte";
   import ConfigEditor from "$components/common/ConfigEditor.svelte";
+  import IgnoreEditor from "$components/layout/IgnoreEditor.svelte";
+  import { parentDirs } from "$lib/ignore-editor";
   import Notifications from "$components/layout/Notifications.svelte";
   import SuccessToast from "$components/layout/SuccessToast.svelte";
   import { successToast } from "$stores/success-toast.svelte";
@@ -184,6 +186,7 @@
     getAppInfo,
     openThirdPartyLicences,
     addToGitignore,
+    ignoreFiles,
     closeThisWindow,
     interactiveRebase,
     isPublished,
@@ -362,6 +365,7 @@
   let paletteOpen = $state(false);
   let settingsOpen = $state(false);
   let repoSettingsOpen = $state(false);
+  let ignoreEdit = $state<{ repo: import("$lib/ipc").RepoId; dir: string } | null>(null);
   let finderOpen = $state(false);
   let recentCommands = $state<string[]>([]);
   let dropMenu = $state.raw<{
@@ -850,6 +854,7 @@
     "check-updates": () => void runUpdateCheck(),
     "edit-config-repository": () => void openConfig("repository"),
     "edit-config-user": () => void openConfig("user"),
+    "edit-ignore": () => openIgnore(repository.current?.repo ?? null, ""),
     exit: () => {
       // No window is being closed by hand, so the dialog must not say one is.
       exitFlow.fromCommand();
@@ -2424,6 +2429,19 @@ ${event.error}`,
     saving: boolean;
   } | null>(null);
 
+  function openIgnore(repo: import("$lib/ipc").RepoId | null, dir: string) {
+    if (repo !== null) ignoreEdit = { repo, dir };
+  }
+
+  async function openIgnoreNear(path: string) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    for (const dir of parentDirs(path)) {
+      const files = await ignoreFiles(id, dir).catch(() => []);
+      if (dir === "" || files[0]?.exists) return openIgnore(id, dir);
+    }
+  }
+
   async function openConfig(scope: import("$lib/ipc").ConfigScope) {
     const id = scope === "repository" ? (repository.current?.repo ?? null) : null;
     if (scope === "repository" && id === null) return;
@@ -2551,6 +2569,7 @@ ${event.error}`,
     ignore: (paths) => void ignore(paths),
     ignoreLocally: (paths) => void ignoreLocally(paths),
     whyIgnored: (paths) => void whyIgnored(paths),
+    editIgnore: (path) => void openIgnoreNear(path),
     discard: (paths) => void discard(paths),
     remove: (paths) => (removingFiles = paths),
     trash: (paths) => void deleteFromDisk(paths),
@@ -2984,6 +3003,9 @@ ${event.error}`,
         return true;
       case "repo-close":
         void closeListed(target);
+        return true;
+      case "repo-edit-ignore":
+        openIgnore(target.kind === "repository" ? (target.overview?.repo ?? null) : (repository.current?.repo ?? null), "");
         return true;
       case "repo-pull":
       case "repo-push":
@@ -4474,6 +4496,15 @@ ${event.error}`,
       start={settingsStart}
       toolbarLayout={toolbar.layout}
       ontoolbar={(next) => void toolbar.setLayout(next)}
+    />
+  {/if}
+
+  {#if ignoreEdit}
+    <IgnoreEditor
+      repo={ignoreEdit.repo}
+      dir={ignoreEdit.dir}
+      onclose={() => (ignoreEdit = null)}
+      onsaved={() => void afterWorkingTreeChange()}
     />
   {/if}
 

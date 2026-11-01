@@ -101,6 +101,7 @@ export function repoMenu(at: RepoMenuTarget, desktop: DesktopInfo): ContextItem[
     offer("repo-pull", "Pull", closed, onlyActive("CmdOrCtrl+Shift+U")),
     offer("repo-push", "Push", closed, onlyActive("CmdOrCtrl+Shift+O")),
     offer("repo-update", "Update", updateReason(at)),
+    offer("repo-edit-ignore", "Edit .gitignore…", closed),
     SEPARATOR,
     moveTo(at),
     offer("repo-pin", at.pinned ? "Unpin" : "Pin", listOnly),

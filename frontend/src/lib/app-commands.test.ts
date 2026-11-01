@@ -131,6 +131,7 @@ describe("app commands", () => {
       ["check-updates", "Check for Updates"],
       ["edit-config-repository", "Edit Git Config: Repository"],
       ["edit-config-user", "Edit Git Config: User"],
+      ["edit-ignore", "Edit .gitignore"],
       ["exit", "Exit"],
       ["about", "About Cogit"],
       ["settings", "Preferences"],

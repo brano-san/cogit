@@ -45,6 +45,7 @@ describe("worktreeFileMenu", () => {
       "Ignore",
       "Ignore Locally",
       "Why Ignored?",
+      "Edit .gitignore…",
       "Discard…",
       "Remove…",
       "Delete…",

@@ -34,6 +34,7 @@ const REPOSITORY: &[Entry] = &[
     Entry::Separator,
     Entry::Item("repo-settings", "Settings…", None),
     Entry::Nested("Edit Git Config", EDIT_CONFIG),
+    Entry::Item("edit-ignore", "Edit .gitignore…", None),
     Entry::Separator,
     Entry::Item("exit", "Exit", Some("Alt+X")),
 ];

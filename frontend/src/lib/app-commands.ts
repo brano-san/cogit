@@ -72,6 +72,7 @@ export type AppCommandId =
   | "check-updates"
   | "edit-config-repository"
   | "edit-config-user"
+  | "edit-ignore"
   | "exit"
   | "about"
   | "settings"
@@ -321,6 +322,13 @@ export function appCommands(facts: AppCommandFacts, run: AppCommandActions): Pal
       title: "Edit Git Config: User",
       synonyms: ["config", "gitconfig", "global", "user.name", "email"],
       run: run["edit-config-user"],
+    },
+    {
+      id: "edit-ignore",
+      title: "Edit .gitignore",
+      synonyms: ["gitignore", "ignore", "exclude", "excludesFile", "info/exclude"],
+      unavailable: noRepo,
+      run: run["edit-ignore"],
     },
     { id: "exit", title: "Exit", synonyms: ["quit", "close"], run: run.exit },
     { id: "about", title: "About Cogit", run: run.about },

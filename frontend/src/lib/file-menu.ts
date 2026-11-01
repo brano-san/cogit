@@ -116,6 +116,7 @@ export function worktreeFileMenu(at: WorktreeFileTarget): ContextItem[] {
     item("file-ignore", "Ignore", ignoreBlocked(at.statuses) === null),
     item("file-ignore-locally", "Ignore Locally", ignoreBlocked(at.statuses) === null),
     item("file-why-ignored", "Why Ignored?", all("ignored")),
+    item("file-edit-ignore", "Edit .gitignore…"),
     item("file-discard", "Discard…", at.unstaged && discardBlocked(at.statuses) === null, "CmdOrCtrl+Z"),
     item("file-remove", "Remove…", !untracked),
     item("file-delete", "Delete…", deleteBlocked(at.statuses) === null),

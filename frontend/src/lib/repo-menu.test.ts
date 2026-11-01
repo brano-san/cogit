@@ -67,6 +67,7 @@ describe("repoMenu", () => {
       "Pull",
       "Push",
       `Update (${NOT_A_SUBMODULE})`,
+      "Edit .gitignore…",
       "—",
       "Move To",
       "Pin",

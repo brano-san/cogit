@@ -39,6 +39,7 @@ export interface FileActions {
   ignoreLocally(paths: string[]): void;
   /** Which rule ignores the files, as `git check-ignore -v` names it. */
   whyIgnored(paths: string[]): void;
+  editIgnore(path: string): void;
   discard(paths: string[]): void;
   remove(paths: string[]): void;
   trash(paths: string[]): void;
@@ -162,6 +163,9 @@ export function runFileMenuCommand(
       return true;
     case "file-why-ignored":
       actions.whyIgnored(paths);
+      return true;
+    case "file-edit-ignore":
+      actions.editIgnore(path);
       return true;
     case "file-discard":
       actions.discard(paths);
