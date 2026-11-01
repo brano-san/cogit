@@ -482,6 +482,7 @@ fn same_names(base: &Shown, mailmap: &Arc<Mailmap>) -> bool {
 #[derive(Debug, Default)]
 pub(crate) struct GraphCache {
     graphs: HashMap<RepoId, Graph>,
+    closed: HashMap<std::path::PathBuf, RepoId>,
     clock: u64,
     /// Bumped by every walk: a background reader stops rather than compete with one.
     walks: Arc<AtomicU64>,
@@ -492,6 +493,9 @@ pub(crate) struct GraphCache {
 impl GraphCache {
     /// The graph windows of `generation` read: the one on screen or the one it replaces.
     fn view(&self, repo: RepoId, generation: u32) -> Option<(&Shown, bool)> {
+        if self.closed.values().any(|closed| *closed == repo) {
+            return None;
+        }
         let graph = self.graphs.get(&repo)?;
         if graph.shown.generation == generation {
             return Some((&graph.shown, graph.ended));
@@ -1015,6 +1019,29 @@ impl AppState {
             release(gone);
         }
     }
+
+    pub(crate) fn park_graph(&self, repo: RepoId, root: std::path::PathBuf) {
+        let mut cache = self.graph.write();
+        let GraphCache { graphs, closed, .. } = &mut *cache;
+        closed.retain(|_, id| graphs.contains_key(id));
+        if graphs.contains_key(&repo) {
+            closed.insert(root, repo);
+        }
+    }
+
+    pub(crate) fn adopt_graph(&self, root: &std::path::Path, repo: RepoId) {
+        let mut cache = self.graph.write();
+        let parked = cache
+            .closed
+            .keys()
+            .find(|parked| crate::registry::same_root(parked, root))
+            .cloned();
+        if let Some(old) = parked.and_then(|parked| cache.closed.remove(&parked))
+            && let Some(graph) = cache.graphs.remove(&old)
+        {
+            cache.graphs.insert(repo, graph);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1075,5 +1102,48 @@ mod tests {
             window.join().unwrap()
         });
         assert_eq!(window.unwrap().commits.len(), 5);
+    }
+
+    #[test]
+    fn a_repository_opened_again_takes_the_graph_it_had_when_closed() {
+        let f = test_fixtures::linear(10).unwrap();
+        let state = AppState::new();
+        let first = state.open_repository(f.path()).unwrap().repo;
+        state
+            .build_graph(
+                first,
+                &CommitQuery::default(),
+                state.begin_graph(),
+                4,
+                |_| true,
+            )
+            .unwrap();
+        state.close_repository(first);
+        let walked = state
+            .graph
+            .read()
+            .walks
+            .load(std::sync::atomic::Ordering::SeqCst);
+
+        let again = state.open_repository(f.path()).unwrap().repo;
+        state
+            .build_graph(
+                again,
+                &CommitQuery::default(),
+                state.begin_graph(),
+                4,
+                |_| true,
+            )
+            .unwrap();
+
+        assert_ne!(first, again);
+        assert_eq!(
+            state
+                .graph
+                .read()
+                .walks
+                .load(std::sync::atomic::Ordering::SeqCst),
+            walked
+        );
     }
 }

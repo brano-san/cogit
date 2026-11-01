@@ -293,6 +293,7 @@ impl AppState {
 
         // First, so that nothing begun from here on reaches the id, nor fills a cache
         // for it after it is cleared below.
+        let root = self.get(repo).map(|open| open.root);
         let removed = self.unregister(repo);
         self.forget_remote(repo);
         self.safety.write().retain(|held| held.entry.repo != repo);
@@ -308,7 +309,10 @@ impl AppState {
 
         self.newest_diff.write().remove(&repo);
         self.forget_row(repo);
-        self.forget_graph(repo);
+        match root {
+            Some(root) => self.park_graph(repo, root),
+            None => self.forget_graph(repo),
+        }
         self.reachable.lock().remove(&repo);
         watch.done("forget-state");
         watch.report_close(repo.0, removed);
@@ -418,7 +422,7 @@ impl AppState {
             id,
             OpenRepo {
                 id,
-                root,
+                root: root.clone(),
                 display_name,
                 listed,
                 owner,
@@ -426,6 +430,7 @@ impl AppState {
             },
         );
         drop(repos);
+        self.adopt_graph(&root, id);
         self.emit(AppEvent::RepoOpened { repo: id });
         Some(id)
     }
@@ -517,7 +522,7 @@ impl Steps {
     }
 }
 
-fn same_root(a: &Path, b: &Path) -> bool {
+pub(crate) fn same_root(a: &Path, b: &Path) -> bool {
     a == b || root_key(a) == root_key(b)
 }
 
