@@ -465,6 +465,9 @@ export const commands = {
 	runMaintenance: (repo: RepoId, task: MaintenanceTask, prune: GcPrune) => typedError<null, GitError>(__TAURI_INVOKE("run_maintenance", { repo, task, prune })),
 	addToExclude: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("add_to_exclude", { repo, paths })),
 	ignoreRules: (repo: RepoId, paths: string[]) => typedError<IgnoreRule[], GitError>(__TAURI_INVOKE("ignore_rules", { repo, paths })),
+	ignoreFiles: (repo: RepoId, dir: string) => typedError<IgnoreFile[], GitError>(__TAURI_INVOKE("ignore_files", { repo, dir })),
+	ignorePreview: (repo: RepoId, drafts: IgnoreDraft[]) => typedError<IgnorePreview, GitError>(__TAURI_INVOKE("ignore_preview", { repo, drafts })),
+	saveIgnoreFile: (repo: RepoId, draft: IgnoreDraft) => typedError<null, GitError>(__TAURI_INVOKE("save_ignore_file", { repo, draft })),
 	/**  Asks the LFS server: run on demand, never on a refresh. */
 	lfsLocks: (repo: RepoId) => typedError<LfsLock[], GitError>(__TAURI_INVOKE("lfs_locks", { repo })),
 	/**  The Files LFS column: `.gitattributes` and the local lock cache, no network. */
@@ -1876,6 +1879,34 @@ export type Hunk = {
 	rows: DiffRow[],
 };
 
+export type IgnoreDraft = {
+	scope: IgnoreScope,
+	dir: string,
+	text: string,
+};
+
+export type IgnoreFile = {
+	scope: IgnoreScope,
+	dir: string,
+	path: string,
+	text: string,
+	exists: boolean,
+};
+
+export type IgnoreHit = {
+	path: string,
+	tracked: boolean,
+	scope: IgnoreScope,
+	dir: string,
+	line: number,
+	pattern: string,
+};
+
+export type IgnorePreview = {
+	hits: IgnoreHit[],
+	total: number,
+};
+
 export type IgnoreRule = {
 	path: string,
 	/**  `None` when nothing ignores the path. */
@@ -1883,6 +1914,8 @@ export type IgnoreRule = {
 	line: number | null,
 	pattern: string | null,
 };
+
+export type IgnoreScope = "folder" | "exclude" | "global";
 
 /**  `None` where the file is absent; every side `None` when any of them is not text. */
 export type IndexEditorSides = {

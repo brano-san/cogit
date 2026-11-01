@@ -30,6 +30,30 @@ impl AppState {
         self.handle(repo)?.ignore_rules(paths)
     }
 
+    pub(crate) fn local_ignore_files(
+        &self,
+        repo: RepoId,
+        dir: &str,
+    ) -> Result<Vec<git_engine::IgnoreFile>, GitError> {
+        self.handle(repo)?.ignore_files(dir)
+    }
+
+    pub(crate) fn local_ignore_preview(
+        &self,
+        repo: RepoId,
+        drafts: &[git_engine::IgnoreDraft],
+    ) -> Result<git_engine::IgnorePreview, GitError> {
+        self.handle(repo)?.ignore_preview(drafts)
+    }
+
+    pub(crate) fn local_save_ignore_file(
+        &self,
+        repo: RepoId,
+        draft: &git_engine::IgnoreDraft,
+    ) -> Result<(), GitError> {
+        self.handle(repo)?.save_ignore_file(draft)
+    }
+
     pub(crate) fn local_lfs_locks(
         &self,
         repo: RepoId,

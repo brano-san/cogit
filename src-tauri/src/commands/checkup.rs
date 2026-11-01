@@ -53,6 +53,45 @@ pub async fn ignore_rules(
     blocking("ignore_rules", move || app_state.ignore_rules(repo, &paths)).await
 }
 
+#[tauri::command]
+#[specta::specta]
+pub async fn ignore_files(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    dir: String,
+) -> Result<Vec<git_engine::IgnoreFile>, GitError> {
+    let app_state = state.state.clone();
+    blocking("ignore_files", move || app_state.ignore_files(repo, &dir)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn ignore_preview(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    drafts: Vec<git_engine::IgnoreDraft>,
+) -> Result<git_engine::IgnorePreview, GitError> {
+    let app_state = state.state.clone();
+    blocking("ignore_preview", move || {
+        app_state.ignore_preview(repo, &drafts)
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn save_ignore_file(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    draft: git_engine::IgnoreDraft,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    blocking("save_ignore_file", move || {
+        app_state.save_ignore_file(repo, &draft)
+    })
+    .await
+}
+
 /// Asks the LFS server: run on demand, never on a refresh.
 #[tauri::command]
 #[specta::specta]
