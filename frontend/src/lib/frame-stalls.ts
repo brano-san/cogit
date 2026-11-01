@@ -47,6 +47,12 @@ export function watchFrameStalls(target: Window, log: (message: string) => void)
   let lastLog = -Infinity;
   let lastInput = "none";
 
+  let hiddenAt = -Infinity;
+  const onvisibility = () => {
+    if (document.hidden) hiddenAt = performance.now();
+  };
+  document.addEventListener("visibilitychange", onvisibility);
+
   const sample = (event: Event) => {
     const where = event.type === "resize" ? "window" : describeTarget(event.target);
     lastInput = `${event.type} on ${where}`;
@@ -79,7 +85,7 @@ export function watchFrameStalls(target: Window, log: (message: string) => void)
       channel.port1.close();
       const nodes = document.getElementsByTagName("*").length;
       const report = stallReport(event.type, gaps, breakdown, `${where} (${nodes} DOM nodes)`);
-      if (report) {
+      if (report && hiddenAt < started) {
         lastLog = now;
         log(report);
       }
@@ -102,6 +108,7 @@ export function watchFrameStalls(target: Window, log: (message: string) => void)
   for (const kind of kinds) target.addEventListener(kind, sample, { capture: true, passive: true });
   return () => {
     clearInterval(watchdog);
+    document.removeEventListener("visibilitychange", onvisibility);
     for (const kind of kinds) target.removeEventListener(kind, sample, { capture: true });
   };
 }
