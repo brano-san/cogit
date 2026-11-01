@@ -130,12 +130,14 @@
     ),
   );
   /** Every node showing in any tree has marks of its own, read by its folder (R-542). */
+  const openRoots = $derived(repository.openRepos.map((each) => each.root));
   const moduleRoots = $derived(
     everyListed.flatMap((each) =>
       pulsedRoots(
         each.root,
         ownsTree(each.overview) ? submodules.rows : moduleForest.rows(each.root),
         moduleMemory.openModules,
+        ownsTree(each.overview) || openRoots.includes(each.root),
       ),
     ),
   );
@@ -157,14 +159,13 @@
   const conflictsIn = (root: string, owned: boolean) =>
     conflictedTree(moduleRowsOf(root, owned), (key) => nodeSync(root, owned, key).conflicted);
 
-  const openRoots = $derived(repository.openRepos.map((each) => each.root));
   $effect(() => repoPulse.watch(everyRoot, moduleRoots, openRoots));
 
   $effect(() => {
     void submodules.children;
     const top = submodules.ownerRoot;
     if (top !== null)
-      untrack(() => repoPulse.again([top, ...pulsedRoots(top, submodules.rows, moduleMemory.openModules)]));
+      untrack(() => repoPulse.again([top, ...pulsedRoots(top, submodules.rows, moduleMemory.openModules, true)]));
   });
 
   $effect(() => {

@@ -339,12 +339,23 @@ describe("the folders the marks of a tree are read from", () => {
     expect(pulsedRoots("E:/w/app", rows, every)).not.toContain("E:/w/app/docs");
   });
 
-  // Opening a repository read every submodule it showed, in the background and on every
-  // focus, servers asked included: a submodule is closed until it is clicked, like a
-  // repository at launch.
-  it("are only those of the submodules opened since", () => {
+  it("are only those of the submodules opened since, under a closed repository", () => {
     expect(pulsedRoots("E:/w/app", rows, new Set())).toEqual([]);
     expect(pulsedRoots("E:/w/app", rows, new Set(["E:/w/app/vendor/lib/deep/inner"]))).toEqual([
+      "E:/w/app/vendor/lib/deep/inner",
+    ]);
+  });
+
+  it("take in the submodules of a submodule opened since", () => {
+    expect(pulsedRoots("E:/w/app", rows, new Set(["E:/w/app/vendor/lib"]))).toEqual([
+      "E:/w/app/vendor/lib",
+      "E:/w/app/vendor/lib/deep/inner",
+    ]);
+  });
+
+  it("are every checked-out one under an open repository, opened or not", () => {
+    expect(pulsedRoots("E:/w/app", rows, new Set(), true)).toEqual([
+      "E:/w/app/vendor/lib",
       "E:/w/app/vendor/lib/deep/inner",
     ]);
   });
