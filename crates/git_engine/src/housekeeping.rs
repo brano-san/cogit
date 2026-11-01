@@ -7,6 +7,7 @@ use unicode_normalization::UnicodeNormalization;
 
 const LFS_POINTER: &[u8] = b"version https://git-lfs.github.com/spec/v1";
 const STALE_GC_LOCK_HOURS: u64 = 12;
+const STALE_GRAPH_LOCK_MINUTES: u64 = 10;
 const GRAPH_WORTH_OBJECTS: u64 = 10_000;
 const SAMPLE: usize = 5;
 
@@ -16,6 +17,7 @@ pub enum MaintenanceTask {
     Gc,
     CommitGraph,
     ClearGcLock,
+    ClearCommitGraphLock,
 }
 
 /// How old an unreachable object must be for `git gc` to delete it; asked each time.
@@ -96,6 +98,7 @@ impl RepoHandle {
         let mut issues = Vec::new();
         issues.extend(self.object_issues());
         issues.extend(self.gc_lock_issue());
+        issues.extend(self.commit_graph_lock_issue());
         if !self.repo.is_bare() {
             issues.extend(self.sparse_issue());
             issues.extend(self.checkout_path_issues());
@@ -148,6 +151,54 @@ impl RepoHandle {
             .ok()?;
         let hours = modified.elapsed().ok()?.as_secs() / 3600;
         (hours >= STALE_GC_LOCK_HOURS).then_some(HealthIssue::StaleGcLock { hours })
+    }
+
+    fn commit_graph_locks(&self) -> Vec<std::path::PathBuf> {
+        let info = self.repo.objects.store_ref().path().join("info");
+        [
+            info.join("commit-graph.lock"),
+            info.join("commit-graphs").join("commit-graph-chain.lock"),
+        ]
+        .into_iter()
+        .filter(|lock| lock.exists())
+        .collect()
+    }
+
+    fn stale_commit_graph_locks(&self) -> Vec<(std::path::PathBuf, u64)> {
+        self.commit_graph_locks()
+            .into_iter()
+            .filter_map(|lock| {
+                let minutes = std::fs::metadata(&lock)
+                    .ok()?
+                    .modified()
+                    .ok()?
+                    .elapsed()
+                    .ok()?
+                    .as_secs()
+                    / 60;
+                (minutes >= STALE_GRAPH_LOCK_MINUTES).then_some((lock, minutes))
+            })
+            .collect()
+    }
+
+    fn commit_graph_lock_issue(&self) -> Option<HealthIssue> {
+        let minutes = self
+            .stale_commit_graph_locks()
+            .into_iter()
+            .map(|(_, minutes)| minutes)
+            .max()?;
+        Some(HealthIssue::StaleCommitGraphLock { minutes })
+    }
+
+    fn refuse_under_commit_graph_lock(&self) -> Result<()> {
+        match self.commit_graph_locks().first() {
+            None => Ok(()),
+            Some(lock) => Err(GitError::InvalidState(format!(
+                "{} is there: a git commit-graph or git gc is writing the commit-graph, or one stopped and left it. Remove it in the repository health check once nothing is running.",
+                lock.file_name()
+                    .map_or_else(String::new, |name| name.to_string_lossy().into_owned())
+            ))),
+        }
     }
 
     fn sparse_issue(&self) -> Option<HealthIssue> {
@@ -238,10 +289,29 @@ impl RepoHandle {
     /// `prune` matters to `Gc` only.
     pub fn run_maintenance(&self, task: MaintenanceTask, prune: GcPrune) -> Result<()> {
         match task {
-            MaintenanceTask::Gc => self.gc(prune),
-            MaintenanceTask::CommitGraph => self
-                .run_git(&["commit-graph", "write", "--reachable", "--changed-paths"])
-                .map(drop),
+            MaintenanceTask::Gc => {
+                self.refuse_under_commit_graph_lock()?;
+                self.gc(prune)
+            }
+            MaintenanceTask::CommitGraph => {
+                self.refuse_under_commit_graph_lock()?;
+                self.run_git(&["commit-graph", "write", "--reachable", "--changed-paths"])
+                    .map(drop)
+            }
+            MaintenanceTask::ClearCommitGraphLock => {
+                let stale = self.stale_commit_graph_locks();
+                if stale.is_empty() {
+                    return Err(GitError::InvalidState(
+                        "the commit-graph lock is recent or gone: a commit-graph write may still be running".to_owned(),
+                    ));
+                }
+                for (lock, _) in stale {
+                    std::fs::remove_file(&lock).map_err(|err| {
+                        GitError::Internal(format!("cannot remove {}: {err}", lock.display()))
+                    })?;
+                }
+                Ok(())
+            }
             MaintenanceTask::ClearGcLock => {
                 if self.gc_lock_issue().is_none() {
                     return Err(GitError::InvalidState(

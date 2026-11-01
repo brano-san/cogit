@@ -1,6 +1,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use git_engine::{FileStatus, HealthIssue, RepoHandle, WorktreeView};
+use git_engine::{
+    FileStatus, GcPrune, GitError, HealthIssue, MaintenanceTask, RepoHandle, WorktreeView,
+};
 
 fn open(f: &test_fixtures::Fixture) -> RepoHandle {
     RepoHandle::open(f.path()).unwrap()
@@ -158,4 +160,79 @@ fn range_diff_pairs_a_commit_with_its_amended_self() {
     let out = open(&f).range_diff(&before, "HEAD").unwrap();
 
     assert!(out.stdout.contains("reworded"), "{}", out.stdout);
+}
+
+fn lock_at(f: &test_fixtures::Fixture, relative: &str, minutes_ago: u64) -> std::path::PathBuf {
+    let path = f.path().join(".git/objects/info").join(relative);
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(&path, "").unwrap();
+    let then = std::time::SystemTime::now() - std::time::Duration::from_secs(minutes_ago * 60);
+    std::fs::File::options()
+        .write(true)
+        .open(&path)
+        .unwrap()
+        .set_times(std::fs::FileTimes::new().set_modified(then))
+        .unwrap();
+    path
+}
+
+fn stale_graph_lock(repo: &RepoHandle) -> Option<u64> {
+    issues(repo).into_iter().find_map(|issue| match issue {
+        HealthIssue::StaleCommitGraphLock { minutes } => Some(minutes),
+        _ => None,
+    })
+}
+
+#[test]
+fn an_old_commit_graph_lock_is_reported() {
+    let f = test_fixtures::linear(1).unwrap();
+    lock_at(&f, "commit-graph.lock", 30);
+    assert!(stale_graph_lock(&open(&f)).is_some_and(|minutes| minutes >= 29));
+}
+
+#[test]
+fn an_old_commit_graph_chain_lock_is_reported() {
+    let f = test_fixtures::linear(1).unwrap();
+    lock_at(&f, "commit-graphs/commit-graph-chain.lock", 30);
+    assert!(stale_graph_lock(&open(&f)).is_some());
+}
+
+#[test]
+fn a_fresh_commit_graph_lock_is_left_to_the_writer() {
+    let f = test_fixtures::linear(1).unwrap();
+    let lock = lock_at(&f, "commit-graph.lock", 1);
+    let repo = open(&f);
+    assert_eq!(stale_graph_lock(&repo), None);
+    assert!(
+        repo.run_maintenance(MaintenanceTask::ClearCommitGraphLock, GcPrune::default())
+            .is_err()
+    );
+    assert!(lock.exists());
+}
+
+#[test]
+fn clearing_a_stale_commit_graph_lock_removes_it() {
+    let f = test_fixtures::linear(1).unwrap();
+    let lock = lock_at(&f, "commit-graph.lock", 30);
+    let chain = lock_at(&f, "commit-graphs/commit-graph-chain.lock", 30);
+    let repo = open(&f);
+    repo.run_maintenance(MaintenanceTask::ClearCommitGraphLock, GcPrune::default())
+        .unwrap();
+    assert!(!lock.exists());
+    assert!(!chain.exists());
+    assert_eq!(stale_graph_lock(&repo), None);
+}
+
+#[test]
+fn writing_the_commit_graph_under_a_lock_names_the_lock() {
+    let f = test_fixtures::linear(1).unwrap();
+    lock_at(&f, "commit-graph.lock", 1);
+    let repo = open(&f);
+    for task in [MaintenanceTask::CommitGraph, MaintenanceTask::Gc] {
+        let err = repo.run_maintenance(task, GcPrune::default()).unwrap_err();
+        assert!(
+            matches!(err, GitError::InvalidState(ref text) if text.contains("commit-graph.lock")),
+            "{err:?}"
+        );
+    }
 }

@@ -55,6 +55,10 @@ pub enum HealthIssue {
         #[specta(type = specta_typescript::Number)]
         hours: u64,
     },
+    StaleCommitGraphLock {
+        #[specta(type = specta_typescript::Number)]
+        minutes: u64,
+    },
     SparseCheckout {
         cone: bool,
         patterns: u32,
