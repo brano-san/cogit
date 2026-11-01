@@ -93,6 +93,11 @@ export interface Perspective {
 export const PERSPECTIVE_IDS = ["main", "review"] as const;
 export type PerspectiveId = (typeof PERSPECTIVE_IDS)[number];
 
+export const PERSPECTIVE_CHOICES = [
+  ["main", "Main"],
+  ["review", "Review"],
+] as const;
+
 export const DEFAULT_PERSPECTIVES: Record<PerspectiveId, Perspective> = {
   main: { fractions: { ...DEFAULT_LAYOUT }, hidden: [] },
   review: {

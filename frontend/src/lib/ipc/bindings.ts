@@ -1829,7 +1829,7 @@ export type HealthIssue =
 /**  More loose objects or packs than `gc.auto` / `gc.autoPackLimit` allow. */
 { kind: "housekeepingDue"; loose: number; packs: number; packBytes: number } | { kind: "noCommitGraph" } | 
 /**  `gc.pid` left by a gc that died: every later auto gc skips. */
-{ kind: "staleGcLock"; hours: number } | { kind: "sparseCheckout"; cone: boolean; patterns: number } | 
+{ kind: "staleGcLock"; hours: number } | { kind: "staleCommitGraphLock"; minutes: number } | { kind: "sparseCheckout"; cone: boolean; patterns: number } | 
 /**  Files tracked through LFS whose content on disk is still the pointer. */
 { kind: "lfsPointers"; count: number; installed: boolean; sample: string[] } | { kind: "normalizationTwins"; paths: string[] } | { kind: "precomposeUnicodeOff" };
 
@@ -1975,7 +1975,7 @@ export type LongLink = {
 	oid: string,
 };
 
-export type MaintenanceTask = "gc" | "commitGraph" | "clearGcLock";
+export type MaintenanceTask = "gc" | "commitGraph" | "clearGcLock" | "clearCommitGraphLock";
 
 /**
  *  A native menu item was chosen. The payload is the palette command id, so the frontend

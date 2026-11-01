@@ -62,6 +62,8 @@
   import ScanDialog from "$components/repo-tree/ScanDialog.svelte";
   import CloneDialog from "$components/repo-tree/CloneDialog.svelte";
   import WelcomeDialog from "$components/layout/WelcomeDialog.svelte";
+  import FirstRunWizard from "$components/layout/FirstRunWizard.svelte";
+  import { finishFirstRun, type FirstRunChoices } from "$lib/first-run";
   import { welcome } from "$stores/welcome.svelte";
   import {
     filterRows,
@@ -250,7 +252,17 @@
   import { errors } from "$stores/errors.svelte";
   import { errorWindow } from "$stores/error-window.svelte";
   import { notices } from "$stores/notices.svelte";
-  import { FETCH_MODULES, FIX_GIT, GC_PRUNE, MAINTENANCE, RUN_GC, TRUST_DIRECTORY, gcPruneWarning } from "$lib/health";
+  import {
+    BLOCKED_BY_COMMIT_GRAPH_LOCK,
+    FETCH_MODULES,
+    FIX_GIT,
+    GC_PRUNE,
+    MAINTENANCE,
+    RUN_GC,
+    TRUST_DIRECTORY,
+    gcPruneWarning,
+    maintenanceBlocker,
+  } from "$lib/health";
   import { hooksNote, pendingHooks } from "$lib/pending-hooks";
   import { output } from "$stores/output.svelte";
   import { taskbar } from "$stores/taskbar.svelte";
@@ -467,12 +479,13 @@
       void remoteOps.detectLfs();
       const settingsRead = settings.load().then(async () => {
         diff.whitespace = settings.current.ignoreWhitespace;
+        layout.switch(settings.current.startupPerspective);
         // Only after the settings are read: the tick is what permits the network call.
         // And after the info: a portable build never checks.
         // Off the critical path: the probe has its own 5 s timeout and nothing waits for it.
         void gitMissing.check(settings.current.gitPath);
         await infoRead;
-        if (settings.current.autoUpdate) void runUpdateCheck(true);
+        if (settings.current.autoUpdate && settings.current.firstRunDone) void runUpdateCheck(true);
       });
       void settings.loadBindings();
       void health.loadIgnored();
@@ -486,8 +499,8 @@
       void settingsRead
         .catch(() => {})
         .then(() => {
-          const listed = listedRepos(repository.openRepos, repoList.list).length;
-          if (shouldShowAtStartup({ enabled: settings.current.startupShowWelcome, listed })) showWelcome();
+          if (settings.current.firstRunDone) welcomeAtStart();
+          else firstRun = true;
         });
     });
   });
@@ -1628,19 +1641,21 @@ ${event.error}`,
 
   /** A warning's own button. Fetching is the one fix Cogit runs for the user: it changes
       nothing but the submodule's object database (R-179). */
-  async function runNoticeAction(action: import("$lib/health").HealthAction) {
+  async function runNoticeAction(action: import("$lib/health").HealthAction, lead?: string) {
     if (action.id === FIX_GIT) {
       gitMissing.reopen(gitReasonOf(notices.current?.body ?? ""));
       return;
     }
     const maintenance = MAINTENANCE[action.id];
     if (maintenance) {
+      const blocker = maintenanceBlocker(action.id, health.all);
+      if (blocker) return runNoticeAction(blocker, BLOCKED_BY_COMMIT_GRAPH_LOCK);
       const id = repository.current?.repo;
       if (!id) return;
       const title = action.label.replace("…", "");
       const asked = await confirmation.askWithChoice({
         title,
-        message: maintenance.question,
+        message: lead ? `${lead} ${maintenance.question}` : maintenance.question,
         confirm: "Run",
         choice:
           maintenance.task === "gc"
@@ -3281,6 +3296,21 @@ ${event.error}`,
   const welcomeShown = $derived(showsFilter(welcomeRows.length) ? filterRows(welcomeRows, welcome.query) : welcomeRows);
   let welcomeTarget: string | null = null;
 
+  let firstRun = $state(false);
+
+  function welcomeAtStart() {
+    const listed = listedRepos(repository.openRepos, repoList.list).length;
+    if (shouldShowAtStartup({ enabled: settings.current.startupShowWelcome, listed })) showWelcome();
+  }
+
+  async function finishWizard(choices: FirstRunChoices) {
+    firstRun = false;
+    await settings.apply(finishFirstRun(settings.current, choices));
+    layout.switch(choices.startupPerspective);
+    if (choices.autoUpdate) void runUpdateCheck(true);
+    welcomeAtStart();
+  }
+
   function showWelcome() {
     welcome.show(welcomeRows.map((row) => row.path));
   }
@@ -4576,6 +4606,10 @@ ${event.error}`,
     {copyText}
     graphFocused={focused === "graph"}
   />
+
+  {#if firstRun}
+    <FirstRunWizard settings={settings.current} onfinish={(choices) => void finishWizard(choices)} />
+  {/if}
 
   {#if welcome.open}
     <WelcomeDialog

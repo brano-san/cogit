@@ -410,6 +410,12 @@ export const CATEGORIES: Category[] = [
             hint: "The same switch as at the bottom of the Welcome dialog.",
             keywords: ["welcome", "start", "startup", "launch", "recent", "dialog"],
           },
+          {
+            key: "startupPerspective",
+            label: "Perspective at startup",
+            hint: "Main shows every panel. Review hides Repositories, Commit Message and Worktrees and gives the graph and the diff the room.",
+            keywords: ["perspective", "layout", "review", "main", "panels", "start", "startup"],
+          },
         ],
       },
       {

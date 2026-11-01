@@ -1,4 +1,4 @@
-import type { GcPrune, HealthFinding, HealthIssue } from "$lib/ipc";
+import type { GcPrune, HealthFinding, HealthIssue, MaintenanceTask } from "$lib/ipc";
 
 export interface HealthPlace {
   label: string;
@@ -33,9 +33,10 @@ export const TRUST_DIRECTORY = "trust-directory";
 export const RUN_GC = "run-gc";
 export const WRITE_COMMIT_GRAPH = "write-commit-graph";
 export const CLEAR_GC_LOCK = "clear-gc-lock";
+export const CLEAR_COMMIT_GRAPH_LOCK = "clear-commit-graph-lock";
 
 /** The confirmation a maintenance button asks before it runs (E2). */
-export const MAINTENANCE: Record<string, { task: "gc" | "commitGraph" | "clearGcLock"; question: string; done: string }> = {
+export const MAINTENANCE: Record<string, { task: MaintenanceTask; question: string; done: string }> = {
   [RUN_GC]: {
     task: "gc",
     question: "Run git gc? It packs loose objects and prunes unreachable ones older than the age below; it can take a while on a large repository.",
@@ -51,7 +52,23 @@ export const MAINTENANCE: Record<string, { task: "gc" | "commitGraph" | "clearGc
     question: "Remove gc.pid? Do this only if no git gc is running for this repository.",
     done: "gc.pid removed",
   },
+  [CLEAR_COMMIT_GRAPH_LOCK]: {
+    task: "clearCommitGraphLock",
+    question:
+      "Remove the commit-graph lock? Do this only if no git gc or git commit-graph is running for this repository now: removing the lock of a running write can leave a broken commit-graph.",
+    done: "Commit-graph lock removed",
+  },
 };
+
+export const BLOCKED_BY_COMMIT_GRAPH_LOCK =
+  "A stale commit-graph lock stops git gc and commit-graph writes, so it has to go first.";
+
+const LOCKED_BY_COMMIT_GRAPH: readonly string[] = [RUN_GC, WRITE_COMMIT_GRAPH];
+
+export function maintenanceBlocker(actionId: string, warnings: readonly HealthWarning[]): HealthAction | null {
+  if (!LOCKED_BY_COMMIT_GRAPH.includes(actionId)) return null;
+  return warnings.find((warning) => warning.action?.id === CLEAR_COMMIT_GRAPH_LOCK)?.action ?? null;
+}
 
 /** Git's own default first; anything shorter asks again before it runs. */
 export const GC_PRUNE: readonly (readonly [GcPrune, string])[] = [
@@ -93,6 +110,7 @@ const SEVERITY: Record<HealthIssue["kind"], number> = {
   normalizationTwins: 6,
   precomposeUnicodeOff: 7,
   staleGcLock: 8,
+  staleCommitGraphLock: 8,
   housekeepingDue: 9,
   noCommitGraph: 10,
   sparseCheckout: 11,
@@ -113,6 +131,7 @@ function idOf(issue: HealthIssue): string {
     case "housekeepingDue":
     case "noCommitGraph":
     case "staleGcLock":
+    case "staleCommitGraphLock":
     case "sparseCheckout":
     case "normalizationTwins":
     case "precomposeUnicodeOff":
@@ -137,6 +156,8 @@ function detailOf(issue: HealthIssue): string | undefined {
       return `${issue.loose} loose object(s), ${issue.packs} pack(s), ${bytes(issue.packBytes)}`;
     case "staleGcLock":
       return `gc.pid is ${issue.hours} h old`;
+    case "staleCommitGraphLock":
+      return `the lock is ${issue.minutes} min old`;
     case "sparseCheckout":
       return `${issue.patterns} pattern(s)${issue.cone ? ", cone mode" : ""}`;
     case "lfsPointers":
@@ -194,6 +215,17 @@ function describe(issue: HealthIssue): Omit<HealthWarning, "id" | "places"> {
         docs: DOCS.gc,
         fixes: ["rm .git/gc.pid"],
         action: { id: CLEAR_GC_LOCK, label: "Remove gc.pid…", targets: [] },
+      };
+    case "staleCommitGraphLock":
+      return {
+        title: "A stale commit-graph lock blocks commit-graph writes",
+        body:
+          `A commit-graph lock was left ${issue.minutes} minutes ago by a git gc or git commit-graph that did ` +
+          "not finish. While it is there, every commit-graph write fails, and so does git gc. Remove it only if " +
+          "neither is running.",
+        docs: DOCS.commitGraph,
+        fixes: ["rm .git/objects/info/commit-graph.lock"],
+        action: { id: CLEAR_COMMIT_GRAPH_LOCK, label: "Remove lock…", targets: [] },
       };
     case "sparseCheckout":
       return {

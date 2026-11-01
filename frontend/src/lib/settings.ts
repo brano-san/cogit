@@ -4,6 +4,7 @@ import { LANE_WIDTH } from "$lib/graph-geometry";
 import { DEFAULT_FILTER_FIELDS, knownFields, type FilterField } from "$lib/filter-fields";
 import { knownPatterns } from "$lib/filter-patterns";
 import { knownWords } from "$lib/spelling";
+import type { PerspectiveId } from "$lib/perspectives";
 import { GRAPH_COLORINGS, migratedColoring, type GraphColoring } from "$lib/graph-coloring";
 
 /** Lightest first, by the panels' background; the grey ones sit between the extremes (#24). */
@@ -134,12 +135,15 @@ export interface Settings {
   spellEnUs: boolean;
   spellRuRu: boolean;
   spellWords: string[];
+
+  startupPerspective: PerspectiveId;
+  firstRunDone: boolean;
 }
 
 /** 1: a stored graph `date` became `dateTime` (R-370). */
-export const SETTINGS_VERSION = 2;
+export const SETTINGS_VERSION = 3;
 /** Kept in the file but never shown in Preferences. */
-export const INTERNAL_SETTINGS: readonly (keyof Settings)[] = ["settingsVersion"];
+export const INTERNAL_SETTINGS: readonly (keyof Settings)[] = ["settingsVersion", "firstRunDone"];
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: "dark",
@@ -203,6 +207,9 @@ export const DEFAULT_SETTINGS: Settings = {
   spellEnUs: true,
   spellRuRu: false,
   spellWords: [],
+
+  startupPerspective: "main",
+  firstRunDone: false,
 };
 
 /** Read once at startup, so changing them needs a restart to take effect. */
@@ -220,6 +227,7 @@ const ENUMS: Partial<Record<keyof Settings, readonly string[]>> = {
   graphDensity: ["compact", "normal", "comfortable"],
   graphColoring: GRAPH_COLORINGS,
   graphSort: ["topological", "date"],
+  startupPerspective: ["main", "review"],
 };
 
 const RANGES: Partial<Record<keyof Settings, [number, number]>> = {
@@ -321,6 +329,7 @@ export function merge(stored: Partial<Settings> | null | undefined): Settings {
   }
   merged.graphTimeFormat = migratedTimeFormat(record) ?? merged.graphTimeFormat;
   if (storedVersion(record) < 2) merged.autoUpdate = true;
+  if (storedVersion(record) < 3) merged.firstRunDone = true;
   merged.settingsVersion = SETTINGS_VERSION;
   merged.graphColoring = migratedColoring(record) ?? merged.graphColoring;
   return merged;

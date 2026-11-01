@@ -5,6 +5,7 @@
   import Checkbox from "$components/common/Checkbox.svelte";
   import Radio from "$components/common/Radio.svelte";
   import Select from "$components/common/Select.svelte";
+  import { PERSPECTIVE_CHOICES, type PerspectiveId } from "$lib/perspectives";
   import Tree from "$components/common/Tree.svelte";
   import {
     CATEGORIES,
@@ -569,6 +570,16 @@
                   checked={draft.startupShowWelcome}
                   onchange={(checked) => set("startupShowWelcome", checked)}
                   label={field.label}
+                />
+              </div>
+            {:else if field.key === "startupPerspective"}
+              <div class="row">
+                {@render caption(field)}
+                <Select
+                  value={draft.startupPerspective}
+                  options={PERSPECTIVE_CHOICES}
+                  label={field.label}
+                  onchange={(next) => set("startupPerspective", next as PerspectiveId)}
                 />
               </div>
             {:else if field.key === "refsShowPseudoRefs"}

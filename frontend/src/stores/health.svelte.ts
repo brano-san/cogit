@@ -15,6 +15,10 @@ class HealthStore {
   #root = $state<string | null>(null);
   #checked: { repo: RepoId; name: string } | null = null;
 
+  get all(): readonly HealthWarning[] {
+    return this.#all;
+  }
+
   get warnings(): HealthWarning[] {
     const mine = this.#root === null ? {} : (this.ignored[this.#root] ?? {});
     const later = this.#root === null ? undefined : this.#later.get(this.#root)?.ids;

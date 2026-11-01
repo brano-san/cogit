@@ -171,6 +171,19 @@ describe("graph display settings (#23)", () => {
     expect(merge({ autoUpdate: false, settingsVersion: SETTINGS_VERSION }).autoUpdate).toBe(false);
   });
 
+  it("shows the first-run wizard to a fresh install only", () => {
+    expect(merge(null).firstRunDone).toBe(false);
+    expect(merge({ theme: "light", settingsVersion: 2 }).firstRunDone).toBe(true);
+    expect(merge({ firstRunDone: false, settingsVersion: SETTINGS_VERSION }).firstRunDone).toBe(false);
+    expect(merge({ firstRunDone: true, settingsVersion: SETTINGS_VERSION }).firstRunDone).toBe(true);
+  });
+
+  it("starts in the Main perspective unless Review was chosen", () => {
+    expect(merge(null).startupPerspective).toBe("main");
+    expect(merge({ startupPerspective: "review" }).startupPerspective).toBe("review");
+    expect(merge({ startupPerspective: "other" as never }).startupPerspective).toBe("main");
+  });
+
   it("lets a stored graph time format win over the old date setting", () => {
     expect(merge({ dateFormat: "relative", graphTimeFormat: "dateTime" }).graphTimeFormat).toBe(
       "dateTime",

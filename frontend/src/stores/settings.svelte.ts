@@ -47,7 +47,7 @@ class SettingsStore {
       if (!same(keymap, this.keymap)) this.keymap = keymap;
     } catch {
       // Unreadable store: a fresh install or a locked profile. Defaults still work.
-      this.current = { ...DEFAULT_SETTINGS };
+      this.current = { ...DEFAULT_SETTINGS, firstRunDone: true };
     }
     this.#apply();
     await themeStore.loadUser();

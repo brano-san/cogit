@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 import type { HealthFinding } from "$lib/ipc";
-import { GC_PRUNE, gcPruneWarning, groupFindings, placeOf, visibleWarnings } from "./health";
+import {
+  CLEAR_COMMIT_GRAPH_LOCK,
+  GC_PRUNE,
+  MAINTENANCE,
+  RUN_GC,
+  WRITE_COMMIT_GRAPH,
+  gcPruneWarning,
+  groupFindings,
+  maintenanceBlocker,
+  placeOf,
+  visibleWarnings,
+} from "./health";
 
 const ignoreCase = (module: string): HealthFinding => ({
   module,
@@ -133,5 +144,25 @@ describe("the gc expiry", () => {
   it("names how short the expiry is", () => {
     expect(gcPruneWarning("now")).toContain("every unreachable object");
     expect(gcPruneWarning("oneDay")).toContain("older than 1 day");
+  });
+});
+
+describe("the stale commit-graph lock", () => {
+  const locked: HealthFinding = { module: "", issue: { kind: "staleCommitGraphLock", minutes: 42 } };
+
+  it("is a warning with a button that removes it", () => {
+    const [warning] = groupFindings([locked], "cogit");
+    expect(warning?.title).toBe("A stale commit-graph lock blocks commit-graph writes");
+    expect(warning?.fixes).toEqual(["rm .git/objects/info/commit-graph.lock"]);
+    expect(warning?.action?.id).toBe(CLEAR_COMMIT_GRAPH_LOCK);
+    expect(MAINTENANCE[CLEAR_COMMIT_GRAPH_LOCK]?.question).toMatch(/git gc or git commit-graph/);
+  });
+
+  it("is what gc and commit-graph writing ask about first", () => {
+    const warnings = groupFindings([locked], "cogit");
+    expect(maintenanceBlocker(RUN_GC, warnings)?.id).toBe(CLEAR_COMMIT_GRAPH_LOCK);
+    expect(maintenanceBlocker(WRITE_COMMIT_GRAPH, warnings)?.id).toBe(CLEAR_COMMIT_GRAPH_LOCK);
+    expect(maintenanceBlocker(CLEAR_COMMIT_GRAPH_LOCK, warnings)).toBeNull();
+    expect(maintenanceBlocker(RUN_GC, [])).toBeNull();
   });
 });

@@ -19,6 +19,7 @@ export const SETTINGS = {
     backgroundFetchMinutes: 0,
     confirmExit: false,
     logLevel: "info",
+    firstRunDone: true,
   },
 };
 
