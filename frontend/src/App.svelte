@@ -2084,8 +2084,12 @@ ${event.error}`,
       const graphShown = timed(story, "graph", () => reloadGraph());
       void refs.loadUrls(opened.repo);
       void worktrees.refresh(opened.repo);
-      await timed(story, "repository list", () => repository.refreshList());
-      await timed(story, "everything else", () => afterMutation([], null, true, graphShown));
+      await tick();
+      const files = worktree.load(opened.repo);
+      await Promise.all([
+        timed(story, "repository list", () => repository.refreshList()),
+        timed(story, "everything else", async () => afterMutation([], await files, true, graphShown)),
+      ]);
       trace(story, "activate: done");
     } else {
       trace(story, "activate: nothing opened, graph cleared");
