@@ -2,17 +2,30 @@ use crate::{AppState, RepoId};
 use git_engine::{GitError, RepoHandle, WorktreeFiles};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
+use std::time::{Duration, Instant};
+
+const SPARE_FOR: Duration = Duration::from_secs(2);
 
 struct Walk {
     epoch: u64,
     done: OnceLock<Option<Arc<WorktreeFiles>>>,
+    spare: AtomicBool,
+    finished: OnceLock<Instant>,
 }
 
 impl Walk {
     fn joinable(&self, epoch: u64) -> bool {
-        self.epoch == epoch && self.done.get().is_none()
+        self.epoch == epoch && (self.done.get().is_none() || self.spare())
+    }
+
+    fn spare(&self) -> bool {
+        self.spare.load(Ordering::Acquire)
+            && self
+                .finished
+                .get()
+                .is_some_and(|at| at.elapsed() < SPARE_FOR)
     }
 }
 
@@ -36,7 +49,7 @@ impl Walks {
         let spawned = std::thread::Builder::new()
             .name("status-walk".to_owned())
             .spawn(move || {
-                if let Err(err) = walks.walk(&handle) {
+                if let Err(err) = walks.walk(&handle, true) {
                     tracing::warn!(error = ?err, context = "status walk started by an open");
                 }
             });
@@ -45,19 +58,24 @@ impl Walks {
         }
     }
 
-    fn walk(&self, handle: &RepoHandle) -> Result<Arc<WorktreeFiles>, GitError> {
+    fn walk(&self, handle: &RepoHandle, spare: bool) -> Result<Arc<WorktreeFiles>, GitError> {
         let epoch = self.epoch.load(Ordering::Acquire);
         let root = handle.root().to_path_buf();
         let (walk, leads) = {
             let mut by_root = self.by_root.lock();
             by_root.retain(|_, walk| walk.joinable(epoch));
             match by_root.get(&root) {
-                Some(walk) => (Arc::clone(walk), false),
-                None => {
-                    let walk = Arc::new(Walk {
-                        epoch,
-                        done: OnceLock::new(),
-                    });
+                Some(walk) if walk.done.get().is_none() => (Arc::clone(walk), false),
+                Some(walk) if walk.spare.swap(false, Ordering::AcqRel) => {
+                    if let Some(Some(files)) = walk.done.get() {
+                        return Ok(Arc::clone(files));
+                    }
+                    let walk = Self::lead(epoch, spare);
+                    by_root.insert(root, Arc::clone(&walk));
+                    (walk, true)
+                }
+                _ => {
+                    let walk = Self::lead(epoch, spare);
                     by_root.insert(root, Arc::clone(&walk));
                     (walk, true)
                 }
@@ -70,8 +88,18 @@ impl Walks {
             return handle.worktree_files().map(Arc::new);
         }
         let result = handle.worktree_files().map(Arc::new);
+        let _ = walk.finished.set(Instant::now());
         let _ = walk.done.set(result.as_ref().ok().map(Arc::clone));
         result
+    }
+
+    fn lead(epoch: u64, spare: bool) -> Arc<Walk> {
+        Arc::new(Walk {
+            epoch,
+            done: OnceLock::new(),
+            spare: AtomicBool::new(spare),
+            finished: OnceLock::new(),
+        })
     }
 }
 
@@ -81,6 +109,6 @@ impl AppState {
     }
 
     pub(crate) fn walked_at(&self, handle: &RepoHandle) -> Result<Arc<WorktreeFiles>, GitError> {
-        self.walks.walk(handle)
+        self.walks.walk(handle, false)
     }
 }
