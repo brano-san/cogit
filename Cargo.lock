@@ -5648,6 +5648,7 @@ dependencies = [
  "specta",
  "spellbook",
  "tracing",
+ "unicode-normalization",
 ]
 
 [[package]]

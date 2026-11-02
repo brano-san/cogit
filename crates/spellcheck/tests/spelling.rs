@@ -183,3 +183,10 @@ fn english_development_words_pass() {
         misspelled(&[SpellLanguage::EnUs], &list)
     );
 }
+
+#[test]
+fn a_word_with_combining_marks_is_checked_as_composed() {
+    let decomposed = "\u{0435}\u{0449}\u{0435}\u{0308}".to_owned();
+    let short = "\u{0438}\u{0306}\u{043e}\u{0434}".to_owned();
+    assert!(misspelled(&[SpellLanguage::RuRu], &[decomposed, short]).is_empty());
+}

@@ -13,6 +13,7 @@ spellbook.workspace = true
 serde.workspace = true
 specta.workspace = true
 tracing.workspace = true
+unicode-normalization.workspace = true
 
 [lints]
 workspace = true

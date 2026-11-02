@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use spellbook::Dictionary;
 use std::sync::OnceLock;
+use unicode_normalization::UnicodeNormalization;
 
 const MAX_SUGGESTIONS: usize = 8;
 
@@ -88,8 +89,9 @@ pub fn misspelled(languages: &[SpellLanguage], words: &[String]) -> Vec<String> 
     words
         .iter()
         .filter(|word| {
-            let mut dictionaries = covering(languages, word).peekable();
-            dictionaries.peek().is_some() && !dictionaries.any(|dictionary| dictionary.check(word))
+            let word: String = word.nfc().collect();
+            let mut dictionaries = covering(languages, &word).peekable();
+            dictionaries.peek().is_some() && !dictionaries.any(|dictionary| dictionary.check(&word))
         })
         .cloned()
         .collect()
@@ -97,10 +99,11 @@ pub fn misspelled(languages: &[SpellLanguage], words: &[String]) -> Vec<String> 
 
 #[must_use]
 pub fn suggestions(languages: &[SpellLanguage], word: &str) -> Vec<String> {
+    let word: String = word.nfc().collect();
     let mut out = Vec::new();
-    for dictionary in covering(languages, word) {
+    for dictionary in covering(languages, &word) {
         let mut found = Vec::new();
-        dictionary.suggest(word, &mut found);
+        dictionary.suggest(&word, &mut found);
         for suggestion in found {
             if !out.contains(&suggestion) {
                 out.push(suggestion);
