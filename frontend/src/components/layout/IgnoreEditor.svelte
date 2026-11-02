@@ -30,7 +30,7 @@
   const PREVIEW_PAUSE_MS = 300;
   const NOTES: Record<LineNote, string> = {
     duplicate: "The same pattern is on an earlier line",
-    unused: "No file in the working tree matches this pattern",
+    unused: "Decides for no file in the preview: a later line may win, or the files are inside a wholly untracked folder",
   };
 
   let files = $state.raw<IgnoreFile[]>([]);
