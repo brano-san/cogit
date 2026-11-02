@@ -161,11 +161,22 @@
 
   $effect(() => repoPulse.watch(everyRoot, moduleRoots, openRoots));
 
+  let pulsedTop: string | null = null;
+  const pulsedModules = new Set<string>();
   $effect(() => {
     void submodules.children;
     const top = submodules.ownerRoot;
-    if (top !== null)
-      untrack(() => repoPulse.again([top, ...pulsedRoots(top, submodules.rows, moduleMemory.openModules, true)]));
+    if (top === null) return;
+    untrack(() => {
+      if (top !== pulsedTop) {
+        pulsedTop = top;
+        pulsedModules.clear();
+      }
+      const roots = [top, ...pulsedRoots(top, submodules.rows, moduleMemory.openModules, true)];
+      const fresh = roots.filter((root) => !pulsedModules.has(root));
+      for (const root of fresh) pulsedModules.add(root);
+      repoPulse.again(fresh.length > 0 ? fresh : roots);
+    });
   });
 
   $effect(() => {
