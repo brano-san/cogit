@@ -9,7 +9,7 @@ impl AppState {
         view: git_engine::WorktreeView,
     ) -> Result<git_engine::WorktreeFiles, git_engine::GitError> {
         if view == git_engine::WorktreeView::default() {
-            return self.walked(repo).map(|files| (*files).clone());
+            return self.walked_for_list(repo).map(|files| (*files).clone());
         }
         self.handle(repo)?.worktree_files_with(view)
     }

@@ -8,6 +8,13 @@ use std::time::{Duration, Instant};
 
 const SPARE_FOR: Duration = Duration::from_secs(2);
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Spare {
+    Make,
+    Take,
+    Leave,
+}
+
 struct Walk {
     epoch: u64,
     done: OnceLock<Option<Arc<WorktreeFiles>>>,
@@ -49,7 +56,7 @@ impl Walks {
         let spawned = std::thread::Builder::new()
             .name("status-walk".to_owned())
             .spawn(move || {
-                if let Err(err) = walks.walk(&handle, true) {
+                if let Err(err) = walks.walk(&handle, Spare::Make) {
                     tracing::warn!(error = ?err, context = "status walk started by an open");
                 }
             });
@@ -58,7 +65,7 @@ impl Walks {
         }
     }
 
-    fn walk(&self, handle: &RepoHandle, spare: bool) -> Result<Arc<WorktreeFiles>, GitError> {
+    fn walk(&self, handle: &RepoHandle, spare: Spare) -> Result<Arc<WorktreeFiles>, GitError> {
         let epoch = self.epoch.load(Ordering::Acquire);
         let root = handle.root().to_path_buf();
         let (walk, leads) = {
@@ -66,7 +73,11 @@ impl Walks {
             by_root.retain(|_, walk| walk.joinable(epoch));
             match by_root.get(&root) {
                 Some(walk) if walk.done.get().is_none() => (Arc::clone(walk), false),
-                Some(walk) if walk.spare.swap(false, Ordering::AcqRel) => {
+                Some(walk) if spare == Spare::Leave && walk.spare() => {
+                    drop(by_root);
+                    return handle.worktree_files().map(Arc::new);
+                }
+                Some(walk) if spare == Spare::Take && walk.spare.swap(false, Ordering::AcqRel) => {
                     if let Some(Some(files)) = walk.done.get() {
                         return Ok(Arc::clone(files));
                     }
@@ -93,11 +104,11 @@ impl Walks {
         result
     }
 
-    fn lead(epoch: u64, spare: bool) -> Arc<Walk> {
+    fn lead(epoch: u64, spare: Spare) -> Arc<Walk> {
         Arc::new(Walk {
             epoch,
             done: OnceLock::new(),
-            spare: AtomicBool::new(spare),
+            spare: AtomicBool::new(spare == Spare::Make),
             finished: OnceLock::new(),
         })
     }
@@ -105,10 +116,14 @@ impl Walks {
 
 impl AppState {
     pub(crate) fn walked(&self, repo: RepoId) -> Result<Arc<WorktreeFiles>, GitError> {
-        self.walked_at(&self.handle(repo)?)
+        self.walks.walk(&self.handle(repo)?, Spare::Leave)
+    }
+
+    pub(crate) fn walked_for_list(&self, repo: RepoId) -> Result<Arc<WorktreeFiles>, GitError> {
+        self.walks.walk(&self.handle(repo)?, Spare::Take)
     }
 
     pub(crate) fn walked_at(&self, handle: &RepoHandle) -> Result<Arc<WorktreeFiles>, GitError> {
-        self.walks.walk(handle, false)
+        self.walks.walk(handle, Spare::Leave)
     }
 }
