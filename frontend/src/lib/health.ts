@@ -39,8 +39,9 @@ export const CLEAR_COMMIT_GRAPH_LOCK = "clear-commit-graph-lock";
 export const MAINTENANCE: Record<string, { task: MaintenanceTask; question: string; done: string }> = {
   [RUN_GC]: {
     task: "gc",
-    question: "Run git gc? It packs loose objects and prunes unreachable ones older than the age below; it can take a while on a large repository.",
-    done: "Garbage collection finished",
+    question:
+      "Run git gc? It packs loose objects, prunes unreachable ones older than the age below and writes the commit-graph; below two weeks it first drops the reflog entries of commits no branch reaches, so they can be pruned too. It can take a while on a large repository.",
+    done: "Garbage collection finished, commit-graph written",
   },
   [WRITE_COMMIT_GRAPH]: {
     task: "commitGraph",
@@ -85,7 +86,7 @@ export function gcPruneWarning(prune: GcPrune): string | null {
     prune === "now"
       ? "every unreachable object"
       : `the unreachable objects older than ${GC_PRUNE.find(([key]) => key === prune)?.[1] ?? prune}`;
-  return `This deletes ${what} instead of keeping them for two weeks, as git does by default: a stash you dropped or content you staged and never committed cannot be recovered afterwards. This cannot be undone.`;
+  return `This deletes ${what} instead of keeping them for two weeks, as git does by default, and drops the reflog entries that still lead to them: a commit you reset away, a stash you dropped or content you staged and never committed cannot be recovered afterwards. This cannot be undone.`;
 }
 
 function bytes(count: number): string {

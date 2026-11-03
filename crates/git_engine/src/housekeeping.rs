@@ -45,6 +45,16 @@ impl GcPrune {
             Self::Now => "--prune=now",
         }
     }
+
+    fn reflog_expiry(self) -> Option<&'static str> {
+        match self {
+            Self::TwoWeeks => None,
+            Self::OneWeek => Some("--expire-unreachable=1.week.ago"),
+            Self::OneDay => Some("--expire-unreachable=1.day.ago"),
+            Self::OneHour => Some("--expire-unreachable=1.hour.ago"),
+            Self::Now => Some("--expire-unreachable=now"),
+        }
+    }
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -283,7 +293,16 @@ impl RepoHandle {
     }
 
     pub fn gc(&self, prune: GcPrune) -> Result<()> {
-        self.run_git(&["gc", prune.arg()]).map(drop)
+        if let Some(expiry) = prune.reflog_expiry() {
+            self.run_git(&["reflog", "expire", expiry, "--all"])?;
+        }
+        self.run_git(&["gc", prune.arg()])?;
+        self.write_commit_graph()
+    }
+
+    fn write_commit_graph(&self) -> Result<()> {
+        self.run_git(&["commit-graph", "write", "--reachable", "--changed-paths"])
+            .map(drop)
     }
 
     /// `prune` matters to `Gc` only.
@@ -295,8 +314,7 @@ impl RepoHandle {
             }
             MaintenanceTask::CommitGraph => {
                 self.refuse_under_commit_graph_lock()?;
-                self.run_git(&["commit-graph", "write", "--reachable", "--changed-paths"])
-                    .map(drop)
+                self.write_commit_graph()
             }
             MaintenanceTask::ClearCommitGraphLock => {
                 let stale = self.stale_commit_graph_locks();

@@ -345,3 +345,41 @@ fn gc_prunes_unreachable_objects_older_than_the_chosen_expiry() {
     handle.gc(GcPrune::Now).unwrap();
     assert!(!present(), "now prunes it");
 }
+
+#[test]
+fn gc_now_frees_a_commit_only_the_reflog_still_holds() {
+    let f = test_fixtures::linear(2).unwrap();
+    let dropped = f.oid("HEAD").unwrap();
+    f.git(&["reset", "--quiet", "--hard", "HEAD~1"]).unwrap();
+    let present = || f.git(&["cat-file", "-e", &dropped]).is_ok();
+    let handle = RepoHandle::open(f.path()).unwrap();
+
+    handle.gc(GcPrune::TwoWeeks).unwrap();
+    assert!(present(), "the reflog keeps it for git's default 30 days");
+    handle.gc(GcPrune::Now).unwrap();
+    assert!(
+        !present(),
+        "now expires the unreachable reflog entries first"
+    );
+}
+
+#[test]
+fn gc_leaves_a_commit_graph_with_changed_paths() {
+    let f = test_fixtures::linear(3).unwrap();
+    let handle = RepoHandle::open(f.path()).unwrap();
+
+    handle.gc(GcPrune::TwoWeeks).unwrap();
+
+    let info = f.path().join(".git/objects/info");
+    let graph = std::fs::read(info.join("commit-graph"))
+        .or_else(|_| {
+            let chain = std::fs::read_to_string(info.join("commit-graphs/commit-graph-chain"))?;
+            let last = chain.lines().last().unwrap_or_default().to_owned();
+            std::fs::read(info.join(format!("commit-graphs/graph-{last}.graph")))
+        })
+        .unwrap();
+    assert!(
+        graph.windows(4).any(|chunk| chunk == b"BIDX"),
+        "the graph has no changed-path Bloom filters"
+    );
+}

@@ -144,6 +144,7 @@ describe("the gc expiry", () => {
   it("names how short the expiry is", () => {
     expect(gcPruneWarning("now")).toContain("every unreachable object");
     expect(gcPruneWarning("oneDay")).toContain("older than 1 day");
+    expect(gcPruneWarning("now")).toContain("reflog");
   });
 });
 
