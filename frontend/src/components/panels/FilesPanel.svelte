@@ -91,11 +91,15 @@
   const fractions = $derived(layout.fractions);
   const contents = new ContentSearch(() => repository.current?.repo ?? null);
 
-  /** A commit's whole tree is read only while its Unchanged switch asks for it. */
+  let commitMask = $state("");
+  const commitSearch = $derived(!filesView.commit.unchanged && commitMask.trim() !== "");
+  const wholeTree = $derived(filesView.commit.unchanged || commitSearch);
+
+  /** A commit's whole tree is read only while its Unchanged switch or a filter asks for it. */
   $effect(() => {
     const id = repository.current?.repo;
     const oid = commit.oid;
-    if (!onWorkingTree && filesView.commit.unchanged && id && oid) void commitTree.load(id, oid);
+    if (!onWorkingTree && wholeTree && id && oid) void commitTree.load(id, oid);
   });
 
   $effect(() => errors.report(commitTree.error, "Could not list the unchanged files of the commit"));
@@ -103,7 +107,7 @@
   const commitList = $derived(
     withUnchanged(
       commit.files,
-      filesView.commit.unchanged && commitTree.oid === commit.oid ? commitTree.paths : null,
+      wholeTree && commitTree.oid === commit.oid ? commitTree.paths : null,
     ),
   );
 
@@ -114,7 +118,7 @@
       compare: compareView.showing(commit.oid) ? compareView.files : null,
       onWorkingTree,
       worktree: worktree.total,
-      commit: commitList.length,
+      commit: commitSearch ? commit.files.length : commitList.length,
     }),
   );
 
@@ -146,6 +150,9 @@
   let mask = $state("");
   $effect(() => {
     if (shown.kind !== "worktree") mask = "";
+  });
+  $effect(() => {
+    if (shown.kind !== "commit") commitMask = "";
   });
   const everyFile = $derived(
     shown.kind === "worktree" && !filesView.current.unchanged && mask.trim() !== "",
@@ -321,6 +328,11 @@
       selected={diff.path}
       onselect={onopencommit}
       onopen={(path) => onopenpast(path)}
+      unchanged={commitSearch}
+      onmask={(text) => {
+        commitMask = text;
+        onmask(text);
+      }}
       {onmarked}
       {oncontext}
     />
