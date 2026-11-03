@@ -682,6 +682,7 @@
     state: WorkingState | null = null,
     rereadDiff = true,
     before: Promise<unknown> = Promise.resolve(),
+    refsMoved = true,
   ) {
     void diff.afterWrite(paths, rereadDiff);
     const id = repository.current?.repo;
@@ -693,10 +694,10 @@
     // One store that cannot read must not cancel the others, nor the diff and the graph
     // after them.
     const settled = await Promise.allSettled([
-      id ? stashes.refresh(id) : Promise.resolve(),
-      id ? network.refresh(id) : Promise.resolve(),
+      id && refsMoved ? stashes.refresh(id) : Promise.resolve(),
+      id && refsMoved ? network.refresh(id) : Promise.resolve(),
       // A checkout anywhere, in Branches or a terminal, moves which flow branch HEAD is on.
-      id ? flow.refresh(id) : Promise.resolve(),
+      id && refsMoved ? flow.refresh(id) : Promise.resolve(),
       submodules.refresh(),
       id ? conflicts.refresh(id, conflicted ?? undefined) : Promise.resolve(),
       output.refreshProblems(),
@@ -710,7 +711,7 @@
     // Last and not waited for: the first scan of a repository's objects can take seconds
     // on a cold disk and competes for the same cores, while nothing an open or a mutation
     // finishes needs the lost commits (R-731).
-    if (id) {
+    if (id && refsMoved) {
       void before
         .catch(() => undefined)
         .then(() => recovery.refresh(id))
@@ -1154,7 +1155,7 @@ ${event.error}`,
         loadWorktree: (id) => worktree.load(id),
         refreshWorktrees: (id) => void worktrees.refresh(id),
         // `refreshDiff` follows and reads the diff itself.
-        afterMutation: (state) => afterMutation([], state, false),
+        afterMutation: (state, refsMoved) => afterMutation([], state, false, Promise.resolve(), refsMoved),
         refreshDiff: () => diff.refreshFromDisk(),
         reselectCommit: (id) => {
           if (commit.oid) void commit.select(id, commit.oid);

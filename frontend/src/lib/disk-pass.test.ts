@@ -7,6 +7,7 @@ const STATE = { status: { staged: 0, unstaged: 1, untracked: 0, conflicted: 0, d
 function context(over: Partial<DiskPassContext> = {}) {
   const log: string[] = [];
   const states: unknown[] = [];
+  const refsMoved: boolean[] = [];
   const note = (name: string) => () => {
     log.push(name);
     return Promise.resolve();
@@ -24,9 +25,10 @@ function context(over: Partial<DiskPassContext> = {}) {
       return Promise.resolve(STATE);
     },
     refreshWorktrees: () => log.push("refreshWorktrees"),
-    afterMutation: (state) => {
+    afterMutation: (state, moved) => {
       log.push("afterMutation");
       states.push(state);
+      refsMoved.push(moved);
       return Promise.resolve();
     },
     refreshDiff: note("refreshDiff"),
@@ -34,7 +36,7 @@ function context(over: Partial<DiskPassContext> = {}) {
     loadGraph: note("loadGraph"),
     freshened: () => {},
   };
-  return { log, states, context: { ...base, ...over } };
+  return { log, states, refsMoved, context: { ...base, ...over } };
 }
 
 const kinds = (...list: ChangeKind[]) => new Set(list);
@@ -57,6 +59,16 @@ describe("answering watcher events", () => {
     await runDiskPass(t.context, kinds("workingTree"));
 
     expect(t.states).toEqual([STATE]);
+  });
+
+  // An edit in an editor cannot move a ref: stashes, remotes and lost commits stay as read.
+  it("says whether the refs moved, so a file edit leaves the ref-bound stores alone", async () => {
+    const edit = context();
+    await runDiskPass(edit.context, kinds("workingTree"));
+    const commit = context();
+    await runDiskPass(commit.context, kinds("refs", "workingTree"));
+
+    expect([edit.refsMoved, commit.refsMoved]).toEqual([[false], [true]]);
   });
 
   it("leaves the counters to be read when no file list was", async () => {

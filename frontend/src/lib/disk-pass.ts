@@ -16,7 +16,7 @@ export interface DiskPassContext {
   loadWorktree: (repo: RepoId) => Promise<WorkingState | null>;
   refreshWorktrees: (repo: RepoId) => void;
   /** Everything hanging off a mutation; reads the status unless the file list just did. */
-  afterMutation: (state: WorkingState | null) => Promise<void>;
+  afterMutation: (state: WorkingState | null, refsMoved: boolean) => Promise<void>;
   refreshDiff: () => Promise<void>;
   reselectCommit: (repo: RepoId) => void;
   loadGraph: (repo: RepoId) => Promise<void>;
@@ -56,7 +56,7 @@ export async function runDiskPass(context: DiskPassContext, kinds: ReadonlySet<C
   context.refreshWorktrees(id);
 
   // The file list above carried the counters; without it `afterMutation` reads them.
-  await context.afterMutation(state);
+  await context.afterMutation(state, plan.refs || kinds.has("config"));
   if (left()) return;
   context.freshened(["files", "commit"]);
   if (plan.worktree || plan.refs) await context.refreshDiff();
