@@ -68,20 +68,33 @@ impl WorktreeBranch {
 
 impl RepoHandle {
     pub fn worktrees(&self) -> Result<Vec<WorktreeEntry>> {
-        self.listed(true, None)
+        self.listed(true, &|_| None)
     }
 
     pub fn worktrees_knowing(&self, here: (u32, u32)) -> Result<Vec<WorktreeEntry>> {
-        self.listed(true, Some(here))
+        let root = normalise(self.root());
+        self.listed(true, &|path| (path == root).then_some(here))
+    }
+
+    /// `known` answers by the worktree's path as `WorktreeEntry::path` has it; `None` walks it.
+    pub fn worktrees_known(
+        &self,
+        known: &(dyn Fn(&str) -> Option<(u32, u32)> + Sync),
+    ) -> Result<Vec<WorktreeEntry>> {
+        self.listed(true, known)
     }
 
     /// Branches read from each record's `HEAD`, as git reads them before it refuses a branch
     /// held elsewhere: no status walk, no `dirty` and `has_submodules` (R-487).
     pub fn worktree_heads(&self) -> Result<Vec<WorktreeEntry>> {
-        self.listed(false, None)
+        self.listed(false, &|_| None)
     }
 
-    fn listed(&self, full: bool, known: Option<(u32, u32)>) -> Result<Vec<WorktreeEntry>> {
+    fn listed(
+        &self,
+        full: bool,
+        known: &(dyn Fn(&str) -> Option<(u32, u32)> + Sync),
+    ) -> Result<Vec<WorktreeEntry>> {
         use rayon::prelude::*;
         let here = normalise(self.root());
         let linked = self
@@ -117,7 +130,7 @@ impl RepoHandle {
                 .par_iter()
                 .map(|item| match &item.folder {
                     Some(path) => {
-                        let counts = known.filter(|_| normalise(path) == here);
+                        let counts = known(&normalise(path));
                         Self::describe(
                             path.clone(),
                             item.is_main,

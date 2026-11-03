@@ -1,12 +1,37 @@
 use crate::{AppState, Recovery, RepoId, RepoSummary, Steps};
 
+const OTHER_COUNTS_FOR: std::time::Duration = std::time::Duration::from_secs(30);
+
+pub(crate) type KeptCounts = (std::time::Instant, (u32, u32));
+
 impl AppState {
     pub(crate) fn local_worktrees(
         &self,
         repo: RepoId,
     ) -> Result<Vec<git_engine::WorktreeEntry>, git_engine::GitError> {
         let here = self.walked(repo)?.change_counts();
-        self.handle(repo)?.worktrees_knowing(here)
+        let handle = self.handle(repo)?;
+        let root = git_engine::slash_path(&portable::real_path(handle.root()));
+        let kept = self.worktree_counts.lock().clone();
+        let entries = handle.worktrees_known(&|path| {
+            if path == root {
+                return Some(here);
+            }
+            kept.get(path)
+                .filter(|(at, _)| at.elapsed() < OTHER_COUNTS_FOR)
+                .map(|(_, counts)| *counts)
+        })?;
+        let mut counts = self.worktree_counts.lock();
+        counts.retain(|_, (at, _)| at.elapsed() < OTHER_COUNTS_FOR);
+        for entry in entries
+            .iter()
+            .filter(|entry| !entry.is_current && !entry.missing)
+        {
+            counts
+                .entry(entry.path.clone())
+                .or_insert((std::time::Instant::now(), (entry.changed, entry.untracked)));
+        }
+        Ok(entries)
     }
 
     /// Which worktree already has this branch, so a checkout can offer to go there instead

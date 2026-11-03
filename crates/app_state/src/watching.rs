@@ -13,6 +13,7 @@ impl AppState {
     /// the refs print (R-300), the rest by the open that brought it back.
     pub fn show_repository(&self, repo: Option<RepoId>) {
         let started = std::time::Instant::now();
+        self.worktree_counts.lock().clear();
         let left: Vec<fs_watcher::RepoWatcher> = {
             let mut watchers = self.watchers.write();
             *self.shown.lock() = repo;
