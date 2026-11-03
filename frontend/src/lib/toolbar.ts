@@ -576,6 +576,10 @@ export function targetsOf(
   return anyTicked(facts) ? [...marked] : [...all];
 }
 
+export function commitWindowPaths(facts: ToolbarFacts): string[] {
+  return facts.onWorkingTree && facts.staged.length === 0 ? [...facts.markedUnstaged] : [];
+}
+
 export interface BranchLike {
   name: string;
   fullName: string;

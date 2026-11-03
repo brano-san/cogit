@@ -105,7 +105,7 @@
   import { fileFormat, shortOid } from "$lib/format";
   import { checkedIds, disabledIds, rememberCommand, type PaletteCommand } from "$lib/palette";
   import type { Context } from "$lib/availability";
-  import { localRevision, reasonOf, refAt, splitMarked, targetsOf, type MenuContext, type ToolbarFacts } from "$lib/toolbar";
+  import { localRevision, reasonOf, refAt, splitMarked, targetsOf, commitWindowPaths, type MenuContext, type ToolbarFacts } from "$lib/toolbar";
   import { toolbar } from "$stores/toolbar.svelte";
   import { stashDialog } from "$stores/stash-dialog.svelte";
   import { settle, step } from "$lib/panel-focus";
@@ -800,7 +800,7 @@
     "commit-amend": () => void commitBox.commit(true),
     "commit-window": () => {
       const current = repository.current;
-      if (current) void openCommitWindow(current.repo, current.root);
+      if (current) void openCommitWindow(current.repo, current.root, commitWindowPaths(toolbarFacts));
     },
     "commit-message": () => void commitBox.focus(),
     undo: () => undo(),

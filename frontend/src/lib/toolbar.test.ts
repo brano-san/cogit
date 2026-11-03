@@ -23,6 +23,7 @@ import {
   localRevision,
   splitMarked,
   targetsOf,
+  commitWindowPaths,
   type ToolbarFacts,
 } from "./toolbar";
 
@@ -585,5 +586,19 @@ describe("detached HEAD", () => {
     expect(pushDoneText({ branches: [] })).toBeNull();
     expect(syncDoneText({ branches: ["topic"] })).toBe("Fetched only; pushed topic — HEAD is detached");
     expect(syncDoneText({ branches: [] })).toBe("Fetched only, nothing to push — HEAD is detached");
+  });
+});
+
+describe("commitWindowPaths", () => {
+  it("ticks the selected working-tree files when the index is empty", () => {
+    expect(commitWindowPaths(tree({ unstaged: ["a", "b"], markedUnstaged: ["b"] }))).toEqual(["b"]);
+  });
+
+  it("leaves the window to the index once something is staged", () => {
+    expect(commitWindowPaths(tree({ unstaged: ["a"], staged: ["c"], markedUnstaged: ["a"] }))).toEqual([]);
+  });
+
+  it("ticks nothing without a selection", () => {
+    expect(commitWindowPaths(tree({ unstaged: ["a"] }))).toEqual([]);
   });
 });
