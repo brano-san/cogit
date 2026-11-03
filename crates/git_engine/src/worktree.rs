@@ -64,7 +64,7 @@ impl RepoHandle {
     }
 
     pub fn worktree_files_with(&self, view: WorktreeView) -> Result<WorktreeFiles> {
-        crate::status::past_broken_submodules(|skip| self.files_with(view, skip))
+        crate::status::past_broken_submodules(self, |skip| self.files_with(view, skip))
     }
 
     /// `skip_submodules` leaves a submodule's own status unread: the caller asks for it

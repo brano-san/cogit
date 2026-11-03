@@ -43,7 +43,7 @@ impl RepoHandle {
         if self.repo.is_bare() {
             return Ok(WorkingState::default());
         }
-        past_broken_submodules(|skip| self.working_state_reading(skip))
+        past_broken_submodules(self, |skip| self.working_state_reading(skip))
     }
 
     fn working_state_reading(&self, skip_submodules: bool) -> Result<WorkingState> {
@@ -112,7 +112,7 @@ impl RepoHandle {
         if self.repo.is_bare() {
             return Ok(false);
         }
-        past_broken_submodules(|skip| self.changed_reading(untracked, skip))
+        past_broken_submodules(self, |skip| self.changed_reading(untracked, skip))
     }
 
     fn changed_reading(&self, untracked: bool, skip_submodules: bool) -> Result<bool> {
@@ -150,7 +150,7 @@ impl RepoHandle {
         if self.repo.workdir().is_none() {
             return Ok((0, 0));
         }
-        past_broken_submodules(|skip| self.change_counts_reading(skip))
+        past_broken_submodules(self, |skip| self.change_counts_reading(skip))
     }
 
     fn change_counts_reading(&self, skip_submodules: bool) -> Result<(u32, u32)> {
@@ -198,12 +198,92 @@ impl RepoHandle {
     }
 }
 
-pub(crate) fn past_broken_submodules<T>(read: impl Fn(bool) -> Result<T>) -> Result<T> {
+type Stamp = Vec<Option<std::time::SystemTime>>;
+type BrokenSubmodules = std::sync::Mutex<std::collections::HashMap<std::path::PathBuf, Stamp>>;
+
+fn broken_submodules() -> &'static BrokenSubmodules {
+    static BROKEN: std::sync::OnceLock<BrokenSubmodules> = std::sync::OnceLock::new();
+    BROKEN.get_or_init(Default::default)
+}
+
+pub(crate) fn past_broken_submodules<T>(
+    repo: &RepoHandle,
+    read: impl Fn(bool) -> Result<T>,
+) -> Result<T> {
+    let watched = [repo.repo.index_path(), repo.root().join(".gitmodules")];
+    skipping_broken_submodules(repo.root(), &watched, read)
+}
+
+fn skipping_broken_submodules<T>(
+    root: &std::path::Path,
+    watched: &[std::path::PathBuf],
+    read: impl Fn(bool) -> Result<T>,
+) -> Result<T> {
+    let stamp: Stamp = watched
+        .iter()
+        .map(|path| {
+            std::fs::metadata(path)
+                .and_then(|meta| meta.modified())
+                .ok()
+        })
+        .collect();
+    if broken_submodules()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get(root)
+        == Some(&stamp)
+    {
+        return read(true);
+    }
     match read(false) {
         Err(GitError::Internal(message)) if message.contains("for submodule at") => {
-            tracing::error!(error = %message, context = "a submodule's status, read without submodules");
+            tracing::warn!(
+                error = %message,
+                "a submodule's status cannot be read; the rest is read without submodules"
+            );
+            broken_submodules()
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .insert(root.to_path_buf(), stamp);
             read(true)
         }
         other => other,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::RefCell;
+
+    #[test]
+    fn a_failed_submodule_status_is_skipped_until_the_index_changes() {
+        let dir = tempfile::tempdir().unwrap();
+        let index = dir.path().join("index");
+        std::fs::write(&index, "1").unwrap();
+        let calls = RefCell::new(Vec::new());
+        let read = |skip: bool| {
+            calls.borrow_mut().push(skip);
+            if skip {
+                Ok(())
+            } else {
+                Err(GitError::Internal(
+                    "Could not determine status for submodule at 'x'".to_owned(),
+                ))
+            }
+        };
+
+        skipping_broken_submodules(dir.path(), std::slice::from_ref(&index), read).unwrap();
+        skipping_broken_submodules(dir.path(), std::slice::from_ref(&index), read).unwrap();
+        assert_eq!(*calls.borrow(), [false, true, true]);
+
+        std::fs::File::options()
+            .write(true)
+            .open(&index)
+            .unwrap()
+            .set_modified(std::time::SystemTime::now() + std::time::Duration::from_secs(5))
+            .unwrap();
+        skipping_broken_submodules(dir.path(), &[index], read).unwrap();
+        assert_eq!(*calls.borrow(), [false, true, true, false, true]);
     }
 }
