@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { IgnoreHit, IgnorePreview } from "$lib/ipc";
-import { hitSource, lineNotes, parentDirs } from "./ignore-editor";
+import { editLine, groupHits, hitSource, lineNotes, negation, parentDirs } from "./ignore-editor";
 
 const hit = (line: number, extra: Partial<IgnoreHit> = {}): IgnoreHit => ({
   path: "a.log",
@@ -47,5 +47,46 @@ describe("parentDirs", () => {
   it("walks from the file's folder up to the root", () => {
     expect(parentDirs("a/b/c.txt")).toEqual(["a/b", "a", ""]);
     expect(parentDirs("top.txt")).toEqual([""]);
+  });
+});
+
+describe("groupHits", () => {
+  it("puts the files under the rule that decides them, in file and line order", () => {
+    const groups = groupHits([
+      hit(3, { path: "b.tmp", pattern: "*.tmp" }),
+      hit(1, { path: "a.log" }),
+      hit(3, { path: "c.tmp", pattern: "*.tmp" }),
+      hit(2, { path: "x", scope: "global", pattern: "x" }),
+    ]);
+    expect(groups.map((group) => [group.source, group.hits.map((each) => each.path)])).toEqual([
+      [".gitignore:1", ["a.log"]],
+      [".gitignore:3", ["b.tmp", "c.tmp"]],
+      ["global:2", ["x"]],
+    ]);
+  });
+});
+
+describe("negation", () => {
+  it("anchors the path to the folder of the file it goes into", () => {
+    expect(negation("build/a.o", { scope: "folder", dir: "" })).toBe("!/build/a.o");
+    expect(negation("sub/out/a.o", { scope: "folder", dir: "sub" })).toBe("!/out/a.o");
+    expect(negation("dist/", { scope: "exclude", dir: "" })).toBe("!/dist/");
+  });
+
+  it("escapes what a pattern would read as a wildcard", () => {
+    expect(negation("a[1]*.txt", { scope: "folder", dir: "" })).toBe(String.raw`!/a\[1]\*.txt`);
+  });
+
+  it("refuses a path outside the folder", () => {
+    expect(negation("other/a.o", { scope: "folder", dir: "sub" })).toBeNull();
+  });
+});
+
+describe("editLine", () => {
+  it("comments out, removes and appends", () => {
+    expect(editLine("a\n*.log\nb\n", 2, "comment")).toBe("a\n# *.log\nb\n");
+    expect(editLine("a\n*.log\nb\n", 2, "remove")).toBe("a\nb\n");
+    expect(editLine("a", 0, { append: "!/x" })).toBe("a\n!/x\n");
+    expect(editLine("", 0, { append: "!/x" })).toBe("!/x\n");
   });
 });

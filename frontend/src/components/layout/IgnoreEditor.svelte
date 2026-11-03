@@ -2,12 +2,16 @@
   import { tick } from "svelte";
   import CodeArea from "$components/common/CodeArea.svelte";
   import Dialog from "$components/common/Dialog.svelte";
+  import Disclosure from "$components/common/Disclosure.svelte";
   import EmptyState from "$components/common/EmptyState.svelte";
-  import { hitSource, lineNotes, type LineNote } from "$lib/ignore-editor";
+  import { SEPARATOR, item } from "$lib/context-menu";
+  import { editLine, groupHits, lineNotes, negation, type HitGroup, type LineEdit, type LineNote } from "$lib/ignore-editor";
   import { tokenizeIgnoreLine } from "$lib/ignore-syntax";
   import {
     ignoreFiles,
     ignorePreview,
+    onMenuCommand,
+    popupContextMenu,
     saveIgnoreFile,
     type IgnoreFile,
     type IgnoreHit,
@@ -47,6 +51,9 @@
   const dirty = $derived(files.some(changed));
   const notes = $derived(current ? lineNotes(texts[active], { scope: active, dir: current.dir }, preview) : new Map<number, LineNote>());
   const tracked = $derived(preview?.hits.filter((hit) => hit.tracked).length ?? 0);
+  const groups = $derived(preview ? groupHits(preview.hits) : []);
+  let folded = $state.raw<ReadonlySet<string>>(new Set());
+  let menuFor: { group: HitGroup; hit: IgnoreHit | null } | null = null;
 
   $effect(() => {
     void ignoreFiles(repo, dir)
@@ -84,11 +91,68 @@
     return file.dir === "" ? ".gitignore" : `${file.dir}/.gitignore`;
   }
 
-  function opens(hit: IgnoreHit): boolean {
+  function toggle(key: string) {
+    const next = new Set(folded);
+    if (!next.delete(key)) next.add(key);
+    folded = next;
+  }
+
+  function nameOf(path: string): { name: string; folder: string } {
+    const bare = path.endsWith("/") ? path.slice(0, -1) : path;
+    const at = bare.lastIndexOf("/");
+    return { name: bare.slice(at + 1) + (bare === path ? "" : "/"), folder: at < 0 ? "" : bare.slice(0, at) };
+  }
+
+  function edit(group: HitGroup, change: LineEdit) {
+    texts[group.scope] = editLine(texts[group.scope], group.line, change);
+    active = group.scope;
+  }
+
+  async function menu(event: MouseEvent, group: HitGroup, hit: IgnoreHit | null) {
+    event.preventDefault();
+    menuFor = { group, hit };
+    const editable = opens(group);
+    const kept = hit && editable ? negation(hit.path, { scope: group.scope, dir: group.dir }) : null;
+    const items = [
+      ...(hit ? [item("ignore-keep", `Don't Ignore ${nameOf(hit.path).name}`, kept !== null), SEPARATOR] : []),
+      item("ignore-go", "Go to Rule", editable),
+      item("ignore-comment", "Comment Out Rule", editable),
+      item("ignore-remove", "Remove Rule", editable),
+      ...(hit ? [SEPARATOR, item("ignore-copy", "Copy Path")] : []),
+    ];
+    await popupContextMenu(items, event.clientX, event.clientY).catch((err: unknown) =>
+      errors.report(err, "Could not show the menu"),
+    );
+  }
+
+  function chosen(id: string) {
+    const at = menuFor;
+    menuFor = null;
+    if (!at || !id.startsWith("ignore-")) return;
+    const { group, hit } = at;
+    if (id === "ignore-keep" && hit) {
+      const line = negation(hit.path, { scope: group.scope, dir: group.dir });
+      if (line) edit(group, { append: line });
+    } else if (id === "ignore-go") void show(group);
+    else if (id === "ignore-comment") edit(group, "comment");
+    else if (id === "ignore-remove") edit(group, "remove");
+    else if (id === "ignore-copy" && hit) {
+      void import("@tauri-apps/plugin-clipboard-manager")
+        .then(({ writeText }) => writeText(hit.path))
+        .catch((err: unknown) => errors.report(err, "Could not copy the path"));
+    }
+  }
+
+  $effect(() => {
+    const pending = onMenuCommand(chosen);
+    return () => void pending.then((unlisten) => unlisten());
+  });
+
+  function opens(hit: { scope: IgnoreScope; dir: string }): boolean {
     return files.some((file) => file.scope === hit.scope && file.dir === hit.dir);
   }
 
-  async function show(hit: IgnoreHit) {
+  async function show(hit: { scope: IgnoreScope; line: number }) {
     active = hit.scope;
     await tick();
     if (!field) return;
@@ -168,17 +232,47 @@
         {#if preview && preview.hits.length === 0}
           <EmptyState title="Nothing in the working tree is ignored." />
         {:else if preview}
-          <ul>
-            {#each preview.hits as hit (hit.path)}
-              <li class:tracked={hit.tracked}>
-                <span class="file truncate mono" title={hit.path}>{hit.path}</span>
-                {#if hit.tracked}<span class="badge" title="Tracked: an ignore rule does not untrack a file">tracked</span>{/if}
-                {#if opens(hit)}
-                  <button type="button" class="source mono" title={hit.pattern} onclick={() => void show(hit)}
-                    >{hitSource(hit)}</button
-                  >
-                {:else}
-                  <span class="source mono" title={hit.pattern}>{hitSource(hit)}</span>
+          <ul class="groups">
+            {#each groups as group (group.key)}
+              {@const open = !folded.has(group.key)}
+              <li>
+                <div
+                  class="rule"
+                  role="button"
+                  tabindex="-1"
+                  aria-expanded={open}
+                  title={group.pattern}
+                  onclick={() => toggle(group.key)}
+                  onkeydown={(event) => event.key === "Enter" && toggle(group.key)}
+                  oncontextmenu={(event) => void menu(event, group, null)}
+                >
+                  <Disclosure {open} />
+                  <span class="pattern truncate mono">{group.pattern}</span>
+                  <span class="count">{group.hits.length}</span>
+                  {#if opens(group)}
+                    <button
+                      type="button"
+                      class="source mono"
+                      onclick={(event) => {
+                        event.stopPropagation();
+                        void show(group);
+                      }}>{group.source}</button
+                    >
+                  {:else}
+                    <span class="source mono">{group.source}</span>
+                  {/if}
+                </div>
+                {#if open}
+                  <ul>
+                    {#each group.hits as hit (hit.path)}
+                      {@const shown = nameOf(hit.path)}
+                      <li class="hit" class:tracked={hit.tracked} title={hit.path} oncontextmenu={(event) => void menu(event, group, hit)}>
+                        <span class="name truncate mono">{shown.name}</span>
+                        <span class="folder truncate">{shown.folder}</span>
+                        {#if hit.tracked}<span class="badge" title="Tracked: an ignore rule does not untrack a file">tracked</span>{/if}
+                      </li>
+                    {/each}
+                  </ul>
                 {/if}
               </li>
             {/each}
@@ -300,33 +394,65 @@
   }
 
   ul {
-    flex: 1 1 auto;
-    min-height: 0;
     margin: 0;
     padding: 0;
-    overflow: auto;
     list-style: none;
   }
 
-  li {
+  .groups {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .rule,
+  .hit {
     display: flex;
     align-items: center;
-    gap: var(--sp-3);
+    gap: var(--sp-2);
     min-height: var(--h-row);
-    padding: 0 var(--sp-4);
     font-size: var(--fs-dense);
   }
 
-  li:hover {
+  .rule {
+    padding: 0 var(--sp-4) 0 var(--sp-2);
+    cursor: default;
+  }
+
+  .hit {
+    padding: 0 var(--sp-4) 0 calc(var(--sp-2) + 18px);
+  }
+
+  .rule:hover,
+  .hit:hover {
     background: var(--state-hover);
   }
 
-  .file {
-    flex: 1 1 auto;
+  .pattern {
+    flex: 0 1 auto;
     min-width: 0;
+    color: var(--text-primary);
   }
 
-  li.tracked .file {
+  .count {
+    flex: 1 0 auto;
+    color: var(--text-secondary);
+    font-size: var(--fs-small);
+  }
+
+  .name {
+    flex: none;
+    max-width: 70%;
+  }
+
+  .folder {
+    flex: 1 1 0;
+    min-width: 0;
+    color: var(--text-secondary);
+    font-size: var(--fs-small);
+  }
+
+  .hit.tracked .name {
     color: var(--status-modify);
   }
 
