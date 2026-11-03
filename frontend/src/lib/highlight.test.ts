@@ -145,6 +145,8 @@ describe("highlightLines", () => {
   describe("languageOf", () => {
     it("maps standard file extensions", () => {
       expect(languageOf("src/main.rs")).toBe("rust");
+      expect(languageOf("cmake/version.h.in")).toBe("c");
+      expect(languageOf("Makefile.in")).toBeNull();
       expect(languageOf("app.ts")).toBe("typescript");
       expect(languageOf("app.tsx")).toBe("tsx");
       expect(languageOf("script.js")).toBe("javascript");

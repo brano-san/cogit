@@ -1,6 +1,13 @@
-import { defaultKeymap, history, historyKeymap, redo, undo, undoDepth } from "@codemirror/commands";
-import { LanguageDescription, syntaxHighlighting } from "@codemirror/language";
-import { languages } from "@codemirror/language-data";
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  redo,
+  undo,
+  undoDepth,
+} from "@codemirror/commands";
+import { syntaxHighlighting } from "@codemirror/language";
+import { languageOf, languageSupport } from "$lib/highlight";
 import {
   Compartment,
   EditorState,
@@ -72,7 +79,11 @@ export class Pad extends WidgetType {
   }
 
   override eq(other: Pad): boolean {
-    return other.lines === this.lines && other.kind === this.kind && other.unresolved === this.unresolved;
+    return (
+      other.lines === this.lines &&
+      other.kind === this.kind &&
+      other.unresolved === this.unresolved
+    );
   }
 
   override toDOM(): HTMLElement {
@@ -133,7 +144,8 @@ export const setFolds = StateEffect.define<Fold[]>();
 const foldsField = StateField.define<Fold[]>({
   create: () => [],
   update(value, tr) {
-    for (const effect of tr.effects) if (effect.is(setFolds)) return effect.value as Fold[];
+    for (const effect of tr.effects)
+      if (effect.is(setFolds)) return effect.value as Fold[];
     return value;
   },
 });
@@ -145,12 +157,20 @@ function foldDecorations(state: EditorState): DecorationSet {
     if (fold.to > doc.lines || fold.from >= fold.to) continue;
     const from = doc.line(fold.from + 1).from;
     const to = doc.line(fold.to).to;
-    ranges.push(Decoration.replace({ widget: new FoldRow(fold.to - fold.from, fold.gap), block: true }).range(from, to));
+    ranges.push(
+      Decoration.replace({
+        widget: new FoldRow(fold.to - fold.from, fold.gap),
+        block: true,
+      }).range(from, to),
+    );
   }
   return Decoration.set(ranges, true);
 }
 
-const folding: Extension = [foldsField, EditorView.decorations.compute([foldsField, "doc"], foldDecorations)];
+const folding: Extension = [
+  foldsField,
+  EditorView.decorations.compute([foldsField, "doc"], foldDecorations),
+];
 /** A conflict decided in the Result keeps a mark of it, green instead of red. */
 const BAR_DONE = new Bar(true);
 
@@ -170,18 +190,33 @@ export const themeSpec = {
     lineHeight: `${LINE_HEIGHT}px`,
     overscrollBehavior: "contain",
   },
-  ".cm-content": { padding: "0", caretColor: "var(--fg-primary)", userSelect: "text", WebkitUserSelect: "text" },
-  ".cm-line": { height: `${LINE_HEIGHT}px`, lineHeight: `${LINE_HEIGHT}px`, padding: "0 6px" },
+  ".cm-content": {
+    padding: "0",
+    caretColor: "var(--fg-primary)",
+    userSelect: "text",
+    WebkitUserSelect: "text",
+  },
+  ".cm-line": {
+    height: `${LINE_HEIGHT}px`,
+    lineHeight: `${LINE_HEIGHT}px`,
+    padding: "0 6px",
+  },
   ".cm-gutters": {
     backgroundColor: "var(--bg-editor)",
     color: "var(--diff-line-number)",
     border: "none",
     fontSize: "10px",
   },
-  ".cm-lineNumbers .cm-gutterElement": { minWidth: "40px", padding: "0 6px 0 4px", textAlign: "right" },
+  ".cm-lineNumbers .cm-gutterElement": {
+    minWidth: "40px",
+    padding: "0 6px 0 4px",
+    textAlign: "right",
+  },
   ".cm-activeLine": { backgroundColor: "transparent" },
   ".cm-selectionBackground": { backgroundColor: "var(--bg-selected-inactive)" },
-  "&.cm-focused .cm-selectionBackground": { backgroundColor: "var(--bg-selected)" },
+  "&.cm-focused .cm-selectionBackground": {
+    backgroundColor: "var(--bg-selected)",
+  },
   ".cm-cursor": { borderLeftColor: "var(--fg-primary)" },
   ".sv-changed": { backgroundColor: "var(--diff-changed-line)" },
   ".sv-add": { backgroundColor: "var(--diff-add-line)" },
@@ -220,10 +255,15 @@ export const themeSpec = {
 
 const theme = EditorView.theme(themeSpec);
 
-const hunksFacet = Facet.define<readonly Hunk[], readonly Hunk[]>({ combine: (all) => all[0] ?? [] });
+const hunksFacet = Facet.define<readonly Hunk[], readonly Hunk[]>({
+  combine: (all) => all[0] ?? [],
+});
 
 /** Which hunks of the Result are undecided conflicts, by the text they hold now. */
-export const unresolvedFacet = Facet.define<ReadonlySet<number>, ReadonlySet<number>>({
+export const unresolvedFacet = Facet.define<
+  ReadonlySet<number>,
+  ReadonlySet<number>
+>({
   combine: (all) => all[0] ?? new Set(),
 });
 
@@ -233,7 +273,10 @@ function unresolvedIds(state: EditorState): ReadonlySet<number> {
   const ids = new Set<number>();
   for (const block of blocksOf(state)) {
     const hunk = hunks.get(block.id);
-    if (hunk?.kind === "conflict" && isUnresolved(hunk, blockLines(state, block), decided.has(block.id))) {
+    if (
+      hunk?.kind === "conflict" &&
+      isUnresolved(hunk, blockLines(state, block), decided.has(block.id))
+    ) {
       ids.add(block.id);
     }
   }
@@ -245,7 +288,8 @@ export const setCurrent = StateEffect.define<number | null>();
 const currentField = StateField.define<number | null>({
   create: () => null,
   update(value, tr) {
-    for (const effect of tr.effects) if (effect.is(setCurrent)) return effect.value as number | null;
+    for (const effect of tr.effects)
+      if (effect.is(setCurrent)) return effect.value as number | null;
     return value;
   },
 });
@@ -259,19 +303,24 @@ export const setOthers = StateEffect.define<Others>();
 const othersField = StateField.define<Others>({
   create: () => ({ rows: [], aligned: false }),
   update(value, tr) {
-    for (const effect of tr.effects) if (effect.is(setOthers)) return effect.value as Others;
+    for (const effect of tr.effects)
+      if (effect.is(setOthers)) return effect.value as Others;
     return value;
   },
 });
 
 function lineStart(state: EditorState, line: number): number {
-  return line < state.doc.lines ? state.doc.line(line + 1).from : state.doc.length;
+  return line < state.doc.lines
+    ? state.doc.line(line + 1).from
+    : state.doc.length;
 }
 
 /** A settled block of the Result in the color of how it differs from Ours, else from Theirs:
     the whole file added where Ours lost it is green, not "changed". */
 function toneClass(hunk: Hunk | undefined, current: readonly string[]): string {
-  const tone = hunk ? (sideTone(hunk.ours, current) ?? sideTone(hunk.theirs, current)) : null;
+  const tone = hunk
+    ? (sideTone(hunk.ours, current) ?? sideTone(hunk.theirs, current))
+    : null;
   return tone === "add" ? "sv-add" : tone === "del" ? "sv-del" : "sv-changed";
 }
 
@@ -297,13 +346,26 @@ function resultDecorations(state: EditorState): DecorationSet {
     const cls = `${kind}${current === block.id ? " sv-current" : ""}`;
     const title = hunk ? hunkLegend(hunk, open) : "";
     for (let line = start; line < start + count; line++) {
-      ranges.push(Decoration.line({ class: cls, attributes: { title } }).range(lineStart(state, line)));
-    }
-    const pad = others.aligned ? Math.max((others.rows[at] ?? 0) - count, 0) : 0;
-    if (pad > 0) {
-      const at = start + count < state.doc.lines ? lineStart(state, start + count) : state.doc.length;
       ranges.push(
-        Decoration.widget({ widget: new Pad(pad, "plain", open), block: true, side: -1 }).range(at),
+        Decoration.line({ class: cls, attributes: { title } }).range(
+          lineStart(state, line),
+        ),
+      );
+    }
+    const pad = others.aligned
+      ? Math.max((others.rows[at] ?? 0) - count, 0)
+      : 0;
+    if (pad > 0) {
+      const at =
+        start + count < state.doc.lines
+          ? lineStart(state, start + count)
+          : state.doc.length;
+      ranges.push(
+        Decoration.widget({
+          widget: new Pad(pad, "plain", open),
+          block: true,
+          side: -1,
+        }).range(at),
       );
     }
   });
@@ -315,19 +377,29 @@ const resultBar = gutter({
   lineMarker(view, line) {
     const state = view.state;
     const unresolved = state.facet(unresolvedFacet);
-    const conflicts = new Set(state.facet(hunksFacet).flatMap((hunk) => (hunk.kind === "conflict" ? [hunk.id] : [])));
+    const conflicts = new Set(
+      state
+        .facet(hunksFacet)
+        .flatMap((hunk) => (hunk.kind === "conflict" ? [hunk.id] : [])),
+    );
     // Its own lines only: an empty block is marked by its pad (`widgetMarker`), not by the
     // first line of the equal region after it.
     for (const block of blocksOf(state)) {
-      if (conflicts.has(block.id) && line.from >= block.from && line.from < block.to) {
+      if (
+        conflicts.has(block.id) &&
+        line.from >= block.from &&
+        line.from < block.to
+      ) {
         return unresolved.has(block.id) ? BAR : BAR_DONE;
       }
     }
     return null;
   },
-  widgetMarker: (_view, widget) => (widget instanceof Pad && widget.unresolved ? BAR : null),
+  widgetMarker: (_view, widget) =>
+    widget instanceof Pad && widget.unresolved ? BAR : null,
   lineMarkerChange: (update) =>
-    update.docChanged || update.transactions.some((tr) => tr.effects.length > 0),
+    update.docChanged ||
+    update.transactions.some((tr) => tr.effects.length > 0),
   initialSpacer: () => BAR,
 });
 
@@ -338,7 +410,10 @@ function resultExtensions(docs: SolverDocs): Extension {
     currentField,
     othersField,
     unresolvedFacet.compute([blockField, decidedField, "doc"], unresolvedIds),
-    EditorView.decorations.compute([blockField, "doc", currentField, othersField, unresolvedFacet], resultDecorations),
+    EditorView.decorations.compute(
+      [blockField, "doc", currentField, othersField, unresolvedFacet],
+      resultDecorations,
+    ),
     resultBar,
     history(),
     keymap.of([...historyKeymap, ...defaultKeymap]),
@@ -355,12 +430,19 @@ export interface PaneSpec {
   current: number | null;
 }
 
-const EMPTY_SPEC: PaneSpec = { rows: [], ids: [], tones: [], pads: [], current: null };
+const EMPTY_SPEC: PaneSpec = {
+  rows: [],
+  ids: [],
+  tones: [],
+  pads: [],
+  current: null,
+};
 export const setPaneSpec = StateEffect.define<PaneSpec>();
 const specField = StateField.define<PaneSpec>({
   create: () => EMPTY_SPEC,
   update(value, tr) {
-    for (const effect of tr.effects) if (effect.is(setPaneSpec)) return effect.value as PaneSpec;
+    for (const effect of tr.effects)
+      if (effect.is(setPaneSpec)) return effect.value as PaneSpec;
     return value;
   },
 });
@@ -370,17 +452,29 @@ function paneDecorations(state: EditorState): DecorationSet {
   const ranges: Range<Decoration>[] = [];
   spec.rows.forEach((row, at) => {
     const tone = spec.tones[at];
-    const cls = `${tone ? `sv-${tone}` : ""}${spec.ids[at] === spec.current ? " sv-current" : ""}`.trim();
+    const cls =
+      `${tone ? `sv-${tone}` : ""}${spec.ids[at] === spec.current ? " sv-current" : ""}`.trim();
     if (cls) {
       for (let line = row.start; line < row.start + row.count; line++) {
-        ranges.push(Decoration.line({ class: cls }).range(lineStart(state, line)));
+        ranges.push(
+          Decoration.line({ class: cls }).range(lineStart(state, line)),
+        );
       }
     }
     const pad = spec.pads[at] ?? 0;
     if (pad > 0) {
       const kind = row.count === 0 && tone === "del" ? "del" : "plain";
-      const place = row.start + row.count < state.doc.lines ? lineStart(state, row.start + row.count) : state.doc.length;
-      ranges.push(Decoration.widget({ widget: new Pad(pad, kind, false), block: true, side: -1 }).range(place));
+      const place =
+        row.start + row.count < state.doc.lines
+          ? lineStart(state, row.start + row.count)
+          : state.doc.length;
+      ranges.push(
+        Decoration.widget({
+          widget: new Pad(pad, kind, false),
+          block: true,
+          side: -1,
+        }).range(place),
+      );
     }
   });
   return Decoration.set(ranges, true);
@@ -399,26 +493,27 @@ function sideExtensions(label: string): Extension {
 const language = new Compartment();
 
 /** The grammar for a path, parsed in its own chunk; `null` for a file nobody knows. */
-export async function languageExtension(path: string): Promise<Extension | null> {
-  const name = path.slice(path.lastIndexOf("/") + 1);
-  const found = LanguageDescription.matchFilename(languages, name);
-  if (!found) return null;
-  try {
-    return await found.load();
-  } catch (err) {
-    console.error("the grammar did not load", err);
-    return null;
-  }
+export function languageExtension(path: string): Promise<Extension | null> {
+  return languageSupport(languageOf(path));
 }
 
 /** Tauri puts a nonce on the page's own style tags, and a CSP with a nonce ignores
     'unsafe-inline': CodeMirror's style tag needs the same nonce or none of its rules apply. */
 export function styleNonce(): Extension {
-  const nonce = typeof document === "undefined" ? "" : (document.querySelector<HTMLStyleElement>("style[nonce]")?.nonce ?? "");
+  const nonce =
+    typeof document === "undefined"
+      ? ""
+      : (document.querySelector<HTMLStyleElement>("style[nonce]")?.nonce ?? "");
   return nonce ? EditorView.cspNonce.of(nonce) : [];
 }
 
-const common: Extension = [styleNonce(), gitLines, theme, lineNumbers(), syntaxHighlighting(classHighlighter)];
+const common: Extension = [
+  styleNonce(),
+  gitLines,
+  theme,
+  lineNumbers(),
+  syntaxHighlighting(classHighlighter),
+];
 
 export interface EditorOptions {
   aligned: boolean;
@@ -471,7 +566,11 @@ export class SolverEditors {
   #version = 0;
   #snapshot: Snapshot;
   #pending = false;
-  #expected: Record<PaneName, number | null> = { ours: null, result: null, theirs: null };
+  #expected: Record<PaneName, number | null> = {
+    ours: null,
+    result: null,
+    theirs: null,
+  };
   readonly #onchange: () => void;
   #destroyed = false;
   /** The Result as last written: dirty is a difference from it, not an undo depth. */
@@ -479,15 +578,25 @@ export class SolverEditors {
   /** Gaps the user unfolded; the same gap number in every pane. */
   #opened = new Set<number>();
 
-  constructor(hosts: Hosts, docs: SolverDocs, options: EditorOptions, onchange: () => void) {
+  constructor(
+    hosts: Hosts,
+    docs: SolverDocs,
+    options: EditorOptions,
+    onchange: () => void,
+  ) {
     this.#docs = docs;
     this.#options = options;
     this.#onchange = onchange;
     const watch = (name: PaneName) =>
       EditorView.updateListener.of((update) => {
         if (name === "result") {
-          if (update.selectionSet && !update.docChanged) this.#followSelection(name);
-          if (update.docChanged || update.transactions.some((tr) => tr.effects.length > 0)) this.#schedule();
+          if (update.selectionSet && !update.docChanged)
+            this.#followSelection(name);
+          if (
+            update.docChanged ||
+            update.transactions.some((tr) => tr.effects.length > 0)
+          )
+            this.#schedule();
         } else if (update.selectionSet) {
           this.#followSelection(name);
         }
@@ -495,23 +604,51 @@ export class SolverEditors {
         // again, not only when something scrolls.
         if (update.geometryChanged || update.viewportChanged) this.#schedule();
       });
-    const make = (name: PaneName, parent: HTMLElement, doc: string, extensions: Extension) =>
+    const make = (
+      name: PaneName,
+      parent: HTMLElement,
+      doc: string,
+      extensions: Extension,
+    ) =>
       new EditorView({
         parent,
-        state: EditorState.create({ doc, extensions: [common, folding, language.of([]), extensions, watch(name)] }),
+        state: EditorState.create({
+          doc,
+          extensions: [
+            common,
+            folding,
+            language.of([]),
+            extensions,
+            watch(name),
+          ],
+        }),
       });
     this.views = {
       ours: make("ours", hosts.ours, docs.oursText, sideExtensions("Ours")),
-      theirs: make("theirs", hosts.theirs, docs.theirsText, sideExtensions("Theirs")),
-      result: make("result", hosts.result, docs.resultText, resultExtensions(docs)),
+      theirs: make(
+        "theirs",
+        hosts.theirs,
+        docs.theirsText,
+        sideExtensions("Theirs"),
+      ),
+      result: make(
+        "result",
+        hosts.result,
+        docs.resultText,
+        resultExtensions(docs),
+      ),
     };
     this.#saved = this.views.result.state.doc;
     this.#snapshot = this.#compute();
     for (const name of ["ours", "result", "theirs"] as const) {
-      this.views[name].scrollDOM.addEventListener("scroll", () => this.#scrolled(name));
+      this.views[name].scrollDOM.addEventListener("scroll", () =>
+        this.#scrolled(name),
+      );
       // A fold row opens its gap in every pane, so they stay alike.
       this.views[name].dom.addEventListener("mousedown", (event) => {
-        const row = (event.target as HTMLElement | null)?.closest<HTMLElement>(".sv-fold");
+        const row = (event.target as HTMLElement | null)?.closest<HTMLElement>(
+          ".sv-fold",
+        );
         if (!row) return;
         event.preventDefault();
         this.#opened.add(Number(row.dataset.gap));
@@ -529,15 +666,21 @@ export class SolverEditors {
         : name === "ours"
           ? this.#docs.oursRows
           : this.#docs.theirsRows;
-    const at = rows.findIndex((row) => line >= row.start && line < row.start + Math.max(row.count, 1));
+    const at = rows.findIndex(
+      (row) => line >= row.start && line < row.start + Math.max(row.count, 1),
+    );
     return at === -1 ? null : (this.#docs.hunks[at]?.id ?? null);
   }
 
   /** The hunk under the caret becomes the current one. */
   #followSelection(name: PaneName): void {
     const view = this.views[name];
-    const id = this.#hunkAtLine(name, view.state.doc.lineAt(view.state.selection.main.head).number - 1);
-    if (id !== null && id !== this.#current) queueMicrotask(() => this.setCurrent(id));
+    const id = this.#hunkAtLine(
+      name,
+      view.state.doc.lineAt(view.state.selection.main.head).number - 1,
+    );
+    if (id !== null && id !== this.#current)
+      queueMicrotask(() => this.setCurrent(id));
   }
 
   /** The hunk at a point of the screen, for a right click. */
@@ -579,11 +722,16 @@ export class SolverEditors {
       unresolved: [...unresolved],
       actions: this.#docs.hunks.map((hunk, at) => {
         const block = blocks[at];
-        return block ? visibleActions(hunk, blockLines(state, block)) : { ours: false, theirs: false };
+        return block
+          ? visibleActions(hunk, blockLines(state, block))
+          : { ours: false, theirs: false };
       }),
       takes: this.#docs.hunks.map((hunk, at) => {
         const block = blocks[at];
-        return takeChanges(hunk, block ? blockLines(state, block) : hunk.initial);
+        return takeChanges(
+          hunk,
+          block ? blockLines(state, block) : hunk.initial,
+        );
       }),
       tones: this.#docs.hunks.map((hunk, at) => {
         const block = blocks[at];
@@ -594,7 +742,10 @@ export class SolverEditors {
           theirs: hunkTone(hunk, "theirs", baseChanges, unresolved, current),
         };
       }),
-      dirty: this.#saved === null ? undoDepth(state) > 0 : !state.doc.eq(this.#saved),
+      dirty:
+        this.#saved === null
+          ? undoDepth(state) > 0
+          : !state.doc.eq(this.#saved),
       currentId: this.#current,
     };
   }
@@ -618,7 +769,10 @@ export class SolverEditors {
     const result = this.views.result;
     const wanted: Others = { rows: others, aligned: aligned && !resultBelow };
     const have = result.state.field(othersField);
-    if (have.aligned !== wanted.aligned || have.rows.join() !== wanted.rows.join()) {
+    if (
+      have.aligned !== wanted.aligned ||
+      have.rows.join() !== wanted.rows.join()
+    ) {
       result.dispatch({ effects: setOthers.of(wanted), annotations: [] });
     }
   }
@@ -633,8 +787,15 @@ export class SolverEditors {
     };
     for (const name of ["ours", "result", "theirs"] as const) {
       const view = this.views[name];
-      const folds = foldsOf(blocks[name], view.state.doc.lines, context, this.#opened);
-      if (JSON.stringify(view.state.field(foldsField)) !== JSON.stringify(folds)) {
+      const folds = foldsOf(
+        blocks[name],
+        view.state.doc.lines,
+        context,
+        this.#opened,
+      );
+      if (
+        JSON.stringify(view.state.field(foldsField)) !== JSON.stringify(folds)
+      ) {
         view.dispatch({ effects: setFolds.of(folds) });
       }
     }
@@ -651,7 +812,13 @@ export class SolverEditors {
       ids: this.#docs.hunks.map((hunk) => hunk.id),
       tones: this.#docs.hunks.map((hunk, at) => {
         const block = blocks[at];
-        return hunkTone(hunk, name, baseChanges, unresolved, block ? blockLines(state, block) : undefined);
+        return hunkTone(
+          hunk,
+          name,
+          baseChanges,
+          unresolved,
+          block ? blockLines(state, block) : undefined,
+        );
       }),
       pads,
       current: this.#current,
@@ -721,7 +888,11 @@ export class SolverEditors {
     const edge = geometry.result[at];
     if (!edge) return;
     const view = this.views.result;
-    const top = scrollToBlock(edge, view.scrollDOM.clientHeight, geometry.content.result);
+    const top = scrollToBlock(
+      edge,
+      view.scrollDOM.clientHeight,
+      geometry.content.result,
+    );
     this.#write("result", top);
     // The write is a scroll the Result swallows as its own echo, so the others are moved here.
     this.#syncOthers("result", top);
@@ -731,7 +902,9 @@ export class SolverEditors {
   #resultPads(): number[] {
     const others = this.views.result.state.field(othersField);
     const rows = blockRows(this.views.result.state);
-    return rows.map((row, at) => (others.aligned ? Math.max((others.rows[at] ?? 0) - row.count, 0) : 0));
+    return rows.map((row, at) =>
+      others.aligned ? Math.max((others.rows[at] ?? 0) - row.count, 0) : 0,
+    );
   }
 
   geometry(): Geometry {
@@ -751,7 +924,11 @@ export class SolverEditors {
         theirs: foldedHeight(lines("theirs"), theirsPads, folds("theirs")),
         result: foldedHeight(lines("result"), resultPads, folds("result")),
       },
-      scroll: { ours: scroller("ours").scrollTop, result: scroller("result").scrollTop, theirs: scroller("theirs").scrollTop },
+      scroll: {
+        ours: scroller("ours").scrollTop,
+        result: scroller("result").scrollTop,
+        theirs: scroller("theirs").scrollTop,
+      },
       viewport: {
         ours: scroller("ours").clientHeight,
         result: scroller("result").clientHeight,

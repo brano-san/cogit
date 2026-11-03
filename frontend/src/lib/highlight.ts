@@ -1,6 +1,9 @@
 import { classHighlighter, highlightTree } from "@lezer/highlight";
 import type { Parser } from "@lezer/common";
-import { LanguageDescription, type LanguageSupport } from "@codemirror/language";
+import {
+  LanguageDescription,
+  type LanguageSupport,
+} from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
 
 export interface Token {
@@ -31,12 +34,18 @@ const EXTRA_EXTENSIONS: Record<string, string> = {
 
 /** The grammar name for a path, as `@codemirror/language-data` knows it. */
 export function languageOf(path: string): string | null {
-  const name = path.slice(Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")) + 1);
+  const file = path.slice(
+    Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")) + 1,
+  );
+  const name = /^.+.in$/i.test(file) ? file.slice(0, -3) : file;
   const dot = name.lastIndexOf(".");
   const ext = dot >= 0 ? name.slice(dot + 1).toLowerCase() : "";
   const extra = EXTRA_EXTENSIONS[ext];
   if (extra) return extra;
-  const found = LanguageDescription.matchFilename(languages, dot >= 0 ? `${name.slice(0, dot)}.${ext}` : name);
+  const found = LanguageDescription.matchFilename(
+    languages,
+    dot >= 0 ? `${name.slice(0, dot)}.${ext}` : name,
+  );
   return found ? found.name.toLowerCase() : null;
 }
 
@@ -44,9 +53,19 @@ const parsers = new Map<string, Parser>();
 
 /** The grammar, for the highlighter here and for an editor alike: the editable side of a
     diff colours as the other one. */
-export function languageSupport(language: string | null): Promise<LanguageSupport | null> {
-  const description = language ? LanguageDescription.matchLanguageName(languages, ALIASES[language] ?? language, false) : null;
-  return description ? description.load().catch(() => null) : Promise.resolve(null);
+export function languageSupport(
+  language: string | null,
+): Promise<LanguageSupport | null> {
+  const description = language
+    ? LanguageDescription.matchLanguageName(
+        languages,
+        ALIASES[language] ?? language,
+        false,
+      )
+    : null;
+  return description
+    ? description.load().catch(() => null)
+    : Promise.resolve(null);
 }
 
 /** Fetches the grammar's chunk; `highlightLines` colours nothing for a language until it resolves. */
@@ -58,12 +77,15 @@ export async function loadLanguage(language: string | null): Promise<boolean> {
   return support !== null;
 }
 
-
 /** Parsed as one document so a comment spanning lines survives onto the next one. */
-export function highlightLines(lines: readonly string[], language: string | null): Token[][] {
+export function highlightLines(
+  lines: readonly string[],
+  language: string | null,
+): Token[][] {
   const empty = lines.map(() => [] as Token[]);
   const parser = language ? parsers.get(language) : undefined;
-  if (!parser || lines.length === 0 || lines.length > MAX_HIGHLIGHT_LINES) return empty;
+  if (!parser || lines.length === 0 || lines.length > MAX_HIGHLIGHT_LINES)
+    return empty;
 
   const starts: number[] = [];
   let at = 0;
@@ -81,7 +103,12 @@ export function highlightLines(lines: readonly string[], language: string | null
         const lineEnd = lineStart + (lines[line]?.length ?? 0);
         const start = Math.max(from, lineStart);
         const end = Math.min(to, lineEnd);
-        if (end > start) empty[line]?.push({ start: start - lineStart, end: end - lineStart, cls });
+        if (end > start)
+          empty[line]?.push({
+            start: start - lineStart,
+            end: end - lineStart,
+            cls,
+          });
         from = lineEnd + 1;
         line += 1;
       }
@@ -150,7 +177,8 @@ export function mergePieces(
     const start = bounds[i] ?? 0;
     const end = bounds[i + 1] ?? 0;
     if (end <= start) continue;
-    while (next < spans.length && Math.min(spans[next]!.end, length) <= start) next += 1;
+    while (next < spans.length && Math.min(spans[next]!.end, length) <= start)
+      next += 1;
     const span = spans[next];
     pieces.push({
       text: text.slice(start, end),
@@ -165,14 +193,19 @@ export function mergePieces(
 
 function byStart(tokens: readonly Token[]): readonly Token[] {
   for (let i = 1; i < tokens.length; i++) {
-    if (tokens[i]!.start < tokens[i - 1]!.start) return [...tokens].sort((a, b) => a.start - b.start);
+    if (tokens[i]!.start < tokens[i - 1]!.start)
+      return [...tokens].sort((a, b) => a.start - b.start);
   }
   return tokens;
 }
 
 /** Per piece between `bounds`, whether any of `ranges` covers it. Every range edge is a
     cut, so a range that touches a piece covers all of it. */
-function coverage(bounds: readonly number[], ranges: readonly [number, number][], length: number): boolean[] {
+function coverage(
+  bounds: readonly number[],
+  ranges: readonly [number, number][],
+  length: number,
+): boolean[] {
   const covered: boolean[] = [];
   if (ranges.length === 0) return covered;
   const at = new Map(bounds.map((bound, index) => [bound, index]));
