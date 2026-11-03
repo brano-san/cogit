@@ -14,13 +14,12 @@ impl HostMemory {
             .and_then(|bytes| serde_json::from_slice(&bytes).ok())
             .unwrap_or_default();
         self.file = Some(file);
-        self.used.clear();
         self.save();
         last
     }
 
     pub(crate) fn remember(&mut self, distro: &str) {
-        if self.file.is_some() && self.used.insert(distro.to_owned()) {
+        if self.used.insert(distro.to_owned()) {
             self.save();
         }
     }
@@ -51,6 +50,18 @@ mod tests {
         assert_eq!(memory.begin(file.clone()), ["Ubuntu", "Debian"]);
         memory.remember("Ubuntu");
         memory.remember("Ubuntu");
+
+        assert_eq!(HostMemory::default().begin(file), ["Ubuntu"]);
+    }
+
+    #[test]
+    fn a_distribution_used_before_the_run_began_is_kept() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("wsl.json");
+
+        let mut memory = HostMemory::default();
+        memory.remember("Ubuntu");
+        memory.begin(file.clone());
 
         assert_eq!(HostMemory::default().begin(file), ["Ubuntu"]);
     }

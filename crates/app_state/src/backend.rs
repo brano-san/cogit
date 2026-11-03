@@ -1025,16 +1025,22 @@ impl AppState {
 
     pub fn start_agents_of_last_run(&self, file: PathBuf) {
         let distros = self.hosts_used.lock().begin(file);
-        for distro in distros {
-            let started = std::time::Instant::now();
-            match self.started_agent(&Host::Wsl { distro }) {
-                Ok(_) => tracing::info!(
-                    elapsed_ms = started.elapsed().as_millis(),
-                    "agent of the last run started ahead"
-                ),
-                Err(err) => tracing::error!(error = ?err, context = "agent of the last run"),
+        std::thread::scope(|scope| {
+            for distro in distros {
+                scope.spawn(move || {
+                    let started = std::time::Instant::now();
+                    match self.started_agent(&Host::Wsl { distro }) {
+                        Ok(_) => tracing::info!(
+                            elapsed_ms = started.elapsed().as_millis(),
+                            "agent of the last run started ahead"
+                        ),
+                        Err(err) => {
+                            tracing::error!(error = ?err, context = "agent of the last run");
+                        }
+                    }
+                });
             }
-        }
+        });
     }
 
     fn agent(&self, host: &Host) -> Result<Arc<Agent>, GitError> {
@@ -1045,9 +1051,20 @@ impl AppState {
     }
 
     fn started_agent(&self, host: &Host) -> Result<Arc<Agent>, GitError> {
-        let mut agents = self.agents.lock();
-        if let Some(agent) = agents.get(host).filter(|agent| !agent.is_gone()) {
-            return Ok(agent.clone());
+        let live = || {
+            self.agents
+                .lock()
+                .get(host)
+                .filter(|agent| !agent.is_gone())
+                .cloned()
+        };
+        if let Some(agent) = live() {
+            return Ok(agent);
+        }
+        let gate = Arc::clone(self.agent_starts.lock().entry(host.clone()).or_default());
+        let _starting = gate.lock();
+        if let Some(agent) = live() {
+            return Ok(agent);
         }
         let sink = Arc::new(crate::agent_events::Sink {
             host: host.clone(),
@@ -1087,7 +1104,7 @@ impl AppState {
         {
             tracing::error!(error = ?err, context = "graph budget in the agent");
         }
-        agents.insert(host.clone(), agent.clone());
+        self.agents.lock().insert(host.clone(), agent.clone());
         Ok(agent)
     }
 }

@@ -256,6 +256,7 @@ pub struct AppState {
     /// External merge tools running, one per conflicted file.
     merge_tools: merge_tool::MergeTools,
     agents: parking_lot::Mutex<HashMap<backend::Host, Arc<backend::Agent>>>,
+    agent_starts: parking_lot::Mutex<HashMap<backend::Host, Arc<parking_lot::Mutex<()>>>>,
     hosts_used: parking_lot::Mutex<host_memory::HostMemory>,
     command_tap: Arc<std::sync::OnceLock<journal::CommandTap>>,
     window: std::sync::OnceLock<agent::Events>,
@@ -312,6 +313,7 @@ impl AppState {
             reads: reads::Cancellations::default(),
             merge_tools: merge_tool::MergeTools::default(),
             agents: parking_lot::Mutex::new(HashMap::new()),
+            agent_starts: parking_lot::Mutex::new(HashMap::new()),
             hosts_used: parking_lot::Mutex::default(),
             command_tap: Arc::default(),
             window: std::sync::OnceLock::new(),
