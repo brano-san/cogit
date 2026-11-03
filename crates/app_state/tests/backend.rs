@@ -144,7 +144,8 @@ const BY_HAND: [&str; 18] = [
     "save_config_file",
 ];
 
-const ON_WINDOWS: [(&str, &str); 9] = [
+const ON_WINDOWS: [(&str, &str); 10] = [
+    ("background_turn", "the queue of Windows"),
     ("cancel_merge_tool", "the merge tool runs on Windows"),
     ("merge_tools_running", "the merge tool runs on Windows"),
     ("agent_process_id", "the agent process itself"),

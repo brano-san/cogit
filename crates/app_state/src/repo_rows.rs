@@ -22,7 +22,9 @@ impl crate::AppState {
     /// Asks the server, writes nothing; a failure is logged and means "unknown" (R-354).
     /// Sends what is stored for the host, never asks (F-082).
     pub fn pull_probe(&self, root: &Path) -> Result<Option<bool>, GitError> {
-        let _quiet = self.find_by_root(root).map(|repo| self.quiet_briefly(repo));
+        let open = self.find_by_root(root);
+        let _turn = open.map(|repo| self.background_turn(repo));
+        let _quiet = open.map(|repo| self.quiet_briefly(repo));
         let probed = self
             .on_host_of(root, |root| crate::backend::Request::PullProbe { root })
             .unwrap_or_else(|| {

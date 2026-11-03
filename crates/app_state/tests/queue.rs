@@ -337,3 +337,41 @@ async fn a_submodule_opened_from_its_parent_waits_in_the_parents_lane() {
 
     waits_behind(&state, child, parent).await;
 }
+
+#[tokio::test]
+async fn a_background_fetch_waits_its_turn_unseen_and_holds_the_lane() {
+    let (state, repo) = opened();
+    let push = state.enqueue(repo, OperationKind::Push, "Pushing").await;
+
+    let background = Arc::clone(&state);
+    let (took, turn) = std::sync::mpsc::channel();
+    let (done, finished) = std::sync::mpsc::channel::<()>();
+    let fetch = tokio::task::spawn_blocking(move || {
+        let _turn = background.background_turn(repo);
+        took.send(()).unwrap();
+        finished.recv().unwrap();
+    });
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    assert!(turn.try_recv().is_err(), "it ran beside the push");
+    assert_eq!(state.operations().len(), 1, "the footer showed it");
+
+    push.finish(true);
+    tokio::task::spawn_blocking(move || turn.recv().unwrap())
+        .await
+        .unwrap();
+
+    let commit = Arc::clone(&state);
+    let committing = tokio::spawn(async move {
+        commit
+            .enqueue(repo, OperationKind::Commit, "Committing")
+            .await
+            .finish(true);
+    });
+    until(&state, 1).await;
+    assert_eq!(state.operations()[0].phase, OperationPhase::Queued);
+
+    done.send(()).unwrap();
+    fetch.await.unwrap();
+    committing.await.unwrap();
+    until(&state, 0).await;
+}

@@ -69,7 +69,7 @@ pub use journal::{CommandNotice, CommandRow, command_log_text, command_rows, is_
 pub use network::NetworkRun;
 pub use password_store::{StoreError, StoreState};
 pub use presets::PresetStatus;
-pub use queue::{Operation, OperationKind, OperationPermit, OperationPhase, Queue};
+pub use queue::{BackgroundTurn, Operation, OperationKind, OperationPermit, OperationPhase, Queue};
 pub use reads::{Cancel, ReadRun};
 pub use ref_batch::{
     FailedDeletion, RefDeletion, RefDeletionKind, RefDeletionReport, SkippedDeletion,

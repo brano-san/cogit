@@ -65,7 +65,14 @@ pub struct Operation {
 #[derive(Debug, Default)]
 struct Lane {
     running: Option<Operation>,
-    waiting: VecDeque<(Operation, oneshot::Sender<()>)>,
+    background: bool,
+    waiting: VecDeque<(Option<Operation>, oneshot::Sender<()>)>,
+}
+
+impl Lane {
+    fn free(&self) -> bool {
+        self.running.is_none() && !self.background
+    }
 }
 
 /// Keyed by `OpenRepo::lane`: a linked worktree or a submodule writes into the files of
@@ -105,15 +112,27 @@ impl Queue {
             cancellable,
         };
 
-        if lane.running.is_none() {
+        if lane.free() {
             operation.phase = OperationPhase::Running;
             lane.running = Some(operation.clone());
             return (operation, None);
         }
 
         let (wake, wait) = oneshot::channel();
-        lane.waiting.push_back((operation.clone(), wake));
+        lane.waiting.push_back((Some(operation.clone()), wake));
         (operation, Some(wait))
+    }
+
+    fn admit_background(&self, lane: &Path) -> Option<oneshot::Receiver<()>> {
+        let mut lanes = self.lanes.lock();
+        let lane = lanes.entry(lane.to_path_buf()).or_default();
+        if lane.free() {
+            lane.background = true;
+            return None;
+        }
+        let (wake, wait) = oneshot::channel();
+        lane.waiting.push_back((None, wake));
+        Some(wait)
     }
 
     /// Hands the lane to whoever is next in it.
@@ -123,15 +142,22 @@ impl Queue {
             return;
         };
         lane.running = None;
+        lane.background = false;
 
-        while let Some((mut next, wake)) = lane.waiting.pop_front() {
-            next.phase = OperationPhase::Running;
-            lane.running = Some(next);
+        while let Some((next, wake)) = lane.waiting.pop_front() {
+            match next {
+                Some(mut next) => {
+                    next.phase = OperationPhase::Running;
+                    lane.running = Some(next);
+                }
+                None => lane.background = true,
+            }
             if wake.send(()).is_ok() {
                 return;
             }
             // Its caller is gone — the command was dropped before its turn came.
             lane.running = None;
+            lane.background = false;
         }
         lanes.remove(key);
         drop(lanes);
@@ -146,11 +172,11 @@ impl Queue {
             .values()
             .filter_map(|lane| lane.running.clone())
             .collect();
-        out.extend(
-            lanes
-                .values()
-                .flat_map(|lane| lane.waiting.iter().map(|(operation, _)| operation.clone())),
-        );
+        out.extend(lanes.values().flat_map(|lane| {
+            lane.waiting
+                .iter()
+                .filter_map(|(operation, _)| operation.clone())
+        }));
         out.sort_by_key(|operation| operation.id);
         out
     }
@@ -220,6 +246,14 @@ impl crate::AppState {
         }
     }
 
+    pub fn background_turn(&self, repo: RepoId) -> BackgroundTurn<'_> {
+        let lane = self.lane_of(repo);
+        if let Some(wait) = self.queue.admit_background(&lane) {
+            let _ = wait.blocking_recv();
+        }
+        BackgroundTurn { state: self, lane }
+    }
+
     /// Everything queued or running, for a panel that has just been opened again (P1.5).
     #[must_use]
     pub fn operations(&self) -> Vec<Operation> {
@@ -286,6 +320,18 @@ impl Drop for OperationPermit<'_> {
     /// A command that returned early, or panicked, must not wedge the lane shut.
     fn drop(&mut self) {
         self.settle(false);
+    }
+}
+
+#[derive(Debug)]
+pub struct BackgroundTurn<'a> {
+    state: &'a crate::AppState,
+    lane: PathBuf,
+}
+
+impl Drop for BackgroundTurn<'_> {
+    fn drop(&mut self) {
+        self.state.queue.release(&self.lane);
     }
 }
 
