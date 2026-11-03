@@ -1,4 +1,5 @@
 import { setTaskbarState, type Flash, type TaskbarSignals } from "$lib/ipc";
+import { latestOnly } from "$lib/latest-only";
 import { signalsFor } from "$lib/taskbar";
 import { network } from "$stores/network.svelte";
 import { operationNotices } from "$stores/op-notify.svelte";
@@ -18,6 +19,12 @@ class TaskbarStore {
   #unviewed = $state(0);
   #flash = $state<Flash | null>(null);
   #sent = "";
+  #paint = latestOnly<TaskbarSignals>(
+    (signals) => setTaskbarState(signals),
+    () => {
+      this.#sent = "";
+    },
+  );
 
   get unviewed(): number {
     return this.#unviewed;
@@ -131,9 +138,7 @@ class TaskbarStore {
     const key = JSON.stringify(signals);
     if (key === this.#sent && !signals.flash) return;
     this.#sent = key;
-    void setTaskbarState(signals).catch(() => {
-      // No taskbar to paint (a browser, a headless run): nothing to report.
-    });
+    this.#paint(signals);
     if (this.#flash !== null) this.#flash = null;
   }
 }

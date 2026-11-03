@@ -30,6 +30,8 @@ const entry = (id: number, kind: "error" | "warning") => ({
   repeats: 1,
 });
 
+const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
+
 const lastSignals = () => {
   const calls = commands.setTaskbarState.mock.calls as unknown as [Record<string, unknown>][];
   return calls[calls.length - 1]?.[0];
@@ -38,21 +40,23 @@ const lastSignals = () => {
 // A failed fetch/pull/push goes to the Errors window, not to the notification queue the
 // taskbar read, so the button showed it as a success.
 describe("taskbar and the Errors window", () => {
-  it("counts a failed command as an error and is an unviewed event", () => {
+  it("counts a failed command as an error and is an unviewed event", async () => {
     const stop = taskbar.start();
     flushSync();
     errorWindow.add(entry(1, "error") as never);
     flushSync();
+    await settled();
     expect(lastSignals()).toMatchObject({ errors: 1 });
     expect(taskbar.unviewed).toBe(1);
     stop();
   });
 
-  it("counts a conflict warning too", () => {
+  it("counts a conflict warning too", async () => {
     const stop = taskbar.start();
     flushSync();
     errorWindow.add(entry(2, "warning") as never);
     flushSync();
+    await settled();
     expect(lastSignals()).toMatchObject({ warnings: 1 });
     stop();
   });
