@@ -256,17 +256,19 @@ pub fn centre_on_monitor_of<R: tauri::Runtime>(
     else {
         return;
     };
-    let Ok(size) = window.outer_size() else {
-        return;
-    };
-    let now = centred_on(
-        (
-            i32::try_from(size.width).unwrap_or(i32::MAX),
-            i32::try_from(size.height).unwrap_or(i32::MAX),
-        ),
-        screen,
-    );
-    let _ = window.set_position(tauri::PhysicalPosition::new(now.x, now.y));
+    for _ in 0..2 {
+        let Ok(size) = window.outer_size() else {
+            return;
+        };
+        let now = centred_on(
+            (
+                i32::try_from(size.width).unwrap_or(i32::MAX),
+                i32::try_from(size.height).unwrap_or(i32::MAX),
+            ),
+            screen,
+        );
+        let _ = window.set_position(tauri::PhysicalPosition::new(now.x, now.y));
+    }
 }
 
 #[cfg(test)]
