@@ -129,6 +129,7 @@
     diff={diff.diff}
     path={diff.shownPath}
     stageable={diff.stageable}
+    hunkButtons={false}
     onstage={(keys, reverse) => onstage(keys, reverse)}
     {onblame}
     whitespace={diff.whitespace}

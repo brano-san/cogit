@@ -89,6 +89,7 @@
     path: string;
     /** Only the working tree can be staged; a commit's diff is read-only. */
     stageable?: boolean;
+    hunkButtons?: boolean;
     /** Stages (or, `reverse`, unstages) the lines of a block, by line key. */
     onstage?: (keys: ReadonlySet<string>, reverse: boolean) => void;
     onblame?: () => void;
@@ -115,6 +116,7 @@
     diff,
     path,
     stageable: stageableFile = false,
+    hunkButtons = true,
     onstage,
     onblame,
     whitespace = "none",
@@ -197,7 +199,7 @@
           newTotal: diff.newTotal,
           context: diffStore.foldContext,
           revealed: settings.current.diffWholeFile ? [EVERY_LINE] : revealed,
-          strips: stageable,
+          strips: stageable && hunkButtons,
         })
       : [],
   );
@@ -837,7 +839,7 @@
       gap,
       hunk,
       role,
-      stageable,
+      stageable: stageable && hunkButtons,
       actions: diffStore.lineActions,
       frozen: dirty ? SAVE_FIRST : null,
       onopen: (how: "up" | "down" | "all", event: MouseEvent) => openGap(gap, how, event),
