@@ -112,7 +112,7 @@
   import { installSelectAll, selectAllFromMenu } from "$lib/select-all";
   import { needsPush, pullRequestFor } from "$lib/pull-request";
   import { commitScope } from "$lib/commit-scope";
-  import { activity, applyOperation, cancellable, trackCancellable, trackStarting } from "$lib/operations";
+  import { activity, applyOperation, cancellable, trackCancellable, trackStarting, restartsLost } from "$lib/operations";
   import { measurer } from "$lib/timing";
   import { watchFrameStalls } from "$lib/frame-stalls";
   import { item as menuItem, refMenu, setMenuKeys } from "$lib/context-menu";
@@ -1115,16 +1115,24 @@
   }
 
   let startingBackends = $state<string[]>([]);
+  const agentRestarts = new Map<string, number>();
 
   function onBackendChanged(event: import("$lib/ipc").BackendChanged) {
     startingBackends = trackStarting(startingBackends, event);
-    if (event.state.state === "lost") {
-      notices.report(
-        { kind: "unavailable", data: `${event.state.reason}
-Refresh (F5) starts it again.` },
-        `Cogit lost its agent in ${event.host}`,
-      );
+    if (event.state.state !== "lost") return;
+    const now = Date.now();
+    if (restartsLost(agentRestarts, event.host, now)) {
+      agentRestarts.set(event.host, now);
+      setTimeout(() => {
+        for (const kind of EVERYTHING) diskPasses.add(kind);
+      }, 1000);
+      return;
     }
+    notices.report(
+      { kind: "unavailable", data: `${event.state.reason}
+It was restarted less than a minute ago. Refresh (F5) starts it again.` },
+      `Cogit lost its agent in ${event.host}`,
+    );
   }
 
   function onWatchLimited(event: import("$lib/ipc").WatchLimited) {

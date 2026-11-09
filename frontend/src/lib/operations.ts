@@ -74,6 +74,13 @@ export function trackStarting(starting: readonly string[], event: BackendChanged
   return event.state.state === "starting" ? [...others, event.host] : others;
 }
 
+const RESTART_AGAIN_AFTER_MS = 60_000;
+
+export function restartsLost(restarted: ReadonlyMap<string, number>, host: string, now: number): boolean {
+  const last = restarted.get(host);
+  return last === undefined || now - last >= RESTART_AGAIN_AFTER_MS;
+}
+
 /** One line for the whole app: the toolbar and the footer showed the same thing twice. */
 export function activity(input: ActivityInput): Activity {
   const busy =

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activity, applyOperation, busyLabel, cancellable, trackCancellable, trackStarting } from "./operations";
+import { activity, applyOperation, busyLabel, cancellable, trackCancellable, trackStarting, restartsLost } from "./operations";
 
 const start = (id: number, label: string) => ({ id, label, success: null });
 const end = (id: number, success: boolean) => ({ id, label: "", success });
@@ -186,5 +186,18 @@ describe("activity of an update", () => {
       failed: false,
     });
     expect(shown).toMatchObject({ label: "Downloading Cogit 0.3.2… 40%", busy: true, fraction: 0.4 });
+  });
+});
+
+describe("restartsLost", () => {
+  it("restarts a lost agent in the background", () => {
+    expect(restartsLost(new Map(), "WSL: Ubuntu", 1_000)).toBe(true);
+  });
+
+  it("gives up when the agent was restarted less than a minute ago", () => {
+    const restarted = new Map([["WSL: Ubuntu", 1_000]]);
+    expect(restartsLost(restarted, "WSL: Ubuntu", 30_000)).toBe(false);
+    expect(restartsLost(restarted, "WSL: Ubuntu", 62_000)).toBe(true);
+    expect(restartsLost(restarted, "WSL: Debian", 30_000)).toBe(true);
   });
 });
