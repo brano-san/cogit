@@ -178,6 +178,7 @@
     inset: 0;
     background: var(--scrim);
     opacity: var(--scrim-opacity);
+    animation: fade-in var(--t-dialog) var(--ease-out);
   }
 
   .dialog {
@@ -197,6 +198,7 @@
     border-radius: var(--r-md);
     box-shadow: var(--shadow-popover);
     overflow: hidden;
+    animation: pop-in var(--t-dialog) var(--ease-out);
   }
 
   .dialog:focus-visible {

@@ -158,6 +158,7 @@
     letter-spacing: 0;
     text-transform: none;
     pointer-events: none;
+    animation: fade-in var(--t-fast) var(--ease-out);
   }
 
   .text {

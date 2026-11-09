@@ -86,6 +86,7 @@
     border-radius: var(--r-sm);
     box-shadow: var(--shadow-popover);
     overflow-y: auto;
+    animation: fade-in var(--t-fast) var(--ease-out);
   }
 
   button {

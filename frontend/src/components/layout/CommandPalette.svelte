@@ -129,6 +129,7 @@
     border-radius: var(--r-md);
     box-shadow: var(--shadow-dialog);
     overflow: hidden;
+    animation: pop-in var(--t-dialog) var(--ease-out);
   }
 
   input {

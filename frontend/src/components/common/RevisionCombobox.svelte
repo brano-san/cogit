@@ -326,6 +326,7 @@
     border-radius: var(--r-sm);
     box-shadow: var(--shadow-popover);
     font-size: var(--fs-dense);
+    animation: fade-in var(--t-fast) var(--ease-out);
   }
 
   .group {

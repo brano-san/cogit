@@ -175,6 +175,7 @@
     border-left: 3px solid var(--notice-accent);
     border-radius: var(--r-md);
     box-shadow: var(--shadow-popover);
+    animation: rise-in var(--t-dialog) var(--ease-out);
   }
 
   .notice.warning {
