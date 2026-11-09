@@ -141,7 +141,7 @@
   }
 
   input::-webkit-search-cancel-button {
-    appearance: none;
+    display: none;
   }
 
   input:focus-visible {
