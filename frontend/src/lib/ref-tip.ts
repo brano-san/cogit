@@ -51,6 +51,8 @@ export function refTip(node: RefNode, details: CommitDetails | null): string | n
       head.push(`Stash: ${node.rev ?? node.label}`, `Comment: ${node.label}`);
       if (details) head.push(`Commit Message: ${details.summary}`, `ID: ${details.oid.slice(0, 8)}`);
       return head.join("\n");
+    case "other":
+      return details ? commitLines(details).join("\n") : (node.rev ?? node.label);
     default:
       return null;
   }

@@ -53,6 +53,19 @@ describe("refTip", () => {
     expect(refTip(stash, details)?.split("\n").slice(0, 2)).toEqual(["Stash: stash@{0}", "Comment: WIP on feature"]);
   });
 
+  it("describes the commit an other ref points at", () => {
+    const other = { id: "other:refs/backup/x", kind: "other", label: "backup/x", depth: 1, rev: "refs/backup/x", oid: details.oid } as RefNode;
+    expect(refTip(other, null)).toBe("refs/backup/x");
+    expect(refTip(other, details)?.split("\n")).toEqual([
+      "Date: 2026-09-18 15:36",
+      "Author: Ann <ann@x.org>",
+      "Commit Message: Merge remote-tracking branch 'origin/master'",
+      "Commit Date: 2026-09-18 15:37",
+      "Committer: Bob <bob@x.org>",
+      "ID: 2b7ccefb",
+    ]);
+  });
+
   it("has nothing to say of a folder", () => {
     expect(refTip({ id: "f", kind: "folder", label: "feature", depth: 0 }, null)).toBeNull();
   });
