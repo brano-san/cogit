@@ -26,6 +26,9 @@
   import { triState } from "$lib/tri-state-box";
   import { worktreeMarkTooltip } from "$lib/worktree-list";
   import { settings } from "$stores/settings.svelte";
+  import { commitDetails, type CommitDetails } from "$lib/ipc";
+  import { refTip } from "$lib/ref-tip";
+  import { repository } from "$stores/repository.svelte";
 
   interface Props {
     input: RefTreeInput;
@@ -199,6 +202,32 @@
     else if (action.kind === "fold") fold(at, action.open);
     else if (nodes[at]) activate(nodes[at]);
   }
+
+  let tips = $state.raw<ReadonlyMap<string, CommitDetails>>(new Map());
+  let tipsFor: unknown = null;
+
+  async function readTip(node: RefNode) {
+    const repo = repository.current?.repo;
+    if (!repo || !node.oid || refTip(node, null) === null) return;
+    if (tipsFor !== repo) {
+      tipsFor = repo;
+      tips = new Map();
+    }
+    if (tips.has(node.oid)) return;
+    const details = await commitDetails(repo, node.oid).catch(() => null);
+    if (details && tipsFor === repo) tips = new Map(tips).set(node.oid, details);
+  }
+
+  function titleOf(node: RefNode): string | undefined {
+    if (node.kind === "folder") return undefined;
+    return (
+      refTip(node, node.oid ? (tips.get(node.oid) ?? null) : null) ??
+      node.branch?.name ??
+      node.tag?.name ??
+      node.detail ??
+      (node.kind === "lost" ? `${node.oid} ${node.label}` : node.label)
+    );
+  }
 </script>
 
 <!-- Roving focus: the rows take it one at a time, the tree itself never does. -->
@@ -226,13 +255,16 @@
       aria-expanded={foldable(node) ? node.open === true : undefined}
       tabindex="-1"
       data-node={node.id}
-      title={node.branch?.name ?? node.tag?.name ?? node.detail ?? (node.kind === "lost" ? `${node.oid} ${node.label}` : node.label)}
+      title={titleOf(node)}
       data-ref={ondrop ? nodeDrag(node) : undefined}
       onclick={(event) => rowClick(node, event)}
       ondblclick={(event) => {
         if (!(event.target as Element).closest("input, .disclosure")) activate(node);
       }}
-      onpointerenter={() => onhover?.(node)}
+      onpointerenter={() => {
+        onhover?.(node);
+        void readTip(node);
+      }}
       oncontextmenu={(event) => {
         if (!oncontext) return;
         rowContext(node, event);
@@ -254,7 +286,7 @@
         aria-label="Show {node.label} in the graph"
       />
 
-      {#if node.kind === "folder"}<KindIcon kind="directory" title="Folder" />{/if}
+      {#if node.kind === "folder"}<KindIcon kind="directory" title="" />{/if}
       {#if node.lead}<span class="lead">{node.lead}</span>{/if}
 
       <button

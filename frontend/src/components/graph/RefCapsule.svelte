@@ -11,12 +11,13 @@
     onmenu?: (event: MouseEvent, ref: RefLabel) => void;
     /** Double click: that ref's own Check Out, not its commit's (item 40). */
     onactivate?: (ref: RefLabel) => void;
+    commit?: string;
   }
 
-  let { label, onmenu, onactivate }: Props = $props();
+  let { label, onmenu, onactivate, commit }: Props = $props();
 
   const parts = $derived(labelParts(label));
-  const tooltip = $derived(label.title ?? label.text);
+  const tooltip = $derived([label.title ?? label.text, commit].filter(Boolean).join("\n"));
   /** The joined label's tooltip without its upstream line: the local part's. */
   const localTip = $derived(tooltip.split("\n").filter((line) => line !== label.upstream).join("\n"));
   const text = $derived(label.upstream !== undefined ? (label.name ?? "") : label.text);

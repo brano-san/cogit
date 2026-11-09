@@ -19,6 +19,7 @@
   import { settings } from "$stores/settings.svelte";
   import { signatures } from "$stores/signatures.svelte";
   import { signatureBadge, signatureLabel } from "$lib/signature";
+  import { rowTip } from "$lib/ref-tip";
 
   /** What a commit's row in the graph shows, inside the row the list positions. */
   interface Props {
@@ -87,6 +88,7 @@
 {#each refs.shown as label (refLabelKey(label))}
   <RefCapsule
     {label}
+    commit={rowTip(entry.commit)}
     onmenu={onrefmenu && ((event, ref) => onrefmenu(ref, event))}
     onactivate={onrefactivate && ((ref) => onrefactivate(ref))}
   />
