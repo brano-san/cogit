@@ -248,14 +248,13 @@ export const PAGE = String.raw`(() => {
       return { x: r.left + r.width / 2, y: r.top + r.height / 2, count: all.length };
     },
     locate(spec) {
-      // One section left (an empty Staged is hidden) means a pane with no heading at all.
       const panes = [...document.querySelectorAll(".pane.tree-rows")];
-      const headed = panes.filter((pane) => pane.querySelector(".heading"));
+      const named = panes.filter((pane) => pane.dataset.section);
       const roots = !spec.section
         ? [document]
-        : headed.length === 0
+        : named.length === 0
           ? panes
-          : headed.filter((pane) => pane.querySelector(".heading").textContent.trim().startsWith(spec.section));
+          : named.filter((pane) => pane.dataset.section === spec.section);
       let all = roots.flatMap((root) => [...root.querySelectorAll(spec.sel)]);
       if (spec.text !== undefined) {
         all = all.filter((el) => {

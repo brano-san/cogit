@@ -1,5 +1,4 @@
 import type { ContextItem } from "./ipc";
-import type { FileMode } from "./ipc/bindings";
 import { SEPARATOR, item, offer, submenu, tidy } from "./context-menu";
 
 /** The Working Tree's two lists: unstaged changes are the working tree, staged the index. */
@@ -15,6 +14,7 @@ export interface WorktreeFileTarget {
   fileManager: string;
   /** Why Edit has nothing to open for the right-clicked file (`editRoute`), or null. */
   editBlocked?: string | null;
+  modeChanged?: boolean;
 }
 
 const NO_HISTORY = new Set(["untracked", "added"]);
@@ -43,28 +43,6 @@ function deleteBlocked(statuses: readonly string[]): string | null {
 }
 
 /** The buttons on an Unstaged row (FilesPanel). */
-export type RowAction = "stage" | "mode" | "discard" | "ignore" | "delete";
-
-/** Why a row's button does not apply to its file, or null when it does: the menu's rule
-    for the one file, so a button never does what the menu refuses. */
-export function rowActionBlocked(
-  action: RowAction,
-  file: { status: string; modeChange: FileMode | null },
-): string | null {
-  switch (action) {
-    case "stage":
-      return stageBlocked([file.status]);
-    case "mode":
-      return file.modeChange ? null : "The mode did not change";
-    case "discard":
-      return discardBlocked([file.status]);
-    case "ignore":
-      return ignoreBlocked([file.status]);
-    case "delete":
-      return deleteBlocked([file.status]);
-  }
-}
-
 /** The Files panel on the Working Tree, in a fixed order (#40). */
 export function worktreeFileMenu(at: WorktreeFileTarget): ContextItem[] {
   const [status = "modified"] = at.statuses;
@@ -91,6 +69,7 @@ export function worktreeFileMenu(at: WorktreeFileTarget): ContextItem[] {
     item("file-stash", "Stash Selection…", !conflicted),
     SEPARATOR,
     item("file-stage", "Stage", at.unstaged && stageBlocked(at.statuses) === null),
+    item("file-stage-mode", "Stage Mode Change Only", at.unstaged && at.modeChanged === true),
     item("file-unstage", "Unstage", at.staged),
     offer("file-index-editor", "Index Editor…", single ?? (conflicted ? "resolve first" : null)),
     offer(

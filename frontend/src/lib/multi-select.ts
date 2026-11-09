@@ -61,17 +61,6 @@ export function markedRows(keys: Iterable<string>): { bySection: Map<number, Set
   return { bySection, paths: [...paths] };
 }
 
-/** Said by the button, not guessed from how many paths came: a heading listing one row
-    asks for that row, not for the marks. */
-export type ActionRequest = { row: string } | { all: readonly string[] };
-
-/** A row's button acts on the section's marked rows when it is one of them; a heading's
-    "all" acts on the rows it lists. */
-export function actionScope(marked: ReadonlySet<string>, request: ActionRequest): string[] {
-  if ("all" in request) return [...request.all];
-  return marked.has(request.row) && marked.size > 1 ? [...marked] : [request.row];
-}
-
 /** The shown file was let go — a re-clicked commit (#7) — so its marks go with it. Marks
     made while nothing was shown are kept: a ctrl-click marks without opening. */
 export function afterDeselect(
@@ -103,47 +92,4 @@ export function markRow(
 ): FileSelection {
   if (modifiers.ctrl || modifiers.shift) return applyClick(current, path, order, modifiers);
   return order.includes(path) ? { paths: new Set(), anchor: path } : current;
-}
-
-/** Why a row's button is off: the first file of those it would act on (`actionScope`) that
-    the rule refuses, so the button agrees with the menu for the same marks. */
-export function scopeBlocked<F>(
-  marked: ReadonlySet<string>,
-  row: string,
-  files: ReadonlyMap<string, F>,
-  blocked: (file: F) => string | null,
-): string | null {
-  return requestBlocked(marked, { row }, files, blocked);
-}
-
-/** For an action that passes over the files it does not apply to: off only when it applies
-    to none of `paths`, with the first one's reason. */
-export function everyBlocked<F>(
-  paths: readonly string[],
-  files: ReadonlyMap<string, F>,
-  blocked: (file: F) => string | null,
-): string | null {
-  let first: string | null = null;
-  for (const path of paths) {
-    const file = files.get(path);
-    const reason = file === undefined ? null : blocked(file);
-    if (reason === null) return null;
-    first ??= reason;
-  }
-  return first;
-}
-
-/** The same for any button: a row's, or a heading's "all" over the rows it lists. */
-export function requestBlocked<F>(
-  marked: ReadonlySet<string>,
-  request: ActionRequest,
-  files: ReadonlyMap<string, F>,
-  blocked: (file: F) => string | null,
-): string | null {
-  for (const path of actionScope(marked, request)) {
-    const file = files.get(path);
-    const reason = file === undefined ? null : blocked(file);
-    if (reason !== null) return reason;
-  }
-  return null;
 }

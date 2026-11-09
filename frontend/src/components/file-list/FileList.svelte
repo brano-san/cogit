@@ -3,7 +3,7 @@
   import { keyLetter } from "$lib/key-letter";
   import { modals } from "$lib/modal-stack";
   import { ON_MAC, primary } from "$lib/platform";
-  import { changeCount, sameLists, selectAllKeys } from "$lib/files-panel";
+  import { sameLists, selectAllKeys } from "$lib/files-panel";
   import { registerSelectAll } from "$lib/select-all";
   import { untrack } from "svelte";
   import FilesToolbar from "./FilesToolbar.svelte";
@@ -28,10 +28,6 @@
     type ListFile,
   } from "$lib/file-view";
   import {
-    actionScope,
-    everyBlocked,
-    requestBlocked,
-    scopeBlocked,
     afterDeselect,
     applyClick,
     EMPTY_SELECTION,
@@ -40,28 +36,14 @@
     shownMarks,
     type FileSelection,
   } from "$lib/multi-select";
-  import FilePane, { type PaneAction } from "$components/file-list/FilePane.svelte";
+  import FilePane from "$components/file-list/FilePane.svelte";
   import Splitter from "$components/layout/Splitter.svelte";
   import type { FileEntry } from "$lib/ipc";
   import type { StateSide } from "$lib/file-state";
 
-  interface Action {
-    label: string;
-    title: string;
-    /** The keys of the menu command that does the same, for the tip. */
-    shortcut?: string;
-    run: (paths: string[]) => void;
-    /** Why it does not apply to one row's file (`rowActionBlocked`). */
-    blocked?: (file: FileEntry) => string | null;
-    /** It passes over the files it does not apply to, so the heading's "all" is off only
-        when it applies to none. */
-    skips?: boolean;
-  }
-
   interface Section {
     title?: string;
     files: readonly ListFile[];
-    actions?: readonly Action[];
     /** Each section can open its own side of the diff. */
     onselect?: (path: string) => void;
     /** The file this section has open in Diff, when the list's `selected` is not enough:
@@ -261,22 +243,18 @@
     const key = sort.key === "lfs" ? null : JSON.stringify([gates, sort, active.directories]);
     return onceForList(files, key, () => {
       const sorted = sortRows(visibleFiles(files, gates), sort, active.directories, (path) => remoteOps.lfsState(path));
-      return {
-        sorted: unchanged ? changesFirst(sorted) : sorted,
-        byPath: new Map(files.map((file) => [file.path, file])),
-      };
+      return { sorted: unchanged ? changesFirst(sorted) : sorted };
     });
   }
 
   const groups = $derived(
-    prepared.map(({ section, index, sorted, byPath }) => {
+    prepared.map(({ section, index, sorted }) => {
       const side = sideOf(section);
       const files = pattern.test === null && hits === null ? sorted : sorted.filter((file) => keepFile(file, pattern, hits, side));
       const paths = files.map((file) => file.path);
       return {
         section,
         index,
-        byPath,
         files,
         paths,
         keys: paths.map((path) => rowKey(index, path)),
@@ -330,29 +308,6 @@
   const visibleMarks = $derived(shownMarks(marked, order));
   const marks = $derived(markedRows(visibleMarks.paths));
 
-  /** The rows marked in another section are not this section's to act on. */
-  function scoped(group: Group, actions: readonly Action[]): PaneAction[] {
-    const marked = () => marks.bySection.get(group.index) ?? NO_MARKS;
-    const byPath = group.byPath;
-    return actions.map((action) => {
-      const blocked = action.blocked;
-      return {
-        label: action.label,
-        title: action.title,
-        shortcut: action.shortcut,
-        run: (request) => action.run(actionScope(marked(), request)),
-        ...(blocked
-          ? {
-              blocked: (file: FileEntry) => scopeBlocked(marked(), file.path, byPath, blocked),
-              allBlocked: (paths: readonly string[]) =>
-                action.skips
-                  ? everyBlocked(paths, byPath, blocked)
-                  : requestBlocked(marked(), { all: paths }, byPath, blocked),
-            }
-          : {}),
-      };
-    });
-  }
 
   function startResize(key: ColumnKey, event: PointerEvent): void {
     event.preventDefault();
@@ -498,9 +453,6 @@
               <FilePane
                 rows={group.rows}
                 title={group.section.title}
-                paths={group.paths}
-                count={changeCount(group.files)}
-                actions={scoped(group, group.section.actions ?? [])}
                 {columns}
                 nested={active.directories}
                 side={sideOf(group.section)}
@@ -522,9 +474,6 @@
                 <FilePane
                   rows={group.rows}
                   title={layout.titled ? group.section.title : undefined}
-                  paths={group.paths}
-                  count={changeCount(group.files)}
-                  actions={scoped(group, group.section.actions ?? [])}
                   {columns}
                   nested={active.directories}
                   side={sideOf(group.section)}

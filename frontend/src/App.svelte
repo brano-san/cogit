@@ -2534,6 +2534,7 @@ ${event.error}`,
       unstaged: paths.some((each) => worktree.unstaged.some((file) => file.path === each)),
       fileManager: info.fileManager,
       editBlocked: refusal(editRoute(rowFile(path), rowPlace(path))),
+      modeChanged: paths.some((each) => worktree.unstaged.some((file) => file.path === each && file.modeChange !== null)),
     });
     await popupContextMenu(items, x, y).catch(() => {});
   }
@@ -2561,6 +2562,7 @@ ${event.error}`,
     commit: (paths) => void commitFiles(paths),
     stash: (paths) => void stashPaths(paths),
     stage: (paths) => void stage(paths),
+    stageMode: (paths) => void stageModeOnly(paths),
     unstage: (paths) => void unstage(paths),
     indexEditor: (path) => void openIndexEditor(path),
     move: (path) => void askMove(path),
@@ -4217,12 +4219,6 @@ ${event.error}`,
               }}
               oncount={(count) => (filesCount = count)}
               oncontext={fileContext}
-              {stage}
-              stagemode={stageModeOnly}
-              {unstage}
-              {discard}
-              {ignore}
-              remove={deleteFromDisk}
             />
           </Panel>
         </div>

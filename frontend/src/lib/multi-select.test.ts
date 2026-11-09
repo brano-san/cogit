@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  actionScope,
-  everyBlocked,
-  requestBlocked,
-  scopeBlocked,
   afterDeselect,
   applyClick,
   EMPTY_SELECTION,
@@ -135,23 +131,6 @@ describe("rows of a list in sections", () => {
   });
 });
 
-describe("actionScope", () => {
-  const marked = new Set(["x", "y"]);
-
-  it("gives a row's button every marked row when the row is marked", () => {
-    expect(actionScope(marked, { row: "x" })).toEqual(["x", "y"]);
-  });
-
-  it("gives an unmarked row's button that row alone", () => {
-    expect(actionScope(marked, { row: "z" })).toEqual(["z"]);
-  });
-
-  // Discard all under a filter that left one row: it discarded the marked rows out of sight.
-  it("gives a heading's all button the rows it lists, even when it lists one", () => {
-    expect(actionScope(marked, { all: ["x"] })).toEqual(["x"]);
-  });
-});
-
 describe("shownMarks", () => {
   it("leaves out the marked files the list no longer shows", () => {
     const marked = select(["a.txt", "gone.txt", "c.txt"], "gone.txt");
@@ -168,47 +147,3 @@ describe("shownMarks", () => {
 
 // A row's button acts on the marked rows it is one of, as the menu does: with a tracked
 // file marked beside an untracked one, Ignore must be off there as well.
-describe("scopeBlocked", () => {
-  const files = new Map([
-    ["new.txt", { status: "untracked" }],
-    ["old.txt", { status: "modified" }],
-  ]);
-  const ignore = (file: { status: string }) => (file.status === "untracked" ? null : "tracked");
-
-  it("asks only the row itself when it is not among the marked", () => {
-    expect(scopeBlocked(new Set(["old.txt"]), "new.txt", files, ignore)).toBeNull();
-  });
-
-  it("is off when any marked row it would act on is off", () => {
-    expect(scopeBlocked(new Set(["new.txt", "old.txt"]), "new.txt", files, ignore)).toBe("tracked");
-  });
-});
-
-// "Discard all" and "Ignore all" in the Unstaged heading ran on every row, untracked and
-// tracked alike, where each row's own button and the menu say no.
-describe("requestBlocked", () => {
-  const files = new Map([
-    ["new.txt", { status: "untracked" }],
-    ["old.txt", { status: "modified" }],
-  ]);
-  const ignore = (file: { status: string }) => (file.status === "untracked" ? null : "tracked");
-
-  it("is off for a heading's all when any row it lists is off", () => {
-    expect(requestBlocked(new Set(), { all: ["new.txt", "old.txt"] }, files, ignore)).toBe("tracked");
-    expect(requestBlocked(new Set(), { all: ["new.txt"] }, files, ignore)).toBeNull();
-  });
-});
-
-// "+x all" stages the mode change of the rows that have one and passes over the rest.
-describe("everyBlocked", () => {
-  const files = new Map([
-    ["run.sh", { mode: true }],
-    ["a.txt", { mode: false }],
-  ]);
-  const mode = (file: { mode: boolean }) => (file.mode ? null : "The mode did not change");
-
-  it("is off only when the action applies to none of the rows", () => {
-    expect(everyBlocked(["run.sh", "a.txt"], files, mode)).toBeNull();
-    expect(everyBlocked(["a.txt"], files, mode)).toBe("The mode did not change");
-  });
-});

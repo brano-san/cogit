@@ -1,20 +1,3 @@
-<script module lang="ts">
-  import type { FileEntry } from "$lib/ipc";
-  import type { ActionRequest } from "$lib/multi-select";
-
-  export interface PaneAction {
-    label: string;
-    title: string;
-    shortcut?: string;
-    run: (request: ActionRequest) => void;
-    /** Why the action does not apply to a row's file (`rowActionBlocked`, `scopeBlocked`):
-        the rule of the Files menu, kept for the heading's buttons (R-593). */
-    blocked?: (file: FileEntry) => string | null;
-    /** The same for the heading's "all" over the rows listed. */
-    allBlocked?: (paths: readonly string[]) => string | null;
-  }
-</script>
-
 <script lang="ts">
   import { tick } from "svelte";
   import Disclosure from "$components/common/Disclosure.svelte";
@@ -40,11 +23,6 @@
     title?: string;
     selected?: string | null;
     marked: ReadonlySet<string>;
-    actions?: readonly PaneAction[];
-    /** Paths shown here, for the "all" buttons in the heading. */
-    paths: readonly string[];
-    /** The heading's count, when not every row is a change (`changeCount`). */
-    count?: number;
     /** The columns of the table (#33), the same for every pane of the list. */
     columns: readonly ColumnKey[];
     /** Grouped by directory: a file is one level in, under its folder row. */
@@ -63,9 +41,6 @@
     title,
     selected = null,
     marked,
-    actions = [],
-    paths,
-    count,
     columns,
     nested = false,
     side = "worktree",
@@ -162,26 +137,7 @@
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="pane tree-rows key-list" style:--file-grid={template} bind:this={pane} {onkeydown}>
-  {#if title}
-    <div class="heading">
-      <span class="grow">{title} ({count ?? paths.length})</span>
-      {#each actions as action (action.label)}
-        {@const reason = action.allBlocked?.(paths) ?? null}
-        <button
-          type="button"
-          class="act"
-          class:off={reason !== null}
-          aria-disabled={reason !== null}
-          title={reason ?? `${action.title} — all`}
-          data-tip-hint={reason === null ? action.shortcut : undefined}
-          onclick={() => {
-            if (reason === null) action.run({ all: paths });
-          }}>{action.label} all</button
-        >
-      {/each}
-    </div>
-  {/if}
+<div class="pane tree-rows key-list" data-section={title} style:--file-grid={template} bind:this={pane} {onkeydown}>
 
   <VirtualList items={rows} label={title ?? "Files"} {reveal}>
     {#snippet row(entry, at)}
@@ -298,21 +254,6 @@
     height: 100%;
   }
 
-  .heading {
-    display: flex;
-    align-items: center;
-    flex: 0 0 auto;
-    height: var(--h-row-dense);
-    padding: 0 var(--sp-5);
-    background: var(--surface-raised);
-    color: var(--text-secondary);
-    font-size: var(--fs-header);
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    overflow: hidden;
-  }
-
   .row,
   .folder {
     position: absolute;
@@ -404,38 +345,6 @@
 
   .folder .count {
     margin-left: auto;
-  }
-
-  /* The count gives way before the buttons do: they are the heading's reason to be (R-593). */
-  /* The section's name stays whole; past it the "… all" buttons are cut on the right. */
-  .grow {
-    flex: 1 0 auto;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  /* Always there, not only under the pointer; a file row has none (R-593). */
-  .act {
-    flex: 0 0 auto;
-    padding: 0 var(--sp-3);
-    background: none;
-    border: 0;
-    color: var(--text-secondary);
-    font: inherit;
-    font-size: var(--fs-small);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    cursor: default;
-  }
-
-  .act:hover:not(:disabled, .off) {
-    color: var(--status-ref);
-  }
-
-  .act:disabled,
-  .act.off {
-    opacity: 0.4;
   }
 
   .state {

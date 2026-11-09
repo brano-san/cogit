@@ -26,6 +26,7 @@ export interface FileActions {
   commit(paths: string[]): void;
   stash(paths: string[]): void;
   stage(paths: string[]): void;
+  stageMode(paths: string[]): void;
   unstage(paths: string[]): void;
   indexEditor(path: string): void;
   move(path: string): void;
@@ -133,6 +134,9 @@ export function runFileMenuCommand(
       return true;
     case "file-stage":
       actions.stage(paths);
+      return true;
+    case "file-stage-mode":
+      actions.stageMode(paths);
       return true;
     case "file-unstage":
       actions.unstage(paths);

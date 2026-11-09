@@ -2,14 +2,10 @@
   import { untrack } from "svelte";
   import FileList from "$components/file-list/FileList.svelte";
   import { ContentSearch } from "$lib/content-search.svelte";
-  import { rowActionBlocked, type RowAction } from "$lib/file-menu";
   import { withUnchanged } from "$lib/file-switches";
   import { emptyText, filesPanelList, mergedSide, mergeIndex, pairMemo, stagedShown } from "$lib/files-panel";
   import type { FileView } from "$lib/file-view";
   import type { FileEntry } from "$lib/ipc";
-  import { effective, shortcutOf } from "$lib/keymap";
-  import { ON_MAC } from "$lib/platform";
-  import { settings } from "$stores/settings.svelte";
   import { commit } from "$stores/commit.svelte";
   import { commitTree } from "$stores/commit-tree.svelte";
   import { compareView } from "$stores/compare-view.svelte";
@@ -48,12 +44,6 @@
     onshownstaged?: (paths: string[] | null) => void;
     onmarked: (paths: string[], bySection: Record<string, string[]>) => void;
     oncontext: (path: string, event: MouseEvent, section?: string, rows?: readonly FileEntry[]) => void;
-    stage: (paths: string[]) => void;
-    stagemode: (paths: string[]) => void;
-    unstage: (paths: string[]) => void;
-    discard: (paths: string[]) => void;
-    ignore: (paths: string[]) => void;
-    remove: (paths: string[]) => void;
     /** The rows of the list on screen, for the panel header. */
     oncount?: (count: number | undefined) => void;
   }
@@ -75,18 +65,9 @@
     onshownstaged,
     onmarked,
     oncontext,
-    stage,
-    stagemode,
-    unstage,
-    discard,
-    ignore,
-    remove,
     oncount,
   }: Props = $props();
 
-  const keys = $derived(effective(settings.bindings, settings.keymap));
-  /** Ctrl+T / Ctrl+Shift+T act on the ticked files, or on all of them like these buttons. */
-  const shortcut = (command: string) => shortcutOf(command, keys, ON_MAC);
 
   const fractions = $derived(layout.fractions);
   const contents = new ContentSearch(() => repository.current?.repo ?? null);
@@ -174,8 +155,6 @@
   const separate = $derived(filesView.current.separateIndex);
   const merged = $derived(separate ? [] : mergedRows(unstagedRows, worktree.staged));
 
-  /** A row button off where the Files menu has its item off (#40). */
-  const rowBlocked = (action: RowAction) => (file: FileEntry) => rowActionBlocked(action, file);
 
   /** Three different nothings, and the panel used to say the same thing for all of them. */
   const nothing = $derived(
@@ -263,25 +242,6 @@
               files: unstagedRows,
               selected: diff.pathFor({ kind: "workTreeVsIndex" }),
               onselect: onopenworktree,
-              actions: [
-                {
-                  label: "Stage",
-                  title: "Stage",
-                  shortcut: shortcut("stage"),
-                  run: stage,
-                  blocked: rowBlocked("stage"),
-                  skips: true,
-                },
-                { label: "+x", title: "Stage only the mode change", run: stagemode, blocked: rowBlocked("mode"), skips: true },
-                { label: "Discard", title: "Discard changes", run: discard, blocked: rowBlocked("discard") },
-                { label: "Ignore", title: "Add to .gitignore", run: ignore, blocked: rowBlocked("ignore") },
-                {
-                  label: "Delete",
-                  title: "Move to the Recycle Bin (the Trash off Windows)",
-                  run: remove,
-                  blocked: rowBlocked("delete"),
-                },
-              ],
             },
             {
               title: "Staged",
@@ -290,7 +250,6 @@
               hideWhenEmpty: true,
               selected: diff.pathFor({ kind: "indexVsHead" }),
               onselect: onopenstaged,
-              actions: [{ label: "Unstage", title: "Unstage", shortcut: shortcut("unstage"), run: unstage }],
             },
           ]
         : [
