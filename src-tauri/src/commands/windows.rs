@@ -86,9 +86,16 @@ pub async fn open_compare_window(
                 min_height: 400.0,
             },
         )
+        .map(drop)
         .map_err(|err| GitError::Internal(format!("cannot open the compare window: {err}")))
     })
     .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn spare_wait(window: tauri::WebviewWindow) -> Option<String> {
+    crate::spare_window::wait(window).await
 }
 
 /// Closes whichever window asked. In Rust rather than through `getCurrentWindow()`, which

@@ -112,6 +112,7 @@ export default defineConfig({
         blame: resolve(fileURLToPath(new URL(".", import.meta.url)), "blame.html"),
         commit: resolve(fileURLToPath(new URL(".", import.meta.url)), "commit.html"),
         errors: resolve(fileURLToPath(new URL(".", import.meta.url)), "errors.html"),
+        spare: resolve(fileURLToPath(new URL(".", import.meta.url)), "spare.html"),
       },
     },
   },

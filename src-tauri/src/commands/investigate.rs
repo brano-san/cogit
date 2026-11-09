@@ -146,6 +146,7 @@ pub async fn open_investigate_window(
             crate::investigate_window::SHAPE,
             crate::investigate_window::MENU,
         )
+        .map(drop)
         .map_err(|err| GitError::Internal(format!("cannot open the Investigate window: {err}")))
     })
     .await

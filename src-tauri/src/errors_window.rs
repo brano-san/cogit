@@ -16,7 +16,7 @@ pub fn reveal_or_open<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Re
     let open = app
         .webview_windows()
         .into_iter()
-        .find(|(label, _)| label.starts_with(&format!("{KIND}-")));
+        .find(|(label, _)| child_window::is_kind(label, KIND));
     if let Some((_, window)) = open {
         window.unminimize()?;
         return window.show();
@@ -33,4 +33,5 @@ pub fn reveal_or_open<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Re
             min_height: 360.0,
         },
     )
+    .map(drop)
 }

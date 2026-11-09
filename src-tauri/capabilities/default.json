@@ -10,7 +10,8 @@
     "blame-*",
     "investigate-*",
     "commit-*",
-    "errors-*"
+    "errors-*",
+    "spare-*"
   ],
   "permissions": [
     "core:default",

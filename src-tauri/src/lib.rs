@@ -28,6 +28,7 @@ mod session_end;
 mod shell_open;
 mod shutdown;
 mod solver_window;
+mod spare_window;
 mod system_font;
 mod taskbar;
 #[cfg(windows)]
@@ -414,6 +415,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::menu_command,
             commands::open_compare_window,
             commands::commit_window::open_commit_window,
+            commands::windows::spare_wait,
             commands::commit_window::recent_commits,
             commands::spelling::spelling_misspelled,
             commands::spelling::spelling_suggestions,
@@ -641,6 +643,7 @@ pub fn run() -> anyhow::Result<()> {
                 window.show()?;
                 system_font::init(&window);
             }
+            spare_window::prepare_later(app.handle(), spare_window::FIRST_AFTER);
             Ok(())
             })();
             if let Err(err) = started {

@@ -822,6 +822,7 @@ export const commands = {
 	 *  to tick, none for everything the window lists.
 	 */
 	openCommitWindow: (repo: RepoId, root: string, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("open_commit_window", { repo, root, paths })),
+	spareWait: () => __TAURI_INVOKE<string | null>("spare_wait"),
 	/**
 	 *  The last `limit` commits with their full messages, for "Select from Log" and the
 	 *  recent messages of the Commit window.

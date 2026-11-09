@@ -59,8 +59,26 @@ pub fn open<R: tauri::Runtime>(
     url: String,
     title: String,
     shape: Shape,
-) -> tauri::Result<()> {
+) -> tauri::Result<String> {
     open_with_menu(app, kind, url, title, shape, &[])
+}
+
+/// What each window shows: a spare window's label says nothing of what it became.
+static KINDS: parking_lot::Mutex<Vec<(String, String)>> = parking_lot::Mutex::new(Vec::new());
+
+pub fn is_kind(label: &str, kind: &str) -> bool {
+    KINDS
+        .lock()
+        .iter()
+        .find(|(known, _)| known == label)
+        .map_or_else(
+            || {
+                label
+                    .rsplit_once('-')
+                    .is_some_and(|(prefix, _)| prefix == kind)
+            },
+            |(_, known)| known == kind,
+        )
 }
 
 /// Which window shows which file, by label: one just built has no address yet, and a second
@@ -76,52 +94,28 @@ pub fn existing_or_open(
     kind: &str,
     (repo, path): (u32, &str),
     is_for: impl Fn(&tauri::Url) -> bool,
-    open: impl FnOnce() -> tauri::Result<()>,
+    open: impl FnOnce() -> tauri::Result<String>,
 ) -> tauri::Result<Option<tauri::WebviewWindow>> {
     let mut showing = SHOWING.lock();
     showing.retain(|(label, _, _)| app.get_webview_window(label).is_some());
-    let prefix = format!("{kind}-");
     let known = showing
         .iter()
-        .find(|(label, r, p)| label.starts_with(&prefix) && *r == repo && p == path)
+        .find(|(label, r, p)| is_kind(label, kind) && *r == repo && p == path)
         .and_then(|(label, _, _)| app.get_webview_window(label));
     let found = known.or_else(|| {
         app.webview_windows()
             .into_iter()
             .find_map(|(label, window)| {
-                (label.starts_with(&prefix) && window.url().is_ok_and(|url| is_for(&url)))
+                (is_kind(&label, kind) && window.url().is_ok_and(|url| is_for(&url)))
                     .then_some(window)
             })
     });
     if found.is_some() {
         return Ok(found);
     }
-    open()?;
-    if let Some(label) = newest_label(app.webview_windows().into_keys(), kind, &showing) {
-        showing.push((label, repo, path.to_owned()));
-    }
+    let label = open()?;
+    showing.push((label, repo, path.to_owned()));
     Ok(None)
-}
-
-/// Labels count up (`kind-N`): the newest one nobody has claimed is the window just built.
-fn newest_label(
-    labels: impl IntoIterator<Item = String>,
-    kind: &str,
-    known: &[(String, u32, String)],
-) -> Option<String> {
-    labels
-        .into_iter()
-        .filter(|label| !known.iter().any(|(taken, _, _)| taken == label))
-        .filter_map(|label| {
-            let number = label
-                .strip_prefix(kind)?
-                .strip_prefix('-')?
-                .parse::<u64>()
-                .ok()?;
-            Some((number, label))
-        })
-        .max()
-        .map(|(_, label)| label)
 }
 
 /// Same as [`open`], with a menu bar of the window's own.
@@ -132,30 +126,29 @@ pub fn open_with_menu<R: tauri::Runtime>(
     title: String,
     shape: Shape,
     menu: &'static [Submenu],
-) -> tauri::Result<()> {
+) -> tauri::Result<String> {
+    if let Some(spare) = crate::spare_window::claim(app) {
+        let label = spare.label().to_owned();
+        let mut kinds = KINDS.lock();
+        kinds.retain(|(known, _)| app.get_webview_window(known).is_some());
+        kinds.push((label.clone(), kind.to_owned()));
+        drop(kinds);
+        spare.become_window(app, url, &title, &shape, menu)?;
+        crate::spare_window::prepare(app);
+        return Ok(label);
+    }
     let label = format!("{kind}-{}", NEXT.fetch_add(1, Ordering::Relaxed));
     // Without a menu of its own the window inherits the application's. An empty one still
     // draws a blank bar, so it is taken off again before the window is first shown.
     let bar = build_menu(app, &label, menu)?;
 
-    let mut builder = WebviewWindowBuilder::new(app, label, WebviewUrl::App(url.into()))
+    let window = hidden_builder(app, label, url)
         .title(title)
         .menu(bar)
-        .visible(false)
-        .theme(Some(crate::native_theme::current()))
-        .background_color(crate::native_theme::background())
         .inner_size(shape.width, shape.height)
         .min_inner_size(shape.min_width, shape.min_height)
-        .center();
-    // WebView2 refuses a second environment on the same profile with other arguments.
-    if let Some(args) = browser_args(&app.config().app.windows) {
-        builder = builder.additional_browser_args(&args);
-    }
-    // The profile is shared by every window: the main one is created with this folder too.
-    if let Some(layout) = portable::layout() {
-        builder = builder.data_directory(layout.local());
-    }
-    let window = builder.build()?;
+        .center()
+        .build()?;
     // Not shown yet, so the move is invisible. `.center()` alone picks the primary monitor.
     if let Some(main) = tauri::Manager::get_webview_window(app, MAIN) {
         crate::window_place::centre_on_monitor_of(&window, &main);
@@ -172,10 +165,34 @@ pub fn open_with_menu<R: tauri::Runtime>(
         );
     }
     window.show()?;
-    Ok(())
+    Ok(window.label().to_owned())
 }
 
-fn build_menu<R: tauri::Runtime>(
+pub(crate) fn hidden_builder<'a, R: tauri::Runtime>(
+    app: &'a tauri::AppHandle<R>,
+    label: String,
+    url: String,
+) -> WebviewWindowBuilder<'a, R, tauri::AppHandle<R>> {
+    let mut builder = WebviewWindowBuilder::new(app, label, WebviewUrl::App(url.into()))
+        .visible(false)
+        .theme(Some(crate::native_theme::current()))
+        .background_color(crate::native_theme::background());
+    // WebView2 refuses a second environment on the same profile with other arguments.
+    if let Some(args) = browser_args(&app.config().app.windows) {
+        builder = builder.additional_browser_args(&args);
+    }
+    // The profile is shared by every window: the main one is created with this folder too.
+    if let Some(layout) = portable::layout() {
+        builder = builder.data_directory(layout.local());
+    }
+    builder
+}
+
+pub(crate) fn next_label(kind: &str) -> String {
+    format!("{kind}-{}", NEXT.fetch_add(1, Ordering::Relaxed))
+}
+
+pub(crate) fn build_menu<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     label: &str,
     menu: &[Submenu],
@@ -262,18 +279,16 @@ fn browser_args(windows: &[tauri::utils::config::WindowConfig]) -> Option<String
 mod tests {
     use super::*;
 
-    // Two quick double-clicks on a conflicted file opened two Conflict Solvers: the one
-    // just built had no address yet to be recognized by.
     #[test]
-    fn the_window_just_built_is_the_newest_label_of_its_kind_not_yet_known() {
-        let labels = ["solver-3", "editor-9", "solver-12", "solver-7", "main"].map(String::from);
-        let known = vec![("solver-12".to_owned(), 1, "a".to_owned())];
+    fn a_claimed_spare_is_the_kind_it_became() {
+        KINDS
+            .lock()
+            .push(("spare-41".to_owned(), "commit".to_owned()));
 
-        assert_eq!(
-            newest_label(labels.clone(), "solver", &known).as_deref(),
-            Some("solver-7")
-        );
-        assert_eq!(newest_label(labels, "blame", &known), None);
+        assert!(is_kind("spare-41", "commit"));
+        assert!(!is_kind("spare-41", "spare"));
+        assert!(is_kind("solver-7", "solver"));
+        assert!(!is_kind("solver-7", "blame"));
     }
 
     fn labels_are_unique(taken: &[String]) -> bool {
