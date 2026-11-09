@@ -101,9 +101,14 @@ function summaryMarks(current: RepoSummary): Marks & { conflicted: boolean; bran
 export function freshOverview(
   overview: RepoOverview,
   current: RepoSummary | null,
+  statusUnread: { dirty: boolean; conflicted?: boolean } | null = null,
 ): RepoOverview & { conflicted?: boolean } {
   if (!current || current.repo !== overview.repo) return overview;
   const marks = summaryMarks(current);
+  if (statusUnread) {
+    marks.dirty = statusUnread.dirty;
+    marks.conflicted = statusUnread.conflicted === true;
+  }
   // Off every branch the panels know no subject: the list's `abc1234: subject` stands while
   // it names the same commit.
   if (current.head.kind === "detached" && overview.branchAt?.startsWith(`${marks.branchAt}:`)) {

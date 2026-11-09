@@ -375,7 +375,13 @@
         </div>
       {:else}
         {@const listed = byRoot.get(row.root)}
-        {@const entry = listed?.overview && freshOverview(listed.overview, repository.current)}
+        {@const entry =
+          listed?.overview &&
+          freshOverview(
+            listed.overview,
+            repository.current,
+            repository.statusKnown ? null : (repoPulse.pulses.get(row.root) ?? listed.overview),
+          )}
         {@const sync = rowSync({
           overview: entry ?? null,
           owned: entry !== undefined && entry !== null && active?.valueOf() === entry.repo.valueOf(),

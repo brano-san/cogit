@@ -213,6 +213,12 @@ describe("the row of the repository on screen", () => {
     });
   });
 
+  it("keeps the changes it had while the opened repository's status is still being read", () => {
+    const unread = summary();
+    const kept = freshOverview(opened, unread, { dirty: true, conflicted: false });
+    expect(rowSync({ overview: kept, owned: true, pulse: undefined, fetchFailed: false }).dirty).toBe(true);
+  });
+
   it("leaves another repository's row as the list read it", () => {
     const other = overview({ repo: 7 as never });
     expect(freshOverview(other, summary())).toBe(other);

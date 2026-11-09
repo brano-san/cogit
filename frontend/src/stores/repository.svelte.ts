@@ -144,7 +144,9 @@ class RepositoryStore {
     try {
       const repo = await read();
       trace(`open:${path}`, `backend answered, ticket ${ticket}, ${repo.branches.length} refs`);
-      return this.#settle(ticket, { kind: "open", repo });
+      const settled = this.#settle(ticket, { kind: "open", repo });
+      if (settled) this.statusKnown = false;
+      return settled;
     } catch (err) {
       trace(`open:${path}`, `backend refused, ticket ${ticket}: ${String(err)}`);
       return this.#settle(ticket, {
@@ -198,6 +200,7 @@ class RepositoryStore {
   }
 
   #statusRead = 0;
+  statusKnown = $state(false);
 
   /** Staging changes only the counters; re-reading every ref for that is waste (R-24).
       The same read lists the conflicted paths, returned for the conflicts store; `null`
@@ -214,6 +217,7 @@ class RepositoryStore {
       const open = this.current;
       if (!open || open.repo !== repo) return null;
       this.#rereadAgain();
+      this.statusKnown = true;
       this.#replace({ ...open, status, indexLock });
       return conflicted;
     } catch {
@@ -231,6 +235,7 @@ class RepositoryStore {
     // A read begun earlier would answer with older counters.
     this.#statusRead += 1;
     this.#rereadAgain();
+    this.statusKnown = true;
     this.#replace({ ...open, status: state.status, indexLock: state.indexLock });
     return state.conflicted;
   }
@@ -241,6 +246,7 @@ class RepositoryStore {
     this.#ticket += 1;
     this.#leaving(repo.root);
     this.#disarm();
+    this.statusKnown = true;
     this.phase = { kind: "open", repo };
   }
 
