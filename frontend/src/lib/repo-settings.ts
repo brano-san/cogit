@@ -171,6 +171,14 @@ export const FIELDS: readonly SettingField[] = [
     hint: "Off: a file rerere resolved stays conflicted until you look at it and mark it resolved.",
   },
   {
+    key: "rebase.updateRefs",
+    tab: "merge",
+    label: "Move stacked branches along on rebase",
+    control: BOOL,
+    fallback: "false",
+    hint: "A rebase also moves the other local branches that point at the commits it rewrites (--update-refs). The graph's own rebase plans keep their branches where they are.",
+  },
+  {
     key: "cogit.tagGroupSeparator",
     tab: "tags",
     label: "Group separator",

@@ -11,6 +11,7 @@ fn onto(target: &str) -> RebaseOptions {
     RebaseOptions {
         onto: target.to_owned(),
         autostash: false,
+        upstream: None,
     }
 }
 
@@ -112,6 +113,7 @@ fn autostash_carries_uncommitted_work_across_the_rebase() {
     repo.rebase(&RebaseOptions {
         onto: "main".to_owned(),
         autostash: true,
+        upstream: None,
     })
     .unwrap();
 
@@ -216,4 +218,24 @@ fn aborting_leaves_the_working_tree_as_it_was() {
         before
     );
     assert_eq!(f.git(&["status", "--porcelain"]).unwrap().trim(), "");
+}
+
+#[test]
+fn rebasing_onto_with_an_upstream_moves_only_the_commits_after_it() {
+    let f = test_fixtures::branched().unwrap();
+    f.git(&["switch", "dev"]).unwrap();
+    let repo = open(&f);
+
+    repo.rebase(&RebaseOptions {
+        upstream: Some("dev~1".to_owned()),
+        ..onto("main")
+    })
+    .unwrap();
+
+    let subjects = f.git(&["log", "--format=%s"]).unwrap();
+    assert_eq!(
+        subjects.lines().collect::<Vec<_>>(),
+        ["commit 3", "commit 1", "commit 0"]
+    );
+    assert_eq!(repo.state().unwrap(), RepoState::Clean);
 }

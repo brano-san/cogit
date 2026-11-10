@@ -40,6 +40,7 @@ const BACKEND_KEYS = [
   "i18n.logOutputEncoding",
   "rerere.enabled",
   "rerere.autoUpdate",
+  "rebase.updateRefs",
   "cogit.tagGroupSeparator",
 ];
 

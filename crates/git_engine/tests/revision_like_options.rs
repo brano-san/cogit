@@ -26,11 +26,36 @@ fn a_tag_named_like_an_option_is_not_run_as_a_rebase_option() {
     repo.rebase(&RebaseOptions {
         onto: "--exec=touch${IFS}pwned".to_owned(),
         autostash: false,
+        upstream: None,
     })
     .unwrap();
 
     assert!(!f.path().join("pwned").exists());
     assert!(f.path().join("theirs.txt").exists(), "rebased onto the tag");
+}
+
+#[test]
+fn an_onto_and_upstream_named_like_options_are_not_run_as_rebase_options() {
+    let f = diverged();
+    f.git(&["update-ref", "refs/tags/--exec=touch${IFS}pwned", "theirs"])
+        .unwrap();
+    f.git(&["update-ref", "refs/tags/--root", "main~1"])
+        .unwrap();
+    let repo = RepoHandle::open(f.path()).unwrap();
+
+    repo.rebase(&RebaseOptions {
+        onto: "--exec=touch${IFS}pwned".to_owned(),
+        autostash: false,
+        upstream: Some("--root".to_owned()),
+    })
+    .unwrap();
+
+    assert!(!f.path().join("pwned").exists());
+    assert!(f.path().join("theirs.txt").exists(), "rebased onto the tag");
+    assert!(
+        f.path().join("ours.txt").exists(),
+        "main's own commit replayed"
+    );
 }
 
 #[test]

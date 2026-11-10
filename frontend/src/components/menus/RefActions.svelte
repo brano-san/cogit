@@ -503,6 +503,8 @@
         return squash(id, at);
       case "fixup":
         return fixup(id, at);
+      case "rebase-range":
+        return rebaseRange(id, at);
       case "edit-message":
         if (oid && at.details && (await publishedOk(at, "Edit Message"))) {
           refDialogs.message = { oid, message: fullMessage(at.details), parents: at.details.parents };
@@ -739,6 +741,19 @@
     const oid = at.oid;
     if (!oid || !(await publishedOk(at, "Fix Up"))) return;
     await attempt("Could not fix up the commit", () => fixupInto(id, oid));
+  }
+
+  async function rebaseRange(id: RepoId, at: Target) {
+    const oid = at.oid;
+    if (!oid) return;
+    const onto = await prompt.ask({
+      title: "Move Commits Above Onto",
+      label: `Onto the branch, tag or commit — the commits after ${shortOid(oid)} move, ${shortOid(oid)} and older stay`,
+      confirm: "Rebase",
+      validate: (value) => (value.trim() === "" ? "Name a branch, tag or commit" : null),
+    });
+    if (onto === null) return;
+    await attempt("Could not rebase", () => rebaseOnto(id, { onto: onto.trim(), upstream: oid, autostash: true }));
   }
 
   async function saveMessage(message: string) {

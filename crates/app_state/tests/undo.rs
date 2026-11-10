@@ -718,6 +718,7 @@ fn undo_waits_for_a_rebase_stopped_on_its_conflict() {
         &git_engine::RebaseOptions {
             onto: "side".to_owned(),
             autostash: false,
+            upstream: None,
         },
     );
     assert!(rebased.is_err());

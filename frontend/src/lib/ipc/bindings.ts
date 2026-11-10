@@ -2379,6 +2379,7 @@ export type Pushed = {
 export type RebaseOptions = {
 	onto: string,
 	autostash: boolean,
+	upstream?: string | null,
 };
 
 export type RebaseProgress = {

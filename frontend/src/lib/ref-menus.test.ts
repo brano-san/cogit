@@ -67,6 +67,7 @@ describe("graphCommitMenu (#38)", () => {
       "Fix Up with Staged Changes",
       "Edit Message",
       "Edit Author",
+      "Move Commits Above Onto…",
       "Rebase Interactive From",
       "—",
       "Add Branch",
@@ -122,7 +123,7 @@ describe("graphCommitMenu (#38)", () => {
 
   it("cannot rewrite a commit that is not in HEAD's history", () => {
     const menu = graphCommitMenu(elsewhere);
-    for (const label of ["Modify", "Split", "Squash", "Edit Message", "Edit Author", "Rebase Interactive From"]) {
+    for (const label of ["Modify", "Split", "Squash", "Edit Message", "Edit Author", "Move Commits Above Onto…", "Rebase Interactive From"]) {
       expect(find(menu, label).enabled).toBe(false);
     }
     expect(find(menu, "Merge").enabled).toBe(true);
@@ -147,6 +148,7 @@ describe("graphCommitMenu (#38)", () => {
   it("has nothing to rebase interactively after the HEAD commit, nor to reset to", () => {
     const menu = graphCommitMenu({ ...older, isHeadCommit: true });
     expect(find(menu, "Rebase Interactive From").enabled).toBe(false);
+    expect(find(menu, "Move Commits Above Onto…").enabled).toBe(false);
     expect(find(menu, "Reset").enabled).toBe(false);
     expect(find(menu, "Reset Advanced…").enabled).toBe(true);
   });
@@ -192,6 +194,7 @@ describe("graphRefMenu (#39)", () => {
       "Fix Up with Staged Changes",
       "Edit Message",
       "Edit Author",
+      "Move Commits Above Onto…",
       "Rebase Interactive From",
       "—",
       "Add Branch",

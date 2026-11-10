@@ -21,6 +21,7 @@ pub const REPO_SETTING_KEYS: &[&str] = &[
     "i18n.logOutputEncoding",
     "rerere.enabled",
     "rerere.autoUpdate",
+    "rebase.updateRefs",
     "cogit.tagGroupSeparator",
 ];
 

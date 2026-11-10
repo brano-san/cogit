@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 pub struct RebaseOptions {
     pub onto: String,
     pub autostash: bool,
+    #[serde(default)]
+    pub upstream: Option<String>,
 }
 
 impl RepoHandle {
@@ -26,7 +28,16 @@ impl RepoHandle {
         if options.autostash {
             args.push("--autostash");
         }
-        args.extend(["--end-of-options", onto]);
+        let onto_flag = format!("--onto={onto}");
+        match options.upstream.as_deref().map(str::trim) {
+            Some("") => {
+                return Err(GitError::InvalidState(
+                    "no commit to rebase from".to_owned(),
+                ));
+            }
+            Some(upstream) => args.extend([onto_flag.as_str(), "--end-of-options", upstream]),
+            None => args.extend(["--end-of-options", onto]),
+        }
         self.run_git(&args).map(drop)
     }
 

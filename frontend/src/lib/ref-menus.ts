@@ -87,6 +87,11 @@ function commitActions(facts: CommitFacts, onRef: RefTarget | null): ContextItem
     offer(id("edit-message"), "Edit Message", rewriteBlocked(facts)),
     offer(id("edit-author"), "Edit Author", rewriteBlocked(facts)),
     offer(
+      id("rebase-range"),
+      "Move Commits Above Onto…",
+      facts.onHead ? (facts.isHeadCommit ? "nothing after it" : null) : "not on the current branch",
+    ),
+    offer(
       id("rebase-i"),
       "Rebase Interactive From",
       facts.onHead ? (facts.isHeadCommit ? "nothing after it" : null) : "not on the current branch",
