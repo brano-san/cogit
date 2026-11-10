@@ -380,7 +380,10 @@
           freshOverview(
             listed.overview,
             repository.current,
-            repository.statusKnown ? null : (repoPulse.pulses.get(row.root) ?? listed.overview),
+            // Opening has not yet read the panels' working-tree status.  The list's
+            // overview is newer than a background pulse from before the open, so keep
+            // its dirty mark instead of briefly clearing the icon until that read ends.
+            repository.statusKnown ? null : listed.overview,
           )}
         {@const sync = rowSync({
           overview: entry ?? null,

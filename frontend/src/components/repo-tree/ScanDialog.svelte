@@ -218,7 +218,10 @@
     align-items: center;
     gap: var(--sp-2);
     width: 100%;
-    height: var(--h-row-dense);
+    /* The checkbox's line box can be taller than a dense row at high display scaling.
+       Keep the standard row as a minimum, but let the heading grow so its square stays
+       inside the group's frame. */
+    min-height: var(--h-row-dense);
     padding: 0 var(--disclosure-side);
     background: var(--surface-base);
     color: var(--text-secondary);
