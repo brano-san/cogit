@@ -102,7 +102,7 @@
   import { runWorkingTreeAction } from "$lib/working-tree-actions";
   import { refs } from "$stores/refs.svelte";
   import { repository } from "$stores/repository.svelte";
-  import { askMerge } from "$lib/merge-choice";
+  import { askMerge, squashQuestion } from "$lib/merge-choice";
   import { settings } from "$stores/settings.svelte";
   import { stashView } from "$stores/stash-view.svelte";
   import { stashTarget } from "$lib/stash-target";
@@ -468,6 +468,16 @@
           const source = revisionOf(at, oid);
           const way = await askMerge(id, source, repository.localBranches.find((branch) => branch.isHead)?.name ?? "HEAD");
           if (way) await attempt("Could not merge", () => mergeInto(id, { source, ...way, squash: false, message: null }));
+        }
+        return;
+      case "merge-squash":
+        if (oid) {
+          const source = revisionOf(at, oid);
+          const into = repository.localBranches.find((branch) => branch.isHead)?.name ?? "HEAD";
+          if (await confirmation.ask(squashQuestion(source, into)))
+            await attempt("Could not merge", () =>
+              mergeInto(id, { source, noFastForward: false, squash: true, message: null }),
+            );
         }
         return;
       case "cherry-pick":

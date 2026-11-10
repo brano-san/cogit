@@ -159,3 +159,69 @@ fn a_merge_never_opens_an_editor() {
 
     assert_eq!(repo.state().unwrap(), RepoState::Clean);
 }
+
+#[test]
+fn a_squash_merge_seeds_the_commit_message_from_squash_msg() {
+    let f = test_fixtures::branched().unwrap();
+    f.commit_file(30, "main-2.txt", "main two\n").unwrap();
+    let repo = open(&f);
+
+    repo.merge(&MergeOptions {
+        squash: true,
+        ..plain("dev")
+    })
+    .unwrap();
+
+    let seed = repo.message_seed().unwrap().unwrap();
+    assert!(
+        seed.starts_with("Squashed commit of the following:"),
+        "{seed}"
+    );
+    assert!(seed.contains("commit 3"), "{seed}");
+}
+
+#[test]
+fn the_squash_message_is_gone_once_the_squash_is_committed() {
+    let f = test_fixtures::branched().unwrap();
+    f.commit_file(30, "main-2.txt", "main two\n").unwrap();
+    let repo = open(&f);
+    repo.merge(&MergeOptions {
+        squash: true,
+        ..plain("dev")
+    })
+    .unwrap();
+
+    repo.commit(&git_engine::CommitRequest {
+        message: "squash dev".to_owned(),
+        amend: false,
+        no_verify: false,
+        signoff: false,
+        only: Vec::new(),
+    })
+    .unwrap();
+
+    assert_eq!(repo.message_seed().unwrap(), None);
+    assert_eq!(repo.commit_details("HEAD").unwrap().parents.len(), 1);
+}
+
+#[test]
+fn a_stopped_merge_seeds_its_message_and_the_conflict_hints_stay_out() {
+    let f = test_fixtures::conflicted().unwrap();
+    let repo = open(&f);
+    let seed = repo.message_seed().unwrap().unwrap();
+    assert!(seed.starts_with("Merge branch"), "{seed}");
+    assert!(seed.contains("# Conflicts:"), "{seed}");
+    f.git(&["add", "-A"]).unwrap();
+
+    repo.commit(&git_engine::CommitRequest {
+        message: seed,
+        amend: false,
+        no_verify: false,
+        signoff: false,
+        only: Vec::new(),
+    })
+    .unwrap();
+
+    let body = f.git(&["log", "-1", "--format=%B"]).unwrap();
+    assert!(!body.contains('#'), "{body}");
+}

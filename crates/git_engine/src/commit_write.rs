@@ -16,7 +16,7 @@ pub struct CommitRequest {
 
 impl RepoHandle {
     pub fn commit(&self, request: &CommitRequest) -> Result<String> {
-        let message = match self.commit_template()? {
+        let message = match self.message_seed()? {
             Some(template) => {
                 without_template_hints(&request.message, &template, &self.comment_prefix())
             }
@@ -164,6 +164,16 @@ impl RepoHandle {
             self.root().join(path)
         };
         Ok(std::fs::read_to_string(resolved).ok())
+    }
+
+    pub fn message_seed(&self) -> Result<Option<String>> {
+        let prepared = ["MERGE_MSG", "SQUASH_MSG"]
+            .iter()
+            .find_map(|name| std::fs::read_to_string(self.git_dir().join(name)).ok());
+        match prepared {
+            Some(text) => Ok(Some(text)),
+            None => self.commit_template(),
+        }
     }
 }
 

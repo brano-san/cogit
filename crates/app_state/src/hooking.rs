@@ -82,7 +82,7 @@ impl AppState {
         &self,
         repo: RepoId,
     ) -> Result<Option<String>, git_engine::GitError> {
-        self.handle(repo)?.commit_template()
+        self.handle(repo)?.message_seed()
     }
 
     pub(crate) fn local_recent_commits(

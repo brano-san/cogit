@@ -19,6 +19,20 @@ export function mergeQuestion(source: string, into: string): ConfirmRequest {
   };
 }
 
+export function squashQuestion(source: string, into: string): ConfirmRequest {
+  return {
+    title: "Squash Merge",
+    message:
+      `The changes of ${source} that ${into} lacks are staged as one change, without a merge commit. ` +
+      "Commit them from the Commit panel, which starts with the message Git prepared.",
+    fields: [
+      ["Merge", source],
+      ["Into", into],
+    ],
+    confirm: "Squash Merge",
+  };
+}
+
 export async function chooseMerge(
   source: string,
   into: string,

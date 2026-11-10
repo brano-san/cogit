@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chooseMerge, type Answer } from "./merge-choice";
+import { chooseMerge, squashQuestion, type Answer } from "./merge-choice";
 
 const asking = (answer: Answer) => async () => answer;
 
@@ -27,5 +27,17 @@ describe("chooseMerge", () => {
       throw new Error("no");
     };
     expect(await chooseMerge("feature", "main", failing, asking(null))).toEqual({ noFastForward: false });
+  });
+});
+
+describe("squashQuestion", () => {
+  it("names what is merged into what and says nothing is committed yet", () => {
+    const request = squashQuestion("feature", "main");
+    expect(request.confirm).toBe("Squash Merge");
+    expect(request.fields).toEqual([
+      ["Merge", "feature"],
+      ["Into", "main"],
+    ]);
+    expect(request.message).toMatch(/without a merge commit/);
   });
 });

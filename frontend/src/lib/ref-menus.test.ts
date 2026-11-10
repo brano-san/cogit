@@ -56,6 +56,7 @@ describe("graphCommitMenu (#38)", () => {
     expect(shape(menu)).toEqual([
       "Check Out",
       "Merge",
+      "Squash Merge",
       "Cherry-Pick",
       "Revert",
       "Rebase",
@@ -123,7 +124,7 @@ describe("graphCommitMenu (#38)", () => {
 
   it("does not merge, cherry-pick or rebase onto what HEAD already has", () => {
     const menu = graphCommitMenu(older);
-    for (const label of ["Merge", "Cherry-Pick", "Rebase"]) {
+    for (const label of ["Merge", "Squash Merge", "Cherry-Pick", "Rebase"]) {
       expect(find(menu, label).enabled).toBe(false);
     }
     expect(find(menu, "Revert").enabled).toBe(true);
@@ -173,6 +174,7 @@ describe("graphRefMenu (#39)", () => {
     expect(shape(menu)).toEqual([
       "Check Out",
       "Merge",
+      "Squash Merge",
       "Cherry-Pick",
       "Revert",
       "Rebase",
@@ -220,7 +222,7 @@ describe("graphRefMenu (#39)", () => {
 
   it("does not check out, merge, rebase onto or delete the current branch", () => {
     const menu = graphRefMenu({ ...branch, isHead: true }, { ...older, isHeadCommit: true });
-    for (const label of ["Check Out", "Merge", "Rebase", "Delete"]) {
+    for (const label of ["Check Out", "Merge", "Squash Merge", "Rebase", "Delete"]) {
       expect(find(menu, label).enabled).toBe(false);
     }
   });
@@ -245,6 +247,7 @@ describe("branchesBranchMenu (#33)", () => {
       "Compare with Selected Commit",
       "—",
       "Merge",
+      "Squash Merge",
       "Rebase",
       "—",
       "Push",

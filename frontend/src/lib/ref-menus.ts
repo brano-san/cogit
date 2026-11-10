@@ -70,6 +70,7 @@ function commitActions(facts: CommitFacts, onRef: RefTarget | null): ContextItem
   const current = onRef?.kind === "branch" && onRef.isHead ? "the current branch" : null;
   return [
     offer(id("merge"), "Merge", current ?? (facts.onHead ? IN_HEAD : null)),
+    offer(id("merge-squash"), "Squash Merge", current ?? (facts.onHead ? IN_HEAD : null)),
     offer(id("cherry-pick"), "Cherry-Pick", (facts.onHead ? IN_HEAD : null) ?? replayBlocked(facts)),
     offer(id("revert"), "Revert", (facts.onHead ? null : "not in HEAD") ?? replayBlocked(facts)),
     offer(id("rebase"), "Rebase", current ?? (facts.onHead ? IN_HEAD : null)),
@@ -217,6 +218,7 @@ export function branchesBranchMenu(
     ...compareRows(at, facts),
     SEPARATOR,
     offer(id("merge"), "Merge", current ?? (facts.onHead ? IN_HEAD : null)),
+    offer(id("merge-squash"), "Squash Merge", current ?? (facts.onHead ? IN_HEAD : null)),
     offer(id("rebase"), "Rebase", current ?? (facts.onHead ? IN_HEAD : null)),
     SEPARATOR,
     offer(id("push"), "Push", pushBlocked(ref, facts)),
