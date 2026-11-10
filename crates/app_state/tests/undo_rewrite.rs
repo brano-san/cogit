@@ -136,3 +136,30 @@ fn compare_before_and_after_rewrite_reads_orig_head_without_the_list() {
 
     assert!(out.stdout.contains("reworded"), "{}", out.stdout);
 }
+
+#[test]
+fn undoing_a_fix_up_keeps_the_folded_changes_as_a_commit_of_their_own() {
+    let f = test_fixtures::linear(3).unwrap();
+    std::fs::write(f.path().join("fix.txt"), "the fix\n").unwrap();
+    f.git(&["add", "--", "fix.txt"]).unwrap();
+    let (state, repo) = open(&f);
+
+    state.fixup_into(repo, "HEAD~1").unwrap();
+    assert!(
+        f.git(&["ls-tree", "--name-only", "HEAD~1"])
+            .unwrap()
+            .contains("fix.txt")
+    );
+    state.undo_last(repo).unwrap();
+
+    let subjects = f.git(&["log", "--format=%s"]).unwrap();
+    assert!(
+        subjects.starts_with("fixup! commit 1\ncommit 2\n"),
+        "{subjects}"
+    );
+    assert!(
+        f.git(&["ls-tree", "--name-only", "HEAD"])
+            .unwrap()
+            .contains("fix.txt")
+    );
+}

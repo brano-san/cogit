@@ -64,6 +64,7 @@ describe("graphCommitMenu (#38)", () => {
       "Modify",
       "Split",
       "Squash",
+      "Fix Up with Staged Changes",
       "Edit Message",
       "Edit Author",
       "Rebase Interactive From",
@@ -98,6 +99,12 @@ describe("graphCommitMenu (#38)", () => {
       enabled: true,
     });
     expect(find(graphRefMenu(branch, older), "Roll Back Tree").enabled).toBe(true);
+  });
+
+  it("offers Fix Up only with staged changes, on HEAD's history", () => {
+    expect(find(graphCommitMenu(older), "Fix Up with Staged Changes").label).toBe("Fix Up with Staged Changes (nothing staged)");
+    expect(find(graphCommitMenu({ ...older, staged: 2 }), "Fix Up with Staged Changes").enabled).toBe(true);
+    expect(find(graphCommitMenu({ ...elsewhere, staged: 2 }), "Fix Up with Staged Changes").enabled).toBe(false);
   });
 
   it("turns Squash off on a pushed commit and says why", () => {
@@ -182,6 +189,7 @@ describe("graphRefMenu (#39)", () => {
       "Modify",
       "Split",
       "Squash",
+      "Fix Up with Staged Changes",
       "Edit Message",
       "Edit Author",
       "Rebase Interactive From",

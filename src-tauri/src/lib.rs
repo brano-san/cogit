@@ -407,6 +407,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::split_off,
             commands::rebase_todo,
             commands::interactive_rebase,
+            commands::fixup_into,
             commands::rebase_progress,
             commands::edit_rebase_todo,
             commands::overlap_window,

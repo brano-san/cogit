@@ -530,3 +530,103 @@ fn a_step_list_that_is_not_the_one_left_is_refused() {
     assert!(wrong.is_err(), "exec is not a step the list offers");
     assert_eq!(repo.rebase_progress().unwrap().unwrap().todo.len(), 2);
 }
+
+fn stage_new_file(f: &test_fixtures::Fixture, name: &str) {
+    std::fs::write(f.path().join(name), "the fix\n").unwrap();
+    f.git(&["add", "--", name]).unwrap();
+}
+
+fn files_of(f: &test_fixtures::Fixture, rev: &str) -> String {
+    f.git(&["ls-tree", "--name-only", rev]).unwrap()
+}
+
+#[test]
+fn staged_changes_fold_into_an_older_commit() {
+    let f = test_fixtures::linear(3).unwrap();
+    stage_new_file(&f, "fix.txt");
+
+    open(&f).fixup_into("HEAD~1").unwrap();
+
+    assert_eq!(subjects(&f), ["commit 2", "commit 1", "commit 0"]);
+    assert!(files_of(&f, "HEAD~1").contains("fix.txt"));
+    assert!(!files_of(&f, "HEAD~2").contains("fix.txt"));
+    assert_eq!(
+        f.git(&["diff", "--name-only", "HEAD~1", "HEAD"])
+            .unwrap()
+            .trim(),
+        "file2.txt"
+    );
+    assert_eq!(f.git(&["status", "--porcelain"]).unwrap(), "");
+}
+
+#[test]
+fn folding_into_the_first_commit_rewrites_from_the_root() {
+    let f = test_fixtures::linear(2).unwrap();
+    stage_new_file(&f, "fix.txt");
+
+    open(&f).fixup_into("HEAD~1").unwrap();
+
+    assert_eq!(subjects(&f), ["commit 1", "commit 0"]);
+    assert!(files_of(&f, "HEAD~1").contains("fix.txt"));
+}
+
+#[test]
+fn folding_into_head_amends_it_and_keeps_its_message() {
+    let f = test_fixtures::linear(2).unwrap();
+    stage_new_file(&f, "fix.txt");
+
+    open(&f).fixup_into("HEAD").unwrap();
+
+    assert_eq!(subjects(&f), ["commit 1", "commit 0"]);
+    assert!(files_of(&f, "HEAD").contains("fix.txt"));
+}
+
+#[test]
+fn nothing_staged_is_refused() {
+    let f = test_fixtures::linear(2).unwrap();
+    let before = f.oid("HEAD").unwrap();
+
+    let result = open(&f).fixup_into("HEAD~1");
+
+    assert!(
+        matches!(result, Err(git_engine::GitError::InvalidState(_))),
+        "{result:?}"
+    );
+    assert_eq!(f.oid("HEAD").unwrap(), before);
+}
+
+#[test]
+fn unstaged_edits_are_refused_before_anything_is_committed() {
+    let f = test_fixtures::linear(2).unwrap();
+    stage_new_file(&f, "fix.txt");
+    std::fs::write(f.path().join("fix.txt"), "edited after staging\n").unwrap();
+    let before = f.oid("HEAD").unwrap();
+
+    let result = open(&f).fixup_into("HEAD~1");
+
+    assert!(
+        matches!(result, Err(git_engine::GitError::InvalidState(_))),
+        "{result:?}"
+    );
+    assert_eq!(f.oid("HEAD").unwrap(), before);
+    assert!(
+        f.git(&["diff", "--cached", "--name-only"])
+            .unwrap()
+            .contains("fix.txt")
+    );
+}
+
+#[test]
+fn a_commit_off_the_branch_is_refused() {
+    let f = test_fixtures::branched().unwrap();
+    stage_new_file(&f, "fix.txt");
+    let before = f.oid("HEAD").unwrap();
+
+    let result = open(&f).fixup_into("dev");
+
+    assert!(
+        matches!(result, Err(git_engine::GitError::InvalidState(_))),
+        "{result:?}"
+    );
+    assert_eq!(f.oid("HEAD").unwrap(), before);
+}

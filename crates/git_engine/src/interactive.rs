@@ -148,6 +148,25 @@ impl RepoHandle {
     pub fn edit_author(&self, rev: &str, name: &str, email: &str) -> Result<()> {
         let identity = author_identity(name, email)?;
         let target = self.resolve_commit(rev)?;
+        let base = self.rewrite_base(target, rev)?;
+        let plan = self.rebase_todo(&base)?;
+        let wanted = target.to_string();
+
+        let mut body = String::new();
+        for entry in &plan {
+            body.push_str(&format!("pick {}\n", entry.oid));
+            if entry.oid == wanted {
+                // Hooks judge a tree and a message, and neither changes here: a mechanical
+                // rewrite, like Split-Off's commits (surgery.rs).
+                body.push_str("exec git commit --amend --no-edit --no-verify --author=");
+                body.push_str(&shell_quote(&identity));
+                body.push('\n');
+            }
+        }
+        self.run_rebase_body(&base, &body)
+    }
+
+    fn rewrite_base(&self, target: gix::ObjectId, rev: &str) -> Result<String> {
         let has_parent = self
             .repo
             .find_commit(target)
@@ -172,26 +191,76 @@ impl RepoHandle {
                     .to_owned(),
             ));
         }
-        let plan = self.rebase_todo(&base)?;
         let wanted = target.to_string();
-        if !plan.iter().any(|entry| entry.oid == wanted) {
+        if !self
+            .rebase_todo(&base)?
+            .iter()
+            .any(|entry| entry.oid == wanted)
+        {
             return Err(GitError::InvalidState(format!(
                 "{wanted} is not on the checked-out branch"
             )));
         }
+        Ok(base)
+    }
 
-        let mut body = String::new();
-        for entry in &plan {
-            body.push_str(&format!("pick {}\n", entry.oid));
-            if entry.oid == wanted {
-                // Hooks judge a tree and a message, and neither changes here: a mechanical
-                // rewrite, like Split-Off's commits (surgery.rs).
-                body.push_str("exec git commit --amend --no-edit --no-verify --author=");
-                body.push_str(&shell_quote(&identity));
-                body.push('\n');
-            }
+    pub fn fixup_into(&self, rev: &str) -> Result<()> {
+        match self.commit_fixup(rev)? {
+            Some((target, base)) => self.fold_fixup(&target, &base),
+            None => Ok(()),
         }
-        self.run_rebase_body(&base, &body)
+    }
+
+    pub fn commit_fixup(&self, rev: &str) -> Result<Option<(String, String)>> {
+        let target = self.resolve_commit(rev)?;
+        let status = self.status()?;
+        if status.staged == 0 {
+            return Err(GitError::InvalidState(
+                "stage the changes to fold into the commit first".to_owned(),
+            ));
+        }
+        if status.unstaged > 0 {
+            return Err(GitError::InvalidState(
+                "stash or stage the other edits first: folding into an older commit rewrites the branch, which needs a clean working tree"
+                    .to_owned(),
+            ));
+        }
+        let head = self
+            .repo
+            .head_id()
+            .map_err(|err| GitError::Internal(format!("cannot read HEAD: {err}")))?
+            .detach();
+        if head == target {
+            self.run_git(&[
+                "-c",
+                "maintenance.auto=false",
+                "commit",
+                "--amend",
+                "--no-edit",
+            ])?;
+            return Ok(None);
+        }
+        let base = self.rewrite_base(target, rev)?;
+        let fixup = format!("--fixup={target}");
+        self.run_git(&["-c", "maintenance.auto=false", "commit", &fixup])?;
+        Ok(Some((target.to_string(), base)))
+    }
+
+    pub fn fold_fixup(&self, target: &str, base: &str) -> Result<()> {
+        let wanted = self.resolve_commit(target)?.to_string();
+        let mut plan = self.rebase_todo(base)?;
+        let Some(mut folded) = plan.pop() else {
+            return Err(GitError::InvalidState("the plan is empty".to_owned()));
+        };
+        folded.action = TodoAction::Fixup;
+        folded.message = None;
+        let Some(at) = plan.iter().position(|entry| entry.oid == wanted) else {
+            return Err(GitError::InvalidState(format!(
+                "{wanted} is not on the checked-out branch"
+            )));
+        };
+        plan.insert(at + 1, folded);
+        self.run_rebase(base, &plan, false)
     }
 
     fn run_rebase(&self, base: &str, plan: &[TodoEntry], paused: bool) -> Result<()> {

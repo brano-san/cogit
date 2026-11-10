@@ -790,6 +790,7 @@ export const commands = {
 	splitOff: (repo: RepoId, rev: string, paths: string[], message: string, splitFirst: boolean) => typedError<null, GitError>(__TAURI_INVOKE("split_off", { repo, rev, paths, message, splitFirst })),
 	rebaseTodo: (repo: RepoId, base: string) => typedError<TodoEntry[], GitError>(__TAURI_INVOKE("rebase_todo", { repo, base })),
 	interactiveRebase: (repo: RepoId, base: string, plan: TodoEntry[], paused: boolean) => typedError<null, GitError>(__TAURI_INVOKE("interactive_rebase", { repo, base, plan, paused })),
+	fixupInto: (repo: RepoId, rev: string) => typedError<null, GitError>(__TAURI_INVOKE("fixup_into", { repo, rev })),
 	rebaseProgress: (repo: RepoId) => typedError<{
 	applying: string | null,
 	onto: string | null,

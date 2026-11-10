@@ -1134,6 +1134,10 @@ export async function rebaseTodo(repo: RepoId, base: string) {
   return unwrap(await commands.rebaseTodo(repo, base));
 }
 
+export async function fixupInto(repo: RepoId, rev: string) {
+  return unwrap(await commands.fixupInto(repo, rev));
+}
+
 export async function interactiveRebase(
   repo: RepoId,
   base: string,

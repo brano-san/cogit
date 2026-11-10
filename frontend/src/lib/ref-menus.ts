@@ -16,6 +16,7 @@ export interface CommitFacts {
   /** Protected remote branches that already have the commit (`protecting_refs`): Split
       refuses them. Asked only for the graph's menus. */
   protectedBy?: readonly string[];
+  staged?: number;
 }
 
 export interface RefTarget {
@@ -56,6 +57,10 @@ function squashBlocked(facts: CommitFacts): string | null {
   );
 }
 
+function fixupBlocked(facts: CommitFacts): string | null {
+  return rewriteBlocked(facts) ?? ((facts.staged ?? 0) > 0 ? null : "nothing staged");
+}
+
 function replayBlocked(facts: CommitFacts): string | null {
   return facts.parents > 1 ? "a merge commit" : null;
 }
@@ -78,6 +83,7 @@ function commitActions(facts: CommitFacts, onRef: RefTarget | null): ContextItem
     offer(id("modify"), "Modify", rewriteBlocked(facts)),
     offer(id("split"), "Split", splitBlocked(facts)),
     offer(id("squash"), "Squash", squashBlocked(facts)),
+    offer(id("fixup"), "Fix Up with Staged Changes", fixupBlocked(facts)),
     offer(id("edit-message"), "Edit Message", rewriteBlocked(facts)),
     offer(id("edit-author"), "Edit Author", rewriteBlocked(facts)),
     offer(

@@ -332,6 +332,7 @@ fn bisect_start(bad: &str, good: Option<&str>) -> Result<(), GitError> = local_b
     fn edit_rebase_todo(steps: &[git_engine::RebaseStep]) -> Result<(), git_engine::GitError> = local_edit_rebase_todo;
     fn rebase_todo(base: &str) -> Result<Vec<git_engine::TodoEntry>, git_engine::GitError> = local_rebase_todo;
     fn interactive_rebase(base: &str, plan: &[git_engine::TodoEntry], paused: bool) -> Result<(), git_engine::GitError> = local_interactive_rebase;
+    fn fixup_into(rev: &str) -> Result<(), git_engine::GitError> = local_fixup_into;
     fn protecting_refs(rev: &str) -> Result<Vec<String>, git_engine::GitError> = local_protecting_refs;
     fn is_published(rev: &str) -> Result<bool, git_engine::GitError> = local_is_published;
     fn unpushed() -> Result<Vec<String>, git_engine::GitError> = local_unpushed;

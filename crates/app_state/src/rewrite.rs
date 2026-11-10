@@ -137,6 +137,28 @@ impl AppState {
         result
     }
 
+    pub(crate) fn local_fixup_into(
+        &self,
+        repo: RepoId,
+        rev: &str,
+    ) -> Result<(), git_engine::GitError> {
+        let _quiet = self.quiet(repo);
+        let handle = self.handle(repo)?;
+        let Some((target, base)) = handle.commit_fixup(rev)? else {
+            return Ok(());
+        };
+        let before = handle.head()?;
+        let result = handle.fold_fixup(&target, &base);
+        self.record_move(
+            repo,
+            &handle,
+            before,
+            format!("Fix up {} with the staged changes", short(rev)),
+            &result,
+        );
+        result
+    }
+
     /// The shared branches that already contain this commit; empty means safe to rewrite.
     pub(crate) fn local_protecting_refs(
         &self,

@@ -23,6 +23,7 @@
     interactiveRebase,
     isPublished,
     mergeInto,
+    fixupInto,
     popupContextMenu,
     protectingRefs,
     rebaseOnto,
@@ -235,7 +236,7 @@
       hasRemote: network.remotes.length > 0,
       protectedBy,
     });
-    return { details, facts };
+    return { details, facts: { ...facts, staged: worktree.staged.length } };
   }
 
   async function show(next: Target, items: ContextItem[], x: number, y: number) {
@@ -500,6 +501,8 @@
         return;
       case "squash":
         return squash(id, at);
+      case "fixup":
+        return fixup(id, at);
       case "edit-message":
         if (oid && at.details && (await publishedOk(at, "Edit Message"))) {
           refDialogs.message = { oid, message: fullMessage(at.details), parents: at.details.parents };
@@ -730,6 +733,12 @@
       if (!plan) throw notOnBranch();
       await interactiveRebase(id, base, plan, false);
     });
+  }
+
+  async function fixup(id: RepoId, at: Target) {
+    const oid = at.oid;
+    if (!oid || !(await publishedOk(at, "Fix Up"))) return;
+    await attempt("Could not fix up the commit", () => fixupInto(id, oid));
   }
 
   async function saveMessage(message: string) {

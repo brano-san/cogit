@@ -107,6 +107,24 @@ pub async fn rebase_todo(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn fixup_into(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    rev: String,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Rebase,
+        "fixup_into",
+        move || app_state.fixup_into(repo, &rev),
+    )
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn interactive_rebase(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,
