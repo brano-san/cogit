@@ -35,10 +35,32 @@ impl RepoHandle {
                     "no commit to rebase from".to_owned(),
                 ));
             }
-            Some(upstream) => args.extend([onto_flag.as_str(), "--end-of-options", upstream]),
+            Some(upstream) => {
+                self.check_linear_since(upstream)?;
+                args.extend([onto_flag.as_str(), "--end-of-options", upstream]);
+            }
             None => args.extend(["--end-of-options", onto]),
         }
         self.run_git(&args).map(drop)
+    }
+
+    /// `rebase --onto X <upstream>` replays all of `upstream..HEAD` flattened: a merge in it
+    /// is dropped, and an upstream off HEAD's first-parent line drags in mainline commits.
+    fn check_linear_since(&self, upstream: &str) -> Result<()> {
+        let base = self.resolve_commit(upstream)?.to_string();
+        if !self.is_ancestor(&base, "HEAD")? {
+            return Err(GitError::InvalidState(format!(
+                "{upstream} is not on the checked-out branch: the commits above it are not a line to move"
+            )));
+        }
+        let merges =
+            self.read_git(&["rev-list", "--merges", "--count", &format!("{base}..HEAD")])?;
+        if merges.trim() != "0" {
+            return Err(GitError::InvalidState(format!(
+                "a merge commit comes after {upstream}: moving the commits above it would flatten the merge"
+            )));
+        }
+        Ok(())
     }
 
     /// Only a rebase and a cherry-pick can skip; a merge has nothing to skip past.

@@ -239,3 +239,50 @@ fn rebasing_onto_with_an_upstream_moves_only_the_commits_after_it() {
     );
     assert_eq!(repo.state().unwrap(), RepoState::Clean);
 }
+
+fn invalid_state(err: git_engine::GitError, needle: &str) {
+    assert!(
+        matches!(&err, git_engine::GitError::InvalidState(why) if why.contains(needle)),
+        "{err:?}"
+    );
+}
+
+#[test]
+fn moving_the_commits_above_one_refuses_when_a_merge_comes_after_it() {
+    let f = test_fixtures::branched().unwrap();
+    f.git(&["merge", "--no-ff", "-m", "merge dev", "dev"])
+        .unwrap();
+    f.commit_file(9, "after.txt", "after\n").unwrap();
+    let head = f.oid("HEAD").unwrap();
+    let repo = open(&f);
+
+    for upstream in ["dev~1", "main~2"] {
+        let err = repo
+            .rebase(&RebaseOptions {
+                upstream: Some(upstream.to_owned()),
+                ..onto("dev")
+            })
+            .unwrap_err();
+        invalid_state(err, "merge");
+    }
+
+    assert_eq!(f.oid("HEAD").unwrap(), head);
+    assert_eq!(repo.state().unwrap(), RepoState::Clean);
+}
+
+#[test]
+fn moving_the_commits_above_one_off_the_branch_is_refused() {
+    let f = test_fixtures::branched().unwrap();
+    let head = f.oid("HEAD").unwrap();
+    let repo = open(&f);
+
+    let err = repo
+        .rebase(&RebaseOptions {
+            upstream: Some("dev~1".to_owned()),
+            ..onto("dev")
+        })
+        .unwrap_err();
+
+    invalid_state(err, "not on the checked-out branch");
+    assert_eq!(f.oid("HEAD").unwrap(), head);
+}
