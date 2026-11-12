@@ -4,8 +4,18 @@
   import Dialog from "$components/common/Dialog.svelte";
   import Disclosure from "$components/common/Disclosure.svelte";
   import EmptyState from "$components/common/EmptyState.svelte";
-  import { SEPARATOR, item } from "$lib/context-menu";
-  import { editLine, groupHits, lineNotes, negation, type HitGroup, type LineEdit, type LineNote } from "$lib/ignore-editor";
+  import {
+    editLine,
+    groupHits,
+    ignoreMenu,
+    lineNotes,
+    nameOf,
+    negation,
+    ruleAt,
+    type HitGroup,
+    type LineEdit,
+    type LineNote,
+  } from "$lib/ignore-editor";
   import { tokenizeIgnoreLine } from "$lib/ignore-syntax";
   import {
     ignoreFiles,
@@ -42,6 +52,8 @@
   let active = $state<IgnoreScope>("folder");
   let preview = $state.raw<IgnorePreview | null>(null);
   let checking = $state(false);
+  /** The preview was computed from the current text: its line numbers can be edited by. */
+  let fresh = $state(false);
   let saving = $state(false);
   let field: HTMLTextAreaElement | undefined = $state();
   let run = 0;
@@ -72,10 +84,13 @@
     const drafts = files.map((file) => ({ scope: file.scope, dir: file.dir, text: texts[file.scope] }));
     const mine = ++run;
     checking = true;
+    fresh = false;
     const timer = setTimeout(() => {
       void ignorePreview(repo, drafts)
         .then((next) => {
-          if (mine === run) preview = next;
+          if (mine !== run) return;
+          preview = next;
+          fresh = true;
         })
         .catch((err: unknown) => errors.report(err, "Could not preview the ignore rules"))
         .finally(() => {
@@ -97,29 +112,25 @@
     folded = next;
   }
 
-  function nameOf(path: string): { name: string; folder: string } {
-    const bare = path.endsWith("/") ? path.slice(0, -1) : path;
-    const at = bare.lastIndexOf("/");
-    return { name: bare.slice(at + 1) + (bare === path ? "" : "/"), folder: at < 0 ? "" : bare.slice(0, at) };
-  }
-
   function edit(group: HitGroup, change: LineEdit) {
     texts[group.scope] = editLine(texts[group.scope], group.line, change);
     active = group.scope;
   }
 
+  /** The menu was built from an older text than the one a command acts on: check again. */
+  function stillThere(group: HitGroup): boolean {
+    if (opens(group) && ruleAt(texts[group.scope], group.line, group.pattern)) return true;
+    errors.message(
+      `Line ${group.line} no longer holds ${group.pattern}; nothing was changed. Wait for the list to update and try again.`,
+      "The rule has moved",
+    );
+    return false;
+  }
+
   async function menu(event: MouseEvent, group: HitGroup, hit: IgnoreHit | null) {
     event.preventDefault();
     menuFor = { group, hit };
-    const editable = opens(group);
-    const kept = hit && editable ? negation(hit.path, { scope: group.scope, dir: group.dir }) : null;
-    const items = [
-      ...(hit ? [item("ignore-keep", `Don't Ignore ${nameOf(hit.path).name}`, kept !== null), SEPARATOR] : []),
-      item("ignore-go", "Go to Rule", editable),
-      item("ignore-comment", "Comment Out Rule", editable),
-      item("ignore-remove", "Remove Rule", editable),
-      ...(hit ? [SEPARATOR, item("ignore-copy", "Copy Path")] : []),
-    ];
+    const items = ignoreMenu(group, hit, opens(group) ? texts[group.scope] : null, fresh);
     await popupContextMenu(items, event.clientX, event.clientY).catch((err: unknown) =>
       errors.report(err, "Could not show the menu"),
     );
@@ -131,12 +142,15 @@
     if (!at || !id.startsWith("ignore-")) return;
     const { group, hit } = at;
     if (id === "ignore-keep" && hit) {
-      const line = negation(hit.path, { scope: group.scope, dir: group.dir });
+      const line = hit.underFolder === null ? negation(hit.path, group) : null;
       if (line) edit(group, { append: line });
-    } else if (id === "ignore-go") void show(group);
-    else if (id === "ignore-comment") edit(group, "comment");
-    else if (id === "ignore-remove") edit(group, "remove");
-    else if (id === "ignore-copy" && hit) {
+    } else if (id === "ignore-go") {
+      if (stillThere(group)) void show(group);
+    } else if (id === "ignore-comment") {
+      if (stillThere(group)) edit(group, "comment");
+    } else if (id === "ignore-remove") {
+      if (stillThere(group)) edit(group, "remove");
+    } else if (id === "ignore-copy" && hit) {
       void import("@tauri-apps/plugin-clipboard-manager")
         .then(({ writeText }) => writeText(hit.path))
         .catch((err: unknown) => errors.report(err, "Could not copy the path"));
@@ -255,7 +269,7 @@
                       class="source mono"
                       onclick={(event) => {
                         event.stopPropagation();
-                        void show(group);
+                        if (stillThere(group)) void show(group);
                       }}>{group.source}</button
                     >
                   {:else}
@@ -414,13 +428,15 @@
     font-size: var(--fs-dense);
   }
 
+  /* The pattern starts at side + glyph + (side - tree-gap) + tree-gap: where a file name does. */
   .rule {
-    padding: 0 var(--sp-4) 0 var(--sp-2);
+    gap: var(--tree-gap);
+    padding: 0 var(--sp-4) 0 var(--disclosure-side);
     cursor: default;
   }
 
   .hit {
-    padding: 0 var(--sp-4) 0 calc(var(--sp-2) + 18px);
+    padding: 0 var(--sp-4) 0 calc(2 * var(--disclosure-side) + var(--disclosure-glyph));
   }
 
   .rule:hover,

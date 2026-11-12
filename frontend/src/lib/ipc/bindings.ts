@@ -1902,6 +1902,8 @@ export type IgnoreHit = {
 	dir: string,
 	line: number,
 	pattern: string,
+	/**  The excluded ancestor folder that decides the path; git cannot re-include under it. */
+	underFolder: string | null,
 };
 
 export type IgnorePreview = {

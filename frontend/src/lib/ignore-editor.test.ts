@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
-import type { IgnoreHit, IgnorePreview } from "$lib/ipc";
-import { editLine, groupHits, hitSource, lineNotes, negation, parentDirs } from "./ignore-editor";
+import type { ContextItem, IgnoreHit, IgnorePreview } from "$lib/ipc";
+import {
+  editLine,
+  groupHits,
+  hitSource,
+  ignoreMenu,
+  lineNotes,
+  negation,
+  parentDirs,
+  ruleAt,
+  ruleText,
+  type HitGroup,
+} from "./ignore-editor";
 
 const hit = (line: number, extra: Partial<IgnoreHit> = {}): IgnoreHit => ({
   path: "a.log",
@@ -9,6 +20,7 @@ const hit = (line: number, extra: Partial<IgnoreHit> = {}): IgnoreHit => ({
   dir: "",
   line,
   pattern: "*.log",
+  underFolder: null,
   ...extra,
 });
 
@@ -88,5 +100,68 @@ describe("editLine", () => {
     expect(editLine("a\n*.log\nb\n", 2, "remove")).toBe("a\nb\n");
     expect(editLine("a", 0, { append: "!/x" })).toBe("a\n!/x\n");
     expect(editLine("", 0, { append: "!/x" })).toBe("!/x\n");
+  });
+});
+
+describe("ruleText", () => {
+  it("reads a line the way git does", () => {
+    expect(ruleText("build/")).toBe("build/");
+    expect(ruleText("*.log   ")).toBe("*.log");
+    expect(ruleText(String.raw`a\ `)).toBe(String.raw`a\ `);
+    expect(ruleText(String.raw`\#hash`)).toBe("#hash");
+    expect(ruleText("!/keep")).toBe("!/keep");
+    expect(ruleText("# note")).toBeNull();
+    expect(ruleText("   ")).toBeNull();
+  });
+});
+
+describe("ruleAt", () => {
+  it("holds only while the line still says the pattern", () => {
+    expect(ruleAt("a\n*.log  \nb\n", 2, "*.log")).toBe(true);
+    expect(ruleAt("*.log\na\nb\n", 2, "*.log")).toBe(false);
+    expect(ruleAt("a\n# *.log\n", 2, "*.log")).toBe(false);
+    expect(ruleAt("a\n", 7, "*.log")).toBe(false);
+  });
+});
+
+describe("ignoreMenu", () => {
+  const group = (extra: Partial<HitGroup> = {}): HitGroup => ({
+    key: "k",
+    source: ".gitignore:1",
+    scope: "folder",
+    dir: "",
+    line: 1,
+    pattern: "build/",
+    hits: [],
+    ...extra,
+  });
+  const row = (items: ContextItem[], id: string) => items.find((each) => each.id === id);
+  const under = hit(1, { path: "build/a.o", pattern: "build/", underFolder: "build" });
+
+  it("says a file under an ignored folder cannot be kept", () => {
+    const keep = row(ignoreMenu(group(), under, "build/\n", true), "ignore-keep")!;
+    expect(keep.enabled).toBe(false);
+    expect(keep.label).toBe("Don't Ignore a.o (its folder is ignored)");
+  });
+
+  it("keeps a file the rule matches itself", () => {
+    const keep = row(ignoreMenu(group({ pattern: "*.log" }), hit(1), "*.log\n", true), "ignore-keep")!;
+    expect(keep.enabled).toBe(true);
+  });
+
+  it("turns the rule rows off while the list is out of date or the line moved", () => {
+    const rules = ["ignore-go", "ignore-comment", "ignore-remove"];
+    const stale = ignoreMenu(group(), null, "build/\n", false);
+    expect(rules.map((id) => row(stale, id)!.enabled)).toEqual([false, false, false]);
+    const moved = ignoreMenu(group(), null, "x\nbuild/\n", true);
+    expect(rules.map((id) => row(moved, id)!.enabled)).toEqual([false, false, false]);
+    const fine = ignoreMenu(group(), null, "build/\n", true);
+    expect(rules.map((id) => row(fine, id)!.enabled)).toEqual([true, true, true]);
+  });
+
+  it("starts and ends with a row", () => {
+    const items = ignoreMenu(group(), null, null, true);
+    expect(items[0]!.separator).toBe(false);
+    expect(items[items.length - 1]!.separator).toBe(false);
   });
 });

@@ -201,3 +201,51 @@ fn a_bare_repository_has_no_ignore_files_to_edit() {
     );
     assert!(!f.path().join(".gitignore").exists());
 }
+
+#[test]
+fn a_file_under_an_ignored_folder_names_that_folder() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file("out/sub/.gitkeep", "").unwrap();
+    f.git(&["add", "out"]).unwrap();
+    f.commit_staged(2, "track out").unwrap();
+    f.write_file("out/sub/a.o", "").unwrap();
+    f.write_file("a.log", "").unwrap();
+    let (repo, _) = repo_with_global(&f);
+
+    let preview = repo
+        .ignore_preview(&[draft(IgnoreScope::Folder, "", "out/sub/\n*.log\n")])
+        .unwrap();
+
+    let under = hit(&preview.hits, "out/sub/a.o").unwrap();
+    assert_eq!(under.under_folder.as_deref(), Some("out/sub"));
+    assert_eq!(hit(&preview.hits, "a.log").unwrap().under_folder, None);
+}
+
+#[test]
+fn a_conflicted_path_is_listed_once_and_its_gitignore_counts() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.commit_file(2, ".gitignore", "*.old\n").unwrap();
+    f.git(&["switch", "-c", "dev"]).unwrap();
+    f.commit_file(3, ".gitignore", "*.bak\n").unwrap();
+    f.git(&["switch", "main"]).unwrap();
+    f.commit_file(4, ".gitignore", "*.bak\n*.orig\n").unwrap();
+    let _ = f.git_at(5, &["merge", "--no-edit", "dev"]);
+    assert!(!f.git(&["ls-files", "-u"]).unwrap().is_empty());
+    f.write_file("x.bak", "").unwrap();
+    let (repo, _) = repo_with_global(&f);
+
+    let preview = repo
+        .ignore_preview(&[draft(IgnoreScope::Exclude, "", ".gitignore\n")])
+        .unwrap();
+
+    let listed = preview
+        .hits
+        .iter()
+        .filter(|hit| hit.path == ".gitignore")
+        .count();
+    assert_eq!(listed, 1);
+    assert_eq!(
+        hit(&preview.hits, "x.bak").unwrap().scope,
+        IgnoreScope::Folder
+    );
+}

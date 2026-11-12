@@ -43,6 +43,8 @@ pub struct IgnoreHit {
     pub dir: String,
     pub line: u32,
     pub pattern: String,
+    /// The excluded ancestor folder that decides the path; git cannot re-include under it.
+    pub under_folder: Option<String>,
 }
 
 #[derive(
@@ -252,17 +254,18 @@ impl RepoHandle {
             .index_or_empty()
             .map_err(|err| GitError::Internal(format!("cannot read the index: {err}")))?;
         let untracked = self.read_git(&["ls-files", "-z", "--others", "--directory"])?;
+        // Entries are sorted by path, then stage: a conflicted path keeps one of its stages.
+        let mut tracked: Vec<&BStr> = index
+            .entries()
+            .iter()
+            .map(|entry| entry.path(&index))
+            .collect();
+        tracked.dedup();
         let candidates: Vec<(&BStr, bool)> = untracked
             .split('\0')
             .filter(|path| !path.is_empty())
             .map(|path| (path.as_bytes().as_bstr(), false))
-            .chain(
-                index
-                    .entries()
-                    .iter()
-                    .filter(|entry| entry.stage_raw() == 0)
-                    .map(|entry| (entry.path(&index), true)),
-            )
+            .chain(tracked.into_iter().map(|path| (path, true)))
             .collect();
         let rule_folders = candidates
             .iter()
@@ -304,8 +307,11 @@ impl RepoHandle {
                         .entry(folder)
                         .or_insert_with(|| excluded(folder, true))
                         .clone()
+                        .map(|found| (Some(folder), found))
                 });
-            let Some(found) = by_folder.or_else(|| excluded(relative, is_dir)) else {
+            let Some((under_folder, found)) =
+                by_folder.or_else(|| excluded(relative, is_dir).map(|found| (None, found)))
+            else {
                 continue;
             };
             preview.total += 1;
@@ -318,6 +324,7 @@ impl RepoHandle {
                     dir,
                     line: u32::try_from(found.sequence_number).unwrap_or(u32::MAX),
                     pattern: found.pattern.to_string(),
+                    under_folder: under_folder.map(|folder| folder.to_str_lossy().into_owned()),
                 });
             }
         }
