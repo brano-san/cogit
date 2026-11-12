@@ -37,7 +37,7 @@ export function languageOf(path: string): string | null {
   const file = path.slice(
     Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")) + 1,
   );
-  const name = /^.+.in$/i.test(file) ? file.slice(0, -3) : file;
+  const name = /^.+\.in$/i.test(file) ? file.slice(0, -3) : file;
   const dot = name.lastIndexOf(".");
   const ext = dot >= 0 ? name.slice(dot + 1).toLowerCase() : "";
   const extra = EXTRA_EXTENSIONS[ext];
