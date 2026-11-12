@@ -4,7 +4,7 @@ use gix::status::plumbing::index_as_worktree::{Change as WorktreeChange, EntrySt
 use gix::status::{Item, UntrackedFiles};
 use serde::Deserialize;
 use serde::Serialize;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 
 /// The four Files-panel toggles that cost extra reading. The rest — untracked, rename
 /// sources, directories, index and worktree side by side — are filters over what is already
@@ -108,7 +108,7 @@ impl RepoHandle {
                 continue;
             }
             match item {
-                Item::TreeIndex(change) => files.staged.push(staged_entry(&change)),
+                Item::TreeIndex(change) => files.staged.push(staged_entry(change)),
                 Item::IndexWorktree(WorktreeItem::Modification {
                     rela_path,
                     status,
@@ -117,7 +117,7 @@ impl RepoHandle {
                 }) => {
                     if let Some(file_status) = worktree_status(&status) {
                         let mut row =
-                            entry_of(rela_path.to_string(), file_status, mode_of(found.mode));
+                            entry_of(path_string(rela_path), file_status, mode_of(found.mode));
                         row.mode_change = executable_bit_change(&status, found.mode);
                         row.submodule = submodule_change(&status);
                         row.conflict = conflict_kind(&status);
@@ -132,7 +132,7 @@ impl RepoHandle {
                     };
                     files
                         .unstaged
-                        .push(entry(found.rela_path.to_string(), status));
+                        .push(entry(path_string(found.rela_path), status));
                 }
                 Item::IndexWorktree(_) => {}
             }
@@ -191,39 +191,52 @@ impl RepoHandle {
         let index = self.current_index()?;
         let sparse = self.sparse_checkout();
 
-        let mentioned: BTreeSet<String> = files
+        let mentioned: HashSet<&str> = files
             .staged
             .iter()
             .chain(files.unstaged.iter())
-            .map(|file| file.path.clone())
+            .map(|file| file.path.as_str())
             .collect();
 
+        let mut quiet = Vec::new();
         for item in index.entries() {
             use gix::index::entry::Flags;
-            let path = item.path(&index).to_string();
-            if mentioned.contains(&path) {
+            let status = if item.flags.contains(Flags::SKIP_WORKTREE) {
+                if !view.skipped {
+                    continue;
+                }
+                FileStatus::Skipped
+            } else if item.flags.contains(Flags::ASSUME_VALID) {
+                if !view.assume_unchanged {
+                    continue;
+                }
+                FileStatus::AssumeUnchanged
+            } else {
+                if !view.unchanged {
+                    continue;
+                }
+                FileStatus::Unchanged
+            };
+            let path = String::from_utf8_lossy(item.path(&index));
+            if mentioned.contains(path.as_ref()) {
                 continue;
             }
-
-            let status = if item.flags.contains(Flags::SKIP_WORKTREE) {
-                let hidden = sparse && std::fs::symlink_metadata(self.root().join(&path)).is_err();
-                view.skipped.then_some(if hidden {
-                    FileStatus::Sparse
-                } else {
-                    FileStatus::Skipped
-                })
-            } else if item.flags.contains(Flags::ASSUME_VALID) {
-                view.assume_unchanged.then_some(FileStatus::AssumeUnchanged)
-            } else {
-                view.unchanged.then_some(FileStatus::Unchanged)
-            };
-
-            if let Some(status) = status {
-                files.unstaged.push(entry(path, status));
-            }
+            let hidden = status == FileStatus::Skipped
+                && sparse
+                && std::fs::symlink_metadata(self.root().join(path.as_ref())).is_err();
+            let status = if hidden { FileStatus::Sparse } else { status };
+            quiet.push(entry(path.into_owned(), status));
         }
+        drop(mentioned);
+        files.unstaged.append(&mut quiet);
         Ok(())
     }
+}
+
+/// Moves the bytes when they are UTF-8; `to_string` would format them into a new buffer.
+fn path_string(path: gix::bstr::BString) -> String {
+    String::from_utf8(path.into())
+        .unwrap_or_else(|err| String::from_utf8_lossy(err.as_bytes()).into_owned())
 }
 
 fn entry(path: String, status: FileStatus) -> FileEntry {
@@ -257,7 +270,7 @@ fn mode_of(mode: gix::index::entry::Mode) -> crate::FileMode {
     }
 }
 
-fn staged_entry(change: &gix::diff::index::Change) -> FileEntry {
+fn staged_entry(change: gix::diff::index::Change) -> FileEntry {
     use gix::diff::index::Change;
     match change {
         Change::Addition {
@@ -265,18 +278,18 @@ fn staged_entry(change: &gix::diff::index::Change) -> FileEntry {
             entry_mode,
             ..
         } => entry_of(
-            location.to_string(),
+            path_string(location.into_owned()),
             FileStatus::Added,
-            mode_of(*entry_mode),
+            mode_of(entry_mode),
         ),
         Change::Deletion {
             location,
             entry_mode,
             ..
         } => entry_of(
-            location.to_string(),
+            path_string(location.into_owned()),
             FileStatus::Deleted,
-            mode_of(*entry_mode),
+            mode_of(entry_mode),
         ),
         Change::Modification {
             location,
@@ -284,11 +297,11 @@ fn staged_entry(change: &gix::diff::index::Change) -> FileEntry {
             previous_entry_mode,
             ..
         } => FileEntry {
-            mode_change: (entry_mode != previous_entry_mode).then(|| mode_of(*entry_mode)),
+            mode_change: (entry_mode != previous_entry_mode).then(|| mode_of(entry_mode)),
             ..entry_of(
-                location.to_string(),
+                path_string(location.into_owned()),
                 FileStatus::Modified,
-                mode_of(*entry_mode),
+                mode_of(entry_mode),
             )
         },
         Change::Rewrite {
@@ -298,14 +311,14 @@ fn staged_entry(change: &gix::diff::index::Change) -> FileEntry {
             entry_mode,
             ..
         } => FileEntry {
-            path: location.to_string(),
-            old_path: Some(source_location.to_string()),
-            status: if *copy {
+            path: path_string(location.into_owned()),
+            old_path: Some(path_string(source_location.into_owned())),
+            status: if copy {
                 FileStatus::Copied
             } else {
                 FileStatus::Renamed
             },
-            mode: mode_of(*entry_mode),
+            mode: mode_of(entry_mode),
             mode_change: None,
             similarity: None,
             submodule: None,

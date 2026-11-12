@@ -161,13 +161,17 @@ impl RepoHandle {
             if crate::worktree::inert(&item) {
                 continue;
             }
-            match &item {
+            // By value: the paths are owned already, so the set takes them without a copy.
+            match item {
                 Item::IndexWorktree(WorktreeItem::Modification {
                     status: EntryStatus::NeedsUpdate(_),
                     ..
                 }) => {}
-                Item::TreeIndex(_) | Item::IndexWorktree(WorktreeItem::Modification { .. }) => {
-                    changed.insert(item.location().to_owned());
+                Item::TreeIndex(change) => {
+                    changed.insert(staged_location(change));
+                }
+                Item::IndexWorktree(WorktreeItem::Modification { rela_path, .. }) => {
+                    changed.insert(rela_path);
                 }
                 Item::IndexWorktree(WorktreeItem::DirectoryContents { entry, .. })
                     if matches!(entry.status, gix::dir::entry::Status::Untracked) =>
@@ -286,6 +290,16 @@ fn skipping_broken_submodules<T>(
             read(true)
         }
         other => other,
+    }
+}
+
+fn staged_location(change: gix::diff::index::Change) -> gix::bstr::BString {
+    use gix::diff::index::Change;
+    match change {
+        Change::Addition { location, .. }
+        | Change::Deletion { location, .. }
+        | Change::Modification { location, .. }
+        | Change::Rewrite { location, .. } => location.into_owned(),
     }
 }
 
