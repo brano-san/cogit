@@ -41,9 +41,11 @@
 >
   <svg viewBox="0 0 16 16" aria-hidden="true">
     {#if kind === "repository" || kind === "submodule"}
-      <!-- A stack of three disks, as SmartGit draws a repository; a submodule is one too. -->
-      <rect class="body" x="1.75" y="2.25" width="12.5" height="11.5" rx="1.5" />
-      <path class="disks" d="M1.75 6.1h12.5M1.75 9.9h12.5" />
+      <!-- A stack of three disks with a pixel between them, as SmartGit draws a repository;
+           a submodule is one too. 1 px outlines on half-pixel lines: crisp at 16 px. -->
+      <rect class="disk" x="1.5" y="1.5" width="13" height="3" rx="1" />
+      <rect class="disk" x="1.5" y="6.5" width="13" height="3" rx="1" />
+      <rect class="disk" x="1.5" y="11.5" width="13" height="3" rx="1" />
     {:else if kind === "worktree"}
       <circle cx="4.5" cy="3.5" r="1.5" />
       <circle cx="4.5" cy="12.5" r="1.5" />
@@ -95,15 +97,17 @@
     color: var(--status-ref);
   }
 
+  .disk {
+    stroke-width: 1;
+    fill: currentColor;
+    fill-opacity: 0.22;
+  }
+
   .kind.changed {
     color: var(--indicator-repo-changes);
   }
 
-  .changed .body {
-    fill: currentColor;
-  }
-
-  .changed .disks {
-    stroke: var(--text-on-accent);
+  .changed .disk {
+    fill-opacity: 1;
   }
 </style>
