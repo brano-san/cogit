@@ -24,6 +24,8 @@ class TaskbarStore {
     () => {
       this.#sent = "";
     },
+    // A flash is sent once: a newer state queued behind it must carry it, not drop it.
+    (older, newer) => ({ ...newer, flash: newer.flash ?? older.flash }),
   );
 
   get unviewed(): number {
