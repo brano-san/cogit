@@ -244,3 +244,15 @@ fn a_conflicted_squash_merge_seeds_the_squash_message_before_the_hints() {
     );
     assert!(seed.contains("# Conflicts:"), "{seed}");
 }
+
+#[test]
+fn fix_up_waits_for_a_stopped_merge() {
+    let f = test_fixtures::conflicted().unwrap();
+    f.git(&["add", "-A"]).unwrap();
+    let repo = open(&f);
+
+    let err = repo.commit_fixup("HEAD~1").unwrap_err();
+
+    assert!(err.to_string().contains("in progress"), "{err}");
+    assert_eq!(repo.state().unwrap(), RepoState::Merging);
+}

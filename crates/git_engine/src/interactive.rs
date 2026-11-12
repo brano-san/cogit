@@ -213,6 +213,13 @@ impl RepoHandle {
 
     pub fn commit_fixup(&self, rev: &str) -> Result<Option<(String, String)>> {
         let target = self.resolve_commit(rev)?;
+        // Mid-merge the fixup! commit became a merge commit that the rebase then flattened;
+        // mid-rebase it landed inside the paused rebase.
+        if self.state()?.is_interrupted_operation() {
+            return Err(GitError::InvalidState(
+                "finish or abort the operation in progress first".to_owned(),
+            ));
+        }
         let status = self.status()?;
         if status.staged == 0 {
             return Err(GitError::InvalidState(

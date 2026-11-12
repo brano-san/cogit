@@ -17,6 +17,8 @@ export interface CommitFacts {
       refuses them. Asked only for the graph's menus. */
   protectedBy?: readonly string[];
   staged?: number;
+  /** A merge, rebase, cherry-pick, revert, bisect or am is unfinished. */
+  midOperation?: boolean;
 }
 
 export interface RefTarget {
@@ -58,6 +60,7 @@ function squashBlocked(facts: CommitFacts): string | null {
 }
 
 function fixupBlocked(facts: CommitFacts): string | null {
+  if (facts.midOperation) return "an operation is in progress";
   return rewriteBlocked(facts) ?? ((facts.staged ?? 0) > 0 ? null : "nothing staged");
 }
 

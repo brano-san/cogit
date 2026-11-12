@@ -236,7 +236,9 @@
       hasRemote: network.remotes.length > 0,
       protectedBy,
     });
-    return { details, facts: { ...facts, staged: worktree.staged.length } };
+    const busy = summary?.state.kind;
+    const midOperation = busy !== undefined && !["clean", "detachedHead", "empty", "bare"].includes(busy);
+    return { details, facts: { ...facts, staged: worktree.staged.length, midOperation } };
   }
 
   async function show(next: Target, items: ContextItem[], x: number, y: number) {
