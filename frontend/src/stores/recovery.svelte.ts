@@ -39,11 +39,13 @@ class RecoveryStore {
 
   async #read(repo: RepoId): Promise<void> {
     const generation = ++this.#generation;
-    let rows: CommitRow[] = [];
+    // Grown in place and shown as a copy: spreading the whole list into a new one per chunk
+    // copied it twice over, quadratic in the chunks.
+    const rows: CommitRow[] = [];
     await lostCommits(repo, (chunk) => {
       if (generation !== this.#generation) return;
-      rows = [...rows, ...chunk];
-      this.lost = rows;
+      for (const row of chunk) rows.push(row);
+      this.lost = rows.slice();
     });
     // An empty answer sends no chunk, so the old list would stay.
     if (generation === this.#generation) this.lost = rows;
