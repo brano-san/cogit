@@ -339,7 +339,7 @@ async fn a_submodule_opened_from_its_parent_waits_in_the_parents_lane() {
 }
 
 #[tokio::test]
-async fn a_background_fetch_waits_its_turn_unseen_and_holds_the_lane() {
+async fn a_background_fetch_waits_its_turn_and_holds_the_lane() {
     let (state, repo) = opened();
     let push = state.enqueue(repo, OperationKind::Push, "Pushing").await;
 
@@ -353,7 +353,11 @@ async fn a_background_fetch_waits_its_turn_unseen_and_holds_the_lane() {
     });
     tokio::time::sleep(Duration::from_millis(50)).await;
     assert!(turn.try_recv().is_err(), "it ran beside the push");
-    assert_eq!(state.operations().len(), 1, "the footer showed it");
+    assert_eq!(state.operations().len(), 1, "nobody waits on it yet");
+    assert_eq!(
+        state.session_end_blocker().as_deref(),
+        Some("2 operations are still running")
+    );
 
     push.finish(true);
     tokio::task::spawn_blocking(move || turn.recv().unwrap())
@@ -367,11 +371,99 @@ async fn a_background_fetch_waits_its_turn_unseen_and_holds_the_lane() {
             .await
             .finish(true);
     });
-    until(&state, 1).await;
-    assert_eq!(state.operations()[0].phase, OperationPhase::Queued);
+    until(&state, 2).await;
+    let shown = state.operations();
+    assert_eq!(shown[0].kind, OperationKind::Fetch);
+    assert_eq!(shown[0].phase, OperationPhase::Running);
+    assert_eq!(shown[1].phase, OperationPhase::Queued);
 
     done.send(()).unwrap();
     fetch.await.unwrap();
     committing.await.unwrap();
     until(&state, 0).await;
+}
+
+// A Commit sat "Queued" behind a background fetch with nothing shown running.
+#[tokio::test]
+async fn a_background_fetch_is_announced_once_someone_waits_behind_it() {
+    let (state, repo) = opened();
+    let mut events = state.subscribe();
+    let background = Arc::clone(&state);
+    let (took, turn) = std::sync::mpsc::channel();
+    let (done, finished) = std::sync::mpsc::channel::<()>();
+    let fetch = tokio::task::spawn_blocking(move || {
+        let _turn = background.background_turn(repo);
+        took.send(()).unwrap();
+        finished.recv().unwrap();
+    });
+    tokio::task::spawn_blocking(move || turn.recv().unwrap())
+        .await
+        .unwrap();
+    assert!(state.operations().is_empty(), "alone, it stays quiet");
+
+    let commit = Arc::clone(&state);
+    let committing = tokio::spawn(async move {
+        commit
+            .enqueue(repo, OperationKind::Commit, "Committing")
+            .await
+            .finish(true);
+    });
+    until(&state, 2).await;
+    done.send(()).unwrap();
+    fetch.await.unwrap();
+    committing.await.unwrap();
+
+    let mut phases = Vec::new();
+    while let Ok(event) = events.try_recv() {
+        if let AppEvent::Operation(operation) = event {
+            phases.push((operation.kind, operation.phase, operation.cancellable));
+        }
+    }
+    // The commit's `Running` and the fetch's `Done` come from two threads, in either order.
+    assert_eq!(
+        phases[..2],
+        [
+            (OperationKind::Fetch, OperationPhase::Running, false),
+            (OperationKind::Commit, OperationPhase::Queued, false),
+        ]
+    );
+    assert!(phases.contains(&(OperationKind::Fetch, OperationPhase::Done, false)));
+    assert_eq!(
+        phases.last(),
+        Some(&(OperationKind::Commit, OperationPhase::Done, false))
+    );
+    assert_eq!(phases.len(), 5, "{phases:?}");
+}
+
+#[tokio::test]
+async fn idle_and_the_session_end_wait_for_a_background_fetch() {
+    let (state, repo) = opened();
+    let background = Arc::clone(&state);
+    let (took, turn) = std::sync::mpsc::channel();
+    let (done, finished) = std::sync::mpsc::channel::<()>();
+    let fetch = tokio::task::spawn_blocking(move || {
+        let _turn = background.background_turn(repo);
+        took.send(()).unwrap();
+        finished.recv().unwrap();
+    });
+    tokio::task::spawn_blocking(move || turn.recv().unwrap())
+        .await
+        .unwrap();
+
+    assert_eq!(
+        state.session_end_blocker().as_deref(),
+        Some("1 operation is still running")
+    );
+    let waiter = Arc::clone(&state);
+    let idle = tokio::spawn(async move { waiter.until_idle().await });
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert!(!idle.is_finished(), "the fetch still writes refs");
+
+    done.send(()).unwrap();
+    fetch.await.unwrap();
+    tokio::time::timeout(test_fixtures::scaled(Duration::from_secs(5)), idle)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(state.session_end_blocker(), None);
 }

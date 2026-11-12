@@ -62,16 +62,44 @@ pub struct Operation {
     pub cancellable: bool,
 }
 
+/// A background fetch holds the lane like any operation and counts for the session end and
+/// `until_idle`, but the footer hears of it only once someone waits behind it (R-946).
+#[derive(Debug)]
+struct Turn {
+    operation: Operation,
+    background: bool,
+    announced: bool,
+}
+
+impl Turn {
+    fn user(operation: Operation) -> Self {
+        Self {
+            operation,
+            background: false,
+            announced: true,
+        }
+    }
+
+    fn shown(&self) -> Option<&Operation> {
+        self.announced.then_some(&self.operation)
+    }
+}
+
 #[derive(Debug, Default)]
 struct Lane {
-    running: Option<Operation>,
-    background: bool,
-    waiting: VecDeque<(Option<Operation>, oneshot::Sender<()>)>,
+    running: Option<Turn>,
+    waiting: VecDeque<(Turn, oneshot::Sender<()>)>,
 }
 
 impl Lane {
-    fn free(&self) -> bool {
-        self.running.is_none() && !self.background
+    /// The background fetch running here, made visible: it is in the way now.
+    fn announce_background(&mut self) -> Option<Operation> {
+        let running = self.running.as_mut()?;
+        if running.announced || self.waiting.iter().all(|(turn, _)| turn.background) {
+            return None;
+        }
+        running.announced = true;
+        Some(running.operation.clone())
     }
 }
 
@@ -86,7 +114,8 @@ pub struct Queue {
 }
 
 impl Queue {
-    /// Takes a place in the repository's lane and says whether the turn is now.
+    /// Takes a place in the repository's lane and says whether the turn is now; also the
+    /// background fetch it now waits behind, to announce.
     ///
     /// Sync, under one lock, at the first poll of the command: its place is fixed then and
     /// kept to the end. Tauri spawns each async command on the multi-threaded runtime, so
@@ -99,7 +128,7 @@ impl Queue {
         kind: OperationKind,
         label: String,
         cancellable: bool,
-    ) -> (Operation, Option<oneshot::Receiver<()>>) {
+    ) -> (Operation, Option<oneshot::Receiver<()>>, Option<Operation>) {
         let mut lanes = self.lanes.lock();
         let lane = lanes.entry(lane.to_path_buf()).or_default();
         let mut operation = Operation {
@@ -112,71 +141,104 @@ impl Queue {
             cancellable,
         };
 
-        if lane.free() {
+        if lane.running.is_none() {
             operation.phase = OperationPhase::Running;
-            lane.running = Some(operation.clone());
-            return (operation, None);
+            lane.running = Some(Turn::user(operation.clone()));
+            return (operation, None, None);
         }
 
         let (wake, wait) = oneshot::channel();
-        lane.waiting.push_back((Some(operation.clone()), wake));
-        (operation, Some(wait))
+        lane.waiting
+            .push_back((Turn::user(operation.clone()), wake));
+        let blocker = lane.announce_background();
+        (operation, Some(wait), blocker)
     }
 
-    fn admit_background(&self, lane: &Path) -> Option<oneshot::Receiver<()>> {
+    fn admit_background(&self, lane: &Path, repo: RepoId) -> Option<oneshot::Receiver<()>> {
         let mut lanes = self.lanes.lock();
         let lane = lanes.entry(lane.to_path_buf()).or_default();
-        if lane.free() {
-            lane.background = true;
+        let mut turn = Turn {
+            operation: Operation {
+                id: self.next_id.fetch_add(1, Ordering::Relaxed),
+                repo: Some(repo),
+                kind: OperationKind::Fetch,
+                label: "Background fetch".to_owned(),
+                phase: OperationPhase::Queued,
+                success: None,
+                cancellable: false,
+            },
+            background: true,
+            announced: false,
+        };
+        if lane.running.is_none() {
+            turn.operation.phase = OperationPhase::Running;
+            lane.running = Some(turn);
             return None;
         }
         let (wake, wait) = oneshot::channel();
-        lane.waiting.push_back((None, wake));
+        lane.waiting.push_back((turn, wake));
         Some(wait)
     }
 
-    /// Hands the lane to whoever is next in it.
-    fn release(&self, key: &Path) {
+    /// Hands the lane to whoever is next in it. Returns what the footer must hear of
+    /// background fetches: the one that ended, the one that starts with work behind it.
+    fn release(&self, key: &Path) -> Vec<Operation> {
         let mut lanes = self.lanes.lock();
         let Some(lane) = lanes.get_mut(key) else {
-            return;
+            return Vec::new();
         };
-        lane.running = None;
-        lane.background = false;
+        let mut heard = Vec::new();
+        if let Some(ended) = lane.running.take()
+            && ended.background
+            && ended.announced
+        {
+            let mut ended = ended.operation;
+            ended.phase = OperationPhase::Done;
+            ended.success = Some(true);
+            heard.push(ended);
+        }
 
-        while let Some((next, wake)) = lane.waiting.pop_front() {
-            match next {
-                Some(mut next) => {
-                    next.phase = OperationPhase::Running;
-                    lane.running = Some(next);
-                }
-                None => lane.background = true,
-            }
+        while let Some((mut next, wake)) = lane.waiting.pop_front() {
+            next.operation.phase = OperationPhase::Running;
+            lane.running = Some(next);
             if wake.send(()).is_ok() {
-                return;
+                heard.extend(lane.announce_background());
+                return heard;
             }
             // Its caller is gone — the command was dropped before its turn came.
             lane.running = None;
-            lane.background = false;
         }
         lanes.remove(key);
         drop(lanes);
         self.emptied.notify_waiters();
+        heard
     }
 
     /// Everything in flight, running first: what a panel that just opened has missed.
     #[must_use]
     pub fn snapshot(&self) -> Vec<Operation> {
+        self.in_flight(false)
+    }
+
+    /// `snapshot` with the background fetches nobody has been told of: they write refs too.
+    pub(crate) fn in_flight(&self, unseen_too: bool) -> Vec<Operation> {
         let lanes = self.lanes.lock();
+        let visible = |turn: &Turn| {
+            if unseen_too {
+                Some(turn.operation.clone())
+            } else {
+                turn.shown().cloned()
+            }
+        };
         let mut out: Vec<Operation> = lanes
             .values()
-            .filter_map(|lane| lane.running.clone())
+            .filter_map(|lane| lane.running.as_ref().and_then(visible))
             .collect();
-        out.extend(lanes.values().flat_map(|lane| {
-            lane.waiting
-                .iter()
-                .filter_map(|(operation, _)| operation.clone())
-        }));
+        out.extend(
+            lanes
+                .values()
+                .flat_map(|lane| lane.waiting.iter().filter_map(|(turn, _)| visible(turn))),
+        );
         out.sort_by_key(|operation| operation.id);
         out
     }
@@ -226,9 +288,12 @@ impl crate::AppState {
         label: &str,
         cancellable: bool,
     ) -> OperationPermit<'_> {
-        let (operation, wait) = self
-            .queue
-            .admit(&lane, repo, kind, label.to_owned(), cancellable);
+        let (operation, wait, blocker) =
+            self.queue
+                .admit(&lane, repo, kind, label.to_owned(), cancellable);
+        if let Some(blocker) = blocker {
+            self.emit(AppEvent::Operation(blocker));
+        }
         self.emit(AppEvent::Operation(operation.clone()));
 
         let mut operation = operation;
@@ -248,7 +313,7 @@ impl crate::AppState {
 
     pub fn background_turn(&self, repo: RepoId) -> BackgroundTurn<'_> {
         let lane = self.lane_of(repo);
-        if let Some(wait) = self.queue.admit_background(&lane) {
+        if let Some(wait) = self.queue.admit_background(&lane, repo) {
             let _ = wait.blocking_recv();
         }
         BackgroundTurn { state: self, lane }
@@ -262,7 +327,7 @@ impl crate::AppState {
 
     #[must_use]
     pub fn session_end_blocker(&self) -> Option<String> {
-        match self.queue.snapshot().len() {
+        match self.queue.in_flight(true).len() {
             0 => None,
             1 => Some("1 operation is still running".to_owned()),
             n => Some(format!("{n} operations are still running")),
@@ -275,7 +340,7 @@ impl crate::AppState {
         loop {
             let mut emptied = std::pin::pin!(self.queue.emptied.notified());
             emptied.as_mut().enable();
-            if self.queue.snapshot().is_empty() {
+            if self.queue.in_flight(true).is_empty() {
                 return;
             }
             emptied.await;
@@ -311,8 +376,11 @@ impl OperationPermit<'_> {
         self.operation.success = Some(success);
         // Released first: whoever hears `Done` asks the queue what is left, and the
         // session-end reason was kept for an operation already over (R-168).
-        self.state.queue.release(&self.lane);
+        let heard = self.state.queue.release(&self.lane);
         self.state.emit(AppEvent::Operation(self.operation.clone()));
+        for operation in heard {
+            self.state.emit(AppEvent::Operation(operation));
+        }
     }
 }
 
@@ -331,7 +399,9 @@ pub struct BackgroundTurn<'a> {
 
 impl Drop for BackgroundTurn<'_> {
     fn drop(&mut self) {
-        self.state.queue.release(&self.lane);
+        for operation in self.state.queue.release(&self.lane) {
+            self.state.emit(AppEvent::Operation(operation));
+        }
     }
 }
 

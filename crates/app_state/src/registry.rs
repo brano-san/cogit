@@ -328,7 +328,12 @@ impl AppState {
 
         // Not one with work in its lane: its push or commit must not lose its registration.
         // The one on screen goes too: the panels let go of it first (R-543).
-        let busy: Vec<Option<RepoId>> = self.queue.snapshot().iter().map(|op| op.repo).collect();
+        let busy: Vec<Option<RepoId>> = self
+            .queue
+            .in_flight(true)
+            .iter()
+            .map(|op| op.repo)
+            .collect();
         let opened_from: Vec<RepoId> = self
             .repos
             .read()
