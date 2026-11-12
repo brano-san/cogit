@@ -85,7 +85,8 @@ export function watchFrameStalls(target: Window, log: (message: string) => void)
       channel.port1.close();
       const nodes = document.getElementsByTagName("*").length;
       const report = stallReport(event.type, gaps, breakdown, `${where} (${nodes} DOM nodes)`);
-      if (report && hiddenAt < started) {
+      // Hidden at the end too: a minimize hides the window before the resize it causes.
+      if (report && hiddenAt < started && !document.hidden) {
         lastLog = now;
         log(report);
       }
