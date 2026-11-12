@@ -10,6 +10,11 @@ fn short_description() -> String {
         .to_owned()
 }
 
+// Measured on Windows only; macOS and glibc keep their own (doc/15-benchmark.md).
+#[cfg(windows)]
+#[global_allocator]
+static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 fn main() {
     // Started by git as its credential helper or by ssh as its `SSH_ASKPASS`: the answer
     // comes from the environment Cogit gave the command, at once and without a window.

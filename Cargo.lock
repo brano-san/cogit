@@ -774,6 +774,7 @@ dependencies = [
  "git_engine",
  "graph_engine",
  "gtk",
+ "mimalloc",
  "parking_lot",
  "portable",
  "serde",

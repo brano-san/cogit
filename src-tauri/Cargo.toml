@@ -57,6 +57,8 @@ tracing-subscriber.workspace = true
 gtk.workspace = true
 
 [target.'cfg(windows)'.dependencies]
+# The Windows heap is 8–12 % slower on the graph walk and the status (doc/15-benchmark.md).
+mimalloc.workspace = true
 webview2-com.workspace = true
 windows.workspace = true
 windows-core.workspace = true
