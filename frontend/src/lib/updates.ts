@@ -68,20 +68,22 @@ export function message(outcome: UpdateOutcome): string {
  */
 export async function checkForUpdates(
   io: Updates,
-  { quiet = false }: { quiet?: boolean } = {},
+  { quiet = false }: { quiet?: boolean | (() => boolean) } = {},
 ): Promise<UpdateOutcome> {
+  // Read when needed: Check for Updates pressed during the start-up check makes it speak.
+  const silent = () => (typeof quiet === "function" ? quiet() : quiet);
   let found: UpdateHandle | null;
   try {
     found = await io.check();
   } catch (err) {
     const outcome: UpdateOutcome = { kind: "failed", reason: String(err) };
-    if (!quiet) io.report(outcome);
+    if (!silent()) io.report(outcome);
     return outcome;
   }
 
   const outcome = describe(found);
   if (outcome.kind === "none" || !found) {
-    if (!quiet) io.report(outcome);
+    if (!silent()) io.report(outcome);
     return outcome;
   }
 
@@ -113,4 +115,23 @@ export async function checkForUpdates(
 
   await io.relaunch();
   return outcome;
+}
+
+/**
+ * At most one check at a time. The start-up check and Help ▸ Check for Updates ran side by
+ * side: one was downloading while the other asked to install the same version again. A
+ * second call joins the running one; a manual call during the start-up check makes it speak.
+ */
+export function oneCheckAtATime(
+  run: (quiet: () => boolean) => Promise<void>,
+): (quiet?: boolean) => Promise<void> {
+  let running: Promise<void> | null = null;
+  let loud = false;
+  return (quiet = false) => {
+    if (!quiet) loud = true;
+    if (running) return running;
+    loud = !quiet;
+    running = run(() => !loud).finally(() => (running = null));
+    return running;
+  };
 }

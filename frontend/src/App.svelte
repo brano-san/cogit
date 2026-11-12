@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tick, untrack } from "svelte";
   import { open as openFolderDialog } from "@tauri-apps/plugin-dialog";
-  import { checkForUpdates, message, noSelfUpdateNote, type UpdateOutcome } from "$lib/updates";
+  import { checkForUpdates, message, noSelfUpdateNote, oneCheckAtATime, type UpdateOutcome } from "$lib/updates";
   import { leaveRepositoryDialogs } from "$lib/leaving";
   import { retryOf } from "$lib/retry";
   import { isEmptyQuery, parseQuery } from "$lib/query";
@@ -396,10 +396,10 @@
 
   /** Help ▸ Check for Updates, and the start-up check when the setting is on. The
       plugin is loaded on demand: nobody pays for the updater until it is wanted. */
-  async function runUpdateCheck(quiet = false): Promise<void> {
+  const runUpdateCheck = oneCheckAtATime(async (quiet) => {
     const note = noSelfUpdateNote(info);
     if (note) {
-      if (!quiet) notices.inform("Check for Updates", note);
+      if (!quiet()) notices.inform("Check for Updates", note);
       return;
     }
     const [{ check }, { relaunch }] = await Promise.all([
@@ -421,7 +421,7 @@
       },
       { quiet },
     );
-  }
+  });
 
   async function learnProtection(oid: string): Promise<readonly string[]> {
     const id = repository.current?.repo;

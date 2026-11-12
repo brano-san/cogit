@@ -5,6 +5,7 @@ import {
   message,
   NO_SELF_UPDATE_NOTE,
   noSelfUpdateNote,
+  oneCheckAtATime,
   PORTABLE_UPDATE_NOTE,
   type UpdateHandle,
   type Updates,
@@ -243,5 +244,46 @@ group("install progress", () => {
     await checkForUpdates(io({ check: vi.fn().mockResolvedValue(found), progress: (label) => said.push(label) }));
 
     expect(said).toEqual(["Downloading Cogit 0.2.0…", "Downloading Cogit 0.2.0…", "Downloading Cogit 0.2.0…", null]);
+  });
+});
+
+group("oneCheckAtATime", () => {
+  it("joins a check that is already running instead of starting another", async () => {
+    let finish!: () => void;
+    const run = vi.fn(() => new Promise<void>((done) => (finish = done)));
+    const check = oneCheckAtATime(run);
+
+    const first = check(false);
+    const second = check(true);
+    finish();
+    await Promise.all([first, second]);
+
+    expect(run).toHaveBeenCalledOnce();
+  });
+
+  it("makes the start-up check speak when the user asks during it", async () => {
+    let finish!: () => void;
+    let quiet!: () => boolean;
+    const check = oneCheckAtATime((q) => {
+      quiet = q;
+      return new Promise<void>((done) => (finish = done));
+    });
+
+    const running = check(true);
+    expect(quiet()).toBe(true);
+    void check(false);
+    expect(quiet()).toBe(false);
+    finish();
+    await running;
+  });
+
+  it("runs again once the previous check is over", async () => {
+    const run = vi.fn(async () => {});
+    const check = oneCheckAtATime(run);
+
+    await check(true);
+    await check(false);
+
+    expect(run).toHaveBeenCalledTimes(2);
   });
 });
