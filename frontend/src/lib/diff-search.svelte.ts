@@ -4,6 +4,11 @@ import { searchRows, stepHit, type SearchHit, type SearchRow } from "$lib/diff-r
     on a large diff, so the search runs on what was typed a moment ago. */
 export const SETTLE_MS = 120;
 
+/** One empty answer, so no search reads the same as the last one: what depends on the hits
+    (every drawn row's spans) does not run again for another file. */
+const NO_HITS: readonly SearchHit[] = Object.freeze([]);
+const NO_SPANS: readonly [number, number][] = Object.freeze([]);
+
 /**
  * The Find bar of the diff panel: what was typed, what has been searched for, and which
  * hit the counter points at. Lives beside the component rather than inside it so the
@@ -21,7 +26,12 @@ export class DiffSearch {
       TypeScript wants it to hold something by then. */
   #rows: () => readonly SearchRow[] = () => [];
 
-  readonly hits: SearchHit[] = $derived(searchRows(this.#rows(), this.#applied));
+  /** The search table is not asked for, nor built, while nothing is searched for. */
+  readonly hits: readonly SearchHit[] = $derived.by(() => {
+    if (this.#applied.trim() === "") return NO_HITS;
+    const hits = searchRows(this.#rows(), this.#applied);
+    return hits.length === 0 ? NO_HITS : hits;
+  });
   readonly current: SearchHit | null = $derived(this.hits[this.#at] ?? null);
 
   readonly #spans: Map<string, [number, number][]> = $derived.by(() => {
@@ -83,8 +93,9 @@ export class DiffSearch {
     if (hit) reveal(hit.index);
   }
 
-  spansFor(index: number, side: "left" | "right"): [number, number][] {
-    return this.#spans.get(`${index}:${side}`) ?? [];
+  spansFor(index: number, side: "left" | "right"): readonly [number, number][] {
+    if (this.#spans.size === 0) return NO_SPANS;
+    return this.#spans.get(`${index}:${side}`) ?? NO_SPANS;
   }
 
   /** The one hit the counter is pointing at, told apart from the rest it looks like. */

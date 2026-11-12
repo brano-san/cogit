@@ -16,6 +16,17 @@ beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
 
 describe("DiffSearch", () => {
+  it("does not build the search table while nothing is searched for", () => {
+    let built = 0;
+    const find = new DiffSearch(() => {
+      built += 1;
+      return ROWS;
+    });
+    expect(find.hits).toHaveLength(0);
+    expect(find.spansFor(0, "left")).toBe(find.spansFor(1, "right"));
+    expect(built).toBe(0);
+  });
+
   it("finds nothing until the typing pause has elapsed", () => {
     const find = search();
     find.setQuery("beta");
