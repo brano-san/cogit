@@ -153,7 +153,20 @@ export function nodeFill(
   stripes = true,
   tint: string | null = null,
 ): string[] {
-  const layers = ["--surface-panel"];
+  return nodeFillInto([], listRow, selectedRows, hoverRow, stripes, tint);
+}
+
+/** `nodeFill` into `layers`, emptied first: the canvas asks once per ring per frame. */
+export function nodeFillInto(
+  layers: string[],
+  listRow: number,
+  selectedRows: readonly number[],
+  hoverRow: number | null,
+  stripes = true,
+  tint: string | null = null,
+): string[] {
+  layers.length = 0;
+  layers.push("--surface-panel");
   if (tint) layers.push(tint);
   else if (striped(listRow, stripes)) layers.push("--row-stripe");
   if (listRow === hoverRow) layers.push("--state-hover");
@@ -185,31 +198,46 @@ const TURN = 0.5;
     and a merge going down to its second parent: from the node's centre to the centre of
     the next row in column `toX`. The two are mirror images, as are left and right. */
 export function transition(node: { x: number; y: number }, toX: number, direction: "up" | "down"): Curve {
+  return turn(node.x, node.y, toX, direction, emptyCurve());
+}
+
+const emptyCurve = (): Curve => ({ x1: 0, y1: 0, cx1: 0, cy1: 0, cx2: 0, cy2: 0, x2: 0, y2: 0 });
+
+/** `transition` from (`x`, `y`), written into `out`. */
+function turn(x: number, y: number, toX: number, direction: "up" | "down", out: Curve): Curve {
   const dy = direction === "down" ? GRAPH.rowHeight : -GRAPH.rowHeight;
-  const y2 = node.y + dy;
-  return {
-    x1: node.x,
-    y1: node.y,
-    cx1: node.x + (toX - node.x) * TURN,
-    cy1: node.y + dy * TURN,
-    cx2: toX,
-    cy2: y2 - dy * TURN,
-    x2: toX,
-    y2,
-  };
+  const y2 = y + dy;
+  out.x1 = x;
+  out.y1 = y;
+  out.cx1 = x + (toX - x) * TURN;
+  out.cy1 = y + dy * TURN;
+  out.cx2 = toX;
+  out.cy2 = y2 - dy * TURN;
+  out.x2 = toX;
+  out.y2 = y2;
+  return out;
 }
 
 type Drawn = { from: number; to: number; span: "top" | "bottom" | "through"; arrow?: boolean };
 
-const turnsDown = (segments: readonly Drawn[] | undefined, lane: number) =>
-  segments?.find((s) => !s.arrow && s.span === "bottom" && s.to === lane && s.from !== lane);
-const turnsUp = (segments: readonly Drawn[] | undefined, lane: number) =>
-  segments?.find((s) => !s.arrow && s.span === "top" && s.from === lane && s.to !== lane);
+// Loops, not `find` with a closure: the canvas asks for every segment on screen per frame.
+function turnsDown(segments: readonly Drawn[] | undefined, lane: number): Drawn | undefined {
+  if (!segments) return undefined;
+  for (const s of segments) if (!s.arrow && s.span === "bottom" && s.to === lane && s.from !== lane) return s;
+  return undefined;
+}
+function turnsUp(segments: readonly Drawn[] | undefined, lane: number): Drawn | undefined {
+  if (!segments) return undefined;
+  for (const s of segments) if (!s.arrow && s.span === "top" && s.from === lane && s.to !== lane) return s;
+  return undefined;
+}
 /** A line arriving at `lane` from above that some other line's turn ends in too: one line
     joining another in the gap. The straight one goes on drawing its own way down. */
-const arrivesTurning = (segments: readonly Drawn[] | undefined, lane: number) =>
-  turnsDown(segments, lane) &&
-  !segments?.some((s) => !s.arrow && s.span !== "top" && s.from === lane && s.to === lane);
+function arrivesTurning(segments: readonly Drawn[] | undefined, lane: number): boolean {
+  if (!turnsDown(segments, lane)) return false;
+  for (const s of segments!) if (!s.arrow && s.span !== "top" && s.from === lane && s.to === lane) return false;
+  return true;
+}
 
 /** A segment of row `listRow` (counting the header rows), or `null` when a turn drawn by a
     neighbouring row covers it. A turn reaches half a row into the next row, so that row's
@@ -220,6 +248,8 @@ export function segmentCurve(
   listRow: number,
   scrollTop: number,
   { above, below }: { above?: readonly Drawn[]; below?: readonly Drawn[] } = {},
+  /** Written into and returned instead of a new curve: the canvas reuses one per frame. */
+  out?: Curve,
 ): Curve | null {
   const top = listRow * GRAPH.rowHeight - scrollTop;
   const centre = top + GRAPH.rowHeight / 2;
@@ -227,11 +257,11 @@ export function segmentCurve(
   if (segment.from !== segment.to && segment.span !== "through") {
     if (segment.span === "bottom") {
       const next = turnsUp(below, segment.to);
-      return transition({ x: laneX(segment.from), y: centre }, laneX(next ? next.to : segment.to), "down");
+      return turn(laneX(segment.from), centre, laneX(next ? next.to : segment.to), "down", out ?? emptyCurve());
     }
     // Two turns in a row, out of one node and into the next: the row above draws it whole.
     if (arrivesTurning(above, segment.from)) return null;
-    return transition({ x: laneX(segment.to), y: centre }, laneX(segment.from), "up");
+    return turn(laneX(segment.to), centre, laneX(segment.from), "up", out ?? emptyCurve());
   }
   let y1 = segment.span === "bottom" ? centre : top;
   let y2 = segment.span === "top" ? centre : bottom;
@@ -241,7 +271,16 @@ export function segmentCurve(
   const x1 = laneX(segment.from);
   const x2 = laneX(segment.to);
   const middle = (y1 + y2) / 2;
-  return { x1, y1, cx1: x1, cy1: middle, cx2: x2, cy2: middle, x2, y2 };
+  if (!out) return { x1, y1, cx1: x1, cy1: middle, cx2: x2, cy2: middle, x2, y2 };
+  out.x1 = x1;
+  out.y1 = y1;
+  out.cx1 = x1;
+  out.cy1 = middle;
+  out.cx2 = x2;
+  out.cy2 = middle;
+  out.x2 = x2;
+  out.y2 = y2;
+  return out;
 }
 
 /** Where HEAD's line in `lane` starts across the Working Tree row at `headerRow`: its top,

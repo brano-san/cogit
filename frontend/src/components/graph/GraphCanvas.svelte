@@ -1,41 +1,17 @@
 <script lang="ts">
-  import {
-    GRAPH,
-    arrowStub,
-    laneX,
-    nodeCentre,
-    nodeFill,
-    nodeSquare,
-    segmentCurve,
-    textX,
-    throughWorkingTree,
-    transition,
-  } from "$lib/graph-geometry";
+  import { GRAPH } from "$lib/graph-geometry";
+  import { paintGraph, type DrawnRow } from "$lib/graph-draw";
   import { tokenColor } from "$lib/theme-colors";
   import { themeStore } from "$stores/theme.svelte";
-  import { LAYERS, nodeStroke, opaqueInk, segmentStroke, type RowPaint } from "$lib/graph-style";
   import { canvasBox, drawsNow, subpixelOffset, type CanvasBox } from "$lib/canvas-frame";
   import { settings } from "$stores/settings.svelte";
   import type { GraphRow } from "$lib/ipc";
-
-  /** A bisect mark (F-566): the dot fills the ring, the tint is the row behind it. Tokens. */
-  interface BisectPaint {
-    dot: string | null;
-    tint: string | null;
-  }
 
   /** The rows on screen and the buffer around them: a turn between columns reaches half a
       row into the next one, so a row reads its neighbours' segments (doc/07-graph-rendering.md). */
   interface Props {
     /** `unpushed`: a dot with a gap around it; a commit some remote branch has is a hollow ring. */
-    rows: {
-      listRow: number;
-      layout: GraphRow;
-      stash?: boolean;
-      unpushed?: boolean;
-      paint?: RowPaint;
-      bisect?: BisectPaint;
-    }[];
+    rows: readonly DrawnRow[];
     scrollTop: number;
     width: number;
     height: number;
@@ -112,154 +88,27 @@
     context.lineCap = "round";
     context.lineJoin = "round";
 
-    const token = tokenColor;
-    const main = token("--graph-main");
-    const line = token("--graph-line");
-    const coloring = settings.current.graphColoring;
-    const options = { accentLit: coloring === "mergeable", branchOnly: coloring === "branch", focusLane };
-    const panel = token("--bg-editor");
-    const colours = new Map<string, string>();
-    const colour = (name: string) => {
-      if (!colours.has(name)) colours.set(name, token(name) || line);
-      return colours.get(name) ?? line;
-    };
-    const ink = (name: string, alpha: number) => opaqueInk(colour(name), alpha, panel);
-
-    const edge = Math.min(textX(GRAPH.maxColumns), clipX) - GRAPH.textGap;
-    context.save();
-    context.beginPath();
-    context.rect(0, 0, edge, height);
-    context.clip();
-
-    const lined = workingTreeLayout ? [...rows, { listRow: headerRow, layout: workingTreeLayout, paint: undefined }] : rows;
-    const segmentsAt = new Map(lined.map((row) => [row.listRow, row.layout.segments]));
-    // Grey first, branch colours over it, the main line on top: where lines cross, the one
-    // the eye follows wins.
-    for (let layer = 0; layer < LAYERS; layer++) {
-      // One path per look: a line's segments meet at every row edge, and stroked one by one
-      // their round caps were painted twice there, a tick across the line on every row.
-      const strokes = new Map<string, { style: string; width: number; path: Path2D }>();
-      for (const row of lined) {
-        for (const [index, segment] of row.layout.segments.entries()) {
-          const look = segmentStroke(segment, index, row.paint, options);
-          if (look.layer !== layer) continue;
-          const style = ink(look.token, look.alpha);
-          const key = `${style} ${look.width}`;
-          let stroke = strokes.get(key);
-          if (!stroke) {
-            stroke = { style, width: look.width, path: new Path2D() };
-            strokes.set(key, stroke);
-          }
-          const { path } = stroke;
-          const curve = segment.arrow
-            ? null
-            : segmentCurve(segment, row.listRow, scrollTop, {
-                above: segmentsAt.get(row.listRow - 1),
-                below: segmentsAt.get(row.listRow + 1),
-              });
-          // Across the Working Tree row to where the line in HEAD's row starts.
-          if (curve && !workingTreeLayout && headerRow > 0 && row.listRow === headRow && segment.span !== "bottom") {
-            const x = laneX(segment.from);
-            path.moveTo(x, throughWorkingTree(headerRow, scrollTop, segmentsAt.get(headerRow - 1), segment.from));
-            path.lineTo(x, Math.min(curve.y1, curve.y2));
-          }
-          if (segment.arrow) {
-            const stub = arrowStub(segment, row.listRow, scrollTop);
-            path.moveTo(stub.x1, stub.y1);
-            path.lineTo(stub.x2, stub.y2);
-            path.moveTo(stub.left.x, stub.left.y);
-            path.lineTo(stub.x2, stub.y2);
-            path.lineTo(stub.right.x, stub.right.y);
-          } else if (curve) {
-            path.moveTo(curve.x1, curve.y1);
-            if (curve.x1 === curve.x2) path.lineTo(curve.x2, curve.y2);
-            else path.bezierCurveTo(curve.cx1, curve.cy1, curve.cx2, curve.cy2, curve.x2, curve.y2);
-          }
-        }
-      }
-      for (const { style, width, path } of strokes.values()) {
-        context.strokeStyle = style;
-        context.lineWidth = width;
-        context.stroke(path);
-      }
-    }
-
-    if (!workingTreeLayout && headLane !== null && headRow !== null && scrollTop < GRAPH.rowHeight * headRow) {
-      const top = nodeCentre(headerLane ?? headLane, headerRow, scrollTop);
-      const foot = nodeCentre(headLane, headRow, scrollTop);
-      context.save();
-      context.setLineDash([3, 3]);
-      context.strokeStyle = main;
-      context.lineWidth = GRAPH.lineWidth;
-      context.beginPath();
-      context.moveTo(top.x, top.y);
-      if (top.x !== foot.x) {
-        const turn = transition(top, foot.x, "down");
-        context.bezierCurveTo(turn.cx1, turn.cy1, turn.cx2, turn.cy2, turn.x2, turn.y2);
-      }
-      context.lineTo(foot.x, foot.y);
-      context.stroke();
-      context.restore();
-    }
-    // Over the dashed line's end, so the line starts at the dot's edge.
-    if (workingTree !== null) {
-      const { x, y } = nodeCentre(headerLane ?? headLane ?? 0, headerRow, scrollTop);
-      context.beginPath();
-      context.arc(x, y, GRAPH.workingTreeRadius, 0, Math.PI * 2);
-      context.fillStyle = token(workingTree === "clean" ? "--graph-working-tree-clean" : "--graph-working-tree-changed");
-      context.fill();
-    }
-
-    // A commit no remote has is a dot in its own colour, the lines meeting its edge as at any
-    // other ring (#5); a pushed one is a hollow ring, filled with what is behind it so no line shows through.
-    // A stash is a square in the stash colour (#19).
-    const stash = token("--status-stash");
-    const fills = new Map<string, string>();
-    const fillBehind = (layers: string[]) => {
-      for (const layer of layers) {
-        if (!fills.has(layer)) fills.set(layer, token(layer));
-        context.fillStyle = fills.get(layer) ?? panel;
-        context.fill();
-      }
-    };
-    for (const row of rows) {
-      const local = !row.stash && row.unpushed === true;
-      const behind = nodeFill(row.listRow, selectedRows, hoverRow, stripes, row.bisect?.tint ?? null);
-      context.beginPath();
-      if (row.stash) {
-        const square = nodeSquare(row.layout.lane, row.listRow, scrollTop);
-        context.rect(square.x, square.y, square.size, square.size);
-      } else {
-        const { x, y } = nodeCentre(row.layout.lane, row.listRow, scrollTop);
-        context.arc(x, y, GRAPH.ringRadius, 0, Math.PI * 2);
-      }
-      const ring = nodeStroke(row.layout, row.paint, options);
-      const ringInk = row.stash ? stash : ink(ring.token, ring.alpha);
-      const dot = row.bisect?.dot ?? null;
-      fillBehind(behind);
-      if (local) {
-        context.fillStyle = ringInk;
-        context.fill();
-      }
-      if (dot) {
-        if (!fills.has(dot)) fills.set(dot, token(dot));
-        context.fillStyle = fills.get(dot) ?? panel;
-        context.fill();
-      }
-      context.lineWidth = GRAPH.ringStroke;
-      context.strokeStyle = ringInk;
-      context.stroke();
-    }
-    context.restore();
-
-    // A row wider than the cap or the room left is cut off with a fade, not a hard edge.
-    if (rows.some((row) => laneX(row.layout.width - 1) + GRAPH.laneWidth / 2 > edge)) {
-      const fade = context.createLinearGradient(edge - GRAPH.laneWidth, 0, edge, 0);
-      fade.addColorStop(0, "transparent");
-      fade.addColorStop(1, panel);
-      context.fillStyle = fade;
-      context.fillRect(edge - GRAPH.laneWidth, 0, GRAPH.laneWidth, height);
-    }
+    paintGraph(
+      context,
+      {
+        rows,
+        scrollTop,
+        height,
+        headRow,
+        headLane,
+        headerRow,
+        headerLane,
+        workingTree,
+        workingTreeLayout,
+        selectedRows,
+        hoverRow,
+        focusLane,
+        clipX,
+        stripes,
+        coloring: settings.current.graphColoring,
+      },
+      tokenColor,
+    );
   }
 
   function schedule() {

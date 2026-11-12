@@ -23,8 +23,11 @@ export function branchSlot(name: string): number {
   return hash % BRANCH_SLOTS;
 }
 
+/** Built once: a frame asks for a token per line. */
+const BRANCH_TOKENS = Array.from({ length: BRANCH_SLOTS }, (_, slot) => `--graph-branch-${slot + 1}`);
+
 export function branchToken(slot: number): string {
-  return `--graph-branch-${(slot % BRANCH_SLOTS) + 1}`;
+  return BRANCH_TOKENS[slot % BRANCH_SLOTS]!;
 }
 
 /** The paint of one row, as `graph_overlay` cut it. */
@@ -68,12 +71,33 @@ export interface Stroke {
 export const LAYERS = 5;
 const LAYER = { dim: 0, grey: 1, colour: 2, main: 3, focus: 4 } as const;
 
+/** Every stroke there is, made once: a frame asks for one per line and per ring, and they
+    are a few dozen looks. Shared, so callers never change one. */
+const STROKES = new Map<string, Map<number, Stroke>>();
+
+function shared(token: string, width: number, alpha: number, layer: number): Stroke {
+  let byLook = STROKES.get(token);
+  if (!byLook) {
+    byLook = new Map();
+    STROKES.set(token, byLook);
+  }
+  // Widths are a handful of quarter pixels; alpha is 1 or DIM_ALPHA.
+  const key = (Math.round(width * 1000) * 8 + layer) * 2 + (alpha < 1 ? 1 : 0);
+  let look = byLook.get(key);
+  if (!look) {
+    look = Object.freeze({ token, width, alpha, layer });
+    byLook.set(key, look);
+  }
+  return look;
+}
+
 function stroke(
   painted: number | undefined,
   lane: number | undefined,
   primary: boolean,
   width: number,
   options: StrokeOptions,
+  fixedWidth = false,
 ): Stroke {
   // Mergeable dims nearly all: a row whose paint is still on its way waits dimmed, not lit.
   const style = painted ?? (options.accentLit ? DIM_BIT : 0);
@@ -91,20 +115,12 @@ function stroke(
           : primary
             ? "--graph-main"
             : "--graph-line";
-  return {
+  return shared(
     token,
-    width: focused ? FOCUS_LINE_WIDTH : primary ? GRAPH.mainLineWidth : width,
-    alpha: dim ? DIM_ALPHA : 1,
-    layer: dim
-      ? LAYER.dim
-      : focused
-        ? LAYER.focus
-        : primary
-          ? LAYER.main
-          : slot > 0
-            ? LAYER.colour
-            : LAYER.grey,
-  };
+    fixedWidth ? width : focused ? FOCUS_LINE_WIDTH : primary ? GRAPH.mainLineWidth : width,
+    dim ? DIM_ALPHA : 1,
+    dim ? LAYER.dim : focused ? LAYER.focus : primary ? LAYER.main : slot > 0 ? LAYER.colour : LAYER.grey,
+  );
 }
 
 export function segmentStroke(
@@ -124,10 +140,7 @@ export function segmentStroke(
 
 /** A ring keeps its stroke width; only its colour and faintness follow the paint. */
 export function nodeStroke(layout: GraphRow, paint: RowPaint | undefined, options: StrokeOptions): Stroke {
-  return {
-    ...stroke(paint?.nodeStyle, paint?.nodeLane, layout.primary, GRAPH.ringStroke, options),
-    width: GRAPH.ringStroke,
-  };
+  return stroke(paint?.nodeStyle, paint?.nodeLane, layout.primary, GRAPH.ringStroke, options, true);
 }
 
 /** A faint line mixed into the background and drawn opaque: overlapping round caps of a
@@ -139,7 +152,9 @@ export function opaqueInk(colour: string, alpha: number, background: string): st
 /** A commit whose ring is dimmed has its text grayed too. */
 export function rowFaded(layout: GraphRow, paint: RowPaint | undefined, options: StrokeOptions): boolean {
   // Text does not wait dimmed with its ring: unpainted, it stays as it is until the paint says.
-  return nodeStroke(layout, paint, paint ? options : { ...options, accentLit: false }).alpha < 1;
+  if (paint) return nodeStroke(layout, paint, options).alpha < 1;
+  // Unpainted, only Branch Coloring's "not the focused line" dims a ring (`stroke` with no lane).
+  return options.branchOnly === true && (options.focusLane != null || !layout.primary);
 }
 
 /** The lane of the line at `column` in one half of a row, for a click on a line rather
