@@ -121,7 +121,7 @@ impl AppState {
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
-        let before = handle.head()?;
+        let before = crate::safety::Before::head(&handle)?;
         let result = if paused {
             handle.interactive_rebase_paused(base, plan)
         } else {
@@ -147,7 +147,7 @@ impl AppState {
         let Some((target, base)) = handle.commit_fixup(rev)? else {
             return Ok(());
         };
-        let before = handle.head()?;
+        let before = crate::safety::Before::head(&handle)?;
         let result = handle.fold_fixup(&target, &base);
         self.record_move(
             repo,
@@ -207,18 +207,18 @@ impl AppState {
         }
 
         let _quiet = self.quiet(repo);
-        let before = handle.head()?;
+        let before = crate::safety::Before::with_branches(&handle)?;
         handle.split_off(rev, paths, message, split_first)?;
 
-        let recovery = match before {
-            git_engine::Head::Branch { name, oid } => {
-                crate::safety::moved(&handle, name, oid, true)
-            }
-            _ => Recovery::None,
-        };
+        let recovery = crate::safety::moved_from(&handle, before, true);
         self.record(
             repo,
-            format!("Split {} off {}", named(paths), short(rev)),
+            format!(
+                "Split {} off {}{}",
+                named(paths),
+                short(rev),
+                crate::safety::also_moved_by(&recovery)
+            ),
             recovery,
         );
         Ok(())
@@ -231,7 +231,7 @@ impl AppState {
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
-        let before = handle.head()?;
+        let before = crate::safety::Before::head(&handle)?;
         let result = handle.merge(options);
         self.record_move(
             repo,
@@ -250,7 +250,7 @@ impl AppState {
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
-        let before = handle.head()?;
+        let before = crate::safety::Before::with_branches(&handle)?;
         let result = handle.rebase(options);
         self.record_move(
             repo,
@@ -291,7 +291,7 @@ impl AppState {
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
-        let before = handle.head()?;
+        let before = crate::safety::Before::head(&handle)?;
         let result = if pick {
             handle.cherry_pick(commits)
         } else {
@@ -310,7 +310,7 @@ impl AppState {
         &self,
         repo: RepoId,
         handle: &git_engine::RepoHandle,
-        before: git_engine::Head,
+        before: crate::safety::Before,
         what: String,
         result: &Result<T, git_engine::GitError>,
     ) {
@@ -321,12 +321,8 @@ impl AppState {
         if result.is_err() && !stopped {
             return;
         }
-        let recovery = match before {
-            git_engine::Head::Branch { name, oid } => {
-                crate::safety::moved(handle, name, oid, !stopped)
-            }
-            _ => Recovery::None,
-        };
+        let recovery = crate::safety::moved_from(handle, before, !stopped);
+        let what = what + &crate::safety::also_moved_by(&recovery);
         self.record(repo, what, recovery);
     }
 }

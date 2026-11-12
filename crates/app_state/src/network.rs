@@ -115,7 +115,7 @@ impl AppState {
             let known = handle
                 .wants_new_submodules()
                 .then(|| handle.submodule_paths());
-            let before = handle.head()?;
+            let before = crate::safety::Before::with_branches(&handle)?;
             let method = handle
                 .network_defaults()
                 .map(|defaults| defaults.pull_method)

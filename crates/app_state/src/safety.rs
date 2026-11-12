@@ -61,6 +61,8 @@ pub enum Recovery {
         /// Where the branch stood right after the operation; `None` while it waits for
         /// Continue. Undo refuses once the branch has moved on.
         after: Option<String>,
+        /// The other local branches the operation moved (`rebase.updateRefs`, G-06).
+        stacked: Vec<StackedMove>,
     },
     /// HEAD was reset from `oid`; `branch` is `None` when it was detached. A hard reset
     /// also keeps the stash of what it threw away, taken on `oid`.
@@ -92,6 +94,83 @@ pub enum Recovery {
     },
     /// Recorded for the journal, refused by undo: honesty beats a half-working restore.
     None,
+}
+
+/// A branch other than the checked-out one that moved with it. While the operation waits
+/// for Continue every local branch is listed with `after: None`; settling keeps the moved.
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct StackedMove {
+    pub name: String,
+    pub oid: String,
+    pub after: Option<String>,
+}
+
+/// Where HEAD, and for a rebase every local branch, stood before an operation.
+pub(crate) struct Before {
+    head: git_engine::Head,
+    tips: Vec<(String, String)>,
+}
+
+impl Before {
+    /// Merges, picks and the graph's own rebase plans move only the checked-out branch;
+    /// listing the others would blame them for moves made elsewhere while one waits.
+    pub(crate) fn head(handle: &git_engine::RepoHandle) -> Result<Self, git_engine::GitError> {
+        Ok(Self {
+            head: handle.head()?,
+            tips: Vec::new(),
+        })
+    }
+
+    /// A plain `git rebase` (also under pull and Split) honors `rebase.updateRefs`.
+    pub(crate) fn with_branches(
+        handle: &git_engine::RepoHandle,
+    ) -> Result<Self, git_engine::GitError> {
+        let head = handle.head()?;
+        let tips = local_tips(handle).unwrap_or_default();
+        Ok(Self { head, tips })
+    }
+}
+
+fn local_tips(handle: &git_engine::RepoHandle) -> Option<Vec<(String, String)>> {
+    handle
+        .local_branch_tips()
+        .inspect_err(|err| {
+            tracing::error!(error = ?err, context = "branch tips unreadable; undo covers only the checked-out branch");
+        })
+        .ok()
+}
+
+/// The branches besides `current` that moved since `tips` were read; all of them, unsettled,
+/// while the operation waits: a rebase moves the stacked ones only at its end.
+fn stacked_since(
+    handle: &git_engine::RepoHandle,
+    current: &str,
+    tips: Vec<(String, String)>,
+    finished: bool,
+) -> Vec<StackedMove> {
+    let others = tips.into_iter().filter(|(name, _)| name != current);
+    if !finished {
+        return others
+            .map(|(name, oid)| StackedMove {
+                name,
+                oid,
+                after: None,
+            })
+            .collect();
+    }
+    let now: std::collections::HashMap<String, String> =
+        local_tips(handle).unwrap_or_default().into_iter().collect();
+    others
+        .filter_map(|(name, oid)| {
+            let after = now.get(&name).filter(|tip| **tip != oid)?.clone();
+            Some(StackedMove {
+                name,
+                oid,
+                after: Some(after),
+            })
+        })
+        .collect()
 }
 
 impl Recovery {
@@ -236,12 +315,45 @@ impl AppState {
                     tracing::warn!(error = ?err, branch = %name, "the branch is back without its upstream");
                 }
             }
-            Recovery::Moved { name, oid, after } => {
+            Recovery::Moved {
+                name,
+                oid,
+                after,
+                stacked,
+            } => {
                 wait_for_the_operation(&handle)?;
                 let tip = tip_of(&handle, Some(name));
                 ensure_unmoved(&handle, name, tip.as_deref(), after.as_deref())?;
+                // Checked before anything moves: a refusal leaves every branch as it is.
+                // Unsettled (`after: None`) are not known to have moved; deleted stay so.
+                let mut others = Vec::new();
+                for moved in stacked.iter().filter(|moved| moved.after.is_some()) {
+                    let Some(now) = tip_of(&handle, Some(&moved.name)) else {
+                        continue;
+                    };
+                    ensure_unmoved(&handle, &moved.name, Some(&now), moved.after.as_deref())?;
+                    others.push((moved, now));
+                }
                 handle.move_branch_back(name, oid)?;
-                self.record_undone(repo, &handle, Some(name), tip, oid);
+                let mut undone = Vec::new();
+                let mut failed = None;
+                for (moved, now) in others {
+                    match handle.move_branch_back(&moved.name, &moved.oid) {
+                        Ok(()) => undone.push(StackedMove {
+                            name: moved.name.clone(),
+                            oid: now,
+                            after: Some(moved.oid.clone()),
+                        }),
+                        Err(err) => failed = failed.or(Some(err)),
+                    }
+                }
+                self.record_undone(repo, &handle, Some(name), tip, oid, undone);
+                if let Some(err) = failed {
+                    self.safety
+                        .write()
+                        .retain(|kept| kept.entry.id != held.entry.id);
+                    return Err(err);
+                }
             }
             Recovery::Reset {
                 branch,
@@ -267,7 +379,7 @@ impl AppState {
                     stash.as_deref(),
                     kept,
                 )?;
-                self.record_undone(repo, &handle, branch.as_deref(), tip, oid);
+                self.record_undone(repo, &handle, branch.as_deref(), tip, oid, Vec::new());
             }
             Recovery::Tag { name, oid } => handle.create_tag(&git_engine::TagRequest {
                 name: name.clone(),
@@ -440,11 +552,27 @@ impl AppState {
             held.entry.repo == repo && matches!(held.recovery, Recovery::Moved { after: None, .. })
         });
         if let Some(Undoable {
-            recovery: Recovery::Moved { name, after, .. },
+            recovery:
+                Recovery::Moved {
+                    name,
+                    after,
+                    stacked,
+                    ..
+                },
             ..
         }) = waiting
         {
             *after = tip_of(&handle, Some(name));
+            if !stacked.is_empty() {
+                let now: std::collections::HashMap<String, String> = local_tips(&handle)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .collect();
+                stacked.retain_mut(|moved| {
+                    moved.after = now.get(&moved.name).cloned();
+                    moved.after.as_ref().is_some_and(|tip| *tip != moved.oid)
+                });
+            }
         }
     }
 
@@ -456,17 +584,23 @@ impl AppState {
         branch: Option<&str>,
         was: Option<String>,
         now: &str,
+        stacked: Vec<StackedMove>,
     ) {
         let (Some(branch), Some(was)) = (branch, was) else {
             return;
         };
         self.record(
             repo,
-            format!("Undo: put {branch} back at {}", &now[..now.len().min(8)]),
+            format!(
+                "Undo: put {branch} back at {}{}",
+                &now[..now.len().min(8)],
+                also_moved(&stacked)
+            ),
             Recovery::Moved {
                 name: branch.to_owned(),
                 oid: was,
                 after: tip_of(handle, Some(branch)),
+                stacked,
             },
         );
     }
@@ -484,5 +618,50 @@ pub(crate) fn moved(
     } else {
         None
     };
-    Recovery::Moved { name, oid, after }
+    Recovery::Moved {
+        name,
+        oid,
+        after,
+        stacked: Vec::new(),
+    }
+}
+
+/// `moved` for the checked-out branch and every other one the operation took along.
+pub(crate) fn moved_from(
+    handle: &git_engine::RepoHandle,
+    before: Before,
+    finished: bool,
+) -> Recovery {
+    let git_engine::Head::Branch { name, oid } = before.head else {
+        return Recovery::None;
+    };
+    let stacked = stacked_since(handle, &name, before.tips, finished);
+    let after = finished.then(|| tip_of(handle, Some(&name))).flatten();
+    Recovery::Moved {
+        name,
+        oid,
+        after,
+        stacked,
+    }
+}
+
+pub(crate) fn also_moved_by(recovery: &Recovery) -> String {
+    match recovery {
+        Recovery::Moved { stacked, .. } => also_moved(stacked),
+        _ => String::new(),
+    }
+}
+
+/// `" (also moved a, b)"` for the journal line; empty when nothing else moved.
+fn also_moved(stacked: &[StackedMove]) -> String {
+    let names: Vec<&str> = stacked
+        .iter()
+        .filter(|moved| moved.after.is_some())
+        .map(|moved| moved.name.as_str())
+        .collect();
+    if names.is_empty() {
+        String::new()
+    } else {
+        format!(" (also moved {})", names.join(", "))
+    }
 }

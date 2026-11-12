@@ -46,6 +46,31 @@ impl RepoHandle {
             .to_string())
     }
 
+    /// Every local branch and its tip: with `rebase.updateRefs` a rebase moves any of them.
+    pub fn local_branch_tips(&self) -> Result<Vec<(String, String)>> {
+        let platform = self
+            .repo
+            .references()
+            .map_err(|err| GitError::Internal(format!("cannot read references: {err}")))?;
+        let local = platform
+            .local_branches()
+            .map_err(|err| GitError::Internal(format!("cannot list local branches: {err}")))?;
+        Ok(local
+            .filter_map(|reference| {
+                let reference = reference
+                    .inspect_err(
+                        |err| tracing::warn!(error = ?err, "skipping an unreadable branch"),
+                    )
+                    .ok()?;
+                let id = reference.try_id()?;
+                Some((
+                    reference.name().shorten().to_string(),
+                    id.detach().to_string(),
+                ))
+            })
+            .collect())
+    }
+
     pub fn count_commits_between(&self, base: &str, tip: &str) -> Result<usize> {
         let out = self.run_git_reading(&["rev-list", "--count", &format!("{base}..{tip}")])?;
         Ok(out.stdout.trim().parse().unwrap_or(0))

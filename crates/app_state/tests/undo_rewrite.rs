@@ -163,3 +163,146 @@ fn undoing_a_fix_up_keeps_the_folded_changes_as_a_commit_of_their_own() {
             .contains("fix.txt")
     );
 }
+
+fn rebase_onto(onto: &str) -> git_engine::RebaseOptions {
+    git_engine::RebaseOptions {
+        onto: onto.to_owned(),
+        autostash: false,
+        upstream: None,
+    }
+}
+
+/// dev stacked on feat-1 (dev~1), both off main's first commit; `rebase.updateRefs` on.
+fn stacked() -> test_fixtures::Fixture {
+    let f = test_fixtures::branched().unwrap();
+    f.git(&["checkout", "-q", "dev"]).unwrap();
+    f.git(&["branch", "feat-1", "dev~1"]).unwrap();
+    f.git(&["config", "rebase.updateRefs", "true"]).unwrap();
+    f
+}
+
+#[test]
+fn undoing_a_rebase_with_update_refs_puts_the_stacked_branches_back() {
+    let f = stacked();
+    let (dev, feat) = (f.oid("dev").unwrap(), f.oid("feat-1").unwrap());
+    let (state, repo) = open(&f);
+
+    state.rebase(repo, &rebase_onto("main")).unwrap();
+    assert_ne!(
+        f.oid("feat-1").unwrap(),
+        feat,
+        "git moved the stacked branch"
+    );
+    assert!(
+        state.safety_log()[0]
+            .description
+            .contains("also moved feat-1")
+    );
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(f.oid("dev").unwrap(), dev);
+    assert_eq!(f.oid("feat-1").unwrap(), feat);
+}
+
+#[test]
+fn the_undo_of_a_stacked_rebase_is_undone_with_its_branches() {
+    let f = stacked();
+    let (state, repo) = open(&f);
+    state.rebase(repo, &rebase_onto("main")).unwrap();
+    let (dev, feat) = (f.oid("dev").unwrap(), f.oid("feat-1").unwrap());
+
+    state.undo_last(repo).unwrap();
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(f.oid("dev").unwrap(), dev);
+    assert_eq!(f.oid("feat-1").unwrap(), feat);
+}
+
+#[test]
+fn a_stacked_branch_moved_since_refuses_the_undo_and_nothing_moves() {
+    let f = stacked();
+    let (state, repo) = open(&f);
+    state.rebase(repo, &rebase_onto("main")).unwrap();
+    let rebased = f.oid("dev").unwrap();
+    f.git(&["branch", "-f", "feat-1", "main"]).unwrap();
+
+    let err = state.undo_last(repo).unwrap_err();
+
+    assert!(
+        matches!(&err, GitError::InvalidState(why) if why.contains("feat-1")),
+        "{err:?}"
+    );
+    assert_eq!(f.oid("dev").unwrap(), rebased);
+    assert_eq!(f.oid("feat-1").unwrap(), f.oid("main").unwrap());
+}
+
+#[test]
+fn a_rebase_without_update_refs_leaves_the_other_branches_out_of_the_undo() {
+    let f = stacked();
+    f.git(&["config", "rebase.updateRefs", "false"]).unwrap();
+    let feat = f.oid("feat-1").unwrap();
+    let (state, repo) = open(&f);
+
+    state.rebase(repo, &rebase_onto("main")).unwrap();
+    f.git(&["branch", "-f", "feat-1", "main"]).unwrap();
+    state.undo_last(repo).unwrap();
+
+    assert_ne!(
+        f.oid("feat-1").unwrap(),
+        feat,
+        "not the rebase's to put back"
+    );
+    assert_eq!(f.oid("feat-1").unwrap(), f.oid("main").unwrap());
+}
+
+#[test]
+fn undoing_a_split_with_update_refs_puts_the_stacked_branches_back() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file("a.txt", "a\n").unwrap();
+    f.write_file("b.txt", "b\n").unwrap();
+    f.git(&["add", "a.txt", "b.txt"]).unwrap();
+    let split = f.commit_staged(5, "two files").unwrap();
+    f.commit_file(6, "c.txt", "c\n").unwrap();
+    f.git(&["branch", "feat-1"]).unwrap();
+    f.commit_file(7, "d.txt", "d\n").unwrap();
+    f.git(&["config", "rebase.updateRefs", "true"]).unwrap();
+    let (head, feat) = (f.oid("HEAD").unwrap(), f.oid("feat-1").unwrap());
+    let (state, repo) = open(&f);
+
+    state
+        .split_off(repo, &split, &["a.txt".to_owned()], "a alone", true)
+        .unwrap();
+    assert_ne!(
+        f.oid("feat-1").unwrap(),
+        feat,
+        "git moved the stacked branch"
+    );
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(f.oid("HEAD").unwrap(), head);
+    assert_eq!(f.oid("feat-1").unwrap(), feat);
+}
+
+#[test]
+fn a_stacked_rebase_finished_by_continue_undoes_with_its_branches() {
+    let f = stacked();
+    f.git(&["checkout", "-q", "main"]).unwrap();
+    f.commit_file(8, "dev-2.txt", "main two\n").unwrap();
+    f.git(&["checkout", "-q", "dev"]).unwrap();
+    let (dev, feat) = (f.oid("dev").unwrap(), f.oid("feat-1").unwrap());
+    let (state, repo) = open(&f);
+
+    assert!(state.rebase(repo, &rebase_onto("main")).is_err());
+    f.write_file("dev-2.txt", "resolved\n").unwrap();
+    f.git(&["add", "dev-2.txt"]).unwrap();
+    state.continue_operation(repo).unwrap();
+    assert_ne!(
+        f.oid("feat-1").unwrap(),
+        feat,
+        "git moved the stacked branch"
+    );
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(f.oid("dev").unwrap(), dev);
+    assert_eq!(f.oid("feat-1").unwrap(), feat);
+}

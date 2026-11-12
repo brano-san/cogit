@@ -39,11 +39,12 @@ impl RepoHandle {
 
         let original = self.rev_parse("HEAD")?;
         self.run_git(&["update-ref", "ORIG_HEAD", &original])?;
+        let tips = self.local_branch_tips()?;
 
         match self.rewrite(&target, &parent, paths, message, split_first, &branch) {
             Ok(()) => Ok(()),
             Err(err) => {
-                self.recover(&branch, &original);
+                self.recover(&branch, &original, &tips);
                 Err(err)
             }
         }
@@ -123,7 +124,7 @@ impl RepoHandle {
     /// The steps land in the journal either way; a failed one is also logged, since the
     /// user may be left detached. `rebase --abort` only for a rebase that was started: with
     /// none it fails, and its error would stand beside the real one.
-    fn recover(&self, branch: &str, original: &str) {
+    fn recover(&self, branch: &str, original: &str, tips: &[(String, String)]) {
         if matches!(self.state(), Ok(crate::RepoState::Rebasing)) {
             let _ = self.run_git(&["rebase", "--abort"]);
         }
@@ -135,6 +136,33 @@ impl RepoHandle {
                 tracing::error!(
                     ?error,
                     context = "putting the branch back after a failed split"
+                );
+            }
+        }
+        self.put_back_stacked(branch, tips);
+    }
+
+    /// `rebase.updateRefs` moves the branches stacked on the rewritten commits too.
+    fn put_back_stacked(&self, branch: &str, tips: &[(String, String)]) {
+        let now: std::collections::HashMap<String, String> = match self.local_branch_tips() {
+            Ok(now) => now.into_iter().collect(),
+            Err(error) => {
+                tracing::error!(
+                    ?error,
+                    context = "stacked branches unreadable after a failed split"
+                );
+                return;
+            }
+        };
+        for (name, was) in tips.iter().filter(|(name, _)| name != branch) {
+            let Some(moved) = now.get(name).filter(|tip| *tip != was) else {
+                continue;
+            };
+            let full = format!("refs/heads/{name}");
+            if let Err(error) = self.run_git(&["update-ref", &full, was, moved]) {
+                tracing::error!(
+                    ?error,
+                    context = "putting a stacked branch back after a failed split"
                 );
             }
         }

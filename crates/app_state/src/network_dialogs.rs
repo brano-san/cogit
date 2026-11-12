@@ -51,7 +51,7 @@ impl AppState {
             let known = handle
                 .wants_new_submodules()
                 .then(|| handle.submodule_paths());
-            let before = handle.head()?;
+            let before = crate::safety::Before::with_branches(&handle)?;
             let result = handle.pull_options(remote, options, credential, on_line);
             self.record_move(
                 repo,
