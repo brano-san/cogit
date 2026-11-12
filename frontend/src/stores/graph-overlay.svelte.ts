@@ -33,12 +33,30 @@ export interface OverlayView {
   kept: number;
 }
 
+/** Each block's rows cut once: the list and the canvas ask for every row on screen on every
+    frame, and the same object back lets them tell an unchanged row by identity. */
+const cut = new WeakMap<GraphOverlay, (RowPaint | undefined)[]>();
+
+function paintOf(block: GraphOverlay, row: number): RowPaint | undefined {
+  const at = row - block.start;
+  if (at < 0 || at >= block.nodeStyles.length) return undefined;
+  let rows = cut.get(block);
+  if (!rows) {
+    rows = [];
+    cut.set(block, rows);
+  }
+  return (rows[at] ??= rowPaint(block, row));
+}
+
 /** Paint of the rows on screen (#11, #26), fetched by block beside the rows themselves.
     Anything that changes the picture — another walk, another request — starts over. */
 export class GraphOverlayStore {
   #arrived = $state(0);
   #key = "";
   #view: OverlayView | null = null;
+  /** What `#key` was made of: a scroll sends the same request object on every frame, and
+      Branch Coloring's holds every branch tip, too long to serialise per frame. */
+  #keyOf: { repo: RepoId | null; generation: number | null; request: GraphPaintRequest | null } | null = null;
   #blocks = new Map<number, GraphOverlay>();
   /** The same rows under the previous request: shown until the new paint is in, so a
       click that changes the request does not flash the graph grey. */
@@ -59,7 +77,7 @@ export class GraphOverlayStore {
     void this.#arrived;
     const index = Math.floor(row / BLOCK);
     const block = this.#blocks.get(index) ?? this.#stale.get(index);
-    return block ? rowPaint(block, row) : undefined;
+    return block ? paintOf(block, row) : undefined;
   }
 
   /** Commits folded into the merge on `row` so far; 0 for any other row. */
@@ -71,6 +89,17 @@ export class GraphOverlayStore {
   }
 
   show(view: OverlayView): void {
+    const last = this.#keyOf;
+    if (!last || last.repo !== view.repo || last.generation !== view.generation || last.request !== view.request) {
+      this.#keyOf = { repo: view.repo, generation: view.generation, request: view.request };
+      this.#rekey(view);
+    }
+    this.#view = view;
+    this.#fill();
+  }
+
+  /** Another walk or another request (by content: an equal one rebuilt keeps the paint). */
+  #rekey(view: OverlayView): void {
     const walk = JSON.stringify([view.repo, view.generation]);
     const key = JSON.stringify([walk, view.request]);
     if (key !== this.#key) {
@@ -82,8 +111,6 @@ export class GraphOverlayStore {
       this.#asked.clear();
       this.#arrived += 1;
     }
-    this.#view = view;
-    this.#fill();
   }
 
   clear(): void {

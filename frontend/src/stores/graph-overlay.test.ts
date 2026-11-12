@@ -4,6 +4,7 @@ import type { GraphOverlay, GraphPaintRequest, RepoId } from "$lib/ipc";
 vi.mock("$lib/ipc", () => ({ graphOverlay: vi.fn() }));
 
 const { GraphOverlayStore } = await import("./graph-overlay.svelte");
+const { allocatedBytes, msPerCall, report } = await import("$lib/graph-bench-probe");
 
 const REPO = 1 as RepoId;
 const REQUEST: GraphPaintRequest = { tips: [{ oid: "a", slot: 2 }] };
@@ -203,5 +204,55 @@ describe("a new walk of the same repository", () => {
     store.show(view({ generation: 2, base: 7, kept: 300 }));
 
     expect(store.paintAt(3)).toBeUndefined();
+  });
+});
+
+// A scroll calls `show` on every frame; Branch Coloring's request holds every branch tip.
+describe("show while scrolling", () => {
+  const tips = Array.from({ length: 300 }, (_, i) => ({ oid: i.toString(16).padStart(40, "0"), slot: i % 8 }));
+  const big: GraphPaintRequest = { tips };
+
+  it("costs no more than its window, however large the request", { timeout: 60_000 }, async () => {
+    const { fetch } = rust(() => 100_000);
+    const store = new GraphOverlayStore(fetch);
+    store.show(view({ request: big, total: 100_000 }));
+    await settle();
+    let step = 0;
+    const scroll = () => {
+      step = (step + 1) % 100;
+      store.show(view({ request: big, total: 100_000, start: step, end: step + 80 }));
+    };
+    const ms = msPerCall(scroll, 400, 50);
+    const calls = 400;
+    const bytes = await allocatedBytes(() => {
+      for (let i = 0; i < calls; i++) scroll();
+    });
+    report("graphOverlays.show, 300 tips", { msPerCall: ms, kibPerCall: bytes / calls / 1024 });
+    expect(bytes / calls).toBeLessThan(Number.POSITIVE_INFINITY);
+  });
+
+  it("paints the rows on screen without copying their lines", { timeout: 60_000 }, async () => {
+    // Seven lines a row, as in a history six lanes wide.
+    const fetch = vi.fn(async (_repo: RepoId, _generation: number, start: number, count: number): Promise<GraphOverlay> => ({
+      start,
+      total: 1000,
+      nodeLanes: Array.from({ length: count }, () => 0),
+      nodeStyles: Array.from({ length: count }, () => 0),
+      segmentFirst: Array.from({ length: count + 1 }, (_, i) => i * 7),
+      segmentLanes: Array.from({ length: count * 7 }, (_, i) => i % 7),
+      segmentStyles: Array.from({ length: count * 7 }, (_, i) => i % 3),
+      folds: [],
+    }));
+    const store = new GraphOverlayStore(fetch);
+    store.show(view({ start: 0, end: 128 }));
+    await settle();
+    const frame = () => {
+      for (let row = 0; row < 80; row++) store.paintAt(row);
+    };
+    const frames = 200;
+    const bytes = await allocatedBytes(() => {
+      for (let i = 0; i < frames; i++) frame();
+    });
+    report("paintAt x80 rows", { kibPerFrame: bytes / frames / 1024 });
   });
 });
