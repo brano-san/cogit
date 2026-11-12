@@ -383,3 +383,18 @@ fn gc_leaves_a_commit_graph_with_changed_paths() {
         "the graph has no changed-path Bloom filters"
     );
 }
+
+#[test]
+fn gc_now_keeps_every_stash() {
+    let f = test_fixtures::linear(1).unwrap();
+    for n in 0..3 {
+        f.write_file("file0.txt", &format!("stash {n}\n")).unwrap();
+        f.git(&["stash", "--quiet"]).unwrap();
+    }
+    let handle = RepoHandle::open(f.path()).unwrap();
+
+    handle.gc(GcPrune::Now).unwrap();
+
+    let list = f.git(&["stash", "list"]).unwrap();
+    assert_eq!(list.lines().count(), 3, "stashes lost by gc: {list}");
+}

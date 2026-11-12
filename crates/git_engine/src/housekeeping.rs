@@ -46,13 +46,15 @@ impl GcPrune {
         }
     }
 
+    /// Given to gc as config, not to `reflog expire` on the command line: that bypasses
+    /// git's own `refs/stash` exemption and every stash but the top one was pruned.
     fn reflog_expiry(self) -> Option<&'static str> {
         match self {
             Self::TwoWeeks => None,
-            Self::OneWeek => Some("--expire-unreachable=1.week.ago"),
-            Self::OneDay => Some("--expire-unreachable=1.day.ago"),
-            Self::OneHour => Some("--expire-unreachable=1.hour.ago"),
-            Self::Now => Some("--expire-unreachable=now"),
+            Self::OneWeek => Some("gc.reflogExpireUnreachable=1.week.ago"),
+            Self::OneDay => Some("gc.reflogExpireUnreachable=1.day.ago"),
+            Self::OneHour => Some("gc.reflogExpireUnreachable=1.hour.ago"),
+            Self::Now => Some("gc.reflogExpireUnreachable=now"),
         }
     }
 }
@@ -293,10 +295,17 @@ impl RepoHandle {
     }
 
     pub fn gc(&self, prune: GcPrune) -> Result<()> {
-        if let Some(expiry) = prune.reflog_expiry() {
-            self.run_git(&["reflog", "expire", expiry, "--all"])?;
-        }
-        self.run_git(&["gc", prune.arg()])?;
+        match prune.reflog_expiry() {
+            Some(expiry) => self.run_git(&[
+                "-c",
+                expiry,
+                "-c",
+                "gc.refs/stash.reflogExpireUnreachable=never",
+                "gc",
+                prune.arg(),
+            ])?,
+            None => self.run_git(&["gc", prune.arg()])?,
+        };
         self.write_commit_graph()
     }
 
