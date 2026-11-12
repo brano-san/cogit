@@ -11,7 +11,7 @@ pub async fn worktree_files(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,
     view: git_engine::WorktreeView,
-) -> Result<WorktreeFiles, GitError> {
+) -> Result<std::sync::Arc<WorktreeFiles>, GitError> {
     let app_state = state.state.clone();
     blocking("worktree_files", move || {
         app_state.worktree_files(repo, view)

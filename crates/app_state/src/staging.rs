@@ -7,11 +7,13 @@ impl AppState {
         &self,
         repo: RepoId,
         view: git_engine::WorktreeView,
-    ) -> Result<git_engine::WorktreeFiles, git_engine::GitError> {
+    ) -> Result<std::sync::Arc<git_engine::WorktreeFiles>, git_engine::GitError> {
         if view == git_engine::WorktreeView::default() {
-            return self.walked_for_list(repo).map(|files| (*files).clone());
+            return self.walked_for_list(repo);
         }
-        self.handle(repo)?.worktree_files_with(view)
+        self.handle(repo)?
+            .worktree_files_with(view)
+            .map(std::sync::Arc::new)
     }
 
     /// Staging changes the status and nothing else; reopening the repository to learn
