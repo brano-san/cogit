@@ -216,6 +216,22 @@ describe("highlightLines", () => {
 });
 
 describe("mergePieces", () => {
+  // Rows with no changed word and no hit skip the sorted cuts; an empty range sends a row
+  // down the general path without changing its pieces, so the two must agree.
+  it("cuts a row without overlays as the general path does", () => {
+    let seed = 7;
+    const next = (n: number) => ((seed = (seed * 1103515245 + 12345) % 2147483648), seed % n);
+    for (let run = 0; run < 300; run++) {
+      const text = "x".repeat(next(40));
+      const tokens = Array.from({ length: next(8) }, () => {
+        const start = next(45);
+        return { start, end: start + next(10), cls: `t${next(3)}` };
+      });
+      if (run % 2 === 0) tokens.sort((a, b) => a.start - b.start);
+      expect(mergePieces(text, tokens, [])).toEqual(mergePieces(text, tokens, [[0, 0]]));
+    }
+  });
+
   it("returns the whole line when there is nothing to mark", () => {
     expect(mergePieces("plain", [], [])).toEqual([{ text: "plain", cls: "", changed: false, hit: false, start: 0 }]);
   });

@@ -158,17 +158,7 @@ export function mergePieces(
 ): Piece[] {
   const length = text.length;
   const spans = length > MAX_HIGHLIGHT_CHARS ? [] : byStart(tokens);
-  const cuts = new Set<number>([0, length]);
-  for (const token of spans) {
-    cuts.add(Math.min(token.start, length));
-    cuts.add(Math.min(token.end, length));
-  }
-  for (const [from, to] of [...inline, ...hits]) {
-    cuts.add(Math.min(from, length));
-    cuts.add(Math.min(to, length));
-  }
-
-  const bounds = [...cuts].sort((a, b) => a - b);
+  const bounds = (inline.length === 0 && hits.length === 0 && tokenBounds(spans, length)) || sortedCuts(spans, inline, hits, length);
   const changed = coverage(bounds, inline, length);
   const hit = coverage(bounds, hits, length);
   const pieces: Piece[] = [];
@@ -189,6 +179,42 @@ export function mergePieces(
     });
   }
   return pieces;
+}
+
+/** Most rows have no changed words and no search hit, and their tokens follow one another:
+    then the cuts are the token edges in order, with no set to fill and sort. Null when two
+    tokens overlap, which the sort has to settle. */
+function tokenBounds(spans: readonly Token[], length: number): number[] | null {
+  const bounds = [0];
+  let last = 0;
+  for (const token of spans) {
+    const start = Math.min(token.start, length);
+    const end = Math.min(token.end, length);
+    if (start < last || end < start) return null;
+    if (start > last) bounds.push(start);
+    if (end > start) bounds.push(end);
+    last = end;
+  }
+  if (length > last) bounds.push(length);
+  return bounds;
+}
+
+function sortedCuts(
+  spans: readonly Token[],
+  inline: readonly [number, number][],
+  hits: readonly [number, number][],
+  length: number,
+): number[] {
+  const cuts = new Set<number>([0, length]);
+  for (const token of spans) {
+    cuts.add(Math.min(token.start, length));
+    cuts.add(Math.min(token.end, length));
+  }
+  for (const [from, to] of [...inline, ...hits]) {
+    cuts.add(Math.min(from, length));
+    cuts.add(Math.min(to, length));
+  }
+  return [...cuts].sort((a, b) => a - b);
 }
 
 function byStart(tokens: readonly Token[]): readonly Token[] {
