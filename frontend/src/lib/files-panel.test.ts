@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FileEntry } from "$lib/ipc";
-import { changeCount, emptyText, filesPanelList, mergedSide, mergeIndex, pairMemo, selectAllKeys, sameLists, stagedShown, type FilesPanelInput } from "./files-panel";
+import { changeCount, emptyText, filesPanelList, mergedSide, mergeIndex, pairMemo, selectAllKeys, sameLists, sameShapes, stagedShown, type FilesPanelInput } from "./files-panel";
 
 const base: FilesPanelInput = {
   content: true,
@@ -134,6 +134,22 @@ describe("sameLists", () => {
     const next = [a, []];
     expect(sameLists([a, b], next)).toBe(next);
     expect(sameLists([a], [a, b])).toEqual([a, b]);
+  });
+});
+
+// A click builds the sections anew with another open file; the rows must not be rebuilt.
+describe("sameShapes", () => {
+  it("keeps the shapes while titles, sides and hiding stay", () => {
+    const before = sameShapes([], [{ title: "Unstaged" }, { title: "Staged", side: "index", hideWhenEmpty: true }]);
+    const again = sameShapes(before, [{ title: "Unstaged" }, { title: "Staged", side: "index", hideWhenEmpty: true }]);
+    expect(again).toBe(before);
+  });
+
+  it("takes new shapes once any of them changed", () => {
+    const before = sameShapes([], [{ title: "Unstaged" }, { title: "Staged", side: "index" }]);
+    expect(sameShapes(before, [{ title: "Unstaged" }, { title: "Staged" }])).not.toBe(before);
+    expect(sameShapes(before, [{ title: "Unstaged" }, { title: "Staged", side: "index", hideWhenEmpty: true }])).not.toBe(before);
+    expect(sameShapes(before, [{ title: "Unstaged" }])).toEqual([{ title: "Unstaged", side: undefined, hideWhenEmpty: false }]);
   });
 });
 

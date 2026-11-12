@@ -1,3 +1,4 @@
+import type { StateSide } from "./file-state";
 import type { ListFile } from "./file-view";
 import type { FileEntry } from "./ipc/bindings";
 
@@ -85,6 +86,28 @@ export function selectAllKeys(groupKeys: readonly (readonly string[])[], touched
     list changed, not each time the panel builds its sections anew. */
 export function sameLists<T>(before: readonly T[], next: readonly T[]): readonly T[] {
   return before.length === next.length && next.every((list, index) => list === before[index]) ? before : next;
+}
+
+/** What of a section decides its rows. The panel builds its sections anew on every click
+    (each carries the file it has open); only a change of these, or of a list, regroups. */
+export interface SectionShape {
+  title: string | undefined;
+  side: StateSide | undefined;
+  hideWhenEmpty: boolean;
+}
+
+/** `before` while every section has the same shape as there: see `sameLists`. */
+export function sameShapes(
+  before: readonly SectionShape[],
+  sections: readonly { title?: string; side?: StateSide; hideWhenEmpty?: boolean }[],
+): readonly SectionShape[] {
+  const same =
+    before.length === sections.length &&
+    sections.every((section, index) => {
+      const shape = before[index];
+      return shape !== undefined && shape.title === section.title && shape.side === section.side && shape.hideWhenEmpty === (section.hideWhenEmpty ?? false);
+    });
+  return same ? before : sections.map(({ title, side, hideWhenEmpty }) => ({ title, side, hideWhenEmpty: hideWhenEmpty ?? false }));
 }
 
 /** A list's heading counts its changes: an unchanged file is listed, never counted. */

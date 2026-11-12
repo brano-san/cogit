@@ -3,7 +3,7 @@
   import { keyLetter } from "$lib/key-letter";
   import { modals } from "$lib/modal-stack";
   import { ON_MAC, primary } from "$lib/platform";
-  import { sameLists, selectAllKeys } from "$lib/files-panel";
+  import { sameLists, sameShapes, selectAllKeys, type SectionShape } from "$lib/files-panel";
   import { registerSelectAll } from "$lib/select-all";
   import { untrack } from "svelte";
   import FilesToolbar from "./FilesToolbar.svelte";
@@ -140,7 +140,7 @@
   let touched = $state<number | null>(null);
   let bar: ReturnType<typeof FilesToolbar> | undefined = $state();
 
-  const sideOf = (section: Section): StateSide => section.side ?? (context === "worktree" ? "worktree" : "commit");
+  const sideOf = (section: Pick<Section, "side">): StateSide => section.side ?? (context === "worktree" ? "worktree" : "commit");
 
   function onkeydown(event: KeyboardEvent) {
     if (!activePanel || modals.any) return;
@@ -166,7 +166,7 @@
   $effect(() => {
     const bySection: Record<string, string[]> = {};
     for (const [index, paths] of marks.bySection) {
-      const title = sections[index]?.title;
+      const title = shapes[index]?.title;
       if (title) bySection[title] = [...paths];
     }
     onmarked?.(marks.paths, bySection);
@@ -200,6 +200,11 @@
   // Its files, not the sections: a click on a row builds them anew with the same files.
   let lists: readonly (readonly FileEntry[])[] = [];
   const files = $derived((lists = sameLists(lists, sections.map((section) => section.files))));
+  /** Titles, sides and hiding, kept while they stay: with `files`, all the rows are built
+      from. The open file and the click handlers are read from `sections` where used, so a
+      click or a held arrow key does not regroup the lists. */
+  let shapesBefore: readonly SectionShape[] = [];
+  const shapes = $derived((shapesBefore = sameShapes(shapesBefore, sections)));
 
   $effect(() => {
     void files;
@@ -229,11 +234,9 @@
       and the order a filter keeps is the order it had (R-823). A reload or another
       repository brings new lists, and with them a new sort. */
   const prepared = $derived(
-    shownSections(sections).map((section) => ({
-      section,
-      index: sections.indexOf(section),
-      ...sortedOnce(section.files),
-    })),
+    shownSections(shapes.map((shape, index) => ({ ...shape, index, files: files[index] ?? [] }))).map(
+      ({ title, side, index, files }) => ({ title, side: sideOf({ side }), index, ...sortedOnce(files) }),
+    ),
   );
   /** A list that comes back unchanged (a search over every file typed again, the list
       mounted anew) is not sorted again. The LFS column reads state that moves on its own,
@@ -248,12 +251,12 @@
   }
 
   const groups = $derived(
-    prepared.map(({ section, index, sorted }) => {
-      const side = sideOf(section);
+    prepared.map(({ title, side, index, sorted }) => {
       const files = pattern.test === null && hits === null ? sorted : sorted.filter((file) => keepFile(file, pattern, hits, side));
       const paths = files.map((file) => file.path);
       return {
-        section,
+        title,
+        side,
         index,
         files,
         paths,
@@ -271,7 +274,7 @@
   });
 
   $effect(() => {
-    const shown = sections.map((section) => groups.find((group) => group.section === section)?.paths ?? []);
+    const shown = shapes.map((_, index) => groups.find((group) => group.index === index)?.paths ?? []);
     untrack(() => onshown?.(shown));
   });
   // Gone, it shows nothing: the Commit panel stays, and a commit of what it last showed
@@ -294,10 +297,11 @@
     return `Sorted by ${COLUMN_LABELS[key]}, ${sort.descending ? "descending" : "ascending"}; click to turn round`;
   }
   const apart = $derived(layout.apart);
-  const total = $derived(sections.reduce((n, section) => n + section.files.length, 0));
+  const total = $derived(files.reduce((n, list) => n + list.length, 0));
   const shownCount = $derived(groups.reduce((n, group) => n + group.files.length, 0));
   const order = $derived(groups.flatMap((group) => group.keys));
-  const came = $derived(sections.flatMap((section) => section.files));
+  const orderSet = $derived(new Set(order));
+  const came = $derived(files.flat());
   /** The rows the filter kept, so counting the hidden ones does not filter a second time. */
   const kept = $derived.by(() => {
     const rows = new Set<FileEntry>();
@@ -305,7 +309,8 @@
     return rows;
   });
   const hidden = $derived(disabled || revisionFiles === null ? null : hiddenFiles(revisionFiles, came, kept, context === "worktree"));
-  const visibleMarks = $derived(shownMarks(marked, order));
+  /** `orderSet` is built only once something is ticked. */
+  const visibleMarks = $derived(marked.paths.size === 0 ? marked : shownMarks(marked, orderSet));
   const marks = $derived(markedRows(visibleMarks.paths));
 
 
@@ -336,7 +341,7 @@
     const ctrl = primary(event, ON_MAC);
     marked = applyClick(marked, rowKey(group.index, path), group.keys, { ctrl, shift: event.shiftKey });
     if (ctrl || event.shiftKey) return;
-    (group.section.onselect ?? onselect)?.(path);
+    (sections[group.index]?.onselect ?? onselect)?.(path);
   }
 
   function rightClicked(group: Group, path: string, event: MouseEvent) {
@@ -344,11 +349,12 @@
     if (!marked.paths.has(rowKey(group.index, path)) && selectedIn(group) !== path) {
       clicked(group, path, { ctrlKey: false, metaKey: false, shiftKey: false });
     }
-    oncontext?.(path, event, group.section.title, group.files);
+    oncontext?.(path, event, group.title, group.files);
   }
 
   function selectedIn(group: Group): string | null {
-    return group.section.selected === undefined ? selected : group.section.selected;
+    const own = sections[group.index]?.selected;
+    return own === undefined ? selected : own;
   }
 
   function contentStatus(search: ContentSearch, files: number): string {
@@ -435,12 +441,12 @@
       </div>
       {#if apart}
         <div class="panes">
-          {#each groups as group, index (group.section.title ?? index)}
+          {#each groups as group, index (group.title ?? index)}
             {#if index > 0}
               <Splitter
                 direction="horizontal"
                 value={split}
-                label="Resize the {group.section.title ?? 'file'} list"
+                label="Resize the {group.title ?? 'file'} list"
                 onchange={(delta) => onsplit?.(delta)}
                 onreset={() => onsplitreset?.()}
               />
@@ -452,15 +458,15 @@
             >
               <FilePane
                 rows={group.rows}
-                title={group.section.title}
+                title={group.title}
                 {columns}
                 nested={active.directories}
-                side={sideOf(group.section)}
+                side={group.side}
                 selected={selectedIn(group)}
                 marked={marks.bySection.get(group.index) ?? NO_MARKS}
                 onclick={(path, event) => clicked(group, path, event)}
                 onmark={(path) => mark(group, path)}
-                onopen={onopen && ((path) => onopen(path, sideOf(group.section)))}
+                onopen={onopen && ((path) => onopen(path, group.side))}
                 oncontext={oncontext && ((path, event) => rightClicked(group, path, event))}
               />
             </div>
@@ -468,20 +474,20 @@
         </div>
       {:else}
         <div class="panes">
-          {#each groups as group, index (group.section.title ?? index)}
+          {#each groups as group, index (group.title ?? index)}
             {#if group.files.length > 0}
               <div class="slot grow" onfocusin={() => (touched = group.index)}>
                 <FilePane
                   rows={group.rows}
-                  title={layout.titled ? group.section.title : undefined}
+                  title={layout.titled ? group.title : undefined}
                   {columns}
                   nested={active.directories}
-                  side={sideOf(group.section)}
+                  side={group.side}
                   selected={selectedIn(group)}
                   marked={marks.bySection.get(group.index) ?? NO_MARKS}
                   onclick={(path, event) => clicked(group, path, event)}
                   onmark={(path) => mark(group, path)}
-                  onopen={onopen && ((path) => onopen(path, sideOf(group.section)))}
+                  onopen={onopen && ((path) => onopen(path, group.side))}
                   oncontext={oncontext && ((path, event) => rightClicked(group, path, event))}
                 />
               </div>
