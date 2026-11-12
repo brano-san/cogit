@@ -128,7 +128,9 @@ impl RepoHandle {
         };
         args.extend(["submodule", "update", "--progress"]);
         args.extend(flags);
-        self.run_network(&with_paths(&args, paths))
+        let result = self.run_network(&with_paths(&args, paths));
+        crate::status::forget_broken_submodules(self.root());
+        result
     }
 
     fn partial_clone_filter(&self) -> Option<String> {

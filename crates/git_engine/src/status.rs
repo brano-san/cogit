@@ -210,29 +210,67 @@ pub(crate) fn past_broken_submodules<T>(
     repo: &RepoHandle,
     read: impl Fn(bool) -> Result<T>,
 ) -> Result<T> {
-    let watched = [repo.repo.index_path(), repo.root().join(".gitmodules")];
-    skipping_broken_submodules(repo.root(), &watched, read)
+    skipping_broken_submodules(repo.root(), || stamp(&watched_paths(repo)), read)
 }
 
-fn skipping_broken_submodules<T>(
-    root: &std::path::Path,
-    watched: &[std::path::PathBuf],
-    read: impl Fn(bool) -> Result<T>,
-) -> Result<T> {
-    let stamp: Stamp = watched
+/// Repairing a submodule writes only inside it, its `.git/modules` entry or `.git/config`,
+/// none of which the superproject's index sees, so each of them ends the skip.
+fn watched_paths(repo: &RepoHandle) -> Vec<std::path::PathBuf> {
+    let mut watched = vec![
+        repo.repo.index_path(),
+        repo.root().join(".gitmodules"),
+        repo.repo.common_dir().join("config"),
+    ];
+    let modules = match repo.repo.submodules() {
+        Ok(modules) => modules.into_iter().flatten(),
+        Err(err) => {
+            tracing::error!(error = ?err, context = "submodules for the broken-submodule stamp");
+            return watched;
+        }
+    };
+    for module in modules {
+        if let Ok(work_dir) = module.work_dir() {
+            watched.push(work_dir.join(".git"));
+        }
+        if let Ok(git_dir) = module.git_dir() {
+            watched.push(git_dir.join("HEAD"));
+            watched.push(git_dir);
+        }
+    }
+    watched
+}
+
+fn stamp(watched: &[std::path::PathBuf]) -> Stamp {
+    watched
         .iter()
         .map(|path| {
             std::fs::metadata(path)
                 .and_then(|meta| meta.modified())
                 .ok()
         })
-        .collect();
-    if broken_submodules()
+        .collect()
+}
+
+pub(crate) fn forget_broken_submodules(root: &std::path::Path) {
+    broken_submodules()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .remove(root);
+}
+
+/// The stamp is taken only once a submodule failed: listing submodules costs a
+/// `.gitmodules` read the healthy path need not pay.
+fn skipping_broken_submodules<T>(
+    root: &std::path::Path,
+    stamp: impl Fn() -> Stamp,
+    read: impl Fn(bool) -> Result<T>,
+) -> Result<T> {
+    let known = broken_submodules()
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .get(root)
-        == Some(&stamp)
-    {
+        .cloned();
+    if known.is_some_and(|known| known == stamp()) {
         return read(true);
     }
     match read(false) {
@@ -244,7 +282,7 @@ fn skipping_broken_submodules<T>(
             broken_submodules()
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .insert(root.to_path_buf(), stamp);
+                .insert(root.to_path_buf(), stamp());
             read(true)
         }
         other => other,
@@ -273,8 +311,9 @@ mod tests {
             }
         };
 
-        skipping_broken_submodules(dir.path(), std::slice::from_ref(&index), read).unwrap();
-        skipping_broken_submodules(dir.path(), std::slice::from_ref(&index), read).unwrap();
+        let watched = || stamp(std::slice::from_ref(&index));
+        skipping_broken_submodules(dir.path(), watched, read).unwrap();
+        skipping_broken_submodules(dir.path(), watched, read).unwrap();
         assert_eq!(*calls.borrow(), [false, true, true]);
 
         std::fs::File::options()
@@ -283,7 +322,7 @@ mod tests {
             .unwrap()
             .set_modified(std::time::SystemTime::now() + std::time::Duration::from_secs(5))
             .unwrap();
-        skipping_broken_submodules(dir.path(), &[index], read).unwrap();
+        skipping_broken_submodules(dir.path(), watched, read).unwrap();
         assert_eq!(*calls.borrow(), [false, true, true, false, true]);
     }
 }

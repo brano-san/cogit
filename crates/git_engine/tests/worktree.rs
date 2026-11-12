@@ -694,3 +694,60 @@ fn the_files_list_counts_changes_as_the_worktree_count_does() {
         repo.change_counts().unwrap()
     );
 }
+
+fn commit_inside_submodule(f: &test_fixtures::Fixture) {
+    f.git(&[
+        "-C",
+        "vendor/lib",
+        "-c",
+        "user.name=t",
+        "-c",
+        "user.email=t@t",
+        "commit",
+        "--allow-empty",
+        "-m",
+        "x",
+    ])
+    .unwrap();
+}
+
+#[test]
+fn a_repaired_gitdir_file_brings_the_submodule_back_into_the_status() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let link = f.path().join("vendor/lib/.git");
+    let original = std::fs::read(&link).unwrap();
+    std::fs::write(&link, "gitdir: ../../.git/modules/gone\n").unwrap();
+    let repo = open(&f);
+    assert!(
+        !repo
+            .worktree_files()
+            .unwrap()
+            .unstaged
+            .iter()
+            .any(|file| file.path == "vendor/lib")
+    );
+
+    std::fs::write(&link, original).unwrap();
+    commit_inside_submodule(&f);
+
+    assert_eq!(
+        status_of(&repo.worktree_files().unwrap(), "unstaged", "vendor/lib"),
+        &FileStatus::Modified
+    );
+    assert_eq!(repo.status().unwrap().unstaged, 1);
+}
+
+#[test]
+fn a_restored_submodule_repository_brings_the_submodule_back_into_the_status() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let gitdir = f.path().join(".git/modules/vendor/lib");
+    let aside = f.path().join(".git/aside");
+    std::fs::rename(&gitdir, &aside).unwrap();
+    let repo = open(&f);
+    assert_eq!(repo.status().unwrap().unstaged, 0);
+
+    std::fs::rename(&aside, &gitdir).unwrap();
+    commit_inside_submodule(&f);
+
+    assert_eq!(repo.status().unwrap().unstaged, 1);
+}
