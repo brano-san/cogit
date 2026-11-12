@@ -4,6 +4,7 @@ use crate::{
 };
 use notify::event::{AccessKind, AccessMode};
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -401,10 +402,11 @@ impl Route {
             .is_none()
             .then(|| path.strip_prefix(&self.common_dir).ok());
         let relative = if let Some(inside) = private.or(shared.flatten()) {
-            let relative = to_slash(inside);
-            if relative.starts_with("objects/") || relative == "objects" {
+            // Component-wise, before any string is made: `objects` is most of the events.
+            if inside.starts_with("objects") {
                 return None;
             }
+            let relative = to_slash(inside);
             // HEAD, the index and the operation markers at the top of the common folder
             // are the main worktree's, not this one's.
             if private.is_none() && !is_shared(&relative) {
@@ -453,8 +455,13 @@ fn everything(seen: &mut Vec<(ChangeKind, PathBuf)>) {
     }
 }
 
-fn to_slash(path: &Path) -> String {
-    path.to_string_lossy().replace('\\', "/")
+fn to_slash(path: &Path) -> Cow<'_, str> {
+    let lossy = path.to_string_lossy();
+    if lossy.contains('\\') {
+        Cow::Owned(lossy.replace('\\', "/"))
+    } else {
+        lossy
+    }
 }
 
 fn watch(

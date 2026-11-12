@@ -100,16 +100,24 @@ pub fn is_nested_git_noise(relative: &Path) -> bool {
 /// change of the parent's working tree, which compares the gitlink with that HEAD (R-541).
 /// A module path with a `logs` or `objects` part of its own is taken for git's.
 fn is_module_tip(inner: &str) -> bool {
-    let parts: Vec<&str> = inner.split('/').collect();
-    if parts.iter().any(|part| matches!(*part, "logs" | "objects")) {
+    if inner
+        .split('/')
+        .any(|part| matches!(part, "logs" | "objects"))
+    {
         return false;
     }
-    matches!(parts.last(), Some(&"HEAD" | &"packed-refs")) || parts.contains(&"refs")
+    matches!(inner.rsplit('/').next(), Some("HEAD" | "packed-refs"))
+        || inner.split('/').any(|part| part == "refs")
 }
 
 #[must_use]
 pub fn classify_git_path(relative: &str) -> Option<ChangeKind> {
-    let normalized = relative.replace('\\', "/");
+    // The watcher hands over `/` already; only other callers pay for the copy.
+    let normalized = if relative.contains('\\') {
+        std::borrow::Cow::Owned(relative.replace('\\', "/"))
+    } else {
+        std::borrow::Cow::Borrowed(relative)
+    };
     let normalized = normalized.trim_start_matches('/');
 
     if let Some(inner) = normalized.strip_prefix("modules/") {
