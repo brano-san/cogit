@@ -167,9 +167,13 @@ impl RepoHandle {
     }
 
     pub fn message_seed(&self) -> Result<Option<String>> {
-        let prepared = ["MERGE_MSG", "SQUASH_MSG"]
-            .iter()
-            .find_map(|name| std::fs::read_to_string(self.git_dir().join(name)).ok());
+        let read = |name: &str| std::fs::read_to_string(self.git_dir().join(name)).ok();
+        // A conflicted `merge --squash` writes both: the message in SQUASH_MSG, only the
+        // conflict hints in MERGE_MSG. `git commit` puts them in this order.
+        let prepared = match (read("SQUASH_MSG"), read("MERGE_MSG")) {
+            (Some(squash), Some(merge)) => Some(format!("{squash}{merge}")),
+            (squash, merge) => merge.or(squash),
+        };
         match prepared {
             Some(text) => Ok(Some(text)),
             None => self.commit_template(),

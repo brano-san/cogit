@@ -225,3 +225,22 @@ fn a_stopped_merge_seeds_its_message_and_the_conflict_hints_stay_out() {
     let body = f.git(&["log", "-1", "--format=%B"]).unwrap();
     assert!(!body.contains('#'), "{body}");
 }
+
+#[test]
+fn a_conflicted_squash_merge_seeds_the_squash_message_before_the_hints() {
+    let f = test_fixtures::branched().unwrap();
+    f.commit_file(30, "both.txt", "main side\n").unwrap();
+    f.git(&["checkout", "--quiet", "dev"]).unwrap();
+    f.commit_file(31, "both.txt", "dev side\n").unwrap();
+    f.git(&["checkout", "--quiet", "main"]).unwrap();
+    let _ = f.git(&["merge", "--squash", "dev"]);
+    let repo = open(&f);
+
+    let seed = repo.message_seed().unwrap().unwrap();
+
+    assert!(
+        seed.starts_with("Squashed commit of the following:"),
+        "{seed}"
+    );
+    assert!(seed.contains("# Conflicts:"), "{seed}");
+}
