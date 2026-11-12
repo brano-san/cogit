@@ -56,7 +56,8 @@ export async function runDiskPass(context: DiskPassContext, kinds: ReadonlySet<C
   context.refreshWorktrees(id);
 
   // The file list above carried the counters; without it `afterMutation` reads them.
-  await context.afterMutation(state, plan.refs || kinds.has("config"));
+  // `git stash` in a terminal moves only refs/stash: Stashes and Lost Commits read it too.
+  await context.afterMutation(state, plan.refs || kinds.has("config") || kinds.has("stash"));
   if (left()) return;
   context.freshened(["files", "commit"]);
   if (plan.worktree || plan.refs) await context.refreshDiff();

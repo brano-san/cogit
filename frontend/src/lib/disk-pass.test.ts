@@ -71,6 +71,15 @@ describe("answering watcher events", () => {
     expect([edit.refsMoved, commit.refsMoved]).toEqual([[false], [true]]);
   });
 
+  // `git stash` in a terminal left Stashes showing the old list.
+  it("counts a stash made elsewhere as moved refs", async () => {
+    const t = context();
+
+    await runDiskPass(t.context, kinds("stash"));
+
+    expect(t.refsMoved).toEqual([true]);
+  });
+
   it("leaves the counters to be read when no file list was", async () => {
     const t = context({ commitSelected: () => true });
 
