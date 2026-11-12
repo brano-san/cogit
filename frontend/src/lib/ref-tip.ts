@@ -1,10 +1,9 @@
 import type { CommitDetails, CommitRow, Signature } from "$lib/ipc";
+import { dateTooltip, shortOid } from "./format";
 import type { RefNode } from "./ref-nodes";
 
 function when(signature: Signature): string {
-  const shifted = new Date((signature.timestamp + signature.tzOffsetMinutes * 60) * 1000);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())} ${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}`;
+  return dateTooltip(signature.timestamp, signature.tzOffsetMinutes);
 }
 
 function who(signature: Signature): string {
@@ -23,7 +22,7 @@ function commitLines(details: CommitDetails): string[] {
     `Commit Message: ${details.summary}`,
     `Commit Date: ${when(details.committer)}`,
     `Committer: ${who(details.committer)}`,
-    `ID: ${details.oid.slice(0, 8)}`,
+    `ID: ${shortOid(details.oid)}`,
   ];
 }
 
@@ -35,7 +34,7 @@ export function refTip(node: RefNode, details: CommitDetails | null): string | n
       if (!branch) return null;
       head.push(`Local Branch: ${branch.name}`);
       if (branch.upstream) {
-        head.push(`Tracked Branch: ${branch.upstream}`, `Tracking State: ${trackingState(branch.ahead, branch.behind)}`);
+        head.push(`Tracked Branch: ${branch.upstream}`, `Tracking State: ${node.detail?.endsWith(": gone") ? "gone" : trackingState(branch.ahead, branch.behind)}`);
       }
       break;
     }
@@ -49,7 +48,7 @@ export function refTip(node: RefNode, details: CommitDetails | null): string | n
       break;
     case "stash":
       head.push(`Stash: ${node.rev ?? node.label}`, `Comment: ${node.label}`);
-      if (details) head.push(`Commit Message: ${details.summary}`, `ID: ${details.oid.slice(0, 8)}`);
+      if (details) head.push(`Commit Message: ${details.summary}`, `ID: ${shortOid(details.oid)}`);
       return head.join("\n");
     case "other":
       return details ? commitLines(details).join("\n") : (node.rev ?? node.label);
@@ -61,5 +60,5 @@ export function refTip(node: RefNode, details: CommitDetails | null): string | n
 
 export function rowTip(commit: Omit<CommitRow, "parents">): string {
   const author = { name: commit.authorName, email: commit.authorEmail, timestamp: commit.timestamp, tzOffsetMinutes: commit.tzOffsetMinutes };
-  return [`Date: ${when(author)}`, `Author: ${who(author)}`, `Commit Message: ${commit.summary}`, `ID: ${commit.oid.slice(0, 8)}`].join("\n");
+  return [`Date: ${when(author)}`, `Author: ${who(author)}`, `Commit Message: ${commit.summary}`, `ID: ${shortOid(commit.oid)}`].join("\n");
 }

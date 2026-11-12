@@ -5,7 +5,7 @@ import { refTip, rowTip } from "./ref-tip";
 
 const at = Date.UTC(2026, 8, 18, 12, 36) / 1000;
 const details: CommitDetails = {
-  oid: "2b7ccefb0123456789abcdef0123456789abcdef",
+  oid: "2b7ccef0123456789abcdef0123456789abcdef",
   parents: [],
   summary: "Merge remote-tracking branch 'origin/master'",
   body: "",
@@ -33,12 +33,12 @@ describe("refTip", () => {
         "Local Branch: feature/x",
         "Tracked Branch: origin/feature/x",
         "Tracking State: identical",
-        "Date: 2026-09-18 15:36",
+        "Date: 2026-09-18 15:36:00 +03:00",
         "Author: Ann <ann@x.org>",
         "Commit Message: Merge remote-tracking branch 'origin/master'",
-        "Commit Date: 2026-09-18 15:37",
+        "Commit Date: 2026-09-18 15:37:00 +03:00",
         "Committer: Bob <bob@x.org>",
-        "ID: 2b7ccefb",
+        "ID: 2b7ccef",
       ].join("\n"),
     );
   });
@@ -57,12 +57,12 @@ describe("refTip", () => {
     const other = { id: "other:refs/backup/x", kind: "other", label: "backup/x", depth: 1, rev: "refs/backup/x", oid: details.oid } as RefNode;
     expect(refTip(other, null)).toBe("refs/backup/x");
     expect(refTip(other, details)?.split("\n")).toEqual([
-      "Date: 2026-09-18 15:36",
+      "Date: 2026-09-18 15:36:00 +03:00",
       "Author: Ann <ann@x.org>",
       "Commit Message: Merge remote-tracking branch 'origin/master'",
-      "Commit Date: 2026-09-18 15:37",
+      "Commit Date: 2026-09-18 15:37:00 +03:00",
       "Committer: Bob <bob@x.org>",
-      "ID: 2b7ccefb",
+      "ID: 2b7ccef",
     ]);
   });
 
@@ -75,6 +75,6 @@ describe("rowTip", () => {
   it("is the commit a graph label sits on", () => {
     expect(
       rowTip({ oid: details.oid, summary: "Fix", authorName: "Ann", authorEmail: "ann@x.org", timestamp: at, tzOffsetMinutes: 180 }),
-    ).toBe(["Date: 2026-09-18 15:36", "Author: Ann <ann@x.org>", "Commit Message: Fix", "ID: 2b7ccefb"].join("\n"));
+    ).toBe(["Date: 2026-09-18 15:36:00 +03:00", "Author: Ann <ann@x.org>", "Commit Message: Fix", "ID: 2b7ccef"].join("\n"));
   });
 });

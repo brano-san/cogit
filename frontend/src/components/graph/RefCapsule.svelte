@@ -37,7 +37,7 @@
 
 {#snippet held()}
   {#if label.worktree}
-    <span class="held"><KindIcon kind="worktree" title={tooltip} /></span>
+    <span class="held"><KindIcon kind="worktree" title={localTip} /></span>
   {/if}
 {/snippet}
 
