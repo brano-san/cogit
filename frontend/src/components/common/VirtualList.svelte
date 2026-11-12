@@ -40,9 +40,14 @@
   const range = $derived(
     visibleRange(scrollTop, viewportHeight, rowHeight, items.length, buffer),
   );
-  const visible = $derived(
-    items.slice(range.start, range.end).map((item, index) => ({ item, at: range.start + index })),
-  );
+  // Numbers, not the range object: a scroll inside one row changes neither, so the rows are
+  // not looked at again.
+  const start = $derived(range.start);
+  const end = $derived(range.end);
+  /** The indices drawn. A row is keyed and valued by its index, so one that stays on screen
+      is not drawn again when the window moves: a one-row scroll draws only the row that came
+      (wrapping each item in a new object per scroll redrew every row). */
+  const shown = $derived(Array.from({ length: end - start }, (_, k) => start + k));
 
   $effect(() => {
     if (!scroller) return;
@@ -80,8 +85,10 @@
   aria-label={label}
 >
   <div class="rows" style:height="{items.length * rowHeight}px">
-    {#each visible as entry (entry.at)}
-      {@render row(entry.item, entry.at)}
+    {#each shown as at (at)}
+      <!-- A derived per row: new items with the same object at this index draw nothing. -->
+      {@const item = items[at] as T}
+      {@render row(item, at)}
     {/each}
   </div>
 </div>
