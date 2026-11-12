@@ -1,5 +1,6 @@
 <script lang="ts" generics="T">
   import { visibleRange } from "$lib/graph-geometry";
+  import { wheelGlide } from "$lib/wheel-glide";
   import { uiMetricsStore } from "$stores/ui-metrics.svelte";
   import type { Snippet } from "svelte";
 
@@ -28,6 +29,12 @@
 
   let scroller: HTMLDivElement | undefined = $state();
   let scrollTop = $state(0);
+  /** One wheel speed however little the list overflows (lib/wheel-glide.ts). */
+  const glide = wheelGlide(
+    () => scroller,
+    () => rowHeight,
+  );
+  $effect(() => glide.stop);
   let viewportHeight = $state(0);
 
   const range = $derived(
@@ -51,6 +58,7 @@
   // again and pulled the view back to the row.
   $effect(() => {
     if (reveal === null || !scroller) return;
+    glide.stop();
     const top = reveal * rowHeight;
     const shown = scroller.scrollTop;
     const height = scroller.clientHeight;
@@ -65,6 +73,9 @@
   class="scroll key-list"
   bind:this={scroller}
   onscroll={() => scroller && (scrollTop = scroller.scrollTop)}
+  onwheel={glide.onwheel}
+  onpointerdown={glide.stop}
+  onkeydown={glide.stop}
   role={label ? "list" : undefined}
   aria-label={label}
 >
