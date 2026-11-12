@@ -133,9 +133,20 @@ pub fn open_with_menu<R: tauri::Runtime>(
         kinds.retain(|(known, _)| app.get_webview_window(known).is_some());
         kinds.push((label.clone(), kind.to_owned()));
         drop(kinds);
-        spare.become_window(app, url, &title, &shape, menu)?;
+        let made = spare.become_window(app, url.clone(), &title, &shape, menu);
         crate::spare_window::prepare(app);
-        return Ok(label);
+        match made {
+            Ok(()) => return Ok(label),
+            // Half made, it stayed a hidden blank window registered as this kind, and the
+            // next open of the kind showed it. It goes; a fresh window is built below.
+            Err(err) => {
+                tracing::warn!(error = %err, window = %label, "cannot turn the spare window into one");
+                KINDS.lock().retain(|(known, _)| known != &label);
+                if let Some(window) = app.get_webview_window(&label) {
+                    let _ = window.destroy();
+                }
+            }
+        }
     }
     let label = format!("{kind}-{}", NEXT.fetch_add(1, Ordering::Relaxed));
     // Without a menu of its own the window inherits the application's. An empty one still

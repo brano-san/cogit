@@ -55,6 +55,11 @@ fn build<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
     window.remove_menu()?;
     #[cfg(windows)]
     crate::webview2::harden(&window);
+    // The main window closed while this was built: its close loop has run, and a hidden
+    // window left behind kept the process alive.
+    if app.get_webview_window(MAIN).is_none() {
+        window.destroy()?;
+    }
     Ok(())
 }
 
