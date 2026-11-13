@@ -7,6 +7,7 @@ class TimeColumn {
   #fonts = $state(0);
   #cache = new Map<string, number>();
   #canvas: CanvasRenderingContext2D | null = null;
+  #fontFor: { metrics: unknown; fonts: number; font: string | null } | null = null;
 
   constructor() {
     if (typeof document !== "undefined") {
@@ -57,10 +58,17 @@ class TimeColumn {
   /** The column's font: the header size in the UI family, as `.date` in CommitRow sets it. */
   #font(): string | null {
     if (typeof document === "undefined" || typeof getComputedStyle === "undefined") return null;
+    // Asked by every row that comes into view: the style is read once per metrics and fonts,
+    // not once per row (a forced style recalc each time while scrolling).
+    const metrics = uiMetricsStore.current;
+    const known = this.#fontFor;
+    if (known && known.metrics === metrics && known.fonts === this.#fonts) return known.font;
     const root = getComputedStyle(document.documentElement);
     const size = root.getPropertyValue("--fs-header").trim();
     const family = root.getPropertyValue("--font-ui").trim();
-    return size && family ? `${size} ${family}` : null;
+    const font = size && family ? `${size} ${family}` : null;
+    this.#fontFor = { metrics, fonts: this.#fonts, font };
+    return font;
   }
 }
 
