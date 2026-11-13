@@ -94,5 +94,21 @@ fn main() {
         time("graph_window 200", || {
             state.graph_window(repo, generation, 0, 200)
         });
+        // Every file HEAD changed, as Files asks for a commit: the rename lookup was per path.
+        let spec = git_engine::DiffSpec::CommitVsParent {
+            oid: "HEAD".to_owned(),
+        };
+        let paths: Vec<String> = state
+            .commit_files(repo, "HEAD")
+            .map(|files| files.into_iter().map(|file| file.path).collect())
+            .unwrap_or_default();
+        if !paths.is_empty() {
+            time(&format!("diff_files HEAD {}", paths.len()), || {
+                state
+                    .diff_files(repo, &spec, &paths, &diff_engine::DiffOptions::default(), 0)
+                    .map(|_| ())
+                    .map_err(|e| e.to_string())
+            });
+        }
     }
 }

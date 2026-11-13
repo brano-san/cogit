@@ -1,5 +1,6 @@
 use crate::{GitError, RepoHandle, Result};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -219,8 +220,9 @@ impl RepoHandle {
     }
 
     pub fn diff_sides(&self, spec: &DiffSpec, path: &str) -> Result<DiffSides> {
-        let source = self.rename_source(spec, path)?;
-        self.diff_sides_from(spec, source.as_deref().unwrap_or(path), path)
+        let snapshot = self.diff_snapshot(spec)?;
+        let source = snapshot.rename_source(path)?;
+        snapshot.sides(source.unwrap_or(path), path)
     }
 
     /// The sides with the old one read at `old_path`: the source of a rename or copy.
@@ -230,31 +232,7 @@ impl RepoHandle {
         old_path: &str,
         path: &str,
     ) -> Result<DiffSides> {
-        match spec {
-            DiffSpec::CommitVsParent { oid } => {
-                let new = self.blob_at(oid, path)?;
-                let parent = self.first_parent(oid)?;
-                let old = match parent {
-                    Some(parent) => self.blob_at(&parent, old_path)?,
-                    None => None,
-                };
-                Ok((old, new))
-            }
-            DiffSpec::CommitVsCommit { a, b } => {
-                Ok((self.blob_at(a, old_path)?, self.blob_at(b, path)?))
-            }
-            DiffSpec::WorkTreeVsIndex => Ok((self.blob_in_index(path)?, self.worktree_side(path)?)),
-            DiffSpec::IndexVsHead => {
-                let old = match self.head()? {
-                    crate::Head::Unborn { .. } => None,
-                    _ => self.blob_at("HEAD", old_path)?,
-                };
-                Ok((old, self.blob_in_index(path)?))
-            }
-            DiffSpec::CommitVsWorkTree { oid } => {
-                Ok((self.blob_at(oid, path)?, self.worktree_side(path)?))
-            }
-        }
+        self.diff_snapshot(spec)?.sides(old_path, path)
     }
 
     /// What `diff_sides_from` would read, by size alone: a side too large to show is never read.
@@ -264,30 +242,7 @@ impl RepoHandle {
         old_path: &str,
         path: &str,
     ) -> Result<(Option<u64>, Option<u64>)> {
-        match spec {
-            DiffSpec::CommitVsParent { oid } => {
-                let new = self.size_at(oid, path)?;
-                let old = match self.first_parent(oid)? {
-                    Some(parent) => self.size_at(&parent, old_path)?,
-                    None => None,
-                };
-                Ok((old, new))
-            }
-            DiffSpec::CommitVsCommit { a, b } => {
-                Ok((self.size_at(a, old_path)?, self.size_at(b, path)?))
-            }
-            DiffSpec::WorkTreeVsIndex => Ok((self.size_in_index(path)?, self.worktree_size(path)?)),
-            DiffSpec::IndexVsHead => {
-                let old = match self.head()? {
-                    crate::Head::Unborn { .. } => None,
-                    _ => self.size_at("HEAD", old_path)?,
-                };
-                Ok((old, self.size_in_index(path)?))
-            }
-            DiffSpec::CommitVsWorkTree { oid } => {
-                Ok((self.size_at(oid, path)?, self.worktree_size(path)?))
-            }
-        }
+        self.diff_snapshot(spec)?.sizes(old_path, path)
     }
 
     /// The object id git gives each side `diff_sides_from` would read: a tree's or the
@@ -300,42 +255,149 @@ impl RepoHandle {
         old_path: &str,
         path: &str,
     ) -> Result<(Option<String>, Option<String>)> {
-        let at = |rev: &str, path: &str| -> Result<Option<String>> {
-            Ok(self.blob_id_at(rev, path)?.map(|id| id.to_string()))
-        };
-        match spec {
+        self.diff_snapshot(spec)?.ids(old_path, path)
+    }
+
+    /// Where the old side keeps a file it has no `path` for: the source of the rename or
+    /// copy the file list shows as `← old.txt`. Looked for only then, since finding it
+    /// costs a tree diff with rename tracking.
+    pub fn rename_source(&self, spec: &DiffSpec, path: &str) -> Result<Option<String>> {
+        Ok(self
+            .diff_snapshot(spec)?
+            .rename_source(path)?
+            .map(str::to_owned))
+    }
+
+    /// What `diff_sides` would read, by size alone.
+    pub fn side_sizes(&self, spec: &DiffSpec, path: &str) -> Result<(Option<u64>, Option<u64>)> {
+        let snapshot = self.diff_snapshot(spec)?;
+        let source = snapshot.rename_source(path)?;
+        snapshot.sizes(source.unwrap_or(path), path)
+    }
+
+    /// The spec resolved once for any number of paths: its trees, one read of the index,
+    /// and the renames, found by one tree diff when a path first needs them.
+    pub fn diff_snapshot(&self, spec: &DiffSpec) -> Result<DiffSnapshot<'_>> {
+        let (old, new, renames) = match spec {
             DiffSpec::CommitVsParent { oid } => {
-                let old = match self.first_parent(oid)? {
-                    Some(parent) => at(&parent, old_path)?,
-                    None => None,
-                };
-                Ok((old, at(oid, path)?))
+                let commit = self.commit_at(oid)?;
+                let new = Side::Tree(tree_of(commit.tree(), oid)?);
+                match commit.parent_ids().next() {
+                    Some(parent) => {
+                        let commit = self.repo.find_commit(parent.detach()).map_err(|err| {
+                            GitError::InvalidState(format!("{parent} is not a commit: {err}"))
+                        })?;
+                        (
+                            Side::Tree(tree_of(commit.tree(), parent)?),
+                            new,
+                            Renames::Trees,
+                        )
+                    }
+                    None => (Side::Absent, new, Renames::None),
+                }
             }
-            DiffSpec::CommitVsCommit { a, b } => Ok((at(a, old_path)?, at(b, path)?)),
-            DiffSpec::WorkTreeVsIndex => Ok((self.id_in_index(path)?, self.worktree_id(path)?)),
+            DiffSpec::CommitVsCommit { a, b } => (
+                Side::Tree(self.tree_at(a)?),
+                Side::Tree(self.tree_at(b)?),
+                Renames::Trees,
+            ),
+            DiffSpec::WorkTreeVsIndex => (Side::Index, Side::WorkTree, Renames::None),
             DiffSpec::IndexVsHead => {
                 let old = match self.head()? {
-                    crate::Head::Unborn { .. } => None,
-                    _ => at("HEAD", old_path)?,
+                    crate::Head::Unborn { .. } => Side::Absent,
+                    _ => Side::Tree(self.tree_at("HEAD")?),
                 };
-                Ok((old, self.id_in_index(path)?))
+                (old, Side::Index, Renames::Staged)
             }
-            DiffSpec::CommitVsWorkTree { oid } => Ok((at(oid, path)?, self.worktree_id(path)?)),
-        }
+            DiffSpec::CommitVsWorkTree { oid } => (
+                Side::Tree(self.tree_at(oid)?),
+                Side::WorkTree,
+                Renames::None,
+            ),
+        };
+        let index = match (&old, &new) {
+            (Side::Tree(_) | Side::Absent, Side::Tree(_)) => None,
+            _ => Some(self.current_index()?),
+        };
+        Ok(DiffSnapshot {
+            handle: self,
+            old,
+            new,
+            renames,
+            index,
+            sources: std::cell::OnceCell::new(),
+        })
     }
 
-    fn id_in_index(&self, path: &str) -> Result<Option<String>> {
-        let index = self.current_index()?;
-        Ok(index
+    fn commit_at(&self, rev: &str) -> Result<gix::Commit<'_>> {
+        let id = self
+            .repo
+            .rev_parse_single(rev)
+            .map_err(|err| GitError::InvalidState(format!("cannot resolve {rev}: {err}")))?;
+        self.repo
+            .find_commit(id.detach())
+            .map_err(|err| GitError::InvalidState(format!("{rev} is not a commit: {err}")))
+    }
+
+    fn tree_at(&self, rev: &str) -> Result<gix::Tree<'_>> {
+        tree_of(self.commit_at(rev)?.tree(), rev)
+    }
+
+    /// Every rename and copy between two trees, new path to old; the first found wins.
+    fn renames_between(
+        &self,
+        before: &gix::Tree<'_>,
+        after: &gix::Tree<'_>,
+    ) -> Result<HashMap<String, String>> {
+        let files = self.files_between_trees(before, after, crate::DEFAULT_SIMILARITY)?;
+        let mut sources = HashMap::new();
+        for file in files {
+            if let Some(old_path) = file.old_path {
+                sources.entry(file.path).or_insert(old_path);
+            }
+        }
+        Ok(sources)
+    }
+
+    /// The same rename tracking the Staged list gets from status; the last found wins.
+    fn staged_renames(
+        &self,
+        head: &gix::Tree<'_>,
+        index: &gix::index::State,
+    ) -> Result<HashMap<String, String>> {
+        let mut sources = HashMap::new();
+        self.repo
+            .tree_index_status(
+                &head.id,
+                index,
+                None,
+                gix::status::tree_index::TrackRenames::AsConfigured,
+                |change, _, _| {
+                    if let gix::diff::index::ChangeRef::Rewrite {
+                        source_location,
+                        location,
+                        ..
+                    } = change
+                    {
+                        sources.insert(location.to_string(), source_location.to_string());
+                    }
+                    Ok::<_, gix::Exn>(std::ops::ControlFlow::Continue(()))
+                },
+            )
+            .map_err(|err| {
+                GitError::Internal(format!("cannot compare the index with HEAD: {err}"))
+            })?;
+        Ok(sources)
+    }
+
+    fn id_in_index(index: &gix::index::State, path: &str) -> Option<String> {
+        index
             .entry_by_path(path.into())
             .filter(|entry| !entry.mode.is_submodule())
-            .map(|entry| entry.id.to_string()))
+            .map(|entry| entry.id.to_string())
     }
 
-    fn worktree_id(&self, path: &str) -> Result<Option<String>> {
-        if self.index_stands_in(path)? {
-            return self.id_in_index(path);
-        }
+    fn id_on_disk(&self, path: &str) -> Result<Option<String>> {
         if !self
             .size_on_disk(path)?
             .is_some_and(|size| size <= MAX_HASHED_BYTES)
@@ -355,124 +417,19 @@ impl RepoHandle {
             .map_err(|err| GitError::Internal(format!("cannot hash {path}: {err}")))
     }
 
-    /// Where the old side keeps a file it has no `path` for: the source of the rename or
-    /// copy the file list shows as `← old.txt`. Looked for only then, since finding it
-    /// costs a tree diff with rename tracking.
-    pub fn rename_source(&self, spec: &DiffSpec, path: &str) -> Result<Option<String>> {
-        match spec {
-            DiffSpec::CommitVsParent { oid } => match self.first_parent(oid)? {
-                Some(parent) => self.rename_between(&parent, oid, path),
-                None => Ok(None),
-            },
-            DiffSpec::CommitVsCommit { a, b } => self.rename_between(a, b, path),
-            DiffSpec::IndexVsHead => self.staged_rename_source(path),
-            DiffSpec::WorkTreeVsIndex | DiffSpec::CommitVsWorkTree { .. } => Ok(None),
-        }
-    }
-
-    fn rename_between(&self, before: &str, after: &str, path: &str) -> Result<Option<String>> {
-        let tree_of = |rev: &str| {
-            self.find_commit(rev)?
-                .tree()
-                .map_err(|err| GitError::Internal(format!("cannot read the tree of {rev}: {err}")))
-        };
-        let before = tree_of(before)?;
-        if !matches!(before.lookup_entry_by_path(path), Ok(None)) {
-            return Ok(None);
-        }
-        let files =
-            self.files_between_trees(&before, &tree_of(after)?, crate::DEFAULT_SIMILARITY)?;
-        Ok(files
-            .into_iter()
-            .find(|file| file.path == path)
-            .and_then(|file| file.old_path))
-    }
-
-    /// The same rename tracking the Staged list gets from status.
-    fn staged_rename_source(&self, path: &str) -> Result<Option<String>> {
-        let Ok(tree) = self.repo.head_tree() else {
-            return Ok(None);
-        };
-        if !matches!(tree.lookup_entry_by_path(path), Ok(None)) {
-            return Ok(None);
-        }
-        let index = self.current_index()?;
-        let mut source = None;
-        self.repo
-            .tree_index_status(
-                &tree.id,
-                &index,
-                None,
-                gix::status::tree_index::TrackRenames::AsConfigured,
-                |change, _, _| {
-                    if let gix::diff::index::ChangeRef::Rewrite {
-                        source_location,
-                        location,
-                        ..
-                    } = change
-                        && location.as_ref() == path
-                    {
-                        source = Some(source_location.to_string());
-                    }
-                    Ok::<_, gix::Exn>(std::ops::ControlFlow::Continue(()))
-                },
-            )
-            .map_err(|err| {
-                GitError::Internal(format!("cannot compare the index with HEAD: {err}"))
-            })?;
-        Ok(source)
-    }
-
-    /// What `diff_sides` would read, by size alone.
-    pub fn side_sizes(&self, spec: &DiffSpec, path: &str) -> Result<(Option<u64>, Option<u64>)> {
-        let source = self.rename_source(spec, path)?;
-        self.side_sizes_from(spec, source.as_deref().unwrap_or(path), path)
-    }
-
-    /// The working-tree side as git reads it. An entry marked skip-worktree (sparse
-    /// checkout) or assume-unchanged stands for the file, whatever is on disk or is not:
-    /// read from disk, a missing one looked deleted, and staging that deleted it.
-    fn worktree_side(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        if self.index_stands_in(path)? {
-            return self.blob_in_index(path);
-        }
-        self.blob_on_disk(path)
-    }
-
-    fn worktree_size(&self, path: &str) -> Result<Option<u64>> {
-        if self.index_stands_in(path)? {
-            return self.size_in_index(path);
-        }
-        self.size_on_disk(path)
-    }
-
-    fn index_stands_in(&self, path: &str) -> Result<bool> {
+    /// An entry marked skip-worktree (sparse checkout) or assume-unchanged stands for the
+    /// working file, whatever is on disk or is not: read from disk, a missing one looked
+    /// deleted, and staging that deleted it.
+    fn index_stands_in(index: &gix::index::State, path: &str) -> bool {
         use gix::index::entry::Flags;
-        let index = self.current_index()?;
-        Ok(index.entry_by_path(path.into()).is_some_and(|entry| {
+        index.entry_by_path(path.into()).is_some_and(|entry| {
             entry
                 .flags
                 .intersects(Flags::SKIP_WORKTREE | Flags::ASSUME_VALID)
-        }))
+        })
     }
 
-    fn size_at(&self, rev: &str, path: &str) -> Result<Option<u64>> {
-        self.blob_id_at(rev, path)?
-            .map(|id| self.blob_size(id, path))
-            .transpose()
-    }
-
-    fn blob_id_at(&self, rev: &str, path: &str) -> Result<Option<gix::ObjectId>> {
-        let id = self
-            .repo
-            .rev_parse_single(rev)
-            .map_err(|err| GitError::InvalidState(format!("cannot resolve {rev}: {err}")))?;
-        let tree = self
-            .repo
-            .find_commit(id.detach())
-            .map_err(|err| GitError::InvalidState(format!("{rev} is not a commit: {err}")))?
-            .tree()
-            .map_err(|err| GitError::Internal(format!("cannot read the tree of {rev}: {err}")))?;
+    fn blob_id_in(tree: &gix::Tree<'_>, path: &str) -> Result<Option<gix::ObjectId>> {
         let Some(entry) = tree
             .lookup_entry_by_path(path)
             .map_err(|err| GitError::Internal(format!("cannot look up {path}: {err}")))?
@@ -482,8 +439,7 @@ impl RepoHandle {
         Ok(entry.mode().is_blob_or_symlink().then(|| entry.object_id()))
     }
 
-    fn size_in_index(&self, path: &str) -> Result<Option<u64>> {
-        let index = self.current_index()?;
+    fn size_in_index(&self, index: &gix::index::State, path: &str) -> Result<Option<u64>> {
         match index.entry_by_path(path.into()) {
             Some(entry) if !entry.mode.is_submodule() => self.blob_size(entry.id, path).map(Some),
             _ => Ok(None),
@@ -550,7 +506,10 @@ impl RepoHandle {
     }
 
     pub(crate) fn blob_in_index(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        let index = self.current_index()?;
+        self.blob_in_state(state(&self.current_index()?), path)
+    }
+
+    fn blob_in_state(&self, index: &gix::index::State, path: &str) -> Result<Option<Vec<u8>>> {
         let Some(entry) = index.entry_by_path(path.into()) else {
             return Ok(None);
         };
@@ -561,7 +520,7 @@ impl RepoHandle {
         let object = self.repo.find_object(entry.id).map_err(|err| {
             GitError::Internal(format!("cannot read {path} from the index: {err}"))
         })?;
-        Ok(Some(object.into_blob().data.clone()))
+        Ok(Some(object.into_blob().take_data()))
     }
 
     /// Bytes as they are on disk: the worktree side of a diff is not a Git object.
@@ -613,10 +572,164 @@ impl RepoHandle {
         let object = entry
             .object()
             .map_err(|err| GitError::Internal(format!("cannot read {path}: {err}")))?;
-        Ok(Some(object.into_blob().data.clone()))
+        Ok(Some(object.into_blob().take_data()))
     }
 }
 
 pub(crate) fn is_symlink(path: &std::path::Path) -> bool {
     std::fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_symlink())
+}
+
+/// A [`DiffSpec`] resolved for a batch of paths (`RepoHandle::diff_snapshot`).
+pub struct DiffSnapshot<'repo> {
+    handle: &'repo RepoHandle,
+    old: Side<'repo>,
+    new: Side<'repo>,
+    renames: Renames,
+    index: Option<gix::worktree::IndexPersistedOrInMemory>,
+    /// New path to old, for every rename and copy; found the first time a path needs it.
+    sources: std::cell::OnceCell<HashMap<String, String>>,
+}
+
+impl std::fmt::Debug for DiffSnapshot<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DiffSnapshot")
+            .field("renames", &self.renames)
+            .finish_non_exhaustive()
+    }
+}
+
+enum Side<'repo> {
+    Tree(gix::Tree<'repo>),
+    Absent,
+    Index,
+    WorkTree,
+}
+
+/// Where the old side of a renamed file is looked for; only these read it at the old path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Renames {
+    None,
+    Trees,
+    Staged,
+}
+
+impl<'repo> DiffSnapshot<'repo> {
+    /// `RepoHandle::rename_source` for this spec.
+    pub fn rename_source(&self, path: &str) -> Result<Option<&str>> {
+        let Side::Tree(old) = &self.old else {
+            return Ok(None);
+        };
+        if self.renames == Renames::None || !matches!(old.lookup_entry_by_path(path), Ok(None)) {
+            return Ok(None);
+        }
+        if self.sources.get().is_none() {
+            let found = match (&self.new, &self.index) {
+                (Side::Tree(new), _) => self.handle.renames_between(old, new)?,
+                (_, Some(index)) => self.handle.staged_renames(old, index)?,
+                _ => HashMap::new(),
+            };
+            // Only `None` was seen above, and nothing else fills it.
+            let _ = self.sources.set(found);
+        }
+        Ok(self
+            .sources
+            .get()
+            .and_then(|sources| sources.get(path))
+            .map(String::as_str))
+    }
+
+    /// `RepoHandle::diff_sides_from` for this spec.
+    pub fn sides(&self, old_path: &str, path: &str) -> Result<DiffSides> {
+        Ok((
+            self.read(&self.old, self.old_at(old_path, path))?,
+            self.read(&self.new, path)?,
+        ))
+    }
+
+    /// `RepoHandle::side_sizes_from` for this spec.
+    pub fn sizes(&self, old_path: &str, path: &str) -> Result<(Option<u64>, Option<u64>)> {
+        Ok((
+            self.size(&self.old, self.old_at(old_path, path))?,
+            self.size(&self.new, path)?,
+        ))
+    }
+
+    /// `RepoHandle::side_ids_from` for this spec.
+    pub fn ids(&self, old_path: &str, path: &str) -> Result<(Option<String>, Option<String>)> {
+        Ok((
+            self.id(&self.old, self.old_at(old_path, path))?,
+            self.id(&self.new, path)?,
+        ))
+    }
+
+    fn old_at<'p>(&self, old_path: &'p str, path: &'p str) -> &'p str {
+        if self.renames == Renames::None {
+            path
+        } else {
+            old_path
+        }
+    }
+
+    /// Where a side keeps `path`: the index stands for the working file where an entry
+    /// is marked skip-worktree (sparse checkout) or assume-unchanged.
+    fn source<'s>(&'s self, side: &'s Side<'repo>, path: &str) -> Source<'s, 'repo> {
+        let index = self.index.as_ref().map(state);
+        match (side, index) {
+            (Side::Tree(tree), _) => Source::Tree(tree),
+            (Side::Index, Some(index)) => Source::Index(index),
+            (Side::WorkTree, Some(index)) if RepoHandle::index_stands_in(index, path) => {
+                Source::Index(index)
+            }
+            (Side::WorkTree, _) => Source::Disk,
+            (Side::Absent | Side::Index, _) => Source::Absent,
+        }
+    }
+
+    fn read(&self, side: &Side<'_>, path: &str) -> Result<Option<Vec<u8>>> {
+        match self.source(side, path) {
+            Source::Tree(tree) => self.handle.blob_in(tree, path),
+            Source::Index(index) => self.handle.blob_in_state(index, path),
+            Source::Disk => self.handle.blob_on_disk(path),
+            Source::Absent => Ok(None),
+        }
+    }
+
+    fn size(&self, side: &Side<'_>, path: &str) -> Result<Option<u64>> {
+        match self.source(side, path) {
+            Source::Tree(tree) => RepoHandle::blob_id_in(tree, path)?
+                .map(|id| self.handle.blob_size(id, path))
+                .transpose(),
+            Source::Index(index) => self.handle.size_in_index(index, path),
+            Source::Disk => self.handle.size_on_disk(path),
+            Source::Absent => Ok(None),
+        }
+    }
+
+    fn id(&self, side: &Side<'_>, path: &str) -> Result<Option<String>> {
+        match self.source(side, path) {
+            Source::Tree(tree) => Ok(RepoHandle::blob_id_in(tree, path)?.map(|id| id.to_string())),
+            Source::Index(index) => Ok(RepoHandle::id_in_index(index, path)),
+            Source::Disk => self.handle.id_on_disk(path),
+            Source::Absent => Ok(None),
+        }
+    }
+}
+
+enum Source<'s, 'repo> {
+    Tree(&'s gix::Tree<'repo>),
+    Index(&'s gix::index::State),
+    Disk,
+    Absent,
+}
+
+fn state(index: &gix::worktree::IndexPersistedOrInMemory) -> &gix::index::State {
+    index
+}
+
+fn tree_of<'repo>(
+    tree: std::result::Result<gix::Tree<'repo>, impl std::fmt::Display>,
+    rev: impl std::fmt::Display,
+) -> Result<gix::Tree<'repo>> {
+    tree.map_err(|err| GitError::Internal(format!("cannot read the tree of {rev}: {err}")))
 }

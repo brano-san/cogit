@@ -409,6 +409,6 @@ impl RepoHandle {
         } else {
             EntryKind::Regular
         };
-        Ok(Some((object.into_blob().data.clone(), kind)))
+        Ok(Some((object.into_blob().take_data(), kind)))
     }
 }

@@ -89,7 +89,7 @@ pub use blame::BlameLine;
 pub use blame_origins::{
     BlameCommit, BlameReport, BlameSource, LineChange, OriginLine, PreviousFile,
 };
-pub use blobs::{DiffAttributes, DiffContent, DiffSides, DiffSpec, MAX_HASHED_BYTES};
+pub use blobs::{DiffAttributes, DiffContent, DiffSides, DiffSnapshot, DiffSpec, MAX_HASHED_BYTES};
 pub use branches::{BranchDeletion, CheckoutTarget, RemoteDeletion, windows_forbidden};
 pub use bypass::Bypass;
 pub use cloning::{

@@ -141,8 +141,7 @@ impl RepoHandle {
         let current = match snapshot.checksum() {
             None => true,
             Some(sum) if sum.is_null() => false,
-            Some(sum) => trailer(self.repo.index_path(), sum.as_slice().len())
-                .is_some_and(|on_disk| on_disk == sum.as_slice()),
+            Some(sum) => ends_with(&self.repo.index_path(), sum.as_slice()),
         };
         if current {
             return Ok(snapshot.into());
@@ -168,14 +167,22 @@ impl RepoHandle {
     }
 }
 
-fn trailer(path: PathBuf, len: usize) -> Option<Vec<u8>> {
+/// Whether the file ends in `trailer`, a checksum: at most 64 bytes, read onto the stack.
+fn ends_with(path: &Path, trailer: &[u8]) -> bool {
     use std::io::{Read as _, Seek as _};
-    let mut file = std::fs::File::open(path).ok()?;
-    file.seek(std::io::SeekFrom::End(-i64::try_from(len).ok()?))
-        .ok()?;
-    let mut bytes = vec![0; len];
-    file.read_exact(&mut bytes).ok()?;
-    Some(bytes)
+    let mut bytes = [0; 64];
+    let Some(bytes) = bytes.get_mut(..trailer.len()) else {
+        return false;
+    };
+    let Ok(back) = i64::try_from(trailer.len()) else {
+        return false;
+    };
+    std::fs::File::open(path)
+        .and_then(|mut file| {
+            file.seek(std::io::SeekFrom::End(-back))?;
+            file.read_exact(bytes)
+        })
+        .is_ok_and(|()| bytes == trailer)
 }
 
 /// Every file the config came from, plus the repository's own two in case they appear.

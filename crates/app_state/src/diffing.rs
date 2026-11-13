@@ -58,12 +58,12 @@ impl AppState {
         edited: Option<Vec<u8>>,
     ) -> Result<diff_engine::FileDiff, git_engine::GitError> {
         let handle = self.handle(repo)?;
-        let source = handle.rename_source(spec, path)?;
-        let old_path = source.as_deref().unwrap_or(path);
-        if let Some(diff) = too_large(handle.side_sizes_from(spec, old_path, path)?) {
-            return Ok(named(diff, &handle, spec, (old_path, path)));
+        let snapshot = handle.diff_snapshot(spec)?;
+        let old_path = snapshot.rename_source(path)?.unwrap_or(path);
+        if let Some(diff) = too_large(snapshot.sizes(old_path, path)?) {
+            return Ok(named(diff, &snapshot, (old_path, path)));
         }
-        let (old, new) = handle.diff_sides_from(spec, old_path, path)?;
+        let (old, new) = snapshot.sides(old_path, path)?;
         let new = edited.or(new);
         if old.is_none() && new.is_none() {
             return pointer_diff(&handle, spec, path);
@@ -99,8 +99,7 @@ impl AppState {
         let diff = explain_unchanged(diff, &handle, spec, (old_path, path), present);
         Ok(named(
             mark_absent(diff, present),
-            &handle,
-            spec,
+            &snapshot,
             (old_path, path),
         ))
     }
@@ -119,13 +118,14 @@ impl AppState {
         let limit = limit
             .unwrap_or(diff_engine::MAX_TEXT_BYTES)
             .min(diff_engine::MAX_IMAGE_BYTES);
-        let Some(size) = handle.side_sizes_from(spec, path, path)?.1 else {
+        let snapshot = handle.diff_snapshot(spec)?;
+        let Some(size) = snapshot.sizes(path, path)?.1 else {
             return Ok(FileContent::Missing);
         };
         if size >= limit {
             return Ok(FileContent::TooLarge { size, limit });
         }
-        let Some(bytes) = handle.diff_sides_from(spec, path, path)?.1 else {
+        let Some(bytes) = snapshot.sides(path, path)?.1 else {
             return Ok(FileContent::Missing);
         };
         let mut attributes = handle.diff_attributes();
@@ -158,9 +158,16 @@ impl AppState {
         }
 
         let handle = self.handle(repo)?;
+        if paths.is_empty() || !self.diff_request_is_current(repo, request) {
+            return Ok(self.answer(repo, request, Vec::new()));
+        }
+        // The spec resolved once for every path: per path it cost a revision walk, an
+        // index read and, for each path the old tree lacks, a tree diff with renames.
+        let snapshot = handle.diff_snapshot(spec)?;
         let mut attributes = handle.diff_attributes();
-        // Where the old side is and which sides exist, for a file whose bytes are equal.
-        let mut sides = std::collections::HashMap::new();
+        // Per text diff, in its order: the old path of a rename, and which sides exist,
+        // for a file whose bytes are equal.
+        let mut sides = Vec::new();
         let mut inputs = Vec::with_capacity(paths.len());
         // `None` stands for the next text diff, so the answer keeps the order it was asked in.
         let mut slots = Vec::with_capacity(paths.len());
@@ -171,16 +178,16 @@ impl AppState {
                 return Ok(DiffBatch::Superseded);
             }
 
-            let source = handle.rename_source(spec, path)?;
-            let old_path = source.as_deref().unwrap_or(path);
-            if let Some(diff) = too_large(handle.side_sizes_from(spec, old_path, path)?) {
+            let source = snapshot.rename_source(path)?;
+            let old_path = source.unwrap_or(path);
+            if let Some(diff) = too_large(snapshot.sizes(old_path, path)?) {
                 slots.push(Some(diff_engine::FileDiffEntry {
                     path: path.clone(),
-                    diff: named(diff, &handle, spec, (old_path, path)),
+                    diff: named(diff, &snapshot, (old_path, path)),
                 }));
                 continue;
             }
-            let (old, new) = handle.diff_sides_from(spec, old_path, path)?;
+            let (old, new) = snapshot.sides(old_path, path)?;
             if old.is_none() && new.is_none() {
                 slots.push(Some(diff_engine::FileDiffEntry {
                     path: path.clone(),
@@ -208,10 +215,7 @@ impl AppState {
                 }));
                 continue;
             }
-            sides.insert(
-                path.clone(),
-                (old_path.to_owned(), (old.is_some(), new.is_some())),
-            );
+            sides.push((source.map(str::to_owned), (old.is_some(), new.is_some())));
             slots.push(None);
             inputs.push(diff_engine::FileInput {
                 path: path.clone(),
@@ -223,38 +227,32 @@ impl AppState {
 
         let mut texts = diff_engine::diff_many(inputs, options)
             .into_iter()
-            .map(|entry| {
-                let diff = match sides.get(&entry.path) {
-                    Some((old_path, present)) => {
-                        let diff = explain_unchanged(
-                            entry.diff,
-                            &handle,
-                            spec,
-                            (old_path, &entry.path),
-                            *present,
-                        );
-                        named(
-                            mark_absent(diff, *present),
-                            &handle,
-                            spec,
-                            (old_path, &entry.path),
-                        )
-                    }
-                    None => entry.diff,
-                };
-                diff_engine::FileDiffEntry {
-                    diff,
-                    path: entry.path,
-                }
+            .zip(sides)
+            .map(|(entry, (source, present))| {
+                let diff_engine::FileDiffEntry { path, diff } = entry;
+                let old_path = source.as_deref().unwrap_or(&path);
+                let diff = explain_unchanged(diff, &handle, spec, (old_path, &path), present);
+                let diff = named(mark_absent(diff, present), &snapshot, (old_path, &path));
+                diff_engine::FileDiffEntry { diff, path }
             });
         let files = slots
             .into_iter()
             .filter_map(|slot| slot.or_else(|| texts.next()))
             .collect();
+        Ok(self.answer(repo, request, files))
+    }
+
+    /// The batch, unless a newer request came in while it was made.
+    fn answer(
+        &self,
+        repo: RepoId,
+        request: u32,
+        files: Vec<diff_engine::FileDiffEntry>,
+    ) -> DiffBatch {
         if self.diff_request_is_current(repo, request) {
-            Ok(DiffBatch::Ready { files })
+            DiffBatch::Ready { files }
         } else {
-            Ok(DiffBatch::Superseded)
+            DiffBatch::Superseded
         }
     }
 
@@ -528,8 +526,7 @@ fn mark_absent(
 /// file costs a read and a hash. Unnamed is still a summary, so a failure is logged.
 fn named(
     mut diff: diff_engine::FileDiff,
-    handle: &git_engine::RepoHandle,
-    spec: &git_engine::DiffSpec,
+    snapshot: &git_engine::DiffSnapshot<'_>,
     (old_path, path): (&str, &str),
 ) -> diff_engine::FileDiff {
     use diff_engine::FileDiff;
@@ -537,7 +534,7 @@ fn named(
     else {
         return diff;
     };
-    let (old_id, new_id) = match handle.side_ids_from(spec, old_path, path) {
+    let (old_id, new_id) = match snapshot.ids(old_path, path) {
         Ok(ids) => ids,
         Err(err) => {
             tracing::error!(error = ?err, path, context = "naming the sides of a summarised diff");
