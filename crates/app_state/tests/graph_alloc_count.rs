@@ -154,6 +154,20 @@ fn allocations_of_the_graph_path() {
         "wire digest {:016x}",
         digest(&plain, plain_repo, plain_gen, rows)
     );
+
+    // A flat list: every commit read and matched, and every parent asked whether it is shown.
+    let filtered = AppState::new();
+    let filtered_repo = filtered.open_repository(Path::new(&path)).unwrap().repo;
+    let by_author = CommitQuery {
+        author: Some("BENCH".to_owned()),
+        ..CommitQuery::default()
+    };
+    let ((filtered_gen, rows), n, b) = counted(|| build(&filtered, filtered_repo, &by_author));
+    line("filtered by author (every commit)", n, b, u64::from(rows));
+    println!(
+        "wire digest {:016x}",
+        digest(&filtered, filtered_repo, filtered_gen, rows)
+    );
 }
 
 /// The wire bytes of the whole graph: equal before and after means the layout is too.

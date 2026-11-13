@@ -134,7 +134,7 @@ impl RepoHandle {
                 Some(Found {
                     kind: FoundKind::Commit,
                     label: text.summary,
-                    detail: text.author_name,
+                    detail: text.author_name.to_string(),
                     oid,
                 })
             })

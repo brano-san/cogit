@@ -151,8 +151,8 @@ impl GraphCommit {
             oid: self.id.to_string(),
             parents: self.parents.iter().map(ToString::to_string).collect(),
             summary: self.text.summary,
-            author_name: self.text.author_name,
-            author_email: self.text.author_email,
+            author_name: self.text.author_name.to_string(),
+            author_email: self.text.author_email.to_string(),
             timestamp: self.time,
             tz_offset_minutes: self.text.tz_offset_minutes,
         }
@@ -334,6 +334,7 @@ impl RepoHandle {
             std::sync::Arc::default()
         };
         let filter = RowFilter::of(query);
+        let mut names = crate::Names::default();
         let text = self.text_match(query);
         let heavy = text.as_ref().is_some_and(TextMatch::is_heavy);
         let shared = heavy.then(|| self.repo.clone().into_sync());
@@ -347,7 +348,7 @@ impl RepoHandle {
             // once on every core; the rows still leave in walk order.
             let mut failure = None;
             for (id, parents, time) in walk.by_ref().take(if heavy { SCAN_BATCH } else { 1 }) {
-                match self.graph_commit(id, parents, time, rows.text, &mailmap) {
+                match self.graph_commit(id, parents, time, rows.text, &mailmap, &mut names) {
                     Ok(commit) => read.push(commit),
                     Err(err) => {
                         failure = Some(err);
@@ -429,6 +430,7 @@ impl RepoHandle {
         time: i64,
         text: bool,
         mailmap: &Mailmap,
+        names: &mut crate::Names,
     ) -> Result<GraphCommit> {
         if !text {
             return Ok(GraphCommit {
@@ -438,7 +440,7 @@ impl RepoHandle {
                 text: CommitText::default(),
             });
         }
-        let (text, time) = self.read_text(id, mailmap)?;
+        let (text, time) = self.read_text(id, mailmap, names)?;
         Ok(GraphCommit {
             id,
             parents,
@@ -461,6 +463,7 @@ impl RepoHandle {
             filter: RowFilter::of(query),
             mailmap: self.mailmap(),
             text: self.text_match(query),
+            names: std::cell::RefCell::default(),
         }
     }
 
@@ -507,6 +510,7 @@ pub struct ShownBy<'q> {
     filter: RowFilter,
     mailmap: std::sync::Arc<Mailmap>,
     text: Option<TextMatch>,
+    names: std::cell::RefCell<crate::Names>,
 }
 
 impl ShownBy<'_> {
@@ -517,7 +521,8 @@ impl ShownBy<'_> {
 
     #[must_use]
     pub fn shows_id(&self, handle: &RepoHandle, id: gix::ObjectId) -> bool {
-        let Ok((text, time)) = handle.read_text(id, &self.mailmap) else {
+        let Ok((text, time)) = handle.read_text(id, &self.mailmap, &mut self.names.borrow_mut())
+        else {
             return false;
         };
         let commit = GraphCommit {

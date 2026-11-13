@@ -17,13 +17,46 @@ pub struct CommitRow {
 }
 
 /// The part of a row read from the commit object itself; the graph reads it for the rows
-/// on screen only (R-302).
+/// on screen only (R-302). A history has far fewer authors than commits: name and address
+/// are shared through [`Names`].
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CommitText {
     pub summary: String,
-    pub author_name: String,
-    pub author_email: String,
+    pub author_name: std::sync::Arc<str>,
+    pub author_email: std::sync::Arc<str>,
     pub tz_offset_minutes: i32,
+}
+
+/// Author names and addresses as read, one allocation each however many commits carry them.
+#[derive(Debug, Default)]
+pub struct Names {
+    set: std::collections::HashSet<std::sync::Arc<str>>,
+    bytes: usize,
+}
+
+impl Names {
+    /// The shared copy of `text`, made on first sight.
+    pub fn intern(&mut self, text: &str) -> std::sync::Arc<str> {
+        if let Some(known) = self.set.get(text) {
+            return std::sync::Arc::clone(known);
+        }
+        let new: std::sync::Arc<str> = std::sync::Arc::from(text);
+        self.bytes += text.len() + size_of::<std::sync::Arc<str>>() + 2 * size_of::<usize>();
+        self.set.insert(std::sync::Arc::clone(&new));
+        new
+    }
+
+    /// `text`'s name and address swapped for the shared copies.
+    pub fn share(&mut self, text: &mut CommitText) {
+        text.author_name = self.intern(&text.author_name);
+        text.author_email = self.intern(&text.author_email);
+    }
+
+    /// Roughly what it holds, for a cache that counts bytes.
+    #[must_use]
+    pub fn bytes(&self) -> usize {
+        self.bytes
+    }
 }
 
 const SECONDS_PER_MINUTE: i32 = 60;
@@ -119,21 +152,23 @@ impl RepoHandle {
     pub fn commit_text(&self, oid: &str, mailmap: &crate::Mailmap) -> Result<CommitText> {
         let id = gix::ObjectId::from_hex(oid.as_bytes())
             .map_err(|err| GitError::Internal(format!("not an object id {oid}: {err}")))?;
-        self.commit_text_of(id, mailmap)
+        self.commit_text_of(id, mailmap, &mut Names::default())
     }
 
     pub fn commit_text_of(
         &self,
         id: gix::ObjectId,
         mailmap: &crate::Mailmap,
+        names: &mut Names,
     ) -> Result<CommitText> {
-        Ok(self.read_text(id, mailmap)?.0)
+        Ok(self.read_text(id, mailmap, names)?.0)
     }
 
     pub(crate) fn read_text(
         &self,
         id: gix::ObjectId,
         mailmap: &crate::Mailmap,
+        names: &mut Names,
     ) -> Result<(CommitText, i64)> {
         let commit = self
             .repo
@@ -150,14 +185,15 @@ impl RepoHandle {
             .time()
             .map_err(|err| GitError::Internal(format!("cannot read commit time: {err}")))?;
 
-        let (mut author_name, mut author_email) =
-            (author.name.to_string(), author.email.to_string());
-        mailmap.apply(&mut author_name, &mut author_email);
+        // Read in place: only a name or address never seen before is copied.
+        let name = String::from_utf8_lossy(<gix::bstr::BStr as AsRef<[u8]>>::as_ref(author.name));
+        let email = String::from_utf8_lossy(<gix::bstr::BStr as AsRef<[u8]>>::as_ref(author.email));
+        let (author_name, author_email) = mailmap.canonical(&name, &email);
 
         let text = CommitText {
             summary: message.summary().to_string(),
-            author_name,
-            author_email,
+            author_name: names.intern(author_name),
+            author_email: names.intern(author_email),
             tz_offset_minutes: time.offset / SECONDS_PER_MINUTE,
         };
         Ok((text, time.seconds))

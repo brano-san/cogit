@@ -94,8 +94,8 @@ impl Node {
             oid: self.id.to_string(),
             parents: self.parents.iter().map(ToString::to_string).collect(),
             summary: text.summary,
-            author_name: text.author_name,
-            author_email: text.author_email,
+            author_name: text.author_name.to_string(),
+            author_email: text.author_email.to_string(),
             timestamp: self.time,
             tz_offset_minutes: text.tz_offset_minutes,
         }
@@ -204,18 +204,15 @@ impl Laid {
 struct Texts {
     mailmap: Arc<Mailmap>,
     by_oid: ObjectMap<ObjectId, CommitText>,
+    /// Every author once, whichever reader read them (`text_bytes` counts only the pointers).
+    names: git_engine::Names,
     bytes: usize,
     /// A background reader is at work on these.
     filling: bool,
 }
 
 fn text_bytes(text: &CommitText) -> usize {
-    size_of::<(ObjectId, CommitText)>()
-        + 1
-        + text.summary.len()
-        + text.author_name.len()
-        + text.author_email.len()
-        + 16
+    size_of::<(ObjectId, CommitText)>() + 1 + text.summary.len() + 16
 }
 
 impl Texts {
@@ -223,13 +220,17 @@ impl Texts {
         Arc::new(Mutex::new(Self {
             mailmap,
             by_oid: ObjectMap::default(),
+            names: git_engine::Names::default(),
             bytes: 0,
             filling: false,
         }))
     }
 
-    fn insert(&mut self, oid: ObjectId, text: CommitText) {
-        self.bytes += text_bytes(&text);
+    /// `text` read by another reader takes this cache's copies of its names.
+    fn insert(&mut self, oid: ObjectId, mut text: CommitText) {
+        let names = self.names.bytes();
+        self.names.share(&mut text);
+        self.bytes += text_bytes(&text) + self.names.bytes() - names;
         self.by_oid.insert(oid, text);
     }
 
@@ -244,7 +245,7 @@ impl Texts {
         if self.by_oid.contains_key(&node.id) {
             return;
         }
-        match handle.map(|handle| handle.commit_text_of(node.id, &self.mailmap)) {
+        match handle.map(|handle| handle.commit_text_of(node.id, &self.mailmap, &mut self.names)) {
             Some(Ok(text)) => self.insert(node.id, text),
             Some(Err(err)) => {
                 tracing::error!(error = ?err, context = "graph window: commit text");
@@ -467,6 +468,8 @@ impl Prefill {
         let handle = RepoHandle::open_root(root)?;
         let mut from = 0;
         let mut read = 0;
+        // This reader's own: the cache's lock is not held while it reads.
+        let mut names = git_engine::Names::default();
         loop {
             if self.walks.load(Ordering::SeqCst) != self.since {
                 return Ok(read);
@@ -491,7 +494,7 @@ impl Prefill {
                 .into_iter()
                 .filter_map(|oid| {
                     handle
-                        .commit_text_of(oid, &mailmap)
+                        .commit_text_of(oid, &mailmap, &mut names)
                         .inspect_err(|err| tracing::error!(error = ?err, context = "graph text"))
                         .ok()
                         .map(|text| (oid, text))

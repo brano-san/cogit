@@ -126,7 +126,7 @@ pub use gix::hash::Kind as HashKind;
 pub use gix::hashtable::HashMap as ObjectMap;
 pub use graph_walk::{CutParents, KnownCommits, Parents, Reuse, WalkedHistory};
 pub use health::{HealthFinding, HealthIssue, case_sensitive};
-pub use history::{CommitRow, CommitText};
+pub use history::{CommitRow, CommitText, Names};
 pub use hook_run::HookRun;
 pub use hooks::{Hook, HookOverview, HookSource, HookState, is_hook_name};
 pub use housekeeping::{GcPrune, MaintenanceTask};
