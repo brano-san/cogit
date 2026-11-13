@@ -1,9 +1,9 @@
 use rayon::prelude::*;
 
 use crate::graph_walk::{ByTime, CommitReader, CutParents, Reuse, WalkedHistory};
-use crate::text_search::TextMatch;
+use crate::text_search::{TextMatch, contains_lowered};
 use crate::topo::{LOOKAHEAD, in_date_order, in_graph_order, merged_after_head};
-use crate::{CommitRow, Mailmap, RepoHandle, Result, TextFields};
+use crate::{CommitRow, CommitText, Mailmap, RepoHandle, Result, TextFields};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
@@ -81,44 +81,89 @@ impl CommitQuery {
             ..self.clone()
         } != Self::default()
     }
+}
 
-    fn matches_row(&self, row: &CommitRow) -> bool {
+/// A query's per-commit fields, lowered once per walk instead of once per row.
+#[derive(Debug)]
+struct RowFilter {
+    message: Option<String>,
+    author: Option<String>,
+    oid_prefix: Option<String>,
+    since: Option<i64>,
+    until: Option<i64>,
+}
+
+impl RowFilter {
+    fn of(query: &CommitQuery) -> Self {
+        Self {
+            message: query.message.as_deref().map(str::to_lowercase),
+            author: query.author.as_deref().map(str::to_lowercase),
+            oid_prefix: query.oid_prefix.as_deref().map(str::to_ascii_lowercase),
+            since: query.since,
+            until: query.until,
+        }
+    }
+
+    fn matches(&self, commit: &GraphCommit) -> bool {
+        let text = &commit.text;
         if let Some(message) = &self.message
-            && !contains_ignoring_case(&row.summary, message)
+            && !contains_lowered(&text.summary, message)
         {
             return false;
         }
         if let Some(author) = &self.author
-            && !contains_ignoring_case(&row.author_name, author)
-            && !contains_ignoring_case(&row.author_email, author)
+            && !contains_lowered(&text.author_name, author)
+            && !contains_lowered(&text.author_email, author)
         {
             return false;
         }
-        if let Some(prefix) = &self.oid_prefix
-            && !row.oid.starts_with(&prefix.to_ascii_lowercase())
-        {
+        if let Some(prefix) = &self.oid_prefix {
+            let mut hex = [0_u8; 64];
+            if !commit.id.hex_to_buf(&mut hex).starts_with(prefix.as_str()) {
+                return false;
+            }
+        }
+        if self.since.is_some_and(|since| commit.time < since) {
             return false;
         }
-        if self.since.is_some_and(|since| row.timestamp < since) {
-            return false;
-        }
-        if self.until.is_some_and(|until| row.timestamp > until) {
+        if self.until.is_some_and(|until| commit.time > until) {
             return false;
         }
         true
     }
 }
 
+/// A walked commit as the graph takes it: ids, not hex; `text` stays empty unless read.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GraphCommit {
+    pub id: gix::ObjectId,
+    /// Git order: the first parent is the mainline, which lane allocation relies on.
+    pub parents: Vec<gix::ObjectId>,
+    pub time: i64,
+    pub text: CommitText,
+}
+
+impl GraphCommit {
+    /// The row search and history hand out: hex at the IPC edge.
+    #[must_use]
+    pub fn into_row(self) -> CommitRow {
+        CommitRow {
+            oid: self.id.to_string(),
+            parents: self.parents.iter().map(ToString::to_string).collect(),
+            summary: self.text.summary,
+            author_name: self.text.author_name,
+            author_email: self.text.author_email,
+            timestamp: self.time,
+            tz_offset_minutes: self.text.tz_offset_minutes,
+        }
+    }
+}
+
 impl RepoHandle {
     /// Every tip peeled to a commit; a ref that names none is reported, not fatal (R-157).
     /// The commits the walk for `query` starts from, as hex ids.
-    pub fn walk_tips(&self, query: &CommitQuery) -> Result<Vec<String>> {
-        Ok(self
-            .tips_for(query)?
-            .ids
-            .iter()
-            .map(ToString::to_string)
-            .collect())
+    pub fn walk_tips(&self, query: &CommitQuery) -> Result<Vec<gix::ObjectId>> {
+        Ok(self.tips_for(query)?.ids)
     }
 
     pub(crate) fn tips_for(&self, query: &CommitQuery) -> Result<Tips> {
@@ -165,7 +210,7 @@ impl RepoHandle {
         &self,
         query: &CommitQuery,
         chunk_size: usize,
-        on_chunk: impl FnMut(Vec<CommitRow>) -> bool,
+        mut on_chunk: impl FnMut(Vec<CommitRow>) -> bool,
     ) -> Result<Vec<SkippedRef>> {
         let rows = GraphRows {
             reuse: None,
@@ -173,7 +218,9 @@ impl RepoHandle {
             text: true,
             cut: None,
         };
-        self.graph_commits(query, chunk_size, rows, on_chunk)
+        self.graph_commits(query, chunk_size, rows, |chunk| {
+            on_chunk(chunk.into_iter().map(GraphCommit::into_row).collect())
+        })
     }
 
     /// `search_commits` for the graph: time and parents of a commit `reuse` holds come from
@@ -185,7 +232,7 @@ impl RepoHandle {
         query: &CommitQuery,
         chunk_size: usize,
         rows: GraphRows<'_, '_>,
-        on_chunk: impl FnMut(Vec<CommitRow>) -> bool,
+        on_chunk: impl FnMut(Vec<GraphCommit>) -> bool,
     ) -> Result<Vec<SkippedRef>> {
         self.graph_commits_passing(query, chunk_size, rows, None, on_chunk)
     }
@@ -197,7 +244,7 @@ impl RepoHandle {
         chunk_size: usize,
         rows: GraphRows<'_, '_>,
         passed: Option<&PassedCommits>,
-        on_chunk: impl FnMut(Vec<CommitRow>) -> bool,
+        on_chunk: impl FnMut(Vec<GraphCommit>) -> bool,
     ) -> Result<Vec<SkippedRef>> {
         let GraphRows {
             reuse,
@@ -276,7 +323,7 @@ impl RepoHandle {
         chunk_size: usize,
         walk: impl Iterator<Item = (gix::ObjectId, Vec<gix::ObjectId>, i64)>,
         mut rows: Rows<'_>,
-        mut on_chunk: impl FnMut(Vec<CommitRow>) -> bool,
+        mut on_chunk: impl FnMut(Vec<GraphCommit>) -> bool,
     ) -> Result<()> {
         let chunk_size = chunk_size.max(1);
         let mut chunk = Vec::with_capacity(chunk_size);
@@ -286,90 +333,75 @@ impl RepoHandle {
         } else {
             std::sync::Arc::default()
         };
+        let filter = RowFilter::of(query);
         let text = self.text_match(query);
         let heavy = text.as_ref().is_some_and(TextMatch::is_heavy);
         let shared = heavy.then(|| self.repo.clone().into_sync());
         let mut walk = walk;
+        // Kept across batches: a batch is one commit unless the filter is heavy.
+        let mut read: Vec<GraphCommit> = Vec::new();
+        let mut hits: Vec<bool> = Vec::new();
 
         loop {
             // Diffing trees costs far more than walking, so a batch of those is tested at
             // once on every core; the rows still leave in walk order.
-            let batch: Vec<_> = walk
-                .by_ref()
-                .take(if heavy { SCAN_BATCH } else { 1 })
-                .collect();
-            if batch.is_empty() {
+            let mut failure = None;
+            for (id, parents, time) in walk.by_ref().take(if heavy { SCAN_BATCH } else { 1 }) {
+                match self.graph_commit(id, parents, time, rows.text, &mailmap) {
+                    Ok(commit) => read.push(commit),
+                    Err(err) => {
+                        failure = Some(err);
+                        break;
+                    }
+                }
+            }
+            if read.is_empty() && failure.is_none() {
                 break;
             }
-            let mut read = Vec::with_capacity(batch.len());
-            let mut failure = None;
-            for (id, parents, time) in batch {
-                let row = if rows.text {
-                    match self.row_of(id, &parents, &mailmap) {
-                        Ok(row) => row,
-                        Err(err) => {
-                            failure = Some(err);
-                            break;
-                        }
-                    }
-                } else {
-                    CommitRow {
-                        oid: id.to_string(),
-                        parents: parents.iter().map(ToString::to_string).collect(),
-                        summary: String::new(),
-                        author_name: String::new(),
-                        author_email: String::new(),
-                        timestamp: time,
-                        tz_offset_minutes: 0,
-                    }
-                };
-                read.push((id, parents, row));
-            }
-            let passes = |repo: &gix::Repository, id: gix::ObjectId, row: &CommitRow| {
-                query.matches_row(row)
+            let passes = |repo: &gix::Repository, commit: &GraphCommit| {
+                filter.matches(commit)
                     && text
                         .as_ref()
-                        .is_none_or(|text| text.matches(repo, id, row, &mailmap))
+                        .is_none_or(|text| text.matches(repo, commit, &mailmap))
             };
-            let hits: Vec<bool> = match &shared {
-                Some(shared) if read.len() > 1 => read
-                    .par_chunks(SCAN_CHUNK)
-                    .map(|part| {
-                        let repo = shared.to_thread_local();
-                        part.iter()
-                            .map(|(id, _, row)| passes(&repo, *id, row))
-                            .collect::<Vec<_>>()
-                    })
-                    .collect::<Vec<_>>()
-                    .concat(),
-                _ => read
-                    .iter()
-                    .map(|(id, _, row)| passes(&self.repo, *id, row))
-                    .collect(),
-            };
+            hits.clear();
+            match &shared {
+                Some(shared) if read.len() > 1 => hits.extend(
+                    read.par_chunks(SCAN_CHUNK)
+                        .map(|part| {
+                            let repo = shared.to_thread_local();
+                            part.iter()
+                                .map(|commit| passes(&repo, commit))
+                                .collect::<Vec<_>>()
+                        })
+                        .collect::<Vec<_>>()
+                        .concat(),
+                ),
+                _ => hits.extend(read.iter().map(|commit| passes(&self.repo, commit))),
+            }
 
-            for ((id, parents, row), hit) in read.into_iter().zip(hits) {
+            for (commit, &hit) in read.drain(..).zip(&hits) {
                 // The path last, because it costs two tree lookups per candidate.
                 let shown = hit
                     && query
                         .path
                         .as_ref()
-                        .is_none_or(|path| self.touches(&id, path));
+                        .is_none_or(|path| self.touches(&commit.id, path));
                 if !shown {
                     if let Some(passed) = rows.passed {
                         passed.0.borrow_mut().push(Passed {
                             before: chunk.len(),
-                            oid: row.oid,
-                            first_parent: row.parents.into_iter().next(),
+                            oid: commit.id,
+                            first_parent: commit.parents.first().copied(),
                         });
                     }
                     continue;
                 }
 
                 if let Some(record) = rows.record.as_deref_mut() {
-                    record.push(id, row.timestamp, parents);
+                    record.push(commit.id, commit.time, commit.parents.clone());
                 }
-                chunk.push(row);
+                chunk.push(commit);
                 if chunk.len() >= chunk_size {
                     let full = std::mem::replace(&mut chunk, Vec::with_capacity(chunk_size));
                     if !on_chunk(full) {
@@ -388,6 +420,33 @@ impl RepoHandle {
         Ok(())
     }
 
+    /// The walk's commit with its text when `text`; the time is the object's then, as the
+    /// row of a search has always had it.
+    fn graph_commit(
+        &self,
+        id: gix::ObjectId,
+        parents: Vec<gix::ObjectId>,
+        time: i64,
+        text: bool,
+        mailmap: &Mailmap,
+    ) -> Result<GraphCommit> {
+        if !text {
+            return Ok(GraphCommit {
+                id,
+                parents,
+                time,
+                text: CommitText::default(),
+            });
+        }
+        let (text, time) = self.read_text(id, mailmap)?;
+        Ok(GraphCommit {
+            id,
+            parents,
+            time,
+            text,
+        })
+    }
+
     /// Whether the list for `query` holds this commit: a match streams by before its
     /// parents do, and the graph has to know then whether a line to them will end.
     pub fn shown_by(&self, query: &CommitQuery, oid: &str) -> bool {
@@ -399,6 +458,7 @@ impl RepoHandle {
     pub fn shown_filter<'q>(&self, query: &'q CommitQuery) -> ShownBy<'q> {
         ShownBy {
             query,
+            filter: RowFilter::of(query),
             mailmap: self.mailmap(),
             text: self.text_match(query),
         }
@@ -444,6 +504,7 @@ impl RepoHandle {
 #[derive(Debug)]
 pub struct ShownBy<'q> {
     query: &'q CommitQuery,
+    filter: RowFilter,
     mailmap: std::sync::Arc<Mailmap>,
     text: Option<TextMatch>,
 }
@@ -451,31 +512,31 @@ pub struct ShownBy<'q> {
 impl ShownBy<'_> {
     #[must_use]
     pub fn shows(&self, handle: &RepoHandle, oid: &str) -> bool {
-        let Ok(id) = gix::ObjectId::from_hex(oid.as_bytes()) else {
+        gix::ObjectId::from_hex(oid.as_bytes()).is_ok_and(|id| self.shows_id(handle, id))
+    }
+
+    #[must_use]
+    pub fn shows_id(&self, handle: &RepoHandle, id: gix::ObjectId) -> bool {
+        let Ok((text, time)) = handle.read_text(id, &self.mailmap) else {
             return false;
         };
-        let Ok(commit) = handle.repo.find_commit(id) else {
-            return false;
+        let commit = GraphCommit {
+            id,
+            parents: Vec::new(),
+            time,
+            text,
         };
-        let parents: Vec<gix::ObjectId> = commit.parent_ids().map(gix::Id::detach).collect();
-        let Ok(row) = handle.row_of(id, &parents, &self.mailmap) else {
-            return false;
-        };
-        self.query.matches_row(&row)
+        self.filter.matches(&commit)
             && self
                 .text
                 .as_ref()
-                .is_none_or(|text| text.matches(&handle.repo, id, &row, &self.mailmap))
+                .is_none_or(|text| text.matches(&handle.repo, &commit, &self.mailmap))
             && self
                 .query
                 .path
                 .as_deref()
                 .is_none_or(|path| handle.touches(&id, path))
     }
-}
-
-fn contains_ignoring_case(haystack: &str, needle: &str) -> bool {
-    haystack.to_lowercase().contains(&needle.to_lowercase())
 }
 
 /// Where a walk lists its rows, and whether it reads their text.
@@ -489,8 +550,8 @@ struct Rows<'h> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Passed {
     pub before: usize,
-    pub oid: String,
-    pub first_parent: Option<String>,
+    pub oid: gix::ObjectId,
+    pub first_parent: Option<gix::ObjectId>,
 }
 
 /// What a filtered walk left out, taken chunk by chunk for lines drawn through it (R-575).

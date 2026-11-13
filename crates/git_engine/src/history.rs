@@ -115,25 +115,6 @@ impl RepoHandle {
         Ok(hasher.finish())
     }
 
-    /// One row from an id and its parents, whichever walk produced them.
-    pub(crate) fn row_of(
-        &self,
-        id: gix::ObjectId,
-        parents: &[gix::ObjectId],
-        mailmap: &crate::Mailmap,
-    ) -> Result<CommitRow> {
-        let (text, timestamp) = self.read_text(id, mailmap)?;
-        Ok(CommitRow {
-            oid: id.to_string(),
-            parents: parents.iter().map(ToString::to_string).collect(),
-            summary: text.summary,
-            author_name: text.author_name,
-            author_email: text.author_email,
-            timestamp,
-            tz_offset_minutes: text.tz_offset_minutes,
-        })
-    }
-
     /// Subject, author through `mailmap`, and the committer time's offset of `oid`.
     pub fn commit_text(&self, oid: &str, mailmap: &crate::Mailmap) -> Result<CommitText> {
         let id = gix::ObjectId::from_hex(oid.as_bytes())
@@ -149,7 +130,11 @@ impl RepoHandle {
         Ok(self.read_text(id, mailmap)?.0)
     }
 
-    fn read_text(&self, id: gix::ObjectId, mailmap: &crate::Mailmap) -> Result<(CommitText, i64)> {
+    pub(crate) fn read_text(
+        &self,
+        id: gix::ObjectId,
+        mailmap: &crate::Mailmap,
+    ) -> Result<(CommitText, i64)> {
         let commit = self
             .repo
             .find_commit(id)

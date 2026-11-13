@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use gix::bstr::ByteSlice as _;
 use serde::{Deserialize, Serialize};
 
-use crate::{CommitQuery, CommitRow, Mailmap, RepoHandle};
+use crate::{CommitQuery, GraphCommit, Mailmap, RepoHandle};
 
 /// Where the free text of the filter is looked for; any one field matching is enough.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
@@ -190,6 +190,24 @@ fn lower(text: &str) -> String {
     text.to_lowercase()
 }
 
+thread_local! {
+    static LOWERED: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) };
+}
+
+/// `haystack.to_lowercase().contains(needle)` for a `needle` lowered already; ASCII text,
+/// which lowers the same byte by byte, goes through one buffer per thread instead.
+pub(crate) fn contains_lowered(haystack: &str, needle: &str) -> bool {
+    if !haystack.is_ascii() {
+        return lower(haystack).contains(needle);
+    }
+    LOWERED.with_borrow_mut(|buffer| {
+        buffer.clear();
+        buffer.push_str(haystack);
+        buffer.make_ascii_lowercase();
+        buffer.contains(needle)
+    })
+}
+
 impl RepoHandle {
     pub(crate) fn text_match(&self, query: &CommitQuery) -> Option<TextMatch> {
         let needle = lower(query.text.as_deref()?.trim());
@@ -249,14 +267,16 @@ impl TextMatch {
     pub(crate) fn matches(
         &self,
         repo: &gix::Repository,
-        id: gix::ObjectId,
-        row: &CommitRow,
+        commit: &GraphCommit,
         mailmap: &Mailmap,
     ) -> bool {
+        let id = commit.id;
+        let row = &commit.text;
         let needle = self.needle.as_str();
-        let has = |text: &str| lower(text).contains(needle);
+        let has = |text: &str| contains_lowered(text, needle);
         let fields = self.fields;
-        if fields.id && row.oid.starts_with(needle) {
+        let mut hex = [0_u8; 64];
+        if fields.id && commit.id.hex_to_buf(&mut hex).starts_with(needle) {
             return true;
         }
         if fields.refs

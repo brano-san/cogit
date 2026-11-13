@@ -6,8 +6,8 @@
 use crate::graph_overlay::PaintMemo;
 use crate::{AppState, GraphChunk, RepoId};
 use git_engine::{
-    CommitQuery, CommitRow, CommitText, GitError, GraphRows, KnownCommits, Mailmap, ObjectId,
-    ObjectMap, RepoHandle, Reuse, SkippedRef, WalkedHistory,
+    CommitQuery, CommitRow, CommitText, GitError, GraphCommit, GraphRows, KnownCommits, Mailmap,
+    ObjectId, ObjectMap, RepoHandle, Reuse, SkippedRef, WalkedHistory,
 };
 use graph_engine::GraphRow;
 use parking_lot::{Mutex, RwLock, RwLockWriteGuard};
@@ -76,28 +76,16 @@ pub(crate) struct Node {
     pub(crate) parents: Box<[ObjectId]>,
 }
 
-fn object_id(hex: &str) -> ObjectId {
-    ObjectId::from_hex(hex.as_bytes()).unwrap_or_else(|err| {
-        tracing::error!(error = ?err, context = "graph cache: object id");
-        ObjectId::null(git_engine::HashKind::Sha1)
-    })
-}
-
-pub(crate) fn take_text(commit: &mut CommitRow) -> CommitText {
-    CommitText {
-        summary: std::mem::take(&mut commit.summary),
-        author_name: std::mem::take(&mut commit.author_name),
-        author_email: std::mem::take(&mut commit.author_email),
-        tz_offset_minutes: commit.tz_offset_minutes,
-    }
+pub(crate) fn take_text(commit: &mut GraphCommit) -> CommitText {
+    std::mem::take(&mut commit.text)
 }
 
 impl Node {
-    pub(crate) fn of(commit: &CommitRow) -> Self {
+    pub(crate) fn of(commit: &GraphCommit) -> Self {
         Self {
-            id: object_id(&commit.oid),
-            time: commit.timestamp,
-            parents: commit.parents.iter().map(|p| object_id(p)).collect(),
+            id: commit.id,
+            time: commit.time,
+            parents: commit.parents.as_slice().into(),
         }
     }
 

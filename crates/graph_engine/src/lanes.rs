@@ -1,11 +1,17 @@
-use crate::{Above, CommitNode, GraphRow, Lane, LayoutCursor, LongLink, NodeKind, Segment, Span};
+use crate::{
+    Above, CommitId, CommitNode, GraphRow, Lane, LayoutCursor, LongLink, NodeKind, Segment, Span,
+};
+use std::borrow::Borrow;
 
 /// The top commit's line: it keeps column 0 down its first parents (07 §3).
 const TRUNK: u64 = 0;
 
 /// One row per commit, unless the cursor looks ahead: then as [`push`].
 #[must_use]
-pub fn layout(commits: &[CommitNode], cursor: &mut LayoutCursor) -> Vec<GraphRow> {
+pub fn layout<I: CommitId>(
+    commits: &[CommitNode<I>],
+    cursor: &mut LayoutCursor<I>,
+) -> Vec<GraphRow> {
     if cursor.lookahead == 0 {
         return commits.iter().map(|node| place(node, cursor)).collect();
     }
@@ -15,11 +21,25 @@ pub fn layout(commits: &[CommitNode], cursor: &mut LayoutCursor) -> Vec<GraphRow
 /// Streams a chunk. Knowing how long a line is needs `lookahead` commits ahead, so that
 /// many stay back until the next chunk or [`finish`].
 #[must_use]
-pub fn push(commits: Vec<CommitNode>, cursor: &mut LayoutCursor) -> Vec<GraphRow> {
-    if cursor.lookahead == 0 {
-        return commits.iter().map(|node| place(node, cursor)).collect();
-    }
+pub fn push<I: CommitId>(
+    commits: Vec<CommitNode<I>>,
+    cursor: &mut LayoutCursor<I>,
+) -> Vec<GraphRow> {
     let mut rows = Vec::with_capacity(commits.len());
+    push_into(commits, cursor, &mut rows);
+    rows
+}
+
+/// [`push`] onto `rows`.
+pub fn push_into<I: CommitId>(
+    commits: impl IntoIterator<Item = CommitNode<I>>,
+    cursor: &mut LayoutCursor<I>,
+    rows: &mut Vec<GraphRow>,
+) {
+    if cursor.lookahead == 0 {
+        rows.extend(commits.into_iter().map(|node| place(&node, cursor)));
+        return;
+    }
     for node in commits {
         let row = cursor
             .next_row
@@ -30,12 +50,11 @@ pub fn push(commits: Vec<CommitNode>, cursor: &mut LayoutCursor) -> Vec<GraphRow
             rows.extend(place_pending(cursor));
         }
     }
-    rows
 }
 
 /// The rows still held back when the history ends.
 #[must_use]
-pub fn finish(cursor: &mut LayoutCursor) -> Vec<GraphRow> {
+pub fn finish<I: CommitId>(cursor: &mut LayoutCursor<I>) -> Vec<GraphRow> {
     let mut rows = Vec::with_capacity(cursor.pending.len());
     while let Some(row) = place_pending(cursor) {
         rows.push(row);
@@ -43,7 +62,7 @@ pub fn finish(cursor: &mut LayoutCursor) -> Vec<GraphRow> {
     rows
 }
 
-fn place_pending(cursor: &mut LayoutCursor) -> Option<GraphRow> {
+fn place_pending<I: CommitId>(cursor: &mut LayoutCursor<I>) -> Option<GraphRow> {
     let node = cursor.pending.pop_front()?;
     cursor.ahead.remove(&node.oid);
     Some(place(&node, cursor))
@@ -57,11 +76,11 @@ fn column(index: usize) -> u16 {
     index as u16
 }
 
-fn waits_for(lane: &Lane, oid: &str) -> bool {
-    lane.waits == oid
+fn waits_for<I: PartialEq>(lane: &Lane<I>, oid: &I) -> bool {
+    lane.waits == *oid
 }
 
-fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
+fn place<I: CommitId>(node: &CommitNode<I>, cursor: &mut LayoutCursor<I>) -> GraphRow {
     let row = cursor.next_row;
     cursor.next_row += 1;
     let mut above = std::mem::take(&mut cursor.above);
@@ -84,7 +103,7 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
     } else {
         cursor.cut_colour.remove(&node.oid)
     };
-    let on_main = cursor.mainline.as_deref() == Some(node.oid.as_str())
+    let on_main = cursor.mainline.as_ref() == Some(&node.oid)
         || cursor
             .lanes
             .iter()
@@ -119,7 +138,7 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
 
     // 3. The first parent goes on in the node's line. Lines to one commit become one as
     // soon as both exist: the right one turns into the left one in the gap under the node.
-    let shown = |parent: &String| !node.hidden.contains(parent);
+    let shown = |parent: &I| !node.hidden.contains(parent);
     // The main line is never cut: it is the one line the eye follows all the way down.
     let cut_first = !on_main
         && node
@@ -272,14 +291,14 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
             children
         })
         .unwrap_or_default();
-    let first_cut: Vec<String> = node
+    let first_cut: Vec<I> = node
         .parents
         .first()
         .filter(|_| cut_first)
         .cloned()
         .into_iter()
         .collect();
-    let later_cut: Vec<String> = cut_later.iter().map(|parent| (*parent).clone()).collect();
+    let later_cut: Vec<I> = cut_later.iter().map(|parent| (*parent).clone()).collect();
     for (lean, span, ends) in [
         (0, Span::Bottom, first_cut),
         (1, Span::Bottom, later_cut),
@@ -308,7 +327,10 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
                     cursor.cut_colour.insert(oid.clone(), color);
                 }
             }
-            links.push(LongLink { segment, oid });
+            links.push(LongLink {
+                segment,
+                oid: oid.to_string(),
+            });
         }
     }
 
@@ -355,11 +377,11 @@ fn find_from<T>(items: &[T], from: usize, is: impl Fn(&T) -> bool) -> Option<usi
 }
 
 /// The row of a commit within the lookahead, else `u32::MAX`.
-fn ends_of(cursor: &LayoutCursor, oid: &str) -> u32 {
+fn ends_of<I: CommitId>(cursor: &LayoutCursor<I>, oid: &I) -> u32 {
     cursor.ahead.get(oid).copied().unwrap_or(u32::MAX)
 }
 
-fn far(cursor: &LayoutCursor, parent: &str, row: u32) -> bool {
+fn far<I: CommitId>(cursor: &LayoutCursor<I>, parent: &I, row: u32) -> bool {
     cursor.long_links > 0
         && cursor.ahead.get(parent).is_none_or(|&at| {
             usize::try_from(at.saturating_sub(row)).unwrap_or(usize::MAX) > cursor.long_links
@@ -370,7 +392,12 @@ fn far(cursor: &LayoutCursor, parent: &str, row: u32) -> bool {
 /// line, the lines beyond stepping aside for the row, and its own line turns into that one
 /// under it. Otherwise past the lines that end before its line does. Below a cut
 /// first-parent link it takes the colour of the child above the cut, `across`.
-fn open_tip(node: &CommitNode, cursor: &mut LayoutCursor, across: Option<u8>, row: u32) -> u64 {
+fn open_tip<I: CommitId>(
+    node: &CommitNode<I>,
+    cursor: &mut LayoutCursor<I>,
+    across: Option<u8>,
+    row: u32,
+) -> u64 {
     let parent = node
         .parents
         .first()
@@ -399,7 +426,7 @@ fn open_tip(node: &CommitNode, cursor: &mut LayoutCursor, across: Option<u8>, ro
 
 /// Puts a new line at `from` or right of it, past the lines that end no later than it;
 /// those that go on longer step aside. Returns the column.
-fn settle(cursor: &mut LayoutCursor, from: usize, lane: Lane) -> usize {
+fn settle<I>(cursor: &mut LayoutCursor<I>, from: usize, lane: Lane<I>) -> usize {
     let at = find_from(&cursor.lanes, from, |other| other.ends > lane.ends)
         .unwrap_or(cursor.lanes.len());
     cursor.lanes.insert(at, lane);
@@ -409,15 +436,19 @@ fn settle(cursor: &mut LayoutCursor, from: usize, lane: Lane) -> usize {
 /// A commit a filter leaves out of a graph drawn with lines (F-561): every line waiting for
 /// it goes on to its first parent, so a match joins the nearest match down that path. No
 /// parent keeps the line waiting: the history goes on below the list.
-pub fn pass_through(cursor: &mut LayoutCursor, oid: &str, first_parent: Option<&str>) {
+pub fn pass_through<I, Q>(cursor: &mut LayoutCursor<I>, oid: &Q, first_parent: Option<&Q>)
+where
+    I: CommitId + Borrow<Q>,
+    Q: ?Sized + Eq + ToOwned<Owned = I>,
+{
     let Some(parent) = first_parent else {
         return;
     };
-    if cursor.mainline.as_deref() == Some(oid) {
+    if cursor.mainline.as_ref().map(Borrow::borrow) == Some(oid) {
         cursor.mainline = Some(parent.to_owned());
     }
     for lane in &mut cursor.lanes {
-        if waits_for(lane, oid) {
+        if lane.waits.borrow() == oid {
             parent.clone_into(&mut lane.waits);
         }
     }

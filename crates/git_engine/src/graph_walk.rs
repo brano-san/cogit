@@ -46,13 +46,13 @@ impl KnownCommits for WalkedHistory {
 /// A shallow boundary is the child's: another child of the same parent keeps its link.
 #[derive(Debug, Default)]
 pub struct CutParents {
-    unreadable: std::cell::RefCell<HashSet<String>>,
-    shallow: std::cell::RefCell<HashSet<String>>,
+    unreadable: std::cell::RefCell<HashSet<ObjectId>>,
+    shallow: std::cell::RefCell<HashSet<ObjectId>>,
 }
 
 impl CutParents {
     #[must_use]
-    pub fn hides(&self, child: &str, parent: &str) -> bool {
+    pub fn hides(&self, child: &ObjectId, parent: &ObjectId) -> bool {
         self.shallow.borrow().contains(child) || self.unreadable.borrow().contains(parent)
     }
 
@@ -62,11 +62,11 @@ impl CutParents {
     }
 
     pub(crate) fn insert(&self, id: ObjectId) {
-        self.unreadable.borrow_mut().insert(id.to_string());
+        self.unreadable.borrow_mut().insert(id);
     }
 
     pub(crate) fn insert_shallow(&self, id: ObjectId) {
-        self.shallow.borrow_mut().insert(id.to_string());
+        self.shallow.borrow_mut().insert(id);
     }
 }
 
@@ -114,7 +114,7 @@ impl Eq for Queued {}
 /// Newest commit time first, the smaller id first on a tie; each commit once.
 pub(crate) struct ByTime<F> {
     queue: BinaryHeap<Queued>,
-    seen: HashSet<ObjectId>,
+    seen: gix::hashtable::HashSet<ObjectId>,
     read: F,
     first_parent: bool,
     /// Sorted. Their parents are not in a shallow clone.
@@ -133,7 +133,7 @@ where
     ) -> Self {
         let mut walk = Self {
             queue: BinaryHeap::new(),
-            seen: HashSet::new(),
+            seen: gix::hashtable::HashSet::default(),
             read,
             first_parent,
             shallow,

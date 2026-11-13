@@ -45,14 +45,14 @@ pub(crate) fn lay_out(
 
     // One order for the graph and the filtered list: by date, never a parent above a
     // child (R-162). A line to a parent the list will not show ends in an arrow (R-161).
-    let on_commits = |mut commits: Vec<git_engine::CommitRow>| {
+    let on_commits = |mut commits: Vec<git_engine::GraphCommit>| {
         if first_parent {
             for commit in &mut commits {
                 commit.parents.truncate(1);
             }
         }
         if let Some(view) = view.as_mut() {
-            commits.retain_mut(|c| view.admit(&c.oid, &mut c.parents));
+            commits.retain_mut(|c| view.admit(&c.id, &mut c.parents));
         }
         let laid: Vec<crate::graph_cache::Node> =
             commits.iter().map(crate::graph_cache::Node::of).collect();
@@ -64,25 +64,25 @@ pub(crate) fn lay_out(
         } else {
             Vec::new()
         };
-        let mut nodes: Vec<graph_engine::CommitNode> = commits
+        let mut nodes: Vec<graph_engine::CommitNode<git_engine::ObjectId>> = commits
             .into_iter()
             .map(|c| graph_engine::CommitNode {
                 hidden: if let Some(shown) = &shown {
                     c.parents
                         .iter()
-                        .filter(|parent| !shown.shows(handle, parent))
-                        .cloned()
+                        .filter(|parent| !shown.shows_id(handle, **parent))
+                        .copied()
                         .collect()
                 } else if cut.is_empty() {
                     Vec::new()
                 } else {
                     c.parents
                         .iter()
-                        .filter(|parent| cut.hides(&c.oid, parent))
-                        .cloned()
+                        .filter(|parent| cut.hides(&c.id, parent))
+                        .copied()
                         .collect()
                 },
-                oid: c.oid,
+                oid: c.id,
                 parents: c.parents,
             })
             .collect();
@@ -94,16 +94,12 @@ pub(crate) fn lay_out(
             let mut rows = Vec::with_capacity(nodes.len());
             for (at, node) in nodes.into_iter().enumerate() {
                 while let Some(pass) = passes.next_if(|pass| pass.before <= at) {
-                    graph_engine::pass_through(
-                        &mut cursor,
-                        &pass.oid,
-                        pass.first_parent.as_deref(),
-                    );
+                    graph_engine::pass_through(&mut cursor, &pass.oid, pass.first_parent.as_ref());
                 }
                 rows.extend(graph_engine::push(vec![node], &mut cursor));
             }
             for pass in passes {
-                graph_engine::pass_through(&mut cursor, &pass.oid, pass.first_parent.as_deref());
+                graph_engine::pass_through(&mut cursor, &pass.oid, pass.first_parent.as_ref());
             }
             rows
         } else {
@@ -161,7 +157,7 @@ fn graph_view(
     handle: &git_engine::RepoHandle,
     query: &git_engine::CommitQuery,
     flat: bool,
-) -> Result<Option<graph_engine::ViewFilter>, git_engine::GitError> {
+) -> Result<Option<graph_engine::ViewFilter<git_engine::ObjectId>>, git_engine::GitError> {
     let view = &query.view;
     if flat || view.first_parent || !view.collapse_merged {
         return Ok(None);
@@ -169,13 +165,18 @@ fn graph_view(
     let roots = handle.walk_tips(query)?;
     Ok(Some(graph_engine::ViewFilter::collapse_merged(
         roots,
-        view.expanded.iter().cloned(),
+        view.expanded
+            .iter()
+            .filter_map(|hex| git_engine::ObjectId::from_hex(hex.as_bytes()).ok()),
     )))
 }
 
 /// HEAD, then `master`, then `main` — of those the graph draws: the line drawn as the main
 /// one from there down. It picks no column; the top commit has column 0 (R-783).
-fn mainline_of(handle: &git_engine::RepoHandle, query: &git_engine::CommitQuery) -> Option<String> {
+fn mainline_of(
+    handle: &git_engine::RepoHandle,
+    query: &git_engine::CommitQuery,
+) -> Option<git_engine::ObjectId> {
     let ticked = |name: &str| {
         query
             .visible_refs
@@ -200,8 +201,10 @@ fn mainline_of(handle: &git_engine::RepoHandle, query: &git_engine::CommitQuery)
     .filter(|_| ticked("HEAD"));
     let tip = graph_engine::mainline_tip(&locals, head.as_deref())?;
     // Lines through left-out commits keep the main line on HEAD's first parents all the way.
-    (!query.filters_rows() || query.view.filtered_graph || handle.shown_by(query, &tip))
-        .then_some(tip)
+    let shown = !query.filters_rows() || query.view.filtered_graph || handle.shown_by(query, &tip);
+    shown
+        .then(|| git_engine::ObjectId::from_hex(tip.as_bytes()).ok())
+        .flatten()
 }
 
 /// A merge stopped on conflicts is drawn as if it were done (07 §4): right above HEAD a node
@@ -209,16 +212,19 @@ fn mainline_of(handle: &git_engine::RepoHandle, query: &git_engine::CommitQuery)
 /// a commit. Its row is taken out of the list, which keeps one row per commit, and drawn as
 /// the Working Tree row.
 struct WorkingTree {
-    head: String,
-    parents: Vec<String>,
+    head: git_engine::ObjectId,
+    parents: Vec<git_engine::ObjectId>,
+    /// The node's own id: the null id, which no commit has.
+    oid: git_engine::ObjectId,
+    /// What a cut link to the node is named on the wire, renamed to HEAD's.
+    oid_hex: String,
+    head_hex: String,
     /// Nodes pushed so far, then the row the node got.
     pushed: u32,
     row: Option<u32>,
 }
 
 impl WorkingTree {
-    const OID: &str = "working-tree";
-
     fn of(
         handle: &git_engine::RepoHandle,
         query: &git_engine::CommitQuery,
@@ -232,24 +238,29 @@ impl WorkingTree {
         if flat || !ticked {
             return None;
         }
-        let merge = handle.merge_head()?.to_string();
-        let head = match handle.head().ok()? {
+        let merge = handle.merge_head()?;
+        let head_hex = match handle.head().ok()? {
             git_engine::Head::Branch { oid, .. } | git_engine::Head::Detached { oid } => oid,
             git_engine::Head::Unborn { .. } => return None,
         };
-        let mut parents = vec![head.clone(), merge];
+        let head = git_engine::ObjectId::from_hex(head_hex.as_bytes()).ok()?;
+        let oid = git_engine::ObjectId::null(head.kind());
+        let mut parents = vec![head, merge];
         if first_parent {
             parents.truncate(1);
         }
         Some(Self {
             head,
             parents,
+            oid,
+            oid_hex: oid.to_string(),
+            head_hex,
             pushed: 0,
             row: None,
         })
     }
 
-    fn insert(&mut self, nodes: &mut Vec<graph_engine::CommitNode>) {
+    fn insert(&mut self, nodes: &mut Vec<graph_engine::CommitNode<git_engine::ObjectId>>) {
         let at = if self.row.is_none() {
             nodes.iter().position(|node| node.oid == self.head)
         } else {
@@ -259,7 +270,7 @@ impl WorkingTree {
             nodes.insert(
                 at,
                 graph_engine::CommitNode {
-                    oid: Self::OID.to_owned(),
+                    oid: self.oid,
                     parents: self.parents.clone(),
                     hidden: Vec::new(),
                 },
@@ -285,8 +296,8 @@ impl WorkingTree {
                 row.row -= 1;
             }
             for link in &mut row.links {
-                if link.oid == Self::OID {
-                    link.oid.clone_from(&self.head);
+                if link.oid == self.oid_hex {
+                    link.oid.clone_from(&self.head_hex);
                 }
             }
             true

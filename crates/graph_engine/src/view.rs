@@ -1,4 +1,6 @@
+use std::borrow::Borrow;
 use std::collections::{BTreeSet, HashMap, HashSet};
+use std::hash::Hash;
 
 use serde::{Deserialize, Serialize};
 
@@ -11,23 +13,38 @@ pub struct Fold {
 }
 
 /// Collapsed merges (#26); first parents only is the walk's own (R-341).
-#[derive(Debug, Clone, Default)]
-pub struct ViewFilter {
+#[derive(Debug, Clone)]
+pub struct ViewFilter<I = String> {
     collapse: bool,
-    expanded: HashSet<String>,
-    roots: HashSet<String>,
-    wanted: HashSet<String>,
-    folded: HashMap<String, u32>,
+    expanded: HashSet<I>,
+    roots: HashSet<I>,
+    wanted: HashSet<I>,
+    folded: HashMap<I, u32>,
     hidden: HashMap<u32, u32>,
     grown: BTreeSet<u32>,
     rows: u32,
 }
 
-impl ViewFilter {
+impl<I> Default for ViewFilter<I> {
+    fn default() -> Self {
+        Self {
+            collapse: false,
+            expanded: HashSet::new(),
+            roots: HashSet::new(),
+            wanted: HashSet::new(),
+            folded: HashMap::new(),
+            hidden: HashMap::new(),
+            grown: BTreeSet::new(),
+            rows: 0,
+        }
+    }
+}
+
+impl<I: Clone + Eq + Hash> ViewFilter<I> {
     #[must_use]
     pub fn collapse_merged(
-        roots: impl IntoIterator<Item = String>,
-        expanded: impl IntoIterator<Item = String>,
+        roots: impl IntoIterator<Item = I>,
+        expanded: impl IntoIterator<Item = I>,
     ) -> Self {
         Self {
             collapse: true,
@@ -38,7 +55,11 @@ impl ViewFilter {
     }
 
     /// Children come before parents in the walk, so every claim on `oid` is in by now.
-    pub fn admit(&mut self, oid: &str, parents: &mut Vec<String>) -> bool {
+    pub fn admit<Q>(&mut self, oid: &Q, parents: &mut Vec<I>) -> bool
+    where
+        I: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+    {
         let wanted = self.wanted.remove(oid);
         let root = self.roots.remove(oid);
         let fold = self.folded.remove(oid);
@@ -47,7 +68,8 @@ impl ViewFilter {
                 *self.hidden.entry(row).or_default() += 1;
                 self.grown.insert(row);
                 for parent in parents.iter() {
-                    if !self.wanted.contains(parent) && !self.folded.contains_key(parent) {
+                    if !self.wanted.contains::<I>(parent) && !self.folded.contains_key::<I>(parent)
+                    {
                         self.folded.insert(parent.clone(), row);
                     }
                 }
@@ -61,7 +83,7 @@ impl ViewFilter {
             let merged = parents.split_off(1);
             for parent in merged {
                 // A line to a commit the graph shows anyway stays.
-                if self.roots.contains(&parent) || self.wanted.contains(&parent) {
+                if self.roots.contains::<I>(&parent) || self.wanted.contains::<I>(&parent) {
                     parents.push(parent);
                 } else {
                     self.folded.entry(parent).or_insert(row);

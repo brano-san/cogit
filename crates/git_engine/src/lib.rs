@@ -171,7 +171,9 @@ pub use runner::{
     CommandSink, GitOutput, git_version, gix_version, next_output_id, redact_command,
     use_git_program,
 };
-pub use search::{CommitQuery, GraphRows, GraphView, Passed, PassedCommits, ShownBy, SkippedRef};
+pub use search::{
+    CommitQuery, GraphCommit, GraphRows, GraphView, Passed, PassedCommits, ShownBy, SkippedRef,
+};
 pub use shared::SharedRepo;
 pub use solver::{
     ConflictContext, ConflictOperation, MergeToolConfig, SideName, marker_labels, merge_target,

@@ -2,8 +2,8 @@ mod lanes;
 mod paint;
 mod view;
 
-pub use lanes::{finish, layout, pass_through, push};
-pub use paint::{PAINT_DIM, PAINT_SLOT, Paint, PaintSpec, paint};
+pub use lanes::{finish, layout, pass_through, push, push_into};
+pub use paint::{PAINT_DIM, PAINT_SLOT, Paint, PaintSpec, ParentRows, paint};
 pub use view::{Fold, ViewFilter};
 
 use serde::{Deserialize, Serialize};
@@ -11,12 +11,18 @@ use std::collections::{HashMap, VecDeque};
 
 const LANE_COLORS: u8 = 8;
 
+/// What a commit goes by: an object id in the app, any string in tests. Hex only at the
+/// edge, for the far end of a cut link.
+pub trait CommitId: Clone + Eq + std::hash::Hash + std::fmt::Display + std::fmt::Debug {}
+
+impl<T: Clone + Eq + std::hash::Hash + std::fmt::Display + std::fmt::Debug> CommitId for T {}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CommitNode {
-    pub oid: String,
-    pub parents: Vec<String>,
+pub struct CommitNode<I = String> {
+    pub oid: I,
+    pub parents: Vec<I>,
     /// Parents the list does not show; their line ends in an arrow under the node.
-    pub hidden: Vec<String>,
+    pub hidden: Vec<I>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
@@ -81,23 +87,23 @@ pub(crate) struct Above {
 /// A line on its way down to the commit it waits for. Lines sit side by side without
 /// holes: a column is a line's for one gap between two rows, not for its whole life.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Lane {
+pub(crate) struct Lane<I> {
     pub(crate) id: u64,
-    pub(crate) waits: String,
+    pub(crate) waits: I,
     pub(crate) color: u8,
     pub(crate) primary: bool,
     /// The row of the commit it waits for, `u32::MAX` past the lookahead.
     pub(crate) ends: u32,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct LayoutCursor {
-    pub(crate) lanes: Vec<Lane>,
+#[derive(Debug, Clone)]
+pub struct LayoutCursor<I = String> {
+    pub(crate) lanes: Vec<Lane<I>>,
     pub(crate) next_id: u64,
     pub(crate) next_color: u8,
     pub(crate) next_row: u32,
     /// The primary ref's commit: its lane turns primary there, wherever the layout put it.
-    pub(crate) mainline: Option<String>,
+    pub(crate) mainline: Option<I>,
     pub(crate) above: Vec<Above>,
     pub(crate) converging: Vec<u64>,
     pub(crate) leaving: Vec<u64>,
@@ -107,20 +113,42 @@ pub struct LayoutCursor {
     /// Commits held back before they are placed: how long a new line is, is known within them.
     pub(crate) lookahead: usize,
     /// The next `lookahead` commits, not placed yet, with the row each will get.
-    pub(crate) pending: VecDeque<CommitNode>,
-    pub(crate) ahead: HashMap<String, u32>,
+    pub(crate) pending: VecDeque<CommitNode<I>>,
+    pub(crate) ahead: HashMap<I, u32>,
     /// A parent whose links were cut, and the children at their upper ends.
-    pub(crate) cut_into: HashMap<String, Vec<String>>,
+    pub(crate) cut_into: HashMap<I, Vec<I>>,
     /// A parent whose first-parent link was cut, and the colour of the child: the line goes
     /// on in it below the arrow.
-    pub(crate) cut_colour: HashMap<String, u8>,
+    pub(crate) cut_colour: HashMap<I, u8>,
 }
 
-impl LayoutCursor {
+impl<I> Default for LayoutCursor<I> {
+    fn default() -> Self {
+        Self {
+            lanes: Vec::new(),
+            next_id: 0,
+            next_color: 0,
+            next_row: 0,
+            mainline: None,
+            above: Vec::new(),
+            converging: Vec::new(),
+            leaving: Vec::new(),
+            middle: Vec::new(),
+            long_links: 0,
+            lookahead: 0,
+            pending: VecDeque::new(),
+            ahead: HashMap::new(),
+            cut_into: HashMap::new(),
+            cut_colour: HashMap::new(),
+        }
+    }
+}
+
+impl<I> LayoutCursor<I> {
     /// The main line starts at `tip` and follows its first parents (R-115); it only marks
     /// lines, the columns are the top commit's (R-783).
     #[must_use]
-    pub fn with_mainline(tip: Option<String>) -> Self {
+    pub fn with_mainline(tip: Option<I>) -> Self {
         Self {
             mainline: tip,
             ..Self::default()

@@ -619,7 +619,7 @@ fn a_streamed_history_lays_out_exactly_as_it_would_all_at_once() {
 
 #[test]
 fn an_empty_chunk_lays_out_nothing() {
-    let mut cursor = LayoutCursor::with_mainline(None);
+    let mut cursor = LayoutCursor::<String>::with_mainline(None);
     assert!(layout(&[], &mut cursor).is_empty());
 }
 

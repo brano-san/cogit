@@ -9,6 +9,24 @@ pub const PAINT_DIM: u8 = 0x10;
 
 const NONE: u32 = u32::MAX;
 
+/// Per row, the rows of its parents as laid out, `None` when not listed.
+pub trait ParentRows {
+    /// Empty past the last row.
+    fn of(&self, row: usize) -> &[Option<u32>];
+}
+
+impl ParentRows for [Vec<Option<u32>>] {
+    fn of(&self, row: usize) -> &[Option<u32>] {
+        self.get(row).map_or(&[], Vec::as_slice)
+    }
+}
+
+impl ParentRows for Vec<Vec<Option<u32>>> {
+    fn of(&self, row: usize) -> &[Option<u32>] {
+        self.as_slice().of(row)
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PaintSpec {
     /// Tips by row with their palette slot; a tip higher up claims its line first.
@@ -88,7 +106,7 @@ impl Trace {
 /// geometry it does not know becomes a lane of its own, never an error.
 fn trace(
     rows: &[GraphRow],
-    parents: &[Vec<Option<u32>>],
+    parents: &dyn ParentRows,
     row_of: &dyn Fn(&str) -> Option<u32>,
 ) -> Trace {
     let mut trace = Trace::default();
@@ -232,7 +250,7 @@ fn trace(
 fn across_cut(
     row: &GraphRow,
     r: u32,
-    parents: &[Vec<Option<u32>>],
+    parents: &dyn ParentRows,
     row_of: &dyn Fn(&str) -> Option<u32>,
     stubs: &HashMap<(u32, u32), u32>,
 ) -> Option<u32> {
@@ -250,13 +268,11 @@ fn across_cut(
         })
 }
 
-fn first_parent(parents: &[Vec<Option<u32>>], row: u32) -> Option<u32> {
-    parents
-        .get(row as usize)
-        .and_then(|p| p.first().copied().flatten())
+fn first_parent(parents: &dyn ParentRows, row: u32) -> Option<u32> {
+    parents.of(row as usize).first().copied().flatten()
 }
 
-fn main_history(rows: &[GraphRow], parents: &[Vec<Option<u32>>]) -> Vec<bool> {
+fn main_history(rows: &[GraphRow], parents: &dyn ParentRows) -> Vec<bool> {
     let mut reached = vec![false; rows.len()];
     let Some(tip) = rows.iter().position(|row| row.primary) else {
         return reached;
@@ -266,7 +282,7 @@ fn main_history(rows: &[GraphRow], parents: &[Vec<Option<u32>>]) -> Vec<bool> {
         if !reached[row] {
             continue;
         }
-        for &parent in parents.get(row).into_iter().flatten().flatten() {
+        for &parent in parents.of(row).iter().flatten() {
             if let Some(r) = reached.get_mut(parent as usize) {
                 *r = true;
             }
@@ -276,7 +292,7 @@ fn main_history(rows: &[GraphRow], parents: &[Vec<Option<u32>>]) -> Vec<bool> {
 }
 
 /// Each tip's first parents, down to what the main line reaches or a tip above took.
-fn chains(rows: &[GraphRow], parents: &[Vec<Option<u32>>], tips: &[(u32, u8)]) -> Vec<u8> {
+fn chains(rows: &[GraphRow], parents: &dyn ParentRows, tips: &[(u32, u8)]) -> Vec<u8> {
     let shared = main_history(rows, parents);
     let mut claimed = vec![0_u8; rows.len()];
     let mut order: Vec<(u32, u8)> = tips.to_vec();
@@ -304,7 +320,7 @@ const VARYING_SLOTS: u8 = 8;
 /// Varying Coloring: what no tick claimed is coloured branch by branch. A row nothing above
 /// claimed is a tip; its first parents down to a claimed row are one branch, so a merged
 /// branch keeps its colour through the merge, the merge line taking it from the parent.
-fn varying(rows: &[GraphRow], parents: &[Vec<Option<u32>>], claimed: &mut [u8]) {
+fn varying(rows: &[GraphRow], parents: &dyn ParentRows, claimed: &mut [u8]) {
     let mut next = 0_u8;
     for tip in 0..rows.len() {
         if claimed[tip] != 0 {
@@ -335,7 +351,7 @@ const CHOSEN: u8 = 2;
 const ANCESTOR: u8 = 3;
 
 /// Rows sit below every child: one pass up finds the descendants, one pass down the ancestors.
-fn ancestry(parents: &[Vec<Option<u32>>], chosen: u32, len: usize) -> Vec<u8> {
+fn ancestry(parents: &dyn ParentRows, chosen: u32, len: usize) -> Vec<u8> {
     let mut kin = vec![0_u8; len];
     let chosen = chosen as usize;
     if chosen >= len {
@@ -343,11 +359,9 @@ fn ancestry(parents: &[Vec<Option<u32>>], chosen: u32, len: usize) -> Vec<u8> {
     }
     kin[chosen] = CHOSEN;
     for row in (0..chosen).rev() {
-        let leads_down = parents.get(row).is_some_and(|p| {
-            p.iter().flatten().any(|&parent| {
-                kin.get(parent as usize)
-                    .is_some_and(|k| *k == CHOSEN || *k == DESCENDANT)
-            })
+        let leads_down = parents.of(row).iter().flatten().any(|&parent| {
+            kin.get(parent as usize)
+                .is_some_and(|k| *k == CHOSEN || *k == DESCENDANT)
         });
         if leads_down {
             kin[row] = DESCENDANT;
@@ -357,7 +371,7 @@ fn ancestry(parents: &[Vec<Option<u32>>], chosen: u32, len: usize) -> Vec<u8> {
         if kin[row] < CHOSEN {
             continue;
         }
-        for &parent in parents.get(row).into_iter().flatten().flatten() {
+        for &parent in parents.of(row).iter().flatten() {
             if let Some(k) = kin.get_mut(parent as usize) {
                 *k = ANCESTOR;
             }
@@ -367,7 +381,7 @@ fn ancestry(parents: &[Vec<Option<u32>>], chosen: u32, len: usize) -> Vec<u8> {
 }
 
 /// The chosen commit and its ancestors the main line does not have yet.
-fn mergeable(rows: &[GraphRow], parents: &[Vec<Option<u32>>]) -> Vec<u8> {
+fn mergeable(rows: &[GraphRow], parents: &dyn ParentRows) -> Vec<u8> {
     let mut kin: Vec<u8> = main_history(rows, parents)
         .into_iter()
         .map(|shared| if shared { 0 } else { CHOSEN })
@@ -383,7 +397,7 @@ fn mergeable(rows: &[GraphRow], parents: &[Vec<Option<u32>>]) -> Vec<u8> {
 #[must_use]
 pub fn paint(
     rows: &[GraphRow],
-    parents: &[Vec<Option<u32>>],
+    parents: &dyn ParentRows,
     row_of: &dyn Fn(&str) -> Option<u32>,
     spec: &PaintSpec,
 ) -> Paint {
