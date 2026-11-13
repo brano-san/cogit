@@ -137,6 +137,34 @@ fn the_wire_window_is_the_encoded_window_in_base64() {
     assert_eq!(state.graph_window_wire(repo, old, 0, 4), "");
 }
 
+/// The wire is written straight from the cache: the same bytes whether the texts were read
+/// for it or carried by the rows of a filtered list.
+#[test]
+fn the_wire_window_reads_texts_and_carried_rows_as_the_window_does() {
+    let f = test_fixtures::linear(6).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    for query in [
+        CommitQuery::default(),
+        CommitQuery {
+            oid_prefix: Some(String::new()),
+            ..CommitQuery::default()
+        },
+    ] {
+        assert_eq!(query.oid_prefix.is_some(), query.filters_rows());
+        let generation = state.begin_graph();
+        state
+            .build_graph(repo, &query, generation, 100, |_| true)
+            .unwrap();
+        // Texts unread: the wire reads them.
+        let wire = state.graph_window_wire(repo, generation, 0, 6);
+        let window = state.graph_window(repo, generation, 0, 6).unwrap();
+        assert_eq!(window.commits.len(), 6);
+        assert!(window.commits.iter().all(|c| !c.summary.is_empty()));
+        assert_eq!(wire, diff_engine::base64(&graph_wire::encode(&window)));
+    }
+}
+
 #[test]
 fn an_empty_window_is_a_header() {
     let window = GraphWindow {

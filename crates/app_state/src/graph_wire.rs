@@ -20,19 +20,74 @@
 //! | text | UTF-8 | text bytes |
 
 use crate::GraphWindow;
-use graph_engine::{NodeKind, Span};
+use git_engine::CommitRow;
+use graph_engine::{GraphRow, NodeKind, Span};
 
 pub const WIRE_VERSION: u32 = 2;
 
+/// What the wire takes of a commit: a row a window carries, or a laid-out node with its
+/// text, written straight from the cache without a `CommitRow` in between.
+pub(crate) trait WireCommit {
+    fn timestamp(&self) -> i64;
+    fn tz_offset_minutes(&self) -> i32;
+    /// Summary, author name, author email.
+    fn texts(&self) -> [&str; 3];
+    fn oid_len(&self) -> usize;
+    /// The id in hex, `oid_bytes` long: padded with `0` when shorter.
+    fn write_oid(&self, out: &mut Vec<u8>, oid_bytes: usize);
+}
+
+impl WireCommit for CommitRow {
+    fn timestamp(&self) -> i64 {
+        self.timestamp
+    }
+
+    fn tz_offset_minutes(&self) -> i32 {
+        self.tz_offset_minutes
+    }
+
+    fn texts(&self) -> [&str; 3] {
+        [&self.summary, &self.author_name, &self.author_email]
+    }
+
+    fn oid_len(&self) -> usize {
+        self.oid.len()
+    }
+
+    fn write_oid(&self, out: &mut Vec<u8>, oid_bytes: usize) {
+        write_padded(out, self.oid.as_bytes(), oid_bytes);
+    }
+}
+
+pub(crate) fn write_padded(out: &mut Vec<u8>, hex: &[u8], oid_bytes: usize) {
+    let hex = &hex[..hex.len().min(oid_bytes)];
+    out.extend_from_slice(hex);
+    out.resize(out.len() + (oid_bytes - hex.len()), b'0');
+}
+
 #[must_use]
 pub fn encode(window: &GraphWindow) -> Vec<u8> {
-    let rows = &window.rows;
-    let commits = &window.commits;
+    encode_rows(
+        window.start,
+        window.total,
+        window.complete,
+        &window.commits,
+        &window.rows,
+    )
+}
+
+pub(crate) fn encode_rows<C: WireCommit>(
+    start: u32,
+    total: u32,
+    complete: bool,
+    commits: &[C],
+    rows: &[GraphRow],
+) -> Vec<u8> {
     let segments: usize = rows.iter().map(|row| row.segments.len()).sum();
-    let oid_bytes = commits.first().map_or(0, |commit| commit.oid.len());
+    let oid_bytes = commits.first().map_or(0, WireCommit::oid_len);
     let text: usize = commits
         .iter()
-        .map(|c| c.summary.len() + c.author_name.len() + c.author_email.len())
+        .map(|c| c.texts().iter().map(|t| t.len()).sum::<usize>())
         .sum();
 
     let mut out = Vec::with_capacity(
@@ -40,10 +95,10 @@ pub fn encode(window: &GraphWindow) -> Vec<u8> {
     );
     for value in [
         WIRE_VERSION,
-        window.start,
+        start,
         count(rows.len()),
-        window.total,
-        u32::from(window.complete),
+        total,
+        u32::from(complete),
         count(segments),
         count(text),
         count(oid_bytes),
@@ -54,7 +109,7 @@ pub fn encode(window: &GraphWindow) -> Vec<u8> {
     for commit in commits {
         // Seconds since 1970 are exact in an f64 for the next hundred million years.
         #[allow(clippy::cast_precision_loss)]
-        out.extend_from_slice(&(commit.timestamp as f64).to_le_bytes());
+        out.extend_from_slice(&(commit.timestamp() as f64).to_le_bytes());
     }
     let mut first = 0;
     for row in rows {
@@ -70,14 +125,14 @@ pub fn encode(window: &GraphWindow) -> Vec<u8> {
     out.extend_from_slice(&count(first_link).to_le_bytes());
     let mut offset = 0;
     for commit in commits {
-        for field in [&commit.summary, &commit.author_name, &commit.author_email] {
+        for field in commit.texts() {
             out.extend_from_slice(&count(offset).to_le_bytes());
             offset += field.len();
         }
     }
     out.extend_from_slice(&count(offset).to_le_bytes());
     for commit in commits {
-        out.extend_from_slice(&commit.tz_offset_minutes.to_le_bytes());
+        out.extend_from_slice(&commit.tz_offset_minutes().to_le_bytes());
     }
 
     for row in rows {
@@ -109,16 +164,16 @@ pub fn encode(window: &GraphWindow) -> Vec<u8> {
     );
 
     // One repository hashes every object the same way, so every id is as long as the first.
-    let links = rows.iter().flat_map(|row| &row.links).map(|link| &link.oid);
-    for oid in commits.iter().map(|commit| &commit.oid).chain(links) {
-        let mut id = oid.as_bytes().to_vec();
-        id.resize(oid_bytes, b'0');
-        out.extend_from_slice(&id);
+    for commit in commits {
+        commit.write_oid(&mut out, oid_bytes);
+    }
+    for link in rows.iter().flat_map(|row| &row.links) {
+        write_padded(&mut out, link.oid.as_bytes(), oid_bytes);
     }
     for commit in commits {
-        out.extend_from_slice(commit.summary.as_bytes());
-        out.extend_from_slice(commit.author_name.as_bytes());
-        out.extend_from_slice(commit.author_email.as_bytes());
+        for field in commit.texts() {
+            out.extend_from_slice(field.as_bytes());
+        }
     }
     out
 }

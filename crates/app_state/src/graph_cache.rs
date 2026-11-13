@@ -111,6 +111,50 @@ impl Node {
     }
 }
 
+/// Rows of a window, copied out of the cache; `carried` when the rows hold their texts.
+struct WindowSlice {
+    total: u32,
+    commits: Vec<Node>,
+    carried: Option<Vec<CommitText>>,
+    rows: Vec<GraphRow>,
+    texts: Option<Arc<Mutex<Texts>>>,
+    complete: bool,
+}
+
+/// A laid-out node and its text, as the wire writes them.
+struct WireNode<'a> {
+    node: &'a Node,
+    text: &'a CommitText,
+}
+
+impl crate::graph_wire::WireCommit for WireNode<'_> {
+    fn timestamp(&self) -> i64 {
+        self.node.time
+    }
+
+    fn tz_offset_minutes(&self) -> i32 {
+        self.text.tz_offset_minutes
+    }
+
+    fn texts(&self) -> [&str; 3] {
+        [
+            &self.text.summary,
+            &self.text.author_name,
+            &self.text.author_email,
+        ]
+    }
+
+    fn oid_len(&self) -> usize {
+        self.node.id.kind().len_in_hex()
+    }
+
+    fn write_oid(&self, out: &mut Vec<u8>, oid_bytes: usize) {
+        let mut hex = [0_u8; 64];
+        let hex = self.node.id.hex_to_buf(&mut hex);
+        crate::graph_wire::write_padded(out, hex.as_bytes(), oid_bytes);
+    }
+}
+
 #[derive(Debug)]
 struct NodeIndex<'a> {
     nodes: &'a [Node],
@@ -191,24 +235,22 @@ impl Texts {
 
     /// `row` with its text, read now if nothing read it yet.
     fn fill(&mut self, node: &Node, handle: Option<&RepoHandle>) -> CommitRow {
-        let text = match self.by_oid.get(&node.id) {
-            Some(text) => text.clone(),
-            None => {
-                let read = handle.map(|handle| handle.commit_text_of(node.id, &self.mailmap));
-                match read {
-                    Some(Ok(text)) => {
-                        self.insert(node.id, text.clone());
-                        text
-                    }
-                    Some(Err(err)) => {
-                        tracing::error!(error = ?err, context = "graph window: commit text");
-                        CommitText::default()
-                    }
-                    None => CommitText::default(),
-                }
+        self.read_missing(node, handle);
+        node.row(self.by_oid.get(&node.id).cloned().unwrap_or_default())
+    }
+
+    /// Reads the text of `node` if nothing read it yet; one that cannot be read stays out.
+    fn read_missing(&mut self, node: &Node, handle: Option<&RepoHandle>) {
+        if self.by_oid.contains_key(&node.id) {
+            return;
+        }
+        match handle.map(|handle| handle.commit_text_of(node.id, &self.mailmap)) {
+            Some(Ok(text)) => self.insert(node.id, text),
+            Some(Err(err)) => {
+                tracing::error!(error = ?err, context = "graph window: commit text");
             }
-        };
-        node.row(text)
+            None => {}
+        }
     }
 }
 
@@ -844,6 +886,33 @@ impl AppState {
         }
     }
 
+    /// The rows are copied under the lock and the texts read after it: a walk's next chunk
+    /// waits for neither, and no second `Arc<Laid>` makes its `make_mut` copy the graph.
+    fn window_slice(
+        &self,
+        repo: RepoId,
+        generation: u32,
+        start: u32,
+        count: u32,
+    ) -> Option<WindowSlice> {
+        let cache = self.graph.read();
+        let (shown, complete) = cache.view(repo, generation)?;
+        let laid = &shown.laid;
+        let len = laid.rows.len();
+        let from = usize::try_from(start).unwrap_or(usize::MAX).min(len);
+        let to = from
+            .saturating_add(usize::try_from(count).unwrap_or(usize::MAX))
+            .min(len);
+        Some(WindowSlice {
+            total: laid.total(),
+            commits: laid.commits[from..to].to_vec(),
+            carried: laid.texts.get(from..to).map(<[CommitText]>::to_vec),
+            rows: laid.rows[from..to].to_vec(),
+            texts: shown.texts.clone(),
+            complete,
+        })
+    }
+
     /// Rows `start..start + count` of graph `generation`, cut short at what is laid out;
     /// `None` once a newer graph replaced it. A graph's rows get their subject and author
     /// here, read once per row (R-302).
@@ -859,26 +928,14 @@ impl AppState {
             .handle(repo)
             .inspect_err(|err| tracing::error!(error = ?err, context = "graph window"))
             .ok();
-        // The rows are copied under the lock and the texts read after it: a walk's next chunk
-        // waits for neither, and no second `Arc<Laid>` makes its `make_mut` copy the graph.
-        let (total, commits, carried, rows, texts, complete) = {
-            let cache = self.graph.read();
-            let (shown, complete) = cache.view(repo, generation)?;
-            let laid = &shown.laid;
-            let len = laid.rows.len();
-            let from = usize::try_from(start).unwrap_or(usize::MAX).min(len);
-            let to = from
-                .saturating_add(usize::try_from(count).unwrap_or(usize::MAX))
-                .min(len);
-            (
-                laid.total(),
-                laid.commits[from..to].to_vec(),
-                laid.texts.get(from..to).map(<[CommitText]>::to_vec),
-                laid.rows[from..to].to_vec(),
-                shown.texts.clone(),
-                complete,
-            )
-        };
+        let WindowSlice {
+            total,
+            commits,
+            carried,
+            rows,
+            texts,
+            complete,
+        } = self.window_slice(repo, generation, start, count)?;
         let commits = match (&texts, carried) {
             (Some(texts), _) => {
                 let mut texts = texts.lock();
@@ -908,6 +965,7 @@ impl AppState {
 
     /// [`Self::graph_window`] in the wire format (`graph_wire`) as base64: one string for
     /// the `postMessage` transport (R-192, R-194). Empty once a newer graph replaced it.
+    /// A repository on this machine is written straight from the cache.
     #[must_use]
     pub fn graph_window_wire(
         &self,
@@ -916,11 +974,60 @@ impl AppState {
         start: u32,
         count: u32,
     ) -> String {
-        let window = self.graph_window(repo, generation, start, count);
-        let bytes = window
-            .map(|w| crate::graph_wire::encode(&w))
-            .unwrap_or_default();
-        diff_engine::base64(&bytes)
+        let bytes = if self.remote(repo).is_none() {
+            self.local_graph_window_wire(repo, generation, start, count)
+        } else {
+            self.graph_window(repo, generation, start, count)
+                .map(|w| crate::graph_wire::encode(&w))
+        };
+        diff_engine::base64(&bytes.unwrap_or_default())
+    }
+
+    /// [`Self::local_graph_window`] encoded as it is read: no `CommitRow`, no hex string per
+    /// id, no copy of a text the cache holds.
+    fn local_graph_window_wire(
+        &self,
+        repo: RepoId,
+        generation: u32,
+        start: u32,
+        count: u32,
+    ) -> Option<Vec<u8>> {
+        let handle = self
+            .handle(repo)
+            .inspect_err(|err| tracing::error!(error = ?err, context = "graph window"))
+            .ok();
+        let WindowSlice {
+            total,
+            commits,
+            carried,
+            rows,
+            texts,
+            complete,
+        } = self.window_slice(repo, generation, start, count)?;
+        let none = CommitText::default();
+        let encode = |texts: &[&CommitText]| {
+            let wire: Vec<WireNode<'_>> = commits
+                .iter()
+                .zip(texts.iter().copied().chain(std::iter::repeat(&none)))
+                .map(|(node, text)| WireNode { node, text })
+                .collect();
+            crate::graph_wire::encode_rows(start, total, complete, &wire, &rows)
+        };
+        Some(match (&texts, &carried) {
+            (Some(texts), _) => {
+                let mut texts = texts.lock();
+                for node in &commits {
+                    texts.read_missing(node, handle.as_ref());
+                }
+                let refs: Vec<&CommitText> = commits
+                    .iter()
+                    .map(|node| texts.by_oid.get(&node.id).unwrap_or(&none))
+                    .collect();
+                encode(&refs)
+            }
+            (None, Some(carried)) => encode(&carried.iter().collect::<Vec<_>>()),
+            (None, None) => encode(&[]),
+        })
     }
 
     /// The Working Tree row of graph `generation` while a merge is in progress.
