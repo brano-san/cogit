@@ -186,8 +186,10 @@ impl RepoHandle {
             .map_err(|err| GitError::Internal(format!("cannot read commit time: {err}")))?;
 
         // Read in place: only a name or address never seen before is copied.
-        let name = String::from_utf8_lossy(<gix::bstr::BStr as AsRef<[u8]>>::as_ref(author.name));
-        let email = String::from_utf8_lossy(<gix::bstr::BStr as AsRef<[u8]>>::as_ref(author.email));
+        let (name, email) = (
+            crate::search::lossy(author.name),
+            crate::search::lossy(author.email),
+        );
         let (author_name, author_email) = mailmap.canonical(&name, &email);
 
         let text = CommitText {

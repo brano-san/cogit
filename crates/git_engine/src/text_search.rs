@@ -5,7 +5,8 @@ use std::collections::HashMap;
 use gix::bstr::ByteSlice as _;
 use serde::{Deserialize, Serialize};
 
-use crate::{CommitQuery, GraphCommit, Mailmap, RepoHandle};
+use crate::search::{CommitView, lossy};
+use crate::{CommitQuery, Mailmap, RepoHandle};
 
 /// Where the free text of the filter is looked for; any one field matching is enough.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
@@ -267,11 +268,10 @@ impl TextMatch {
     pub(crate) fn matches(
         &self,
         repo: &gix::Repository,
-        commit: &GraphCommit,
+        commit: CommitView<'_>,
         mailmap: &Mailmap,
     ) -> bool {
         let id = commit.id;
-        let row = &commit.text;
         let needle = self.needle.as_str();
         let has = |text: &str| contains_lowered(text, needle);
         let fields = self.fields;
@@ -297,7 +297,7 @@ impl TextMatch {
         {
             return true;
         }
-        if fields.author && (has(&row.author_name) || has(&row.author_email)) {
+        if fields.author && (has(commit.author_name) || has(commit.author_email)) {
             return true;
         }
         if (fields.committer || fields.message)
@@ -309,10 +309,9 @@ impl TextMatch {
             if fields.committer
                 && let Ok(committer) = commit.committer()
             {
-                let (mut name, mut email) =
-                    (committer.name.to_string(), committer.email.to_string());
-                mailmap.apply(&mut name, &mut email);
-                if has(&name) || has(&email) {
+                let (name, email) = (lossy(committer.name), lossy(committer.email));
+                let (name, email) = mailmap.canonical(&name, &email);
+                if has(name) || has(email) {
                     return true;
                 }
             }

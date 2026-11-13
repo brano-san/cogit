@@ -104,16 +104,15 @@ impl RowFilter {
         }
     }
 
-    fn matches(&self, commit: &GraphCommit) -> bool {
-        let text = &commit.text;
+    fn matches(&self, commit: CommitView<'_>) -> bool {
         if let Some(message) = &self.message
-            && !contains_lowered(&text.summary, message)
+            && !contains_lowered(commit.summary, message)
         {
             return false;
         }
         if let Some(author) = &self.author
-            && !contains_lowered(&text.author_name, author)
-            && !contains_lowered(&text.author_email, author)
+            && !contains_lowered(commit.author_name, author)
+            && !contains_lowered(commit.author_email, author)
         {
             return false;
         }
@@ -133,6 +132,17 @@ impl RowFilter {
     }
 }
 
+/// What a filter reads of a commit, borrowed from wherever it was read: a walked row, or
+/// the commit object itself when only the answer is wanted (`ShownBy`).
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct CommitView<'a> {
+    pub(crate) id: gix::ObjectId,
+    pub(crate) time: i64,
+    pub(crate) summary: &'a str,
+    pub(crate) author_name: &'a str,
+    pub(crate) author_email: &'a str,
+}
+
 /// A walked commit as the graph takes it: ids, not hex; `text` stays empty unless read.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GraphCommit {
@@ -144,6 +154,16 @@ pub struct GraphCommit {
 }
 
 impl GraphCommit {
+    pub(crate) fn view(&self) -> CommitView<'_> {
+        CommitView {
+            id: self.id,
+            time: self.time,
+            summary: &self.text.summary,
+            author_name: &self.text.author_name,
+            author_email: &self.text.author_email,
+        }
+    }
+
     /// The row search and history hand out: hex at the IPC edge.
     #[must_use]
     pub fn into_row(self) -> CommitRow {
@@ -360,10 +380,10 @@ impl RepoHandle {
                 break;
             }
             let passes = |repo: &gix::Repository, commit: &GraphCommit| {
-                filter.matches(commit)
+                filter.matches(commit.view())
                     && text
                         .as_ref()
-                        .is_none_or(|text| text.matches(repo, commit, &mailmap))
+                        .is_none_or(|text| text.matches(repo, commit.view(), &mailmap))
             };
             hits.clear();
             match &shared {
@@ -463,7 +483,6 @@ impl RepoHandle {
             filter: RowFilter::of(query),
             mailmap: self.mailmap(),
             text: self.text_match(query),
-            names: std::cell::RefCell::default(),
         }
     }
 
@@ -510,7 +529,11 @@ pub struct ShownBy<'q> {
     filter: RowFilter,
     mailmap: std::sync::Arc<Mailmap>,
     text: Option<TextMatch>,
-    names: std::cell::RefCell<crate::Names>,
+}
+
+/// Text of a commit object as `str`, copied only when it is not UTF-8.
+pub(crate) fn lossy(bytes: &gix::bstr::BStr) -> std::borrow::Cow<'_, str> {
+    String::from_utf8_lossy(<gix::bstr::BStr as AsRef<[u8]>>::as_ref(bytes))
 }
 
 impl ShownBy<'_> {
@@ -521,21 +544,31 @@ impl ShownBy<'_> {
 
     #[must_use]
     pub fn shows_id(&self, handle: &RepoHandle, id: gix::ObjectId) -> bool {
-        let Ok((text, time)) = handle.read_text(id, &self.mailmap, &mut self.names.borrow_mut())
+        // Matched where it lies in the object: nothing is copied for a yes or a no.
+        let Ok(commit) = handle.repo.find_commit(id) else {
+            return false;
+        };
+        let (Ok(message), Ok(author), Ok(time)) =
+            (commit.message(), commit.author(), commit.time())
         else {
             return false;
         };
-        let commit = GraphCommit {
+        let summary = message.summary();
+        let summary = lossy(&summary);
+        let (name, email) = (lossy(author.name), lossy(author.email));
+        let (author_name, author_email) = self.mailmap.canonical(&name, &email);
+        let commit = CommitView {
             id,
-            parents: crate::Parents::new(),
-            time,
-            text,
+            time: time.seconds,
+            summary: &summary,
+            author_name,
+            author_email,
         };
-        self.filter.matches(&commit)
+        self.filter.matches(commit)
             && self
                 .text
                 .as_ref()
-                .is_none_or(|text| text.matches(&handle.repo, &commit, &self.mailmap))
+                .is_none_or(|text| text.matches(&handle.repo, commit, &self.mailmap))
             && self
                 .query
                 .path
