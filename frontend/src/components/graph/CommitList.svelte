@@ -338,9 +338,14 @@
     writeScroll(readScroll() + wheelStep(event.deltaY, event.deltaMode, rowHeight, viewportHeight));
   }
 
-  const range = $derived(
-    visibleRange(scrollTop, viewportHeight, rowHeight, listRows, BUFFER_ROWS),
-  );
+  /** The same object while the window stays put: a scroll inside one row moves only the
+      transform, and nothing that reads the range runs again. */
+  let lastRange = { start: 0, end: 0 };
+  const range = $derived.by(() => {
+    const next = visibleRange(scrollTop, viewportHeight, rowHeight, listRows, BUFFER_ROWS);
+    if (next.start === lastRange.start && next.end === lastRange.end) return lastRange;
+    return (lastRange = next);
+  });
 
   const clipX = Number.POSITIVE_INFINITY;
 
@@ -437,8 +442,9 @@
   const ticks = $derived(
     includeTracked ? withTracked(refTicks.visible, repository.current?.branches ?? []) : refTicks.visible,
   );
+  const NO_LABELS: RefLabel[] = [];
   function labelsOf(oid: string): RefLabel[] {
-    const all = labels.get(oid) ?? [];
+    const all = labels.get(oid) ?? NO_LABELS;
     return selectedRefsOnly ? selectedLabels(all, ticks) : all;
   }
 
@@ -461,8 +467,13 @@
   });
   const empty = $derived(emptyHistory(!isEmptyQuery(graph.query), graph.visibleRefs));
 
+  type VisibleRow = { listRow: number; entry: NonNullable<ReturnType<typeof graph.rowAt>>; author: boolean; avatar: boolean };
+  /** Last window's rows by oid: a row whose fields are unchanged keeps its object, so a
+      one-row shift updates only the row that came in, not every row on screen. */
+  let lastRows = new Map<string, VisibleRow>();
   const visible = $derived.by(() => {
-    const rows = [];
+    const rows: VisibleRow[] = [];
+    const kept = new Map<string, VisibleRow>();
     for (let listRow = range.start; listRow < range.end; listRow++) {
       const commitRow = toCommitRow(listRow, headerRows, wtAt);
       const entry = commitRow === null ? undefined : graph.rowAt(commitRow);
@@ -472,8 +483,15 @@
       // The row above may sit in a block not loaded yet: the author stays until it arrives.
       const author = authorShown(authorLastOnly, entry.commit, aboveRow === null ? undefined : graph.rowAt(aboveRow)?.commit);
       const avatar = authorLastOnly ? author : avatarShown(avatarsChangedOnly, entry.commit.authorEmail, above);
-      rows.push({ listRow, entry, author, avatar });
+      const before = lastRows.get(entry.commit.oid);
+      const row =
+        before && before.listRow === listRow && before.entry === entry && before.author === author && before.avatar === avatar
+          ? before
+          : { listRow, entry, author, avatar };
+      kept.set(entry.commit.oid, row);
+      rows.push(row);
     }
+    lastRows = kept;
     return rows;
   });
 
