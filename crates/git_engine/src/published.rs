@@ -197,7 +197,7 @@ const SLOP: u32 = 5;
 
 struct Node {
     hidden: bool,
-    parents: Vec<ObjectId>,
+    parents: crate::graph_walk::Parents,
 }
 
 #[derive(Default)]

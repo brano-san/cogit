@@ -12,9 +12,10 @@ fn run(view: &mut ViewFilter, history: History, chunk: usize) -> Vec<(String, Ve
     let mut kept = Vec::new();
     for part in history.chunks(chunk) {
         for (oid, parents) in part {
-            let mut parents: Vec<String> = parents.iter().map(|p| (*p).to_owned()).collect();
+            let mut parents: graph_engine::Parents<String> =
+                parents.iter().map(|p| (*p).to_owned()).collect();
             if view.admit(*oid, &mut parents) {
-                kept.push(((*oid).to_owned(), parents));
+                kept.push(((*oid).to_owned(), parents.into_vec()));
             }
         }
     }

@@ -15,6 +15,9 @@ publish = false
 # Versions verified against crates.io on 2026-09-19.
 [workspace.dependencies]
 
+# --- small inline collections ---
+smallvec = { version = "1.16", features = ["union", "const_generics"] }
+
 # --- async / parallelism ---
 tokio = { version = "1.53", features = [
   "rt-multi-thread",

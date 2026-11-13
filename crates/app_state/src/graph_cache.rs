@@ -124,9 +124,9 @@ impl<'a> NodeIndex<'a> {
 }
 
 impl KnownCommits for NodeIndex<'_> {
-    fn time_and_parents(&self, id: &ObjectId) -> Option<(i64, Vec<ObjectId>)> {
+    fn time_and_parents(&self, id: &ObjectId) -> Option<(i64, git_engine::Parents)> {
         let node = self.nodes.get(usize::try_from(*self.at.get(id)?).ok()?)?;
-        Some((node.time, node.parents.to_vec()))
+        Some((node.time, git_engine::Parents::from_slice(&node.parents)))
     }
 }
 

@@ -124,7 +124,7 @@ pub use gitlink::{ModuleProblem, is_foreign_path};
 pub use gix::ObjectId;
 pub use gix::hash::Kind as HashKind;
 pub use gix::hashtable::HashMap as ObjectMap;
-pub use graph_walk::{CutParents, KnownCommits, Reuse, WalkedHistory};
+pub use graph_walk::{CutParents, KnownCommits, Parents, Reuse, WalkedHistory};
 pub use health::{HealthFinding, HealthIssue, case_sensitive};
 pub use history::{CommitRow, CommitText};
 pub use hook_run::HookRun;

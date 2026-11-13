@@ -17,10 +17,13 @@ pub trait CommitId: Clone + Eq + std::hash::Hash + std::fmt::Display + std::fmt:
 
 impl<T: Clone + Eq + std::hash::Hash + std::fmt::Display + std::fmt::Debug> CommitId for T {}
 
+/// A commit's parents: two fit inline, so a merge needs no heap either.
+pub type Parents<I> = smallvec::SmallVec<[I; 2]>;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommitNode<I = String> {
     pub oid: I,
-    pub parents: Vec<I>,
+    pub parents: Parents<I>,
     /// Parents the list does not show; their line ends in an arrow under the node.
     pub hidden: Vec<I>,
 }

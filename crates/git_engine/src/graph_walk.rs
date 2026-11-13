@@ -6,6 +6,9 @@ use crate::RepoHandle;
 use gix::ObjectId;
 use std::collections::{BinaryHeap, HashSet};
 
+/// A commit's parents as a walk reads them: two fit inline.
+pub type Parents = smallvec::SmallVec<[ObjectId; 2]>;
+
 /// What a walk listed of each commit: its commit time and every parent.
 #[derive(Debug, Default, Clone)]
 pub struct WalkedHistory {
@@ -24,19 +27,19 @@ impl WalkedHistory {
                 .sum::<usize>()
     }
 
-    pub(crate) fn push(&mut self, id: ObjectId, time: i64, parents: Vec<ObjectId>) {
-        self.index.insert(id, (time, parents.into_boxed_slice()));
+    pub(crate) fn push(&mut self, id: ObjectId, time: i64, parents: &[ObjectId]) {
+        self.index.insert(id, (time, parents.into()));
     }
 }
 
 pub trait KnownCommits: std::fmt::Debug {
-    fn time_and_parents(&self, id: &ObjectId) -> Option<(i64, Vec<ObjectId>)>;
+    fn time_and_parents(&self, id: &ObjectId) -> Option<(i64, Parents)>;
 }
 
 impl KnownCommits for WalkedHistory {
-    fn time_and_parents(&self, id: &ObjectId) -> Option<(i64, Vec<ObjectId>)> {
+    fn time_and_parents(&self, id: &ObjectId) -> Option<(i64, Parents)> {
         let (time, parents) = self.index.get(id)?;
-        Some((*time, parents.to_vec()))
+        Some((*time, Parents::from_slice(parents)))
     }
 }
 
@@ -78,7 +81,7 @@ pub struct Reuse<'a> {
 }
 
 impl Reuse<'_> {
-    pub(crate) fn read(&self, id: &ObjectId) -> Option<(i64, Vec<ObjectId>)> {
+    pub(crate) fn read(&self, id: &ObjectId) -> Option<(i64, Parents)> {
         self.history.time_and_parents(id)
     }
 }
@@ -86,7 +89,7 @@ impl Reuse<'_> {
 struct Queued {
     time: i64,
     id: ObjectId,
-    parents: Vec<ObjectId>,
+    parents: Parents,
 }
 
 impl Ord for Queued {
@@ -123,7 +126,7 @@ pub(crate) struct ByTime<F> {
 
 impl<F> ByTime<F>
 where
-    F: FnMut(ObjectId) -> Option<(i64, Vec<ObjectId>)>,
+    F: FnMut(ObjectId) -> Option<(i64, Parents)>,
 {
     pub(crate) fn new(
         tips: impl IntoIterator<Item = ObjectId>,
@@ -156,9 +159,9 @@ where
 
 impl<F> Iterator for ByTime<F>
 where
-    F: FnMut(ObjectId) -> Option<(i64, Vec<ObjectId>)>,
+    F: FnMut(ObjectId) -> Option<(i64, Parents)>,
 {
-    type Item = (ObjectId, Vec<ObjectId>, i64);
+    type Item = (ObjectId, Parents, i64);
 
     fn next(&mut self) -> Option<Self::Item> {
         let Queued { id, parents, time } = self.queue.pop()?;
@@ -188,13 +191,13 @@ impl<'a> CommitReader<'a> {
         Self { repo, graph }
     }
 
-    pub(crate) fn read(&self, id: ObjectId) -> Option<(i64, Vec<ObjectId>)> {
+    pub(crate) fn read(&self, id: ObjectId) -> Option<(i64, Parents)> {
         if let Some(graph) = &self.graph
             && let Some(at) = graph.lookup(id)
         {
             let commit = graph.commit_at(at);
             let time = i64::try_from(commit.committer_timestamp()).unwrap_or(i64::MAX);
-            let parents: std::result::Result<Vec<ObjectId>, _> = commit
+            let parents: std::result::Result<Parents, _> = commit
                 .iter_parents()
                 .map(|parent| parent.map(|at| graph.id_at(at).to_owned()))
                 .collect();
@@ -252,7 +255,7 @@ mod tests {
         first_parent: bool,
         shallow: &[u8],
     ) -> Vec<u8> {
-        let by_id: HashMap<ObjectId, (i64, Vec<ObjectId>)> = commits
+        let by_id: HashMap<ObjectId, (i64, super::Parents)> = commits
             .iter()
             .map(|(n, time, parents)| (id(*n), (*time, parents.iter().map(|p| id(*p)).collect())))
             .collect();

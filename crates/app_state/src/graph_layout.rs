@@ -213,7 +213,7 @@ fn mainline_of(
 /// the Working Tree row.
 struct WorkingTree {
     head: git_engine::ObjectId,
-    parents: Vec<git_engine::ObjectId>,
+    parents: git_engine::Parents,
     /// The node's own id: the null id, which no commit has.
     oid: git_engine::ObjectId,
     /// What a cut link to the node is named on the wire, renamed to HEAD's.
@@ -245,7 +245,7 @@ impl WorkingTree {
         };
         let head = git_engine::ObjectId::from_hex(head_hex.as_bytes()).ok()?;
         let oid = git_engine::ObjectId::null(head.kind());
-        let mut parents = vec![head, merge];
+        let mut parents = git_engine::Parents::from_buf([head, merge]);
         if first_parent {
             parents.truncate(1);
         }

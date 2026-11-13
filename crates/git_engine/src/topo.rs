@@ -35,9 +35,20 @@ impl<Id: Copy> Walked<Id> for (Id, Vec<Id>, i64) {
     }
 }
 
+/// The walk's own parents: two inline, as a commit read from the object store has them.
+impl<Id: Copy> Walked<Id> for (Id, smallvec::SmallVec<[Id; 2]>, i64) {
+    fn id(&self) -> Id {
+        self.0
+    }
+
+    fn parents(&self) -> &[Id] {
+        &self.1
+    }
+}
+
 pub(crate) struct AfterHead<T, Id> {
     pub(crate) item: T,
-    parents: Vec<Id>,
+    parents: smallvec::SmallVec<[Id; 2]>,
 }
 
 impl<Id: Copy, T: Walked<Id>> Walked<Id> for AfterHead<T, Id> {
@@ -61,7 +72,7 @@ where
     I: Iterator<Item = T>,
 {
     walk.map(move |item| {
-        let mut parents = item.parents().to_vec();
+        let mut parents = smallvec::SmallVec::from_slice(item.parents());
         if item.id() == head {
             parents.push(merge);
         }

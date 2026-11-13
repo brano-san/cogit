@@ -10,6 +10,7 @@ description = "Commit DAG topology and lane allocation. Deliberately free of any
 
 [dependencies]
 serde.workspace = true
+smallvec.workspace = true
 specta.workspace = true
 
 [dev-dependencies]

@@ -17,9 +17,9 @@ fn interleaved() -> Vec<CommitNode> {
             nodes.push(CommitNode {
                 oid: format!("b{branch}c{depth}"),
                 parents: if depth + 1 < DEPTH {
-                    vec![format!("b{branch}c{}", depth + 1)]
+                    [format!("b{branch}c{}", depth + 1)].into_iter().collect()
                 } else {
-                    Vec::new()
+                    graph_engine::Parents::new()
                 },
                 hidden: Vec::new(),
             });

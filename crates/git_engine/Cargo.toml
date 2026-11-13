@@ -10,6 +10,7 @@ description = "Git reading via gix and mutations via the system git CLI."
 
 [dependencies]
 portable.workspace = true
+smallvec.workspace = true
 gix.workspace = true
 globset.workspace = true
 ignore.workspace = true

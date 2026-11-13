@@ -382,7 +382,7 @@ fn random_histories() -> Vec<(Vec<CommitNode>, Option<String>)> {
                     let hidden = parents.iter().filter(|_| next(5) == 0).cloned().collect();
                     CommitNode {
                         oid: names[i].clone(),
-                        parents,
+                        parents: parents.into(),
                         hidden,
                     }
                 })

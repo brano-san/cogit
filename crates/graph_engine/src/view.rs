@@ -55,7 +55,7 @@ impl<I: Clone + Eq + Hash> ViewFilter<I> {
     }
 
     /// Children come before parents in the walk, so every claim on `oid` is in by now.
-    pub fn admit<Q>(&mut self, oid: &Q, parents: &mut Vec<I>) -> bool
+    pub fn admit<Q>(&mut self, oid: &Q, parents: &mut crate::Parents<I>) -> bool
     where
         I: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
@@ -80,7 +80,7 @@ impl<I: Clone + Eq + Hash> ViewFilter<I> {
         self.rows += 1;
         let folds = self.collapse && !self.expanded.contains(oid);
         if folds && parents.len() > 1 {
-            let merged = parents.split_off(1);
+            let merged: crate::Parents<I> = parents.drain(1..).collect();
             for parent in merged {
                 // A line to a commit the graph shows anyway stays.
                 if self.roots.contains::<I>(&parent) || self.wanted.contains::<I>(&parent) {

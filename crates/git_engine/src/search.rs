@@ -138,7 +138,7 @@ impl RowFilter {
 pub struct GraphCommit {
     pub id: gix::ObjectId,
     /// Git order: the first parent is the mainline, which lane allocation relies on.
-    pub parents: Vec<gix::ObjectId>,
+    pub parents: crate::Parents,
     pub time: i64,
     pub text: CommitText,
 }
@@ -321,7 +321,7 @@ impl RepoHandle {
         &self,
         query: &CommitQuery,
         chunk_size: usize,
-        walk: impl Iterator<Item = (gix::ObjectId, Vec<gix::ObjectId>, i64)>,
+        walk: impl Iterator<Item = (gix::ObjectId, crate::Parents, i64)>,
         mut rows: Rows<'_>,
         mut on_chunk: impl FnMut(Vec<GraphCommit>) -> bool,
     ) -> Result<()> {
@@ -399,7 +399,7 @@ impl RepoHandle {
                 }
 
                 if let Some(record) = rows.record.as_deref_mut() {
-                    record.push(commit.id, commit.time, commit.parents.clone());
+                    record.push(commit.id, commit.time, &commit.parents);
                 }
                 chunk.push(commit);
                 if chunk.len() >= chunk_size {
@@ -425,7 +425,7 @@ impl RepoHandle {
     fn graph_commit(
         &self,
         id: gix::ObjectId,
-        parents: Vec<gix::ObjectId>,
+        parents: crate::Parents,
         time: i64,
         text: bool,
         mailmap: &Mailmap,
@@ -522,7 +522,7 @@ impl ShownBy<'_> {
         };
         let commit = GraphCommit {
             id,
-            parents: Vec::new(),
+            parents: crate::Parents::new(),
             time,
             text,
         };

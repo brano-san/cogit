@@ -240,7 +240,7 @@ fn cut_links_pair_up_and_leave_the_main_line_alone_on_random_histories() {
                 }
                 CommitNode {
                     oid: names[i].clone(),
-                    parents,
+                    parents: parents.into(),
                     hidden: Vec::new(),
                 }
             })

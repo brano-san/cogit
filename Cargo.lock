@@ -1932,6 +1932,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "smallvec",
  "specta",
  "specta-typescript",
  "tempfile",
@@ -2874,6 +2875,7 @@ name = "graph_engine"
 version = "0.6.0"
 dependencies = [
  "serde",
+ "smallvec",
  "specta",
 ]
 

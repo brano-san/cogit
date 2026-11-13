@@ -180,7 +180,7 @@ fn the_main_line_holds_column_zero_on_random_histories() {
             .iter()
             .map(|(oid, parents)| CommitNode {
                 oid: oid.clone(),
-                parents: parents.clone(),
+                parents: parents.iter().cloned().collect(),
                 hidden: Vec::new(),
             })
             .collect();
@@ -246,7 +246,7 @@ fn random_layouts() -> Vec<(Vec<CommitNode>, Vec<GraphRow>)> {
                     let hidden = parents.iter().filter(|_| next(5) == 0).cloned().collect();
                     CommitNode {
                         oid: names[i].clone(),
-                        parents,
+                        parents: parents.into(),
                         hidden,
                     }
                 })
@@ -856,7 +856,7 @@ fn a_merge_of_two_long_branches_keeps_both_lines_straight() {
         .iter()
         .map(|(oid, parents)| CommitNode {
             oid: oid.clone(),
-            parents: parents.clone(),
+            parents: parents.iter().cloned().collect(),
             hidden: vec![],
         })
         .collect();
