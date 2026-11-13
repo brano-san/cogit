@@ -27,6 +27,18 @@ impl ParentRows for Vec<Vec<Option<u32>>> {
     }
 }
 
+impl ParentRows for [crate::ParentSlots] {
+    fn of(&self, row: usize) -> &[Option<u32>] {
+        self.get(row).map_or(&[], |slots| slots.as_slice())
+    }
+}
+
+impl ParentRows for Vec<crate::ParentSlots> {
+    fn of(&self, row: usize) -> &[Option<u32>] {
+        self.as_slice().of(row)
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PaintSpec {
     /// Tips by row with their palette slot; a tip higher up claims its line first.

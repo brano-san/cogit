@@ -51,10 +51,10 @@ fn sample() -> GraphWindow {
                 kind: NodeKind::Merge,
                 primary: true,
                 width: 2,
-                segments: vec![
+                segments: graph_engine::Segments::from_vec(vec![
                     segment(0, 0, Span::Bottom, true, false),
                     segment(0, 1, Span::Bottom, false, false),
-                ],
+                ]),
                 links: Vec::new(),
             },
             GraphRow {
@@ -64,7 +64,13 @@ fn sample() -> GraphWindow {
                 kind: NodeKind::Root,
                 primary: false,
                 width: 2,
-                segments: vec![segment(1, 1, Span::Top, false, true)],
+                segments: graph_engine::Segments::from_vec(vec![segment(
+                    1,
+                    1,
+                    Span::Top,
+                    false,
+                    true,
+                )]),
                 links: vec![LongLink {
                     segment: 0,
                     oid: "c".repeat(40),

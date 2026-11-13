@@ -20,6 +20,12 @@ impl<T: Clone + Eq + std::hash::Hash + std::fmt::Display + std::fmt::Debug> Comm
 /// A commit's parents: two fit inline, so a merge needs no heap either.
 pub type Parents<I> = smallvec::SmallVec<[I; 2]>;
 
+/// A row's segments, inline up to four.
+pub type Segments = smallvec::SmallVec<[Segment; 4]>;
+
+/// The rows of one commit's parents as laid out, `None` when not listed; two inline.
+pub type ParentSlots = smallvec::SmallVec<[Option<u32>; 2]>;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommitNode<I = String> {
     pub oid: I,
@@ -67,7 +73,9 @@ pub struct GraphRow {
     pub primary: bool,
     /// Columns used by the top edge, the node and the bottom edge together.
     pub width: u16,
-    pub segments: Vec<Segment>,
+    // Two or three in most rows; four fit inline, so a row needs no heap of its own.
+    #[specta(type = Vec<Segment>)]
+    pub segments: Segments,
     /// Stubs standing for a link too long to draw whole (R-330), with the far end of each.
     pub links: Vec<LongLink>,
 }

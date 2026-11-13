@@ -50,7 +50,7 @@ pub struct GraphOverlay {
 pub(crate) struct PaintMemo {
     rows: usize,
     index: ObjectMap<ObjectId, u32>,
-    parents: Vec<Vec<Option<u32>>>,
+    parents: Vec<graph_engine::ParentSlots>,
     /// Parents not seen yet, with the commit and slot of each that waits for it.
     pending: ObjectMap<ObjectId, Vec<(usize, usize)>>,
     /// The rows changed since `paint`.
@@ -117,8 +117,12 @@ impl PaintMemo {
                     })
                     .collect();
                 self.parents.push(resolved);
-                self.parents_bytes +=
-                    size_of::<Vec<Option<u32>>>() + commit.parents.len() * size_of::<Option<u32>>();
+                self.parents_bytes += size_of::<graph_engine::ParentSlots>()
+                    + if commit.parents.len() > 2 {
+                        commit.parents.len() * size_of::<Option<u32>>()
+                    } else {
+                        0
+                    };
             }
             self.rows = rows.len();
             self.stale = true;

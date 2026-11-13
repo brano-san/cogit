@@ -66,7 +66,12 @@ fn many_open_lines_are_laid_out_as_they_always_were() {
             assert_eq!(row.lane, u16::try_from(branch).unwrap(), "row {}", row.row);
             assert_eq!(usize::from(row.width), open, "row {}", row.row);
             assert_eq!(row.kind, NodeKind::Normal, "row {}", row.row);
-            assert_eq!(row.segments, expected, "row {}", row.row);
+            assert_eq!(
+                row.segments.as_slice(),
+                expected.as_slice(),
+                "row {}",
+                row.row
+            );
             assert!(row.links.is_empty());
         }
     }

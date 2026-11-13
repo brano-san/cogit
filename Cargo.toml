@@ -16,7 +16,7 @@ publish = false
 [workspace.dependencies]
 
 # --- small inline collections ---
-smallvec = { version = "1.16", features = ["union", "const_generics"] }
+smallvec = { version = "1.16", features = ["union", "const_generics", "serde"] }
 
 # --- async / parallelism ---
 tokio = { version = "1.53", features = [

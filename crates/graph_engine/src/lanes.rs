@@ -216,7 +216,7 @@ fn place<I: CommitId>(node: &CommitNode<I>, cursor: &mut LayoutCursor<I>) -> Gra
     // 4. Each line's column at the top edge, at the node and at the bottom edge: a line
     // passing the row moves between them in the gaps, a turn spanning the gap (07 §5).
     let (mut mid_from, mut to_from) = (0, 0);
-    let mut segments = Vec::with_capacity(above.len() + leaving.len());
+    let mut segments = crate::Segments::with_capacity(above.len() + leaving.len());
     for (index, lane) in above.iter().enumerate() {
         let line = |from: usize, to: usize, span: Span| Segment {
             from: column(from),

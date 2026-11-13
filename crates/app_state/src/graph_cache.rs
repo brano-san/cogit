@@ -73,7 +73,7 @@ pub struct GraphWindow {
 pub(crate) struct Node {
     pub(crate) id: ObjectId,
     pub(crate) time: i64,
-    pub(crate) parents: Box<[ObjectId]>,
+    pub(crate) parents: git_engine::Parents,
 }
 
 pub(crate) fn take_text(commit: &mut GraphCommit) -> CommitText {
@@ -85,7 +85,7 @@ impl Node {
         Self {
             id: commit.id,
             time: commit.time,
-            parents: commit.parents.as_slice().into(),
+            parents: commit.parents.clone(),
         }
     }
 
@@ -102,7 +102,12 @@ impl Node {
     }
 
     fn bytes(&self) -> usize {
-        size_of::<Self>() + self.parents.len() * size_of::<ObjectId>()
+        size_of::<Self>()
+            + if self.parents.spilled() {
+                self.parents.capacity() * size_of::<ObjectId>()
+            } else {
+                0
+            }
     }
 }
 
@@ -126,7 +131,7 @@ impl<'a> NodeIndex<'a> {
 impl KnownCommits for NodeIndex<'_> {
     fn time_and_parents(&self, id: &ObjectId) -> Option<(i64, git_engine::Parents)> {
         let node = self.nodes.get(usize::try_from(*self.at.get(id)?).ok()?)?;
-        Some((node.time, git_engine::Parents::from_slice(&node.parents)))
+        Some((node.time, node.parents.clone()))
     }
 }
 
@@ -572,7 +577,11 @@ fn carried_bytes(text: &CommitText) -> usize {
 
 fn row_bytes(row: &GraphRow) -> usize {
     size_of::<GraphRow>()
-        + row.segments.capacity() * size_of::<graph_engine::Segment>()
+        + if row.segments.spilled() {
+            row.segments.capacity() * size_of::<graph_engine::Segment>()
+        } else {
+            0
+        }
         + row
             .links
             .iter()

@@ -12,23 +12,24 @@ pub type Parents = smallvec::SmallVec<[ObjectId; 2]>;
 /// What a walk listed of each commit: its commit time and every parent.
 #[derive(Debug, Default, Clone)]
 pub struct WalkedHistory {
-    index: gix::hashtable::HashMap<ObjectId, (i64, Box<[ObjectId]>)>,
+    index: gix::hashtable::HashMap<ObjectId, (i64, Parents)>,
 }
 
 impl WalkedHistory {
     /// Roughly what it holds, for a cache that counts bytes.
     #[must_use]
     pub fn bytes(&self) -> usize {
-        self.index.capacity() * (size_of::<(ObjectId, (i64, Box<[ObjectId]>))>() + 1)
+        self.index.capacity() * (size_of::<(ObjectId, (i64, Parents))>() + 1)
             + self
                 .index
                 .values()
-                .map(|(_, parents)| size_of::<ObjectId>() * parents.len())
+                .filter(|(_, parents)| parents.spilled())
+                .map(|(_, parents)| size_of::<ObjectId>() * parents.capacity())
                 .sum::<usize>()
     }
 
     pub(crate) fn push(&mut self, id: ObjectId, time: i64, parents: &[ObjectId]) {
-        self.index.insert(id, (time, parents.into()));
+        self.index.insert(id, (time, Parents::from_slice(parents)));
     }
 }
 
@@ -39,7 +40,7 @@ pub trait KnownCommits: std::fmt::Debug {
 impl KnownCommits for WalkedHistory {
     fn time_and_parents(&self, id: &ObjectId) -> Option<(i64, Parents)> {
         let (time, parents) = self.index.get(id)?;
-        Some((*time, Parents::from_slice(parents)))
+        Some((*time, parents.clone()))
     }
 }
 
