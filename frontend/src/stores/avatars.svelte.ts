@@ -1,11 +1,13 @@
 import { untrack } from "svelte";
+import { SvelteMap } from "svelte/reactivity";
 import { authorsOf, keyOf, mergeRows, type Commitish } from "$lib/avatars";
 import { avatarWindow, avatarsFor, setAvatars, type Author, type AvatarRow } from "$lib/ipc";
 
 class AvatarStore {
   /** Off until asked for: turning it on is what creates the cache directory (M14 T14.3). */
   enabled = $state(false);
-  rows = $state.raw<Map<string, AvatarRow>>(new Map());
+  /** By author: an avatar reads only its own key, so an answer redraws only its authors. */
+  readonly rows = new SvelteMap<string, AvatarRow>();
 
   #window: Commitish[] = [];
   #queued: ReturnType<typeof setTimeout> | undefined;
@@ -27,7 +29,7 @@ class AvatarStore {
       return;
     }
     if (wanted) await this.load(this.#window);
-    else this.rows = new Map();
+    else this.rows.clear();
   }
 
   /** The rows on screen. The whole window goes to the queue every time — that is what
@@ -49,7 +51,7 @@ class AvatarStore {
       await avatarWindow(authors.map((author) => author.email));
       const missing = authors.filter((author) => !this.rows.has(keyOf(author.email)));
       if (missing.length === 0) return;
-      this.rows = mergeRows(this.rows, await avatarsFor(missing));
+      mergeRows(this.rows, await avatarsFor(missing));
     } catch {
       // A missing avatar is a fallback, not a dialog.
     }
@@ -61,10 +63,7 @@ class AvatarStore {
     const author = this.#window.find((row) => keyOf(row.authorEmail) === keyOf(email));
     if (!author) return;
     try {
-      this.rows = mergeRows(
-        this.rows,
-        await avatarsFor([{ name: author.authorName, email: author.authorEmail }]),
-      );
+      mergeRows(this.rows, await avatarsFor([{ name: author.authorName, email: author.authorEmail }]));
     } catch {
       // Same: the row keeps its initials.
     }

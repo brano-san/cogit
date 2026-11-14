@@ -24,18 +24,15 @@ export function authorsOf(rows: readonly Commitish[]): Author[] {
 }
 
 /** A row that arrives without a picture never overwrites one that has it: the queue
-    answers later than the window does, and the avatar would flicker back to initials. */
-export function mergeRows(
-  current: ReadonlyMap<string, AvatarRow>,
-  incoming: readonly AvatarRow[],
-): Map<string, AvatarRow> {
-  const next = new Map(current);
+    answers later than the window does, and the avatar would flicker back to initials.
+    Merged in place: a copy of the whole table per answer made every avatar on screen
+    update, where a reactive map updates only the authors that came. */
+export function mergeRows(rows: Map<string, AvatarRow>, incoming: readonly AvatarRow[]): void {
   for (const row of incoming) {
     const key = keyOf(row.email);
-    const held = next.get(key);
-    next.set(key, held?.image && !row.image ? { ...row, image: held.image } : row);
+    const held = rows.get(key);
+    rows.set(key, held?.image && !row.image ? { ...row, image: held.image } : row);
   }
-  return next;
 }
 
 /** The same letters `avatars::fallback` draws, so a row that has not been answered yet

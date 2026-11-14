@@ -44,34 +44,41 @@ describe("authorsOf", () => {
 });
 
 describe("mergeRows", () => {
+  /** A fresh table with `batches` merged into it in turn. */
+  const merged = (...batches: AvatarRow[][]) => {
+    const rows = new Map<string, AvatarRow>();
+    for (const batch of batches) mergeRows(rows, batch);
+    return rows;
+  };
+
   it("adds what arrived", () => {
-    const merged = mergeRows(new Map(), [row("ada@example.com")]);
-    expect(merged.get("ada@example.com")?.initials).toBe("XX");
+    expect(merged([row("ada@example.com")]).get("ada@example.com")?.initials).toBe("XX");
   });
 
   it("replaces a fallback row once the picture lands", () => {
-    const before = mergeRows(new Map(), [row("ada@example.com")]);
-    const after = mergeRows(before, [row("ada@example.com", "data:image/png;base64,AA")]);
-    expect(after.get("ada@example.com")?.image).toBe("data:image/png;base64,AA");
+    const rows = merged([row("ada@example.com")], [row("ada@example.com", "data:image/png;base64,AA")]);
+    expect(rows.get("ada@example.com")?.image).toBe("data:image/png;base64,AA");
   });
 
   it("does not lose a picture to a later row that has none", () => {
     // A second window can answer before the queue has finished; forgetting the picture
     // would make the row flicker back to initials.
-    const before = mergeRows(new Map(), [row("ada@example.com", "data:image/png;base64,AA")]);
-    const after = mergeRows(before, [row("ada@example.com")]);
-    expect(after.get("ada@example.com")?.image).toBe("data:image/png;base64,AA");
+    const rows = merged([row("ada@example.com", "data:image/png;base64,AA")], [row("ada@example.com")]);
+    expect(rows.get("ada@example.com")?.image).toBe("data:image/png;base64,AA");
   });
 
   it("leaves rows outside the window alone", () => {
-    const before = mergeRows(new Map(), [row("grace@example.com")]);
-    const after = mergeRows(before, [row("ada@example.com")]);
-    expect(after.has("grace@example.com")).toBe(true);
+    expect(merged([row("grace@example.com")], [row("ada@example.com")]).has("grace@example.com")).toBe(true);
   });
 
   it("keys on the normalised address", () => {
-    const merged = mergeRows(new Map(), [row(" Ada@Example.com ")]);
-    expect(merged.has("ada@example.com")).toBe(true);
+    expect(merged([row(" Ada@Example.com ")]).has("ada@example.com")).toBe(true);
+  });
+
+  it("merges into the table it is given, a reactive one too", () => {
+    const rows = new Map<string, AvatarRow>();
+    mergeRows(rows, [row("ada@example.com")]);
+    expect(rows.size).toBe(1);
   });
 });
 

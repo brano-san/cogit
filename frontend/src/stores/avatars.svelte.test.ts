@@ -30,3 +30,30 @@ describe("avatars.apply called from an effect", () => {
     stop();
   });
 });
+
+describe("an answer for some authors", () => {
+  // The table used to be copied per answer: every avatar on screen read the new table and
+  // drew again. A reactive map wakes only the authors that came.
+  it("redraws only the avatars of those authors", async () => {
+    const { mergeRows } = await import("$lib/avatars");
+    const emails = Array.from({ length: 30 }, (_, i) => `a${i}@example.com`);
+    const row = (email: string) => ({ email, initials: "XX", color: "#000", image: null });
+    mergeRows(avatars.rows, emails.map(row));
+    const runs = new Map<string, number>();
+    const stop = $effect.root(() => {
+      for (const email of emails) {
+        $effect(() => {
+          void avatars.look(email);
+          runs.set(email, (runs.get(email) ?? 0) + 1);
+        });
+      }
+    });
+    flushSync();
+    runs.clear();
+    mergeRows(avatars.rows, [{ ...row("a3@example.com"), image: "data:image/png;base64,AA" }]);
+    flushSync();
+    expect([...runs.keys()]).toEqual(["a3@example.com"]);
+    stop();
+    avatars.rows.clear();
+  });
+});
