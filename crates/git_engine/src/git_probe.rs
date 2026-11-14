@@ -103,6 +103,10 @@ pub fn probe_git(program: &str, timeout: Duration) -> GitProbe {
         }
     };
     let stdout = String::from_utf8_lossy(&output.stdout);
+    if output.status.success() {
+        // `git_version` would start the same program to hear the same line.
+        crate::runner::GIT_VERSION.remember(program.into(), stdout.trim().to_owned());
+    }
     match parse_git_version(&stdout) {
         Some(version) if output.status.success() => GitProbe {
             valid: true,

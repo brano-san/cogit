@@ -494,7 +494,18 @@ impl<T: Clone> PerGit<T> {
         *held = Some((program, value.clone()));
         Ok(value)
     }
+
+    /// What `program` was found to be some other way: a probe that ran it already.
+    pub(crate) fn remember(&self, program: std::path::PathBuf, value: T) {
+        *self
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some((program, value));
+    }
 }
+
+/// `git --version` of the git in use: asked once per git, not on every About and start.
+pub(crate) static GIT_VERSION: PerGit<String> = PerGit::new();
 
 /// A git that does not start says which one: set in Preferences, it may not exist. One
 /// that is not there at all is its own error, so the window can offer to find one.
@@ -590,7 +601,7 @@ pub(crate) fn redact_url(arg: &str) -> String {
 /// Which `git` the writes actually go through. Run outside any repository, so it answers
 /// before one is open and cannot fail on a broken working directory.
 pub fn git_version() -> Result<String> {
-    Ok(bare_git(&["--version"])?.stdout.trim().to_owned())
+    GIT_VERSION.get(|| Ok(bare_git(&["--version"])?.stdout.trim().to_owned()))
 }
 
 #[must_use]
