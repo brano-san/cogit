@@ -74,14 +74,15 @@ const pause = (ms) => new Promise((ok) => setTimeout(ok, ms));
 
 /** `steps` wheel notches of `delta` px over the list `selector`, a frame apart. The samples:
     the whole scroll until the page settles (`longest`: the longest frame), how many frames
-    took longer than two, and how many KB the JS heap grew (no collection in between). */
+    took longer than two, how many KB the JS heap grew (no collection in between), and how
+    many layout and style passes it cost. */
 async function wheel(ctx, selector, steps, delta) {
   const cdp = ctx.cdp;
   const at = await cdp.eval(`(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
   await cdp.send("Performance.enable");
-  const heap = async () => (await cdp.send("Performance.getMetrics")).metrics.find((m) => m.name === "JSHeapUsedSize")?.value ?? 0;
+  const metrics = async () => Object.fromEntries((await cdp.send("Performance.getMetrics")).metrics.map((m) => [m.name, m.value]));
   await cdp.send("HeapProfiler.collectGarbage").catch(() => {});
-  const before = await heap();
+  const before = await metrics();
   await cdp.eval(`(() => { const gaps = (window.__wheelGaps = []); let last = performance.now(); window.__wheelOn = true; const tick = (t) => { gaps.push(t - last); last = t; if (window.__wheelOn) requestAnimationFrame(tick); }; requestAnimationFrame(tick); })()`);
   const started = Date.now();
   for (let i = 0; i < steps; i += 1) {
@@ -91,12 +92,16 @@ async function wheel(ctx, selector, steps, delta) {
   await cdp.eval("window.__bench.idle(150, 15000)");
   const total = Date.now() - started - 150;
   const gaps = await cdp.eval("(() => { window.__wheelOn = false; return window.__wheelGaps.slice(1); })()");
-  const grown = (await heap()) - before;
+  const after = await metrics();
+  const grown = (key) => (after[key] ?? 0) - (before[key] ?? 0);
   const longest = Math.max(0, ...gaps);
   return {
     "graph.wheel": { total, longest },
     "graph.wheel.slow-frames": { total: gaps.filter((gap) => gap > 33.4).length, longest },
-    "graph.wheel.heap-kb": { total: Math.round(grown / 1024) },
+    "graph.wheel.heap-kb": { total: Math.round(grown("JSHeapUsedSize") / 1024) },
+    // Every layout and style pass of the scroll, forced ones included.
+    "graph.wheel.layouts": { total: grown("LayoutCount") },
+    "graph.wheel.style-recalcs": { total: grown("RecalcStyleCount") },
   };
 }
 

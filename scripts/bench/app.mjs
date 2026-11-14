@@ -20,6 +20,8 @@ export const SETTINGS = {
     confirmExit: false,
     logLevel: "info",
     firstRunDone: true,
+    // The Welcome dialog would sit over the window and take every click and wheel.
+    startupShowWelcome: false,
   },
 };
 
