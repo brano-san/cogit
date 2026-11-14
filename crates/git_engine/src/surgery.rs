@@ -267,7 +267,17 @@ impl RepoHandle {
         }
         // Through gix: a commit this repository does not have is a refusal, not a failed
         // git command for the Errors window.
-        let oid = self.resolve_commit(rev)?.to_string();
+        let id = self.resolve_commit(rev)?;
+        // A click on a commit asks twice (published, protected): one process, not two.
+        let key = (
+            self.common_dir().to_path_buf(),
+            id,
+            self.remote_refs_fingerprint(),
+        );
+        if let Some(known) = containing().iter().find(|(k, _)| *k == key) {
+            return Ok(known.1.clone());
+        }
+        let oid = id.to_string();
         // Parsed in full: the journal's copy of a long listing is cut in the middle.
         let listed = self.read_git(&[
             "for-each-ref",
@@ -276,13 +286,52 @@ impl RepoHandle {
             &oid,
             "refs/remotes/",
         ])?;
-        Ok(listed
+        let holding: Vec<(String, String)> = listed
             .lines()
             .filter_map(|line| line.trim().split_once(' '))
             .map(|(full, short)| (full.to_owned(), short.to_owned()))
-            .collect())
+            .collect();
+        let mut known = containing();
+        if known.len() == CONTAINING_KEPT {
+            known.pop_front();
+        }
+        known.push_back((key, holding.clone()));
+        Ok(holding)
+    }
+
+    /// Every remote-tracking ref and the object it names, hashed: equal while no remote
+    /// branch moved, came or went.
+    fn remote_refs_fingerprint(&self) -> u64 {
+        use std::hash::{Hash as _, Hasher as _};
+        let mut hasher = std::hash::DefaultHasher::new();
+        if let Ok(platform) = self.repo.references()
+            && let Ok(remotes) = platform.remote_branches()
+        {
+            for reference in remotes.flatten() {
+                reference.name().as_bstr().hash(&mut hasher);
+                if let Some(id) = reference.try_id() {
+                    id.detach().hash(&mut hasher);
+                }
+            }
+        }
+        hasher.finish()
     }
 }
+
+/// The last answers of `for-each-ref --contains`, by repository, commit and the remote
+/// refs it was asked under: the git process is the cost of selecting a commit in a
+/// repository without a commit-graph, and the same commit is asked about twice per click.
+type ContainingKey = (std::path::PathBuf, gix::ObjectId, u64);
+type Containing = std::collections::VecDeque<(ContainingKey, Vec<(String, String)>)>;
+static CONTAINING: std::sync::Mutex<Containing> =
+    std::sync::Mutex::new(std::collections::VecDeque::new());
+
+fn containing() -> std::sync::MutexGuard<'static, Containing> {
+    CONTAINING
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+const CONTAINING_KEPT: usize = 32;
 
 /// Shared branches, unless `cogit.protectedBranches` says otherwise. Rewriting a commit on
 /// one of these costs everybody who has it a divergence, so surgery refuses rather than warns.

@@ -105,3 +105,31 @@ fn without_remote_branches_nothing_protects_and_a_bad_revision_still_fails() {
     assert!(repo.protecting_refs("no-such-rev").is_err());
     assert!(repo.is_published("no-such-rev").is_err());
 }
+
+/// Selecting a commit asks whether it is published and which protected branches hold it:
+/// one `for-each-ref` for both, and again once a remote branch moves (nextest runs each
+/// test in a process of its own, so the count is this test's).
+#[test]
+fn without_a_commit_graph_one_click_starts_one_git() {
+    let (f, base) = diverged();
+    let repo = open(&f);
+
+    let before = git_engine::children::spawned();
+    assert!(repo.is_published(&base).unwrap());
+    repo.protecting_refs(&base).unwrap();
+    assert!(repo.is_published(&base).unwrap());
+    assert_eq!(git_engine::children::spawned() - before, 1);
+
+    f.commit_file(40, "pushed.txt", "pushed\n").unwrap();
+    f.git(&["push", "origin", "HEAD:refs/heads/topic"]).unwrap();
+    f.git(&["fetch", "origin"]).unwrap();
+    let pushed = f.oid("HEAD").unwrap();
+    let repo = open(&f);
+    let before = git_engine::children::spawned();
+    assert!(repo.is_published(&pushed).unwrap());
+    assert!(
+        repo.is_published(&base).unwrap(),
+        "asked again under the moved remote"
+    );
+    assert_eq!(git_engine::children::spawned() - before, 2);
+}
