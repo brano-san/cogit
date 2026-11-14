@@ -15,7 +15,6 @@ import {
   nodeCentre,
   nodeSquare,
   nodeSizes,
-  snapToGrid,
   nodeFill,
   rowStarts,
   striped,
@@ -432,13 +431,6 @@ describe("nodeSizes", () => {
 
   it("draws a crisp 8 px ring with a 2 px stroke at 100 %", () => {
     expect(nodeSizes(1)).toEqual({ ringRadius: 3, ringStroke: 2, dotRadius: 3 });
-  });
-});
-
-describe("snapToGrid", () => {
-  it("lands on a device-pixel corner, past the canvas's own offset", () => {
-    expect(snapToGrid(12.5, 1.25, 0.5) * 1.25 + 0.5).toBe(16);
-    expect(snapToGrid(24, 1, 0)).toBe(24);
   });
 });
 

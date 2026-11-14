@@ -112,14 +112,10 @@ export interface PixelGrid {
 
 export const CSS_GRID: PixelGrid = { ratio: 1, x: 0, y: 0 };
 
-/** A coordinate moved onto the nearest device-pixel corner along one axis of a grid. */
-export function snapToGrid(value: number, ratio: number, offset: number): number {
-  return (Math.round(value * ratio + offset) - offset) / ratio;
-}
-
-/** A node's sizes in whole device pixels, given in CSS pixels. Centred on a pixel corner, a
-    ring's stroke then starts and ends on pixel edges, as the repository icon's outlines do:
-    3.5 and 1.5 put both edges a quarter pixel off the grid and every ring read as blurred. */
+/** A node's sizes in whole device pixels, given in CSS pixels. Centred on a pixel corner (the
+    canvas draws from whole device pixels, `GraphCanvas`), a ring's stroke then starts and ends
+    on pixel edges, as the repository icon's outlines do: 3.5 and 1.5 put both edges a quarter
+    pixel off the grid and every ring read as blurred. */
 export interface NodeSizes {
   ringRadius: number;
   ringStroke: number;

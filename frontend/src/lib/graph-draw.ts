@@ -2,7 +2,6 @@ import {
   CSS_GRID,
   GRAPH,
   nodeSizes,
-  snapToGrid,
   type PixelGrid,
   arrowStub,
   laneX,
@@ -222,7 +221,7 @@ export function paintGraph(context: CanvasRenderingContext2D, scene: GraphScene,
   if (workingTree !== null) {
     const { x, y } = nodeCentre(headerLane ?? headLane ?? 0, headerRow, scrollTop);
     context.beginPath();
-    context.arc(snapToGrid(x, grid.ratio, grid.x), snapToGrid(y, grid.ratio, grid.y), sizes.dotRadius, 0, Math.PI * 2);
+    context.arc(x, y, sizes.dotRadius, 0, Math.PI * 2);
     context.fillStyle = token(workingTree === "clean" ? "--graph-working-tree-clean" : "--graph-working-tree-changed");
     context.fill();
   }
@@ -237,8 +236,11 @@ export function paintGraph(context: CanvasRenderingContext2D, scene: GraphScene,
     const local = !row.stash && row.unpushed === true;
     nodeFillInto(behind, row.listRow, selectedRows, hoverRow, stripes, row.bisect?.tint ?? null);
     // `nodeCentre` and `nodeSquare`, without their objects, on a device-pixel corner.
-    const x = snapToGrid(laneX(row.layout.lane), grid.ratio, grid.x);
-    const y = snapToGrid(rowY(row.listRow, scrollTop), grid.ratio, grid.y);
+    // On the line's own centre: the drawing's origin and scroll are whole device pixels
+    // already, so at a whole ratio this is on the grid with its lines; at 125 % a ring
+    // snapped apart from them sat beside them.
+    const x = laneX(row.layout.lane);
+    const y = rowY(row.listRow, scrollTop);
     context.beginPath();
     if (row.stash) {
       const size = sizes.ringRadius * 2;

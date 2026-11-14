@@ -77,10 +77,15 @@
     drawnBox = box;
     const ratio = dpr > 0 ? dpr : 1;
     // Off the device-pixel grid the compositor resamples the bitmap and blurs every line: the
-    // canvas moves back onto the grid and the drawing forward by as much, level with the rows.
+    // canvas moves back onto the grid. The drawing moves forward by whole device pixels only,
+    // the nearest to that fraction: forward by the fraction itself put every line between two
+    // pixels, blurred, and a ring snapped to the grid beside its line. Half a pixel off the
+    // rows at most, which no eye sees.
     const host = canvas.parentElement?.getBoundingClientRect();
-    const off = host ? subpixelOffset(host.left, host.top, ratio) : { x: 0, y: 0 };
-    canvas.style.transform = off.x || off.y ? `translate(${-off.x / ratio}px, ${-off.y / ratio}px)` : "";
+    const fraction = host ? subpixelOffset(host.left, host.top, ratio) : { x: 0, y: 0 };
+    canvas.style.transform =
+      fraction.x || fraction.y ? `translate(${-fraction.x / ratio}px, ${-fraction.y / ratio}px)` : "";
+    const off = { x: Math.round(fraction.x), y: Math.round(fraction.y) };
     context.setTransform(1, 0, 0, 1, 0, 0);
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.setTransform(ratio, 0, 0, ratio, off.x, off.y);
@@ -92,7 +97,8 @@
       context,
       {
         rows,
-        scrollTop,
+        // A glide stops between pixels; drawn there, every edge across the rows blurred.
+        scrollTop: Math.round(scrollTop * ratio) / ratio,
         height,
         headRow,
         headLane,
