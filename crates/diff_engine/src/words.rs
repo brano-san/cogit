@@ -11,8 +11,15 @@ fn is_operator_char(ch: char) -> bool {
     )
 }
 
-fn tokenize(text: &str) -> Vec<&str> {
-    let mut tokens = Vec::new();
+/// Token buffers kept across the line pairs of one diff: each pair fills them again.
+#[derive(Debug, Default)]
+pub(crate) struct Tokens<'a> {
+    old: Vec<&'a str>,
+    new: Vec<&'a str>,
+}
+
+fn tokenize_into<'a>(text: &'a str, tokens: &mut Vec<&'a str>) {
+    tokens.clear();
     let mut chars = text.char_indices().peekable();
 
     while let Some((start, ch)) = chars.next() {
@@ -52,17 +59,24 @@ fn tokenize(text: &str) -> Vec<&str> {
         let end = chars.peek().map_or(text.len(), |&(idx, _)| idx);
         tokens.push(&text[start..end]);
     }
-
-    tokens
 }
 
 /// Changed words on each side, in **UTF-16 units**: the consumer is JavaScript, where a
 /// string index is a UTF-16 unit (doc/12-risks.md, R-10).
 #[must_use]
 pub fn inline_spans(old: &str, new: &str) -> (Spans, Spans) {
-    let old_tokens = tokenize(old);
-    let new_tokens = tokenize(new);
-    let diff = TextDiff::from_slices(&old_tokens, &new_tokens);
+    inline_spans_in(old, new, &mut Tokens::default())
+}
+
+/// `inline_spans` that tokenizes into `tokens`, kept from the pair before.
+pub(crate) fn inline_spans_in<'a>(
+    old: &'a str,
+    new: &'a str,
+    tokens: &mut Tokens<'a>,
+) -> (Spans, Spans) {
+    tokenize_into(old, &mut tokens.old);
+    tokenize_into(new, &mut tokens.new);
+    let diff = TextDiff::from_slices(&tokens.old, &tokens.new);
 
     let mut old_spans = Spans::new();
     let mut new_spans = Spans::new();

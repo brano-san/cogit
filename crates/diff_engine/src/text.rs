@@ -1,7 +1,6 @@
 use crate::{
     Algorithm, BinaryCause, BlobSide, Content, DiffOptions, DiffRow, EolInfo, FileDiff, Hunk,
-    LineEnding, Spans, Whitespace, block_is_comparable, detect_line_ending, inline_spans,
-    normalize_line_endings,
+    LineEnding, Spans, Whitespace, block_is_comparable, detect_line_ending, normalize_line_endings,
 };
 use imara_diff::{Diff, InternedInput, Interner, Token, sources::lines};
 use std::borrow::Cow;
@@ -348,6 +347,8 @@ fn build(
     let mut rows = Vec::with_capacity((old_to - old_from + inserted) as usize);
     let mut old_at = old_from;
     let mut new_at = new_from;
+    // Word diff of each line pair tokenizes into the same two buffers.
+    let mut tokens = crate::words::Tokens::default();
 
     for change in group {
         while old_at < change.before.start {
@@ -367,7 +368,7 @@ fn build(
                 deleted
                     .iter()
                     .zip(&inserted)
-                    .map(|(old, new)| inline_spans(old, new))
+                    .map(|(old, new)| crate::words::inline_spans_in(old, new, &mut tokens))
                     .unzip()
             } else {
                 (Vec::new(), Vec::new())
