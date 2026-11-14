@@ -113,3 +113,53 @@ fn allocations_of_the_layout() {
         );
     }
 }
+
+/// A repaint of the whole graph, as a click with ancestry highlighting asks for: the same
+/// rows painted again with another chosen commit. The digest proves the paint unchanged.
+#[test]
+#[ignore = "needs COGIT_BENCH_LOG"]
+fn allocations_of_a_repaint() {
+    let Ok(path) = std::env::var("COGIT_BENCH_LOG") else {
+        return;
+    };
+    let log = std::fs::read_to_string(path).unwrap();
+    let commits = nodes(&log);
+    let mut cursor = LayoutCursor::default().with_long_links(40);
+    let mut rows = push(commits.clone(), &mut cursor);
+    rows.extend(finish(&mut cursor));
+    let at: std::collections::HashMap<&str, u32> = commits
+        .iter()
+        .enumerate()
+        .map(|(row, node)| (node.oid.as_str(), u32::try_from(row).unwrap()))
+        .collect();
+    let parents: Vec<Vec<Option<u32>>> = commits
+        .iter()
+        .map(|node| {
+            node.parents
+                .iter()
+                .map(|p| at.get(p.as_str()).copied())
+                .collect()
+        })
+        .collect();
+    let row_of = |oid: &str| at.get(oid).copied();
+    let mut hasher = DefaultHasher::new();
+    for (i, chosen) in [100_u32, 2_000, 20_000, 40_000, 100]
+        .into_iter()
+        .enumerate()
+    {
+        let spec = graph_engine::PaintSpec {
+            tips: vec![(0, 1)],
+            ancestry_of: Some(chosen),
+            ..graph_engine::PaintSpec::default()
+        };
+        let started = std::time::Instant::now();
+        let (paint, n, b) = counted(|| graph_engine::paint(&rows, &parents, &row_of, &spec));
+        let ms = started.elapsed().as_secs_f64() * 1000.0;
+        format!("{paint:?}").hash(&mut hasher);
+        println!(
+            "repaint {i} (chosen {chosen:>5}): {n:>6} allocs {:>8} KiB  {ms:>6.2} ms",
+            b / 1024
+        );
+    }
+    println!("paint digest {:016x}", hasher.finish());
+}
