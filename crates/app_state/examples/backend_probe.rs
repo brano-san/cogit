@@ -110,5 +110,26 @@ fn main() {
                     .map_err(|e| e.to_string())
             });
         }
+        // Every staged file, as Files asks for the index: its sides come from the index, not
+        // from two trees.
+        let staged: Vec<String> = state
+            .worktree_files(repo, git_engine::WorktreeView::default())
+            .map(|files| files.staged.iter().map(|file| file.path.clone()).collect())
+            .unwrap_or_default();
+        if !staged.is_empty() {
+            let spec = git_engine::DiffSpec::IndexVsHead;
+            time(&format!("diff_files index {}", staged.len()), || {
+                state
+                    .diff_files(
+                        repo,
+                        &spec,
+                        &staged,
+                        &diff_engine::DiffOptions::default(),
+                        0,
+                    )
+                    .map(|_| ())
+                    .map_err(|e| e.to_string())
+            });
+        }
     }
 }
