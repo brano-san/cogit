@@ -32,7 +32,7 @@ pub(crate) fn top_level_nodes(base: &str, language: &str) -> Option<Vec<Node>> {
     )
 }
 
-fn node_of(nodes: &[Node], edit: &Edit) -> Option<usize> {
+fn node_of(nodes: &[Node], edit: &Edit<'_>) -> Option<usize> {
     // An insertion has an empty base range; it belongs to the node it is inside.
     let touched = edit.base.start..edit.base.end.max(edit.base.start + 1);
     let mut found = None;
@@ -49,13 +49,13 @@ fn node_of(nodes: &[Node], edit: &Edit) -> Option<usize> {
 
 /// The two sides combined, when every edit of each lands in a node the other never
 /// touched. Anything less certain returns `None` and the region stays a conflict.
-pub(crate) fn settle(
+pub(crate) fn settle<'a>(
     nodes: &[Node],
-    base: &[String],
+    base: &[&'a str],
     span: Range<usize>,
-    ours: &[Edit],
-    theirs: &[Edit],
-) -> Option<Vec<String>> {
+    ours: &[Edit<'a>],
+    theirs: &[Edit<'a>],
+) -> Option<Vec<&'a str>> {
     if ours.is_empty() || theirs.is_empty() {
         return None;
     }
@@ -72,7 +72,7 @@ pub(crate) fn settle(
         return None;
     }
 
-    let mut combined: Vec<&Edit> = ours.iter().chain(theirs.iter()).collect();
+    let mut combined: Vec<&Edit<'a>> = ours.iter().chain(theirs.iter()).collect();
     combined.sort_by_key(|edit| edit.base.start);
     // Two edits that overlap in the base cannot both be applied, whatever the tree says.
     if combined
@@ -82,12 +82,5 @@ pub(crate) fn settle(
         return None;
     }
 
-    let owned: Vec<Edit> = combined
-        .into_iter()
-        .map(|edit| Edit {
-            base: edit.base.clone(),
-            lines: edit.lines.clone(),
-        })
-        .collect();
-    Some(apply(base, &owned, span))
+    Some(apply(base, combined, span))
 }
