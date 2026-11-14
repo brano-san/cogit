@@ -7,8 +7,10 @@ pub fn with_hunk_context(diff: &mut FileDiff, old_text: &str) {
     let FileDiff::Text { hunks, .. } = diff else {
         return;
     };
-    let lines: Vec<&str> = old_text.lines().collect();
-
+    // One pass over the lines for all hunks, which come in order: the last line that
+    // declares something above each is the one carried along so far.
+    let mut lines = old_text.lines();
+    let (mut read, mut context) = (0, None);
     for hunk in hunks.iter_mut() {
         // An empty old side starts at the line it follows, which is above the change too.
         let above = if hunk.old_lines == 0 {
@@ -16,15 +18,22 @@ pub fn with_hunk_context(diff: &mut FileDiff, old_text: &str) {
         } else {
             hunk.old_start.saturating_sub(1)
         } as usize;
-        let Some(context) = lines[..above.min(lines.len())]
-            .iter()
-            .rev()
-            .find(|line| declares(line))
-        else {
+        if above < read {
+            (lines, read, context) = (old_text.lines(), 0, None);
+        }
+        while read < above {
+            let Some(line) = lines.next() else { break };
+            read += 1;
+            if declares(line) {
+                context = Some(line);
+            }
+        }
+        let Some(context) = context else {
             continue;
         };
-        let trimmed: String = context.trim_end().chars().take(MAX_CONTEXT).collect();
-        hunk.header = format!("{} {trimmed}", hunk.header);
+        hunk.header.push(' ');
+        hunk.header
+            .extend(context.trim_end().chars().take(MAX_CONTEXT));
     }
 }
 
