@@ -304,6 +304,21 @@ impl RepoHandle {
         if present.is_empty() {
             return Ok(Vec::new());
         }
+        // A commit without a signature header is "N" without asking git: most histories sign
+        // nothing, and every window of the graph cost a process for that answer.
+        let (signed, unsigned): (Vec<&str>, Vec<&str>) =
+            present.into_iter().partition(|oid| self.is_signed(oid));
+        let mut statuses: Vec<SignatureStatus> = unsigned
+            .into_iter()
+            .map(|oid| SignatureStatus {
+                oid: oid.to_owned(),
+                status: "N".to_owned(),
+                signer: String::new(),
+            })
+            .collect();
+        if signed.is_empty() {
+            return Ok(statuses);
+        }
         let mut args = vec![
             "log",
             "--no-show-signature",
@@ -311,23 +326,34 @@ impl RepoHandle {
             "--no-walk=unsorted",
             "--format=%H%x00%G?%x00%GS%x1e",
         ];
-        args.extend(present);
+        args.extend(signed);
         args.push("--");
         let text = self.read_git(&args)?;
-        Ok(text
-            .split('\x1e')
-            .filter_map(|record| {
-                let mut fields = record.trim_start_matches('\n').splitn(3, '\0');
-                let oid = fields.next().filter(|oid| !oid.is_empty())?.to_owned();
-                let mut next = || fields.next().unwrap_or_default().trim().to_owned();
-                let status = self.status_of_signed(&oid, next());
-                Some(SignatureStatus {
-                    oid,
-                    status,
-                    signer: next(),
-                })
+        statuses.extend(text.split('\x1e').filter_map(|record| {
+            let mut fields = record.trim_start_matches('\n').splitn(3, '\0');
+            let oid = fields.next().filter(|oid| !oid.is_empty())?.to_owned();
+            let mut next = || fields.next().unwrap_or_default().trim().to_owned();
+            let status = self.status_of_signed(&oid, next());
+            Some(SignatureStatus {
+                oid,
+                status,
+                signer: next(),
             })
-            .collect())
+        }));
+        Ok(statuses)
+    }
+
+    /// Whether the commit carries a signature header; one that cannot be read is asked about.
+    fn is_signed(&self, rev: &str) -> bool {
+        self.find_commit(rev)
+            .ok()
+            .and_then(|commit| {
+                commit
+                    .decode()
+                    .ok()
+                    .map(|decoded| carries_signature(&decoded))
+            })
+            .unwrap_or(true)
     }
 
     fn status_of_signed(&self, rev: &str, status: String) -> String {

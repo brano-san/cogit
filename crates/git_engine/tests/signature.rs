@@ -114,3 +114,47 @@ fn a_name_that_is_not_a_hash_is_never_passed_to_git() {
     assert!(found.is_empty());
     assert!(!f.path().join("x").exists());
 }
+
+/// Commits without a signature header are "N" with no git started: a window of the graph
+/// of an unsigned history costs no process (nextest gives each test its own process).
+#[test]
+fn unsigned_commits_are_answered_without_git() {
+    let f = test_fixtures::linear(3).unwrap();
+    let repo = RepoHandle::open(f.path()).unwrap();
+    let oids: Vec<String> = ["HEAD", "HEAD~1", "HEAD~2"]
+        .iter()
+        .map(|rev| f.oid(rev).unwrap())
+        .collect();
+
+    let before = git_engine::children::spawned();
+    let statuses = repo.commit_signatures(&oids).unwrap();
+
+    assert_eq!(git_engine::children::spawned(), before);
+    assert_eq!(statuses.len(), 3);
+    assert!(
+        statuses
+            .iter()
+            .all(|s| s.status == "N" && s.signer.is_empty())
+    );
+}
+
+/// Mixed: the signed commit is still asked about, the unsigned one is not.
+#[test]
+fn a_signed_commit_beside_unsigned_ones_is_still_verified() {
+    let Some(f) = signed() else { return };
+    let repo = RepoHandle::open(f.path()).unwrap();
+    let oids = vec![f.oid("HEAD").unwrap(), f.oid("HEAD~1").unwrap()];
+
+    let statuses = repo.commit_signatures(&oids).unwrap();
+
+    let of = |oid: &str| {
+        statuses
+            .iter()
+            .find(|s| s.oid == oid)
+            .unwrap()
+            .status
+            .clone()
+    };
+    assert_ne!(of(&oids[0]), "N", "the signed one was verified");
+    assert_eq!(of(&oids[1]), "N");
+}
