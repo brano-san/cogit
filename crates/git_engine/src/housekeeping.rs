@@ -67,6 +67,70 @@ struct ObjectCounts {
     pack_kib: u64,
 }
 
+impl RepoHandle {
+    /// `git count-objects -v` read from the object directory itself, on every open, without
+    /// a process: loose objects by their file names, packs by their `.idx` fan-out (whose
+    /// last entry is the object count), `size-pack` as pack plus index bytes. `None` when
+    /// the directory or a pack index cannot be read; git is asked then.
+    fn object_counts(&self) -> Option<ObjectCounts> {
+        let objects = self.repo.objects.store_ref().path().to_path_buf();
+        let hex_len = self.repo.object_hash().len_in_hex() - 2;
+        let hex_name = |name: &std::ffi::OsStr, len: usize| {
+            let name = name.to_string_lossy();
+            name.len() == len && name.bytes().all(|b| b.is_ascii_hexdigit())
+        };
+        let mut counts = ObjectCounts::default();
+        for entry in std::fs::read_dir(&objects).ok()?.flatten() {
+            if !hex_name(&entry.file_name(), 2) {
+                continue;
+            }
+            let Ok(files) = std::fs::read_dir(entry.path()) else {
+                continue;
+            };
+            counts.loose += files
+                .flatten()
+                .filter(|file| hex_name(&file.file_name(), hex_len))
+                .count() as u64;
+        }
+        let mut pack_bytes = 0_u64;
+        if let Ok(packs) = std::fs::read_dir(objects.join("pack")) {
+            for entry in packs.flatten() {
+                let path = entry.path();
+                if path.extension().is_none_or(|ext| ext != "pack") {
+                    continue;
+                }
+                let index = path.with_extension("idx");
+                let Ok(index_meta) = std::fs::metadata(&index) else {
+                    continue;
+                };
+                counts.in_pack += index_object_count(&index)?;
+                counts.packs += 1;
+                pack_bytes += entry.metadata().map_or(0, |meta| meta.len()) + index_meta.len();
+            }
+        }
+        counts.pack_kib = pack_bytes / 1024;
+        Some(counts)
+    }
+}
+
+/// The object count of a pack index: the last of its 256 fan-out entries, after the v2
+/// header (magic `ff 74 4f 63`, then the version) or at the very start of a v1 index.
+fn index_object_count(index: &std::path::Path) -> Option<u64> {
+    use std::io::{Read as _, Seek as _, SeekFrom};
+    let mut file = std::fs::File::open(index).ok()?;
+    let mut head = [0_u8; 8];
+    file.read_exact(&mut head).ok()?;
+    let fanout = if head[..4] == [0xff, b't', b'O', b'c'] {
+        8
+    } else {
+        0
+    };
+    file.seek(SeekFrom::Start(fanout + 255 * 4)).ok()?;
+    let mut last = [0_u8; 4];
+    file.read_exact(&mut last).ok()?;
+    Some(u64::from(u32::from_be_bytes(last)))
+}
+
 fn parse_count_objects(text: &str) -> ObjectCounts {
     let mut counts = ObjectCounts::default();
     for line in text.lines() {
@@ -119,16 +183,17 @@ impl RepoHandle {
     }
 
     fn object_issues(&self) -> Vec<HealthIssue> {
-        // `UnsafeDirectory` says it already; count-objects would only add a refusal.
-        if self.git_refuses() {
-            return Vec::new();
-        }
-        let counts = match self.read_git(&["count-objects", "-v"]) {
-            Ok(text) => parse_count_objects(&text),
-            Err(err) => {
-                tracing::warn!(error = ?err, context = "count-objects for health");
-                return Vec::new();
-            }
+        let counts = match self.object_counts() {
+            Some(counts) => counts,
+            // `UnsafeDirectory` says it already; count-objects would only add a refusal.
+            None if self.git_refuses() => return Vec::new(),
+            None => match self.read_git(&["count-objects", "-v"]) {
+                Ok(text) => parse_count_objects(&text),
+                Err(err) => {
+                    tracing::warn!(error = ?err, context = "count-objects for health");
+                    return Vec::new();
+                }
+            },
         };
         let config = self.repo.config_snapshot();
         let int = |key: &str, default: u64| {
@@ -359,6 +424,23 @@ impl RepoHandle {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The object directory read by hand says what `git count-objects -v` says, with loose
+    /// objects only, with packs only, and with both.
+    #[test]
+    fn object_counts_match_git_count_objects() {
+        let f = test_fixtures::linear(5).unwrap();
+        let check = |when: &str| {
+            let repo = RepoHandle::open(f.path()).unwrap();
+            let git = parse_count_objects(&f.git(&["count-objects", "-v"]).unwrap());
+            assert_eq!(repo.object_counts(), Some(git), "{when}");
+        };
+        check("loose only");
+        f.git(&["gc", "--quiet"]).unwrap();
+        check("packed");
+        f.commit_file(9, "later.txt", "later\n").unwrap();
+        check("packs and loose");
+    }
 
     #[test]
     fn count_objects_verbose_is_read() {
