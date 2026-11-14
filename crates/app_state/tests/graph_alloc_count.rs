@@ -168,6 +168,23 @@ fn allocations_of_the_graph_path() {
         "wire digest {:016x}",
         digest(&filtered, filtered_repo, filtered_gen, rows)
     );
+
+    // Show Graph While Filtering: lines drawn through what the filter leaves out (F-561).
+    let lined = AppState::new();
+    let lined_repo = lined.open_repository(Path::new(&path)).unwrap().repo;
+    let with_lines = CommitQuery {
+        view: git_engine::GraphView {
+            filtered_graph: true,
+            ..git_engine::GraphView::default()
+        },
+        ..by_author
+    };
+    let ((lined_gen, rows), n, b) = counted(|| build(&lined, lined_repo, &with_lines));
+    line("filtered with lines (every commit)", n, b, u64::from(rows));
+    println!(
+        "wire digest {:016x}",
+        digest(&lined, lined_repo, lined_gen, rows)
+    );
 }
 
 /// The wire bytes of the whole graph: equal before and after means the layout is too.

@@ -96,7 +96,8 @@ pub(crate) fn lay_out(
                 while let Some(pass) = passes.next_if(|pass| pass.before <= at) {
                     graph_engine::pass_through(&mut cursor, &pass.oid, pass.first_parent.as_ref());
                 }
-                rows.extend(graph_engine::push(vec![node], &mut cursor));
+                // One at a time, between the commits passed through, onto the chunk's rows.
+                graph_engine::push_into(std::iter::once(node), &mut cursor, &mut rows);
             }
             for pass in passes {
                 graph_engine::pass_through(&mut cursor, &pass.oid, pass.first_parent.as_ref());
