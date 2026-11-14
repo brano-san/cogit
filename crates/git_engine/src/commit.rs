@@ -288,6 +288,10 @@ impl RepoHandle {
     }
 
     pub fn commit_signatures(&self, oids: &[String]) -> Result<Vec<SignatureStatus>> {
+        // A background read git would refuse: unknown, not one error per window of rows.
+        if self.git_refuses() {
+            return Ok(Vec::new());
+        }
         let present: Vec<&str> = oids
             .iter()
             .map(String::as_str)

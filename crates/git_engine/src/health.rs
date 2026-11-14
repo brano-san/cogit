@@ -125,6 +125,14 @@ pub fn case_sensitive(dir: &Path) -> std::io::Result<bool> {
 }
 
 impl RepoHandle {
+    /// Owned by another user and not in `safe.directory`: every git command refuses here
+    /// ("detected dubious ownership"). gix reads it all the same; the health check says why
+    /// and offers to trust it (`UnsafeDirectory`).
+    #[must_use]
+    pub fn git_refuses(&self) -> bool {
+        self.repo.git_dir_trust() == gix::sec::Trust::Reduced
+    }
+
     pub fn trust_directory(&self) -> crate::Result<()> {
         let path = crate::slash_path(self.root());
         self.run_git(&["config", "--global", "--add", "safe.directory", &path])?;

@@ -119,6 +119,10 @@ impl RepoHandle {
     }
 
     fn object_issues(&self) -> Vec<HealthIssue> {
+        // `UnsafeDirectory` says it already; count-objects would only add a refusal.
+        if self.git_refuses() {
+            return Vec::new();
+        }
         let counts = match self.read_git(&["count-objects", "-v"]) {
             Ok(text) => parse_count_objects(&text),
             Err(err) => {
