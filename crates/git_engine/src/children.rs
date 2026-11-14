@@ -11,6 +11,14 @@ use std::time::{Duration, Instant};
 
 static RUNNING: Mutex<BTreeSet<u32>> = Mutex::new(BTreeSet::new());
 static STOPPING: AtomicBool = AtomicBool::new(false);
+/// Processes started since launch: each costs 5-30 ms on Windows, so it is counted.
+static SPAWNED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// How many processes Cogit has started so far.
+#[must_use]
+pub fn spawned() -> u64 {
+    SPAWNED.load(Ordering::Relaxed)
+}
 
 #[derive(Debug)]
 pub(crate) struct Tracked(u32);
@@ -36,6 +44,13 @@ pub(crate) fn spawn(command: &mut Command) -> std::io::Result<(Child, Tracked)> 
         command.process_group(0);
     }
     let child = command.spawn()?;
+    SPAWNED.fetch_add(1, Ordering::Relaxed);
+    // What runs, for counting spawns per action in a debug log (doc/14-profiling.md).
+    tracing::debug!(
+        program = ?command.get_program(),
+        args = %spawn_summary(command),
+        "spawn"
+    );
     let late = {
         let mut running = RUNNING.lock().unwrap_or_else(PoisonError::into_inner);
         running.insert(child.id());
@@ -48,6 +63,24 @@ pub(crate) fn spawn(command: &mut Command) -> std::io::Result<(Child, Tracked)> 
         return Err(exiting());
     }
     Ok((child, tracked))
+}
+
+/// The first arguments that say what a command does, past git's `-c key=value` options;
+/// never a path list or a credential.
+fn spawn_summary(command: &Command) -> String {
+    let mut words = Vec::new();
+    let mut args = command.get_args().map(|arg| arg.to_string_lossy());
+    while let Some(arg) = args.next() {
+        if arg == "-c" {
+            args.next();
+            continue;
+        }
+        words.push(arg.chars().take(40).collect::<String>());
+        if words.len() == 3 {
+            break;
+        }
+    }
+    words.join(" ")
 }
 
 /// How long a command's output is waited for once git has exited: what a process it
