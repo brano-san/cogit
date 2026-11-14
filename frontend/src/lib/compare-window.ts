@@ -3,14 +3,15 @@ import { closeThisWindow, commitDetails, type DiffSpec, type OpenModule, type Re
 import { askToOpenModule } from "$lib/module-open";
 
 export interface CompareLoad {
-  settings: { load(): Promise<void>; current: { ignoreWhitespace: Whitespace } };
+  settings: { ready(): Promise<void>; current: { ignoreWhitespace: Whitespace } };
   diff: { whitespace: Whitespace; load(repo: RepoId, spec: DiffSpec, path: string): Promise<void> };
 }
 
 /** Preferences first: the diff takes its context lines and whitespace from them, and
-    started beside the settings read it took the defaults. */
+    started beside the settings read it took the defaults. Read once: a spare window has
+    usually read them already while it waited (`spare.ts`). */
 export async function loadCompare(request: CompareRequest, { settings, diff }: CompareLoad): Promise<void> {
-  await settings.load();
+  await settings.ready();
   diff.whitespace = settings.current.ignoreWhitespace;
   await diff.load(request.repo, request.spec, request.path);
 }

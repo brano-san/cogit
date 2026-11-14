@@ -10,6 +10,8 @@ import "./boot";
 import { commands } from "$lib/ipc/bindings";
 import { windowOf, type ChildWindow } from "$lib/spare-window";
 import { bootTheme } from "$stores/theme.svelte";
+import { settings } from "$stores/settings.svelte";
+import { followSettings } from "$lib/settings-sync";
 
 const WINDOWS: Record<ChildWindow, Component> = {
   blame: BlameWindow,
@@ -25,6 +27,11 @@ const target = document.getElementById("app");
 if (!target) {
   throw new Error("mount target #app is missing from spare.html");
 }
+
+// Read while waiting, and kept current: the window this becomes starts on them at once
+// instead of three round trips after it was asked for (a diff window said "Loading…").
+void settings.ready();
+followSettings(() => void settings.reload());
 
 void (async () => {
   const address = await commands.spareWait();

@@ -103,3 +103,22 @@ describe("a disk that refuses the settings", () => {
     expect(announced).toHaveLength(0);
   });
 });
+
+// A spare window reads the settings while it waits; the window it becomes must take that
+// read, not start another, and a change elsewhere must still reach it.
+describe("ready", () => {
+  it("shares the first read and takes a reload's", async () => {
+    const load = vi.spyOn(settings, "load");
+    await settings.reload();
+    load.mockClear();
+    await Promise.all([settings.ready(), settings.ready()]);
+    expect(load).not.toHaveBeenCalled();
+
+    stored.set("settings", { dateFormat: "relative", contextLines: 9 });
+    await settings.reload();
+    await settings.ready();
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(settings.current.contextLines).toBe(9);
+    load.mockRestore();
+  });
+});

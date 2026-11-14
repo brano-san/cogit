@@ -11,7 +11,7 @@ describe("loadCompare", () => {
     let settled: () => void = () => {};
     const settings = {
       current: { ignoreWhitespace: "none" as Whitespace },
-      load: vi.fn(
+      ready: vi.fn(
         () =>
           new Promise<void>((resolve) => {
             settled = () => {

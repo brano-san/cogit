@@ -56,7 +56,18 @@ class SettingsStore {
   /** Another window wrote the file (`followSettings`): read it from disk, not the copy. */
   async reload(): Promise<void> {
     forgetSettings();
-    await this.load();
+    this.#first = this.load();
+    await this.#first;
+  }
+
+  #first: Promise<void> | null = null;
+
+  /** The first load, started once and shared: a spare window starts it while it waits to
+      become one, and the window it becomes takes the answer instead of asking again. A
+      change in another window replaces it (`reload`). */
+  ready(): Promise<void> {
+    this.#first ??= this.load();
+    return this.#first;
   }
 
   async set<K extends keyof Settings>(key: K, value: Settings[K]): Promise<void> {
