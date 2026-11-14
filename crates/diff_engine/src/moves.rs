@@ -1,4 +1,4 @@
-use crate::{DiffRow, FileDiff, FileDiffEntry, MoveScope};
+use crate::{DiffRow, FileDiff, FileDiffEntry, Hunk, MoveScope};
 use std::collections::HashMap;
 
 /// Cogit's own floor: a line or two that match are coincidence more often than a move.
@@ -15,15 +15,23 @@ pub fn detect_moves(diff: &mut FileDiff) {
     let FileDiff::Text { hunks, .. } = diff else {
         return;
     };
+    for (hunk, row, id, deletes) in within_file(hunks) {
+        if let Some(target) = hunks.get_mut(hunk).and_then(|h| h.rows.get_mut(row)) {
+            set(target, id, deletes, MoveScope::WithinFile);
+        }
+    }
+}
 
-    let mut deleted: Vec<(usize, usize, String)> = Vec::new();
-    let mut inserted: Vec<(usize, usize, String)> = Vec::new();
+/// `(hunk, row, move, deleted)` of each row that moved, read while the rows are borrowed.
+fn within_file(hunks: &[Hunk]) -> Vec<(usize, usize, u32, bool)> {
+    let mut deleted: Vec<(usize, usize, &str)> = Vec::new();
+    let mut inserted: Vec<(usize, usize, &str)> = Vec::new();
     for (h, hunk) in hunks.iter().enumerate() {
         for (r, row) in hunk.rows.iter().enumerate() {
             match row {
                 DiffRow::Delete { text, .. } => deleted.push((h, r, normalize(text))),
                 DiffRow::Insert { text, .. } => inserted.push((h, r, normalize(text))),
-                _ => {}
+                DiffRow::Context { .. } => {}
             }
         }
     }
@@ -32,8 +40,8 @@ pub fn detect_moves(diff: &mut FileDiff) {
         inserted
             .iter()
             .enumerate()
-            .fold(HashMap::new(), |mut map, (index, (_, _, text))| {
-                map.entry(text.as_str()).or_default().push(index);
+            .fold(HashMap::new(), |mut map, (index, &(_, _, text))| {
+                map.entry(text).or_default().push(index);
                 map
             });
 
@@ -43,7 +51,7 @@ pub fn detect_moves(diff: &mut FileDiff) {
 
     let mut start = 0;
     while start < deleted.len() {
-        let Some(candidates) = added_at.get(deleted[start].2.as_str()) else {
+        let Some(candidates) = added_at.get(deleted[start].2) else {
             start += 1;
             continue;
         };
@@ -66,7 +74,7 @@ pub fn detect_moves(diff: &mut FileDiff) {
         match best {
             Some((begin, length))
                 if length >= MIN_MOVED_LINES
-                    && enough_text(deleted[start..start + length].iter().map(|row| &row.2)) =>
+                    && enough_text(deleted[start..start + length].iter().map(|row| row.2)) =>
             {
                 let id = next_id;
                 next_id += 1;
@@ -80,14 +88,15 @@ pub fn detect_moves(diff: &mut FileDiff) {
         }
     }
 
-    apply(hunks, &deleted, &moved_deletes, true, MoveScope::WithinFile);
-    apply(
-        hunks,
-        &inserted,
-        &moved_inserts,
-        false,
-        MoveScope::WithinFile,
-    );
+    let marks = |rows: &[(usize, usize, &str)], ids: &[Option<u32>], deletes: bool| {
+        rows.iter()
+            .zip(ids)
+            .filter_map(move |(&(hunk, row, _), id)| id.map(|id| (hunk, row, id, deletes)))
+            .collect::<Vec<_>>()
+    };
+    let mut moved = marks(&deleted, &moved_deletes, true);
+    moved.extend(marks(&inserted, &moved_inserts, false));
+    moved
 }
 
 /// The second pass, over a whole batch: a block that left one file for another cannot be
@@ -97,10 +106,18 @@ pub fn detect_moves(diff: &mut FileDiff) {
 /// zero, so without this two unrelated moves in two files would share an identifier and
 /// the UI would draw them as one pair.
 pub fn link_moves_across_files(entries: &mut [FileDiffEntry]) {
-    let mut next_id = renumber(entries);
+    let next_id = renumber(entries);
+    for (delete, insert, id) in across_files(entries, next_id) {
+        mark(entries, delete, id, true);
+        mark(entries, insert, id, false);
+    }
+}
 
-    let mut deleted: Vec<Site> = Vec::new();
-    let mut inserted: Vec<Site> = Vec::new();
+/// Each pair of rows a move across files joins, with its number, read while the rows are
+/// borrowed.
+fn across_files(entries: &[FileDiffEntry], mut next_id: u32) -> Vec<(Address, Address, u32)> {
+    let mut deleted: Vec<Site<'_>> = Vec::new();
+    let mut inserted: Vec<Site<'_>> = Vec::new();
     for (file, entry) in entries.iter().enumerate() {
         collect_unmatched(&entry.diff, file, &mut deleted, &mut inserted);
     }
@@ -110,16 +127,16 @@ pub fn link_moves_across_files(entries: &mut [FileDiffEntry]) {
             .iter()
             .enumerate()
             .fold(HashMap::new(), |mut map, (index, site)| {
-                map.entry(site.text.as_str()).or_default().push(index);
+                map.entry(site.text).or_default().push(index);
                 map
             });
 
-    let mut pairs: Vec<(Site, Site, u32)> = Vec::new();
+    let mut pairs: Vec<(Address, Address, u32)> = Vec::new();
     let mut taken = vec![false; inserted.len()];
     let mut start = 0;
 
     while start < deleted.len() {
-        let Some(candidates) = added_at.get(deleted[start].text.as_str()) else {
+        let Some(candidates) = added_at.get(deleted[start].text) else {
             start += 1;
             continue;
         };
@@ -133,17 +150,15 @@ pub fn link_moves_across_files(entries: &mut [FileDiffEntry]) {
         match best {
             Some((begin, length))
                 if length >= MIN_MOVED_LINES
-                    && enough_text(
-                        deleted[start..start + length].iter().map(|site| &site.text),
-                    ) =>
+                    && enough_text(deleted[start..start + length].iter().map(|site| site.text)) =>
             {
                 let id = next_id;
                 next_id += 1;
                 for offset in 0..length {
                     taken[begin + offset] = true;
                     pairs.push((
-                        deleted[start + offset].clone(),
-                        inserted[begin + offset].clone(),
+                        deleted[start + offset].address(),
+                        inserted[begin + offset].address(),
                         id,
                     ));
                 }
@@ -152,20 +167,25 @@ pub fn link_moves_across_files(entries: &mut [FileDiffEntry]) {
             _ => start += 1,
         }
     }
-
-    for (delete, insert, id) in pairs {
-        mark(entries, &delete, id, true);
-        mark(entries, &insert, id, false);
-    }
+    pairs
 }
 
-/// One row's address inside the batch.
-#[derive(Debug, Clone)]
-struct Site {
+/// One row's address inside the batch: file, hunk, row.
+type Address = (usize, usize, usize);
+
+/// A row and its text, as moves compare it.
+#[derive(Debug, Clone, Copy)]
+struct Site<'a> {
     file: usize,
     hunk: usize,
     row: usize,
-    text: String,
+    text: &'a str,
+}
+
+impl Site<'_> {
+    fn address(&self) -> Address {
+        (self.file, self.hunk, self.row)
+    }
 }
 
 /// Gives every move in the batch a number of its own and returns the next free one.
@@ -195,18 +215,18 @@ fn renumber(entries: &mut [FileDiffEntry]) -> u32 {
     next
 }
 
-fn collect_unmatched(
-    diff: &FileDiff,
+fn collect_unmatched<'a>(
+    diff: &'a FileDiff,
     file: usize,
-    deleted: &mut Vec<Site>,
-    inserted: &mut Vec<Site>,
+    deleted: &mut Vec<Site<'a>>,
+    inserted: &mut Vec<Site<'a>>,
 ) {
     let FileDiff::Text { hunks, .. } = diff else {
         return;
     };
     for (h, hunk) in hunks.iter().enumerate() {
         for (r, row) in hunk.rows.iter().enumerate() {
-            let site = |text: &str| Site {
+            let site = |text: &'a str| Site {
                 file,
                 hunk: h,
                 row: r,
@@ -225,17 +245,14 @@ fn collect_unmatched(
     }
 }
 
-fn mark(entries: &mut [FileDiffEntry], site: &Site, id: u32, deletes: bool) {
-    let Some(entry) = entries.get_mut(site.file) else {
+fn mark(entries: &mut [FileDiffEntry], (file, hunk, row): Address, id: u32, deletes: bool) {
+    let Some(entry) = entries.get_mut(file) else {
         return;
     };
     let FileDiff::Text { hunks, .. } = &mut entry.diff else {
         return;
     };
-    let Some(target) = hunks
-        .get_mut(site.hunk)
-        .and_then(|hunk| hunk.rows.get_mut(site.row))
-    else {
+    let Some(target) = hunks.get_mut(hunk).and_then(|hunk| hunk.rows.get_mut(row)) else {
         return;
     };
     set(target, id, deletes, MoveScope::AcrossFiles);
@@ -244,7 +261,7 @@ fn mark(entries: &mut [FileDiffEntry], site: &Site, id: u32, deletes: bool) {
 /// Equal rows in step on both sides. A run never spans a line that stayed: the rows of each
 /// side must follow one another in one hunk, or three braces far apart pair up with three
 /// together.
-fn run_length(deleted: &[(usize, usize, String)], inserted: &[(usize, usize, String)]) -> usize {
+fn run_length(deleted: &[(usize, usize, &str)], inserted: &[(usize, usize, &str)]) -> usize {
     let mut length = 0;
     while let (Some(delete), Some(insert)) = (deleted.get(length), inserted.get(length)) {
         if delete.2 != insert.2 || delete.2.is_empty() {
@@ -268,7 +285,7 @@ fn follows(previous: (usize, usize), next: (usize, usize)) -> bool {
     previous.0 == next.0 && previous.1 + 1 == next.1
 }
 
-fn enough_text<'a>(rows: impl Iterator<Item = &'a String>) -> bool {
+fn enough_text<'a>(rows: impl Iterator<Item = &'a str>) -> bool {
     rows.flat_map(|text| text.chars())
         .filter(|c| c.is_alphanumeric())
         .take(MIN_MOVED_ALNUM)
@@ -279,9 +296,9 @@ fn enough_text<'a>(rows: impl Iterator<Item = &'a String>) -> bool {
 /// Like `run_length`, but a run may not cross a file boundary on either side, and may not
 /// reuse an insertion that an earlier run already claimed.
 fn cross_run(
-    deleted: &[Site],
+    deleted: &[Site<'_>],
     start: usize,
-    inserted: &[Site],
+    inserted: &[Site<'_>],
     begin: usize,
     taken: &[bool],
 ) -> usize {
@@ -307,24 +324,6 @@ fn cross_run(
         length += 1;
     }
     length
-}
-
-fn apply(
-    hunks: &mut [crate::Hunk],
-    entries: &[(usize, usize, String)],
-    flags: &[Option<u32>],
-    deletes: bool,
-    scope: MoveScope,
-) {
-    for ((hunk, row, _), &id) in entries.iter().zip(flags) {
-        let Some(id) = id else {
-            continue;
-        };
-        let Some(target) = hunks.get_mut(*hunk).and_then(|h| h.rows.get_mut(*row)) else {
-            continue;
-        };
-        set(target, id, deletes, scope);
-    }
 }
 
 fn set(row: &mut DiffRow, id: u32, deletes: bool, scope: MoveScope) {
@@ -354,6 +353,6 @@ fn set(row: &mut DiffRow, id: u32, deletes: bool, scope: MoveScope) {
 }
 
 /// Indentation is ignored, as Git does: moving code usually re-indents it.
-fn normalize(text: &str) -> String {
-    text.trim().to_owned()
+fn normalize(text: &str) -> &str {
+    text.trim()
 }
