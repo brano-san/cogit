@@ -35,7 +35,7 @@ pub fn diff_one_as(
     options: &DiffOptions,
     content: &Content,
 ) -> FileDiff {
-    let mut diff = crate::diff_bytes_as(old, new, options, content);
+    let (mut diff, sides) = crate::text::diff_bytes_sides(old, new, options, content);
     if let FileDiff::Text {
         language,
         old_total,
@@ -46,12 +46,14 @@ pub fn diff_one_as(
     } = &mut diff
     {
         *language = crate::language_for_path(path);
-        if language.as_deref().is_some_and(crate::highlighted) {
-            let whole = |lines: u32, bytes: &[u8]| {
-                (lines <= crate::MAX_HIGHLIGHT_LINES).then(|| crate::text::side_text(bytes))
+        if language.as_deref().is_some_and(crate::highlighted)
+            && let Some((old_side, new_side)) = sides
+        {
+            let whole = |lines: u32, side: std::borrow::Cow<'_, str>| {
+                (lines <= crate::MAX_HIGHLIGHT_LINES).then(|| side.into_owned())
             };
-            *old_text = whole(*old_total, old);
-            *new_text = whole(*new_total, new);
+            *old_text = whole(*old_total, old_side);
+            *new_text = whole(*new_total, new_side);
         }
         crate::with_hunk_context(&mut diff, &String::from_utf8_lossy(old));
     }

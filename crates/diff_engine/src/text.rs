@@ -1,6 +1,7 @@
 use crate::{
     Algorithm, BinaryCause, BlobSide, Content, DiffOptions, DiffRow, EolInfo, FileDiff, Hunk,
-    Whitespace, block_is_comparable, detect_line_ending, inline_spans, normalize_line_endings,
+    LineEnding, Spans, Whitespace, block_is_comparable, detect_line_ending, inline_spans,
+    normalize_line_endings,
 };
 use imara_diff::{Diff, InternedInput, Interner, Token, sources::lines};
 use std::borrow::Cow;
@@ -36,6 +37,11 @@ pub fn diff_bytes(old: &[u8], new: &[u8], options: &DiffOptions) -> FileDiff {
 /// `diff_bytes` with what `.gitattributes` says about the path.
 #[must_use]
 pub fn diff_bytes_as(old: &[u8], new: &[u8], options: &DiffOptions, content: &Content) -> FileDiff {
+    diff_bytes_sides(old, new, options, content).0
+}
+
+/// What a file is shown as when it is not shown as lines.
+fn summary(old: &[u8], new: &[u8], content: &Content) -> Option<FileDiff> {
     let size = old.len().max(new.len()) as u64;
     let image = crate::image_mime(old).or_else(|| crate::image_mime(new));
     let too_large = match image {
@@ -44,7 +50,7 @@ pub fn diff_bytes_as(old: &[u8], new: &[u8], options: &DiffOptions, content: &Co
     };
     if too_large {
         let (old, new) = sides(old, new);
-        return FileDiff::TooLarge {
+        return Some(FileDiff::TooLarge {
             old,
             new,
             limit: if image.is_some() {
@@ -52,17 +58,17 @@ pub fn diff_bytes_as(old: &[u8], new: &[u8], options: &DiffOptions, content: &Co
             } else {
                 MAX_TEXT_BYTES
             },
-        };
+        });
     }
     if old == new {
-        return FileDiff::Unchanged;
+        return Some(FileDiff::Unchanged);
     }
     if let Some(mime) = image {
-        return FileDiff::Image {
+        return Some(FileDiff::Image {
             old_size: old.len() as u64,
             new_size: new.len() as u64,
             mime: mime.to_owned(),
-        };
+        });
     }
     let cause = match content {
         Content::Binary(name) => Some(BinaryCause::Attribute { name: name.clone() }),
@@ -71,24 +77,51 @@ pub fn diff_bytes_as(old: &[u8], new: &[u8], options: &DiffOptions, content: &Co
     };
     if let Some(cause) = cause {
         let (old, new) = sides(old, new);
-        return FileDiff::Binary { old, new, cause };
+        return Some(FileDiff::Binary { old, new, cause });
     }
 
+    None
+}
+
+/// Both sides of a text diff as its rows quote them: decoded, with LF line endings.
+pub(crate) type TextSides<'a> = (Cow<'a, str>, Cow<'a, str>);
+
+/// `diff_bytes_as`, and for a text diff each side as its rows quote it: decoded, with LF
+/// line endings. Kept, so the highlighter's copy is not decoded and normalised again.
+pub(crate) fn diff_bytes_sides<'a>(
+    old: &'a [u8],
+    new: &'a [u8],
+    options: &DiffOptions,
+    content: &Content,
+) -> (FileDiff, Option<TextSides<'a>>) {
+    if let Some(summary) = summary(old, new, content) {
+        return (summary, None);
+    }
     let old_text = decode(old);
     let new_text = decode(new);
     let lossy = matches!(old_text, Cow::Owned(_)) || matches!(new_text, Cow::Owned(_));
+    if old_text == new_text {
+        return (FileDiff::Unchanged, None);
+    }
+    let eol = (detect_line_ending(&old_text), detect_line_ending(&new_text));
+    let old_text = normalized(old_text);
+    let new_text = normalized(new_text);
 
-    let mut diff = diff_text(&old_text, &new_text, options);
+    let mut diff = diff_normalized(eol, &old_text, &new_text, options);
     if let FileDiff::Text { lossy_encoding, .. } = &mut diff {
         *lossy_encoding = lossy;
     }
-    diff
+    (diff, Some((old_text, new_text)))
 }
 
-/// One side as the rows of its diff quote it: decoded as `diff_bytes` decodes it, with LF
-/// line endings.
-pub(crate) fn side_text(bytes: &[u8]) -> String {
-    normalize_line_endings(&decode(bytes)).into_owned()
+fn normalized(text: Cow<'_, str>) -> Cow<'_, str> {
+    match text {
+        Cow::Borrowed(text) => normalize_line_endings(text),
+        Cow::Owned(text) => match normalize_line_endings(&text) {
+            Cow::Borrowed(_) => Cow::Owned(text),
+            Cow::Owned(lf) => Cow::Owned(lf),
+        },
+    }
 }
 
 /// UTF-8 as it is; each byte that is not UTF-8 becomes a character of its own in the
@@ -115,11 +148,22 @@ pub fn diff_text(old: &str, new: &str, options: &DiffOptions) -> FileDiff {
         return FileDiff::Unchanged;
     }
 
-    let old_eol = detect_line_ending(old);
-    let new_eol = detect_line_ending(new);
-    let old_text = normalize_line_endings(old);
-    let new_text = normalize_line_endings(new);
+    let eol = (detect_line_ending(old), detect_line_ending(new));
+    diff_normalized(
+        eol,
+        &normalize_line_endings(old),
+        &normalize_line_endings(new),
+        options,
+    )
+}
 
+/// `diff_text` of two sides that differ, already normalised to LF; `eol` is what each had.
+fn diff_normalized(
+    (old_eol, new_eol): (LineEnding, LineEnding),
+    old_text: &str,
+    new_text: &str,
+    options: &DiffOptions,
+) -> FileDiff {
     if old_text == new_text {
         return FileDiff::EolOnly {
             from: old_eol,
@@ -127,12 +171,12 @@ pub fn diff_text(old: &str, new: &str, options: &DiffOptions) -> FileDiff {
         };
     }
 
-    let mut old_lines: Vec<&str> = lines(&old_text).collect();
-    let mut new_lines: Vec<&str> = lines(&new_text).collect();
+    let mut old_lines: Vec<&str> = lines(old_text).collect();
+    let mut new_lines: Vec<&str> = lines(new_text).collect();
 
     let open = OpenEnd {
-        old: lacks_final_newline(&old_text),
-        new: lacks_final_newline(&new_text),
+        old: lacks_final_newline(old_text),
+        new: lacks_final_newline(new_text),
     };
 
     let phantom = !old_text.is_empty() && !new_text.is_empty() && open.old != open.new;
@@ -300,7 +344,8 @@ fn build(
     let new_from = first.after.start - (first.before.start - old_from);
     let new_to = last.after.end + (old_to - last.before.end);
 
-    let mut rows = Vec::new();
+    let inserted: u32 = group.iter().map(|change| change.after.len() as u32).sum();
+    let mut rows = Vec::with_capacity((old_to - old_from + inserted) as usize);
     let mut old_at = old_from;
     let mut new_at = new_from;
 
@@ -315,40 +360,37 @@ fn build(
             old_at += 1;
             new_at += 1;
         }
-        let deleted: Vec<String> = change.before.clone().map(|i| text(old_lines, i)).collect();
-        let inserted: Vec<String> = change.after.clone().map(|i| text(new_lines, i)).collect();
-        let words = if options.word_diff && block_is_comparable(deleted.len(), inserted.len()) {
-            deleted
-                .iter()
-                .zip(inserted.iter())
-                .map(|(old, new)| inline_spans(old, new))
-                .collect()
-        } else {
-            Vec::new()
-        };
+        let deleted: Vec<&str> = change.before.clone().map(|i| line(old_lines, i)).collect();
+        let inserted: Vec<&str> = change.after.clone().map(|i| line(new_lines, i)).collect();
+        let (old_words, new_words): (Vec<Spans>, Vec<Spans>) =
+            if options.word_diff && block_is_comparable(deleted.len(), inserted.len()) {
+                deleted
+                    .iter()
+                    .zip(&inserted)
+                    .map(|(old, new)| inline_spans(old, new))
+                    .unzip()
+            } else {
+                (Vec::new(), Vec::new())
+            };
 
-        for (offset, index) in change.before.clone().enumerate() {
+        let mut old_words = old_words.into_iter();
+        for (index, text) in change.before.clone().zip(deleted) {
             rows.push(DiffRow::Delete {
                 old: index + 1,
-                text: deleted[offset].clone(),
-                inline: words
-                    .get(offset)
-                    .map(|(old, _)| old.clone())
-                    .unwrap_or_default(),
+                text: text.to_owned(),
+                inline: old_words.next().unwrap_or_default(),
                 moved: false,
                 move_id: None,
                 move_scope: None,
                 no_newline: open.old && index as usize + 1 == old_lines.len(),
             });
         }
-        for (offset, index) in change.after.clone().enumerate() {
+        let mut new_words = new_words.into_iter();
+        for (index, text) in change.after.clone().zip(inserted) {
             rows.push(DiffRow::Insert {
                 new: index + 1,
-                text: inserted[offset].clone(),
-                inline: words
-                    .get(offset)
-                    .map(|(_, new)| new.clone())
-                    .unwrap_or_default(),
+                text: text.to_owned(),
+                inline: new_words.next().unwrap_or_default(),
                 moved: false,
                 move_id: None,
                 move_scope: None,
@@ -395,8 +437,11 @@ fn build(
 }
 
 fn text(lines: &[&str], index: u32) -> String {
+    line(lines, index).to_owned()
+}
+
+fn line<'a>(lines: &[&'a str], index: u32) -> &'a str {
     lines
         .get(index as usize)
-        .map(|line| strip_newline(line).to_owned())
-        .unwrap_or_default()
+        .map_or("", |line| strip_newline(line))
 }
