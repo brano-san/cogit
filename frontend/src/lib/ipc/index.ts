@@ -1297,6 +1297,11 @@ export async function closeThisWindow() {
   return unwrap(await commands.closeThisWindow());
 }
 
+/** Shows this window, held hidden until it had something to show (a diff window). */
+export async function revealThisWindow() {
+  return unwrap(await commands.revealThisWindow());
+}
+
 export async function openCompareWindow(url: string, title: string) {
   return unwrap(await commands.openCompareWindow(url, title));
 }

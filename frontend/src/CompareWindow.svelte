@@ -1,6 +1,6 @@
 <script lang="ts">
   import EmptyState from "$components/common/EmptyState.svelte";
-  import { untrack } from "svelte";
+  import { tick, untrack } from "svelte";
   import DiffView from "$components/diff/DiffView.svelte";
   import UnsavedDialog from "$components/common/UnsavedDialog.svelte";
   import { editOffer } from "$lib/diff-edit";
@@ -17,7 +17,7 @@
   import { installChildWindow, onDiskChange } from "$lib/child-window";
   import { compareLabel, diffWindowTitle, parseCompare, sideCaptions } from "$lib/compare-params";
   import { firstParent, handOverModule, loadCompare } from "$lib/compare-window";
-  import { closeThisWindow } from "$lib/ipc";
+  import { closeThisWindow, revealThisWindow } from "$lib/ipc";
   import { diff } from "$stores/diff.svelte";
   import { followSettings } from "$lib/settings-sync";
   import { settings } from "$stores/settings.svelte";
@@ -107,6 +107,16 @@
   // window stops asking for it. The note shows for the moment the close takes.
   $effect(() => {
     if (diff.gone) void closeThisWindow().catch(() => {});
+  });
+
+  // The window is shown once there is something in it: the diff, an image, an error or
+  // the note that the file is gone. Shown first, it said "Loading…" for a quarter of a
+  // second on every open. The backend shows it anyway half a second in (`READY_FIRST`).
+  let revealed = false;
+  $effect(() => {
+    if (revealed || (request && !diff.diff && !diff.error && !diff.gone)) return;
+    revealed = true;
+    void tick().then(() => revealThisWindow().catch(() => {}));
   });
 
   // A submodule has nothing to compare line by line: the main window opens it (R-537).

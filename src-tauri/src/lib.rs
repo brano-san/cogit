@@ -417,6 +417,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::open_compare_window,
             commands::commit_window::open_commit_window,
             commands::windows::spare_wait,
+            commands::windows::reveal_this_window,
             commands::commit_window::recent_commits,
             commands::spelling::spelling_misspelled,
             commands::spelling::spelling_suggestions,

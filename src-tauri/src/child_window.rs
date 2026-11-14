@@ -63,6 +63,43 @@ pub fn open<R: tauri::Runtime>(
     open_with_menu(app, kind, url, title, shape, &[])
 }
 
+/// Windows shown only once their page has something to show: a diff window that appeared
+/// first and said "Loading…" for a quarter of a second read as slow, however fast the
+/// diff. The page asks with `reveal_this_window`; `REVEAL_ANYWAY` later it shows regardless.
+const READY_FIRST: &[&str] = &["compare"];
+const REVEAL_ANYWAY: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// Hidden windows waiting for their page.
+static HELD: parking_lot::Mutex<Vec<String>> = parking_lot::Mutex::new(Vec::new());
+
+/// Holds `label` hidden until its page asks, or until `REVEAL_ANYWAY`.
+fn hold<R: tauri::Runtime>(app: &tauri::AppHandle<R>, label: &str) {
+    HELD.lock().push(label.to_owned());
+    let (app, label) = (app.clone(), label.to_owned());
+    std::thread::spawn(move || {
+        std::thread::sleep(REVEAL_ANYWAY);
+        if let Some(window) = tauri::Manager::get_webview_window(&app, &label) {
+            reveal(&window);
+        }
+    });
+}
+
+/// Shows a held window, once; a window not held is left as it is.
+pub fn reveal<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) {
+    let held = {
+        let mut held = HELD.lock();
+        let before = held.len();
+        held.retain(|label| label != window.label());
+        held.len() != before
+    };
+    if !held {
+        return;
+    }
+    if let Err(err) = window.show().and_then(|()| window.set_focus()) {
+        tracing::warn!(error = %err, window = window.label(), "cannot show a window held for its page");
+    }
+}
+
 /// What each window shows: a spare window's label says nothing of what it became.
 static KINDS: parking_lot::Mutex<Vec<(String, String)>> = parking_lot::Mutex::new(Vec::new());
 
@@ -133,7 +170,11 @@ pub fn open_with_menu<R: tauri::Runtime>(
         kinds.retain(|(known, _)| app.get_webview_window(known).is_some());
         kinds.push((label.clone(), kind.to_owned()));
         drop(kinds);
-        let made = spare.become_window(app, url.clone(), &title, &shape, menu);
+        let ready_first = READY_FIRST.contains(&kind);
+        let made = spare.become_window(app, url.clone(), &title, &shape, menu, !ready_first);
+        if ready_first && made.is_ok() {
+            hold(app, &label);
+        }
         crate::spare_window::prepare(app);
         match made {
             Ok(()) => return Ok(label),
@@ -175,7 +216,11 @@ pub fn open_with_menu<R: tauri::Runtime>(
             accelerator_table(window.label(), menu),
         );
     }
-    window.show()?;
+    if READY_FIRST.contains(&kind) {
+        hold(app, window.label());
+    } else {
+        window.show()?;
+    }
     Ok(window.label().to_owned())
 }
 

@@ -99,6 +99,7 @@ impl<R: tauri::Runtime> Spare<R> {
         title: &str,
         shape: &Shape,
         menu: &'static [Submenu],
+        show: bool,
     ) -> tauri::Result<()> {
         let Self { window, answer } = self;
         window.set_title(title)?;
@@ -123,7 +124,7 @@ impl<R: tauri::Runtime> Spare<R> {
         if answer.send(page_address(&url)).is_err() {
             tracing::warn!(window = window.label(), "the spare window stopped waiting");
         }
-        window.show()
+        if show { window.show() } else { Ok(()) }
     }
 }
 

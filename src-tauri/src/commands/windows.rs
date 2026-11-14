@@ -98,6 +98,15 @@ pub async fn spare_wait(window: tauri::WebviewWindow) -> Option<String> {
     crate::spare_window::wait(window).await
 }
 
+/// Shows the window that asked, held hidden until its page had something to show
+/// (`child_window::READY_FIRST`). Nothing for a window already shown.
+#[tauri::command]
+#[specta::specta]
+pub async fn reveal_this_window(window: tauri::WebviewWindow) -> Result<(), GitError> {
+    crate::child_window::reveal(&window);
+    Ok(())
+}
+
 /// Closes whichever window asked. In Rust rather than through `getCurrentWindow()`, which
 /// keeps the call out of the webview (R-86); off the main thread for the reason in R-201.
 #[tauri::command]

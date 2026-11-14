@@ -827,6 +827,11 @@ export const commands = {
 	openCommitWindow: (repo: RepoId, root: string, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("open_commit_window", { repo, root, paths })),
 	spareWait: () => __TAURI_INVOKE<string | null>("spare_wait"),
 	/**
+	 *  Shows the window that asked, held hidden until its page had something to show
+	 *  (`child_window::READY_FIRST`). Nothing for a window already shown.
+	 */
+	revealThisWindow: () => typedError<null, GitError>(__TAURI_INVOKE("reveal_this_window")),
+	/**
 	 *  The last `limit` commits with their full messages, for "Select from Log" and the
 	 *  recent messages of the Commit window.
 	 */
