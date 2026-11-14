@@ -86,11 +86,11 @@ export const commands = {
 	openInvestigateWindow: (url: string, title: string) => typedError<null, GitError>(__TAURI_INVOKE("open_investigate_window", { url, title })),
 	commitDetails: (repo: RepoId, rev: string) => typedError<CommitDetails, GitError>(__TAURI_INVOKE("commit_details", { repo, rev })),
 	commitFiles: (repo: RepoId, rev: string) => typedError<FileEntry_Serialize[], GitError>(__TAURI_INVOKE("commit_files", { repo, rev })),
-	diffFile: (repo: RepoId, spec: DiffSpec, path: string, options: DiffOptions) => typedError<FileDiff, GitError>(__TAURI_INVOKE("diff_file", { repo, spec, path, options })),
+	diffFile: (repo: RepoId, spec: DiffSpec, path: string, options: DiffOptions) => typedError<FileDiff_Serialize, GitError>(__TAURI_INVOKE("diff_file", { repo, spec, path, options })),
 	/**  An unchanged or ignored file shown whole in the Diff panel; `limit` is Show anyway's. */
 	fileContent: (repo: RepoId, spec: DiffSpec, path: string, limit: number | null) => typedError<FileContent, GitError>(__TAURI_INVOKE("file_content", { repo, spec, path, limit })),
 	/**  The working file being edited, diffed as its save would write it (F-722). */
-	diffEdited: (repo: RepoId, spec: DiffSpec, path: string, text: string, shape: Shape, options: DiffOptions) => typedError<FileDiff, GitError>(__TAURI_INVOKE("diff_edited", { repo, spec, path, text, shape, options })),
+	diffEdited: (repo: RepoId, spec: DiffSpec, path: string, text: string, shape: Shape, options: DiffOptions) => typedError<FileDiff_Serialize, GitError>(__TAURI_INVOKE("diff_edited", { repo, spec, path, text, shape, options })),
 	worktreeFiles: (repo: RepoId, view: WorktreeView) => typedError<WorktreeFiles_Serialize, GitError>(__TAURI_INVOKE("worktree_files", { repo, view })),
 	/**  The counters and the conflicted paths from one read, for the refresh after a mutation. */
 	workingState: (repo: RepoId) => typedError<WorkingState, GitError>(__TAURI_INVOKE("working_state", { repo })),
@@ -402,7 +402,7 @@ export const commands = {
 	lfsOp: (repo: RepoId, op: LfsOp) => typedError<null, GitError>(__TAURI_INVOKE("lfs_op", { repo, op })),
 	repoSettings: (repo: RepoId) => typedError<RepoSetting[], GitError>(__TAURI_INVOKE("repo_settings", { repo })),
 	writeRepoSettings: (repo: RepoId, changes: RepoSettingChange[]) => typedError<null, GitError>(__TAURI_INVOKE("write_repo_settings", { repo, changes })),
-	stageSelection: (repo: RepoId, request: PatchRequest, reverse: boolean) => typedError<null, GitError>(__TAURI_INVOKE("stage_selection", { repo, request, reverse })),
+	stageSelection: (repo: RepoId, request: PatchRequest_Deserialize, reverse: boolean) => typedError<null, GitError>(__TAURI_INVOKE("stage_selection", { repo, request, reverse })),
 	blame: (repo: RepoId, path: string, rev: string) => typedError<BlameLine[], GitError>(__TAURI_INVOKE("blame", { repo, path, rev })),
 	/**
 	 *  The Blame window for `path` at `rev`, titled with the commit `rev` resolves to. The one
@@ -836,7 +836,7 @@ export const commands = {
 	listPresets: (repo: RepoId) => typedError<PresetStatus[], GitError>(__TAURI_INVOKE("list_presets", { repo })),
 	installPreset: (repo: RepoId, id: string) => typedError<null, GitError>(__TAURI_INVOKE("install_preset", { repo, id })),
 	/**  Every file of a commit in one round trip, diffed in parallel (doc/08-diff-engine.md §9). */
-	diffFiles: (repo: RepoId, spec: DiffSpec, paths: string[], options: DiffOptions, request: number) => typedError<DiffBatch, GitError>(__TAURI_INVOKE("diff_files", { repo, spec, paths, options, request })),
+	diffFiles: (repo: RepoId, spec: DiffSpec, paths: string[], options: DiffOptions, request: number) => typedError<DiffBatch_Serialize, GitError>(__TAURI_INVOKE("diff_files", { repo, spec, paths, options, request })),
 	/**
 	 *  The history of one fragment: every commit that changed it, newest first, with the diff
 	 *  of each edit and the path the file had at the time.
@@ -846,7 +846,7 @@ export const commands = {
 	 *  Throws the selected lines away in the working tree. Destructive and journalled; the
 	 *  view is responsible for confirming it first.
 	 */
-	discardSelection: (repo: RepoId, request: PatchRequest) => typedError<null, GitError>(__TAURI_INVOKE("discard_selection", { repo, request })),
+	discardSelection: (repo: RepoId, request: PatchRequest_Deserialize) => typedError<null, GitError>(__TAURI_INVOKE("discard_selection", { repo, request })),
 };
 
 /** Events */
@@ -1329,9 +1329,23 @@ export type DesktopInfo = {
  *  What a batch diff came back with. A request the user has already moved on from stops
  *  between files rather than finishing work nobody will look at.
  */
-export type DiffBatch = { kind: "ready"; files: FileDiffEntry[] } | 
+export type DiffBatch = DiffBatch_Serialize | DiffBatch_Deserialize;
+
+/**
+ *  What a batch diff came back with. A request the user has already moved on from stops
+ *  between files rather than finishing work nobody will look at.
+ */
+export type DiffBatch_Deserialize = { kind: "ready"; files: FileDiffEntry_Deserialize[] } | 
 /**  A newer request for the same repository started while this one was running. */
-{ kind: "superseded" };
+({ kind: "superseded" }) & { files?: never };
+
+/**
+ *  What a batch diff came back with. A request the user has already moved on from stops
+ *  between files rather than finishing work nobody will look at.
+ */
+export type DiffBatch_Serialize = { kind: "ready"; files: FileDiffEntry_Serialize[] } | 
+/**  A newer request for the same repository started while this one was running. */
+({ kind: "superseded" }) & { files?: never };
 
 export type DiffOptions = {
 	algorithm: Algorithm,
@@ -1341,16 +1355,37 @@ export type DiffOptions = {
 	detectMoves: boolean,
 };
 
-export type DiffRow = { kind: "context"; old: number; new: number; text: string; 
+export type DiffRow = DiffRow_Serialize | DiffRow_Deserialize;
+
+export type DiffRow_Deserialize = ({ kind: "context"; old: number; new: number; text: string; 
 /**  The last line of both sides, neither ending in a newline. */
-noNewline?: boolean } | { kind: "delete"; old: number; text: string; inline: ([number, number])[]; moved?: boolean; 
+noNewline?: boolean }) & { inline?: never; moveId?: never; moveScope?: never; moved?: never } | ({ kind: "delete"; old: number; text: string; 
+/**  Absent when no word changed: most rows of a diff. */
+inline?: ([number, number])[]; moved?: boolean; 
 /**  Both ends of one move carry the same number, so the UI can draw the pair. */
 moveId?: number | null; moveScope?: MoveScope | null; 
 /**
  *  The file ends on this row without a final newline; a unified diff prints
  *  `\ No newline at end of file` underneath it.
  */
-noNewline?: boolean } | { kind: "insert"; new: number; text: string; inline: ([number, number])[]; moved?: boolean; moveId?: number | null; moveScope?: MoveScope | null; noNewline?: boolean };
+noNewline?: boolean }) & { new?: never } | ({ kind: "insert"; new: number; text: string; 
+/**  Absent when no word changed: most rows of a diff. */
+inline?: ([number, number])[]; moved?: boolean; moveId?: number | null; moveScope?: MoveScope | null; noNewline?: boolean }) & { old?: never };
+
+export type DiffRow_Serialize = ({ kind: "context"; old: number; new: number; text: string; 
+/**  The last line of both sides, neither ending in a newline. */
+noNewline?: boolean }) & { inline?: never; moveId?: never; moveScope?: never; moved?: never } | ({ kind: "delete"; old: number; text: string; 
+/**  Absent when no word changed: most rows of a diff. */
+inline?: ([number, number])[]; moved?: boolean; 
+/**  Both ends of one move carry the same number, so the UI can draw the pair. */
+moveId?: number | null; moveScope?: MoveScope | null; 
+/**
+ *  The file ends on this row without a final newline; a unified diff prints
+ *  `\ No newline at end of file` underneath it.
+ */
+noNewline?: boolean }) & { new?: never } | ({ kind: "insert"; new: number; text: string; 
+/**  Absent when no word changed: most rows of a diff. */
+inline?: ([number, number])[]; moved?: boolean; moveId?: number | null; moveScope?: MoveScope | null; noNewline?: boolean }) & { old?: never };
 
 export type DiffSide = "old" | "new";
 
@@ -1476,7 +1511,33 @@ export type FileContent = { kind: "text"; text: string } | { kind: "binary"; siz
 /**  Not on that side: deleted, or never there. */
 { kind: "missing" };
 
-export type FileDiff = { kind: "text"; hunks: Hunk[]; eol: EolInfo; lossyEncoding: boolean; 
+export type FileDiff = FileDiff_Serialize | FileDiff_Deserialize;
+
+/**
+ *  Named rather than a tuple: a positional pair crossing IPC reads as `[string, FileDiff]`
+ *  on the other side, and nothing there says which half is which.
+ */
+export type FileDiffEntry = FileDiffEntry_Serialize | FileDiffEntry_Deserialize;
+
+/**
+ *  Named rather than a tuple: a positional pair crossing IPC reads as `[string, FileDiff]`
+ *  on the other side, and nothing there says which half is which.
+ */
+export type FileDiffEntry_Deserialize = {
+	path: string,
+	diff: FileDiff_Deserialize,
+};
+
+/**
+ *  Named rather than a tuple: a positional pair crossing IPC reads as `[string, FileDiff]`
+ *  on the other side, and nothing there says which half is which.
+ */
+export type FileDiffEntry_Serialize = {
+	path: string,
+	diff: FileDiff_Serialize,
+};
+
+export type FileDiff_Deserialize = ({ kind: "text"; hunks: Hunk_Deserialize[]; eol: EolInfo; lossyEncoding: boolean; 
 /**  Language hint for Lezer. Highlighting itself is a frontend concern (INV-01). */
 language: string | null; 
 /**  Lines on each side, so the view can say how many follow the last hunk. */
@@ -1491,29 +1552,29 @@ oldText: string | null; newText: string | null;
  *  The lines are not the file's bytes: a textconv program's output, or text decoded
  *  from another encoding. Shown, never staged line by line.
  */
-converted: string | null } | { kind: "eolOnly"; from: LineEnding; to: LineEnding } | 
+converted: string | null }) & { added?: never; cause?: never; checkedOut?: never; from?: never; inIndex?: never; limit?: never; mime?: never; new?: never; newMode?: never; newSize?: never; old?: never; oldMode?: never; oldSize?: never; previous?: never; recorded?: never; to?: never } | ({ kind: "eolOnly"; from: LineEnding; to: LineEnding }) & { added?: never; cause?: never; checkedOut?: never; converted?: never; eol?: never; hunks?: never; inIndex?: never; language?: never; limit?: never; lossyEncoding?: never; mime?: never; new?: never; newMode?: never; newSize?: never; newText?: never; newTotal?: never; old?: never; oldMode?: never; oldSize?: never; oldText?: never; oldTotal?: never; previous?: never; recorded?: never } | 
 /**  Shown as a summary, never as lines; `None` on a side the file is absent from. */
-{ kind: "binary"; old: BlobSide | null; new: BlobSide | null; cause: BinaryCause } | { kind: "image"; oldSize: number; newSize: number; mime: string } | 
+({ kind: "binary"; old: BlobSide | null; new: BlobSide | null; cause: BinaryCause }) & { added?: never; checkedOut?: never; converted?: never; eol?: never; from?: never; hunks?: never; inIndex?: never; language?: never; limit?: never; lossyEncoding?: never; mime?: never; newMode?: never; newSize?: never; newText?: never; newTotal?: never; oldMode?: never; oldSize?: never; oldText?: never; oldTotal?: never; previous?: never; recorded?: never; to?: never } | ({ kind: "image"; oldSize: number; newSize: number; mime: string }) & { added?: never; cause?: never; checkedOut?: never; converted?: never; eol?: never; from?: never; hunks?: never; inIndex?: never; language?: never; limit?: never; lossyEncoding?: never; new?: never; newMode?: never; newText?: never; newTotal?: never; old?: never; oldMode?: never; oldText?: never; oldTotal?: never; previous?: never; recorded?: never; to?: never } | 
 /**  A side of `limit` bytes or more, summarised as a binary file is. */
-{ kind: "tooLarge"; old: BlobSide | null; new: BlobSide | null; limit: number } | { kind: "unchanged" } | 
+({ kind: "tooLarge"; old: BlobSide | null; new: BlobSide | null; limit: number }) & { added?: never; cause?: never; checkedOut?: never; converted?: never; eol?: never; from?: never; hunks?: never; inIndex?: never; language?: never; lossyEncoding?: never; mime?: never; newMode?: never; newSize?: never; newText?: never; newTotal?: never; oldMode?: never; oldSize?: never; oldText?: never; oldTotal?: never; previous?: never; recorded?: never; to?: never } | ({ kind: "unchanged" }) & { added?: never; cause?: never; checkedOut?: never; converted?: never; eol?: never; from?: never; hunks?: never; inIndex?: never; language?: never; limit?: never; lossyEncoding?: never; mime?: never; new?: never; newMode?: never; newSize?: never; newText?: never; newTotal?: never; old?: never; oldMode?: never; oldSize?: never; oldText?: never; oldTotal?: never; previous?: never; recorded?: never; to?: never } | 
 /**  The same content, and only the mode changed: `100644` to `100755`, as git prints it. */
-{ kind: "modeOnly"; oldMode: string; newMode: string } | 
+({ kind: "modeOnly"; oldMode: string; newMode: string }) & { added?: never; cause?: never; checkedOut?: never; converted?: never; eol?: never; from?: never; hunks?: never; inIndex?: never; language?: never; limit?: never; lossyEncoding?: never; mime?: never; new?: never; newSize?: never; newText?: never; newTotal?: never; old?: never; oldSize?: never; oldText?: never; oldTotal?: never; previous?: never; recorded?: never; to?: never } | 
 /**
  *  A file with no content, added or deleted: both sides read as nothing, yet the file
  *  is there on one of them only.
  */
-{ kind: "emptyFile"; added: boolean } | 
+({ kind: "emptyFile"; added: boolean }) & { cause?: never; checkedOut?: never; converted?: never; eol?: never; from?: never; hunks?: never; inIndex?: never; language?: never; limit?: never; lossyEncoding?: never; mime?: never; new?: never; newMode?: never; newSize?: never; newText?: never; newTotal?: never; old?: never; oldMode?: never; oldSize?: never; oldText?: never; oldTotal?: never; previous?: never; recorded?: never; to?: never } | 
 /**
  *  Nothing but whitespace changed, and the active option hides it. Told apart from
  *  `Unchanged` so the UI can say the diff is being filtered (T7.10).
  */
-{ kind: "whitespaceOnly" } | 
+({ kind: "whitespaceOnly" }) & { added?: never; cause?: never; checkedOut?: never; converted?: never; eol?: never; from?: never; hunks?: never; inIndex?: never; language?: never; limit?: never; lossyEncoding?: never; mime?: never; new?: never; newMode?: never; newSize?: never; newText?: never; newTotal?: never; old?: never; oldMode?: never; oldSize?: never; oldText?: never; oldTotal?: never; previous?: never; recorded?: never; to?: never } | 
 /**
  *  A gitlink: what changed is which commit the parent records, not any file. A
  *  submodule that was never checked out has nothing else to show, and that is a
  *  normal state of a repository rather than a broken one (doc/12-risks.md, R-139).
  */
-{ kind: "submodule"; 
+({ kind: "submodule"; 
 /**
  *  The commit the parent records now, `None` where it removed the submodule, and
  *  the one it recorded before.
@@ -1522,22 +1583,61 @@ recorded: string | null; previous: string | null;
 /**  False when the submodule's own repository is not on disk. */
 checkedOut: boolean; 
 /**  Whether the index has the gitlink: without it there is nothing to initialise. */
-inIndex: boolean };
+inIndex: boolean }) & { added?: never; cause?: never; converted?: never; eol?: never; from?: never; hunks?: never; language?: never; limit?: never; lossyEncoding?: never; mime?: never; new?: never; newMode?: never; newSize?: never; newText?: never; newTotal?: never; old?: never; oldMode?: never; oldSize?: never; oldText?: never; oldTotal?: never; to?: never };
 
+export type FileDiff_Serialize = ({ kind: "text"; hunks: Hunk_Serialize[]; eol: EolInfo; lossyEncoding: boolean; 
+/**  Language hint for Lezer. Highlighting itself is a frontend concern (INV-01). */
+language: string | null; 
+/**  Lines on each side, so the view can say how many follow the last hunk. */
+oldTotal: number; newTotal: number; 
 /**
- *  Named rather than a tuple: a positional pair crossing IPC reads as `[string, FileDiff]`
- *  on the other side, and nothing there says which half is which.
+ *  Each side whole, as the rows quote it, for the highlighter: the hunks alone parse
+ *  as broken code (R-530). Only for a language the frontend has a parser for, and a
+ *  side of at most `MAX_HIGHLIGHT_LINES` lines.
  */
-export type FileDiffEntry = {
-	path: string,
-	diff: FileDiff,
-};
+oldText: string | null; newText: string | null; 
+/**
+ *  The lines are not the file's bytes: a textconv program's output, or text decoded
+ *  from another encoding. Shown, never staged line by line.
+ */
+converted: string | null }) & { added?: never; cause?: never; checkedOut?: never; from?: never; inIndex?: never; limit?: never; mime?: never; new?: never; newMode?: never; newSize?: never; old?: never; oldMode?: never; oldSize?: never; previous?: never; recorded?: never; to?: never } | ({ kind: "eolOnly"; from: LineEnding; to: LineEnding }) & { added?: never; cause?: never; checkedOut?: never; converted?: never; eol?: never; hunks?: never; inIndex?: never; language?: never; limit?: never; lossyEncoding?: never; mime?: never; new?: never; newMode?: never; newSize?: never; newText?: never; newTotal?: never; old?: never; oldMode?: never; oldSize?: never; oldText?: never; oldTotal?: never; previous?: never; recorded?: never } | 
+/**  Shown as a summary, never as lines; `None` on a side the file is absent from. */
+({ kind: "binary"; old: BlobSide | null; new: BlobSide | null; cause: BinaryCause }) & { added?: never; checkedOut?: never; converted?: never; eol?: never; from?: never; hunks?: never; inIndex?: never; language?: never; limit?: never; lossyEncoding?: never; mime?: never; newMode?: never; newSize?: never; newText?: never; newTotal?: never; oldMode?: never; oldSize?: never; oldText?: never; oldTotal?: never; previous?: never; recorded?: never; to?: never } | ({ kind: "image"; oldSize: number; newSize: number; mime: string }) & { added?: never; cause?: never; checkedOut?: never; converted?: never; eol?: never; from?: never; hunks?: never; inIndex?: never; language?: never; limit?: never; lossyEncoding?: never; new?: never; newMode?: never; newText?: never; newTotal?: never; old?: never; oldMode?: never; oldText?: never; oldTotal?: never; previous?: never; recorded?: never; to?: never } | 
+/**  A side of `limit` bytes or more, summarised as a binary file is. */
+({ kind: "tooLarge"; old: BlobSide | null; new: BlobSide | null; limit: number }) & { added?: never; cause?: never; checkedOut?: never; converted?: never; eol?: never; from?: never; hunks?: never; inIndex?: never; language?: never; lossyEncoding?: never; mime?: never; newMode?: never; newSize?: never; newText?: never; newTotal?: never; oldMode?: never; oldSize?: never; oldText?: never; oldTotal?: never; previous?: never; recorded?: never; to?: never } | ({ kind: "unchanged" }) & { added?: never; cause?: never; checkedOut?: never; converted?: never; eol?: never; from?: never; hunks?: never; inIndex?: never; language?: never; limit?: never; lossyEncoding?: never; mime?: never; new?: never; newMode?: never; newSize?: never; newText?: never; newTotal?: never; old?: never; oldMode?: never; oldSize?: never; oldText?: never; oldTotal?: never; previous?: never; recorded?: never; to?: never } | 
+/**  The same content, and only the mode changed: `100644` to `100755`, as git prints it. */
+({ kind: "modeOnly"; oldMode: string; newMode: string }) & { added?: never; cause?: never; checkedOut?: never; converted?: never; eol?: never; from?: never; hunks?: never; inIndex?: never; language?: never; limit?: never; lossyEncoding?: never; mime?: never; new?: never; newSize?: never; newText?: never; newTotal?: never; old?: never; oldSize?: never; oldText?: never; oldTotal?: never; previous?: never; recorded?: never; to?: never } | 
+/**
+ *  A file with no content, added or deleted: both sides read as nothing, yet the file
+ *  is there on one of them only.
+ */
+({ kind: "emptyFile"; added: boolean }) & { cause?: never; checkedOut?: never; converted?: never; eol?: never; from?: never; hunks?: never; inIndex?: never; language?: never; limit?: never; lossyEncoding?: never; mime?: never; new?: never; newMode?: never; newSize?: never; newText?: never; newTotal?: never; old?: never; oldMode?: never; oldSize?: never; oldText?: never; oldTotal?: never; previous?: never; recorded?: never; to?: never } | 
+/**
+ *  Nothing but whitespace changed, and the active option hides it. Told apart from
+ *  `Unchanged` so the UI can say the diff is being filtered (T7.10).
+ */
+({ kind: "whitespaceOnly" }) & { added?: never; cause?: never; checkedOut?: never; converted?: never; eol?: never; from?: never; hunks?: never; inIndex?: never; language?: never; limit?: never; lossyEncoding?: never; mime?: never; new?: never; newMode?: never; newSize?: never; newText?: never; newTotal?: never; old?: never; oldMode?: never; oldSize?: never; oldText?: never; oldTotal?: never; previous?: never; recorded?: never; to?: never } | 
+/**
+ *  A gitlink: what changed is which commit the parent records, not any file. A
+ *  submodule that was never checked out has nothing else to show, and that is a
+ *  normal state of a repository rather than a broken one (doc/12-risks.md, R-139).
+ */
+({ kind: "submodule"; 
+/**
+ *  The commit the parent records now, `None` where it removed the submodule, and
+ *  the one it recorded before.
+ */
+recorded: string | null; previous: string | null; 
+/**  False when the submodule's own repository is not on disk. */
+checkedOut: boolean; 
+/**  Whether the index has the gitlink: without it there is nothing to initialise. */
+inIndex: boolean }) & { added?: never; cause?: never; converted?: never; eol?: never; from?: never; hunks?: never; language?: never; limit?: never; lossyEncoding?: never; mime?: never; new?: never; newMode?: never; newSize?: never; newText?: never; newTotal?: never; old?: never; oldMode?: never; oldSize?: never; oldText?: never; oldTotal?: never; to?: never };
 
 export type FileEntry = FileEntry_Serialize | FileEntry_Deserialize;
 
 export type FileEntry_Deserialize = {
 	path: string,
-	oldPath: string | null,
+	oldPath?: string | null,
 	status: FileStatus,
 	/**
 	 *  What the entry is. A changed submodule is drawn with the submodule icon, the same
@@ -1545,9 +1645,9 @@ export type FileEntry_Deserialize = {
 	 */
 	mode: FileMode,
 	/**  The new mode, only when it differs from the old one. */
-	modeChange: FileMode | null,
+	modeChange?: FileMode | null,
 	/**  Percent, only for a rename or a copy. */
-	similarity: number | null,
+	similarity?: number | null,
 	/**  Only on a worktree row of a submodule: what differs inside it. */
 	submodule?: SubmoduleChange | null,
 	/**  Only on a conflicted row: which sides touched the path. */
@@ -1556,7 +1656,7 @@ export type FileEntry_Deserialize = {
 
 export type FileEntry_Serialize = {
 	path: string,
-	oldPath: string | null,
+	oldPath?: string | null,
 	status: FileStatus,
 	/**
 	 *  What the entry is. A changed submodule is drawn with the submodule icon, the same
@@ -1564,9 +1664,9 @@ export type FileEntry_Serialize = {
 	 */
 	mode: FileMode,
 	/**  The new mode, only when it differs from the old one. */
-	modeChange: FileMode | null,
+	modeChange?: FileMode | null,
 	/**  Percent, only for a rename or a copy. */
-	similarity: number | null,
+	similarity?: number | null,
 	/**  Only on a worktree row of a submodule: what differs inside it. */
 	submodule?: SubmoduleChange | null,
 	/**  Only on a conflicted row: which sides touched the path. */
@@ -1872,13 +1972,24 @@ export type HookSource = "gitHooks" | "hooksPath";
 
 export type HookState = "missing" | "enabled" | "disabled";
 
-export type Hunk = {
+export type Hunk = Hunk_Serialize | Hunk_Deserialize;
+
+export type Hunk_Deserialize = {
 	oldStart: number,
 	oldLines: number,
 	newStart: number,
 	newLines: number,
 	header: string,
-	rows: DiffRow[],
+	rows: DiffRow_Deserialize[],
+};
+
+export type Hunk_Serialize = {
+	oldStart: number,
+	oldLines: number,
+	newStart: number,
+	newLines: number,
+	header: string,
+	rows: DiffRow_Serialize[],
 };
 
 export type IgnoreDraft = {
@@ -2231,9 +2342,18 @@ export type PaintTip = {
 	slot: number,
 };
 
-export type PatchRequest = {
+export type PatchRequest = PatchRequest_Serialize | PatchRequest_Deserialize;
+
+export type PatchRequest_Deserialize = {
 	path: string,
-	hunks: Hunk[],
+	hunks: Hunk_Deserialize[],
+	selectedDeletes: number[],
+	selectedInserts: number[],
+};
+
+export type PatchRequest_Serialize = {
+	path: string,
+	hunks: Hunk_Serialize[],
 	selectedDeletes: number[],
 	selectedInserts: number[],
 };

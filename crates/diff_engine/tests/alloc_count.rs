@@ -176,3 +176,25 @@ fn allocations_of_the_diff_and_merge_paths() {
         merge3_sides(&base, &ours, &theirs, None)
     });
 }
+
+/// What a diff costs on the IPC: its JSON, as the frontend receives it. The whole file is the
+/// Diff panel's default, so nearly every row there is a context row.
+#[test]
+#[ignore = "a measurement: run by hand with --release --nocapture"]
+fn json_size_of_a_diff() {
+    let (old, new) = source(5_000, 0);
+    for (what, context) in [("hunks", 3), ("whole file", 100_000)] {
+        let options = DiffOptions {
+            context_lines: context,
+            ..DiffOptions::default()
+        };
+        let diff = diff_one("src/lib.rs", old.as_bytes(), new.as_bytes(), &options);
+        let json = serde_json::to_vec(&diff).unwrap();
+        let line = format!(
+            "json 5k lines, {what:<12} {:>9} bytes
+",
+            json.len()
+        );
+        std::io::stdout().write_all(line.as_bytes()).ok();
+    }
+}

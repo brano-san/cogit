@@ -77,6 +77,12 @@ pub enum MoveScope {
     AcrossFiles,
 }
 
+/// A flag left out of the JSON while it is off: most rows have none set.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn is_false(flag: &bool) -> bool {
+    !*flag
+}
+
 #[derive(Debug, Clone, Serialize, specta::Type, Deserialize)]
 #[serde(
     tag = "kind",
@@ -89,36 +95,51 @@ pub enum DiffRow {
         new: u32,
         text: String,
         /// The last line of both sides, neither ending in a newline.
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "is_false")]
+        #[specta(optional)]
         no_newline: bool,
     },
     Delete {
         old: u32,
         text: String,
+        /// Absent when no word changed: most rows of a diff.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        #[specta(optional)]
         inline: Vec<(u32, u32)>,
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "is_false")]
+        #[specta(optional)]
         moved: bool,
         /// Both ends of one move carry the same number, so the UI can draw the pair.
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[specta(optional)]
         move_id: Option<u32>,
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[specta(optional)]
         move_scope: Option<MoveScope>,
         /// The file ends on this row without a final newline; a unified diff prints
         /// `\ No newline at end of file` underneath it.
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "is_false")]
+        #[specta(optional)]
         no_newline: bool,
     },
     Insert {
         new: u32,
         text: String,
+        /// Absent when no word changed: most rows of a diff.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        #[specta(optional)]
         inline: Vec<(u32, u32)>,
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "is_false")]
+        #[specta(optional)]
         moved: bool,
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[specta(optional)]
         move_id: Option<u32>,
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[specta(optional)]
         move_scope: Option<MoveScope>,
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "is_false")]
+        #[specta(optional)]
         no_newline: bool,
     },
 }

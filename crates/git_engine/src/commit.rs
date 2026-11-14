@@ -152,21 +152,27 @@ pub enum FileMode {
 #[serde(rename_all = "camelCase")]
 pub struct FileEntry {
     pub path: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[specta(optional)]
     pub old_path: Option<String>,
     pub status: FileStatus,
     /// What the entry is. A changed submodule is drawn with the submodule icon, the same
     /// one the Repositories panel uses, not as a file (doc/12-risks.md, R-143).
     pub mode: FileMode,
     /// The new mode, only when it differs from the old one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[specta(optional)]
     pub mode_change: Option<FileMode>,
     /// Percent, only for a rename or a copy.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[specta(optional)]
     pub similarity: Option<u32>,
     /// Only on a worktree row of a submodule: what differs inside it.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[specta(optional)]
     pub submodule: Option<SubmoduleChange>,
     /// Only on a conflicted row: which sides touched the path.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[specta(optional)]
     pub conflict: Option<ConflictKind>,
 }

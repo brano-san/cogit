@@ -172,7 +172,7 @@ export function buildBlocks(entries: readonly FoldEntry[], opts: InlineOptions =
         moveId: row.moveId ?? null,
         noNewline: row.noNewline ?? false,
         // Moved lines keep the engine's own ranges; the block-level pass is for `changed`.
-        inline: moved ? ([...row.inline] as Range[]) : [],
+        inline: moved ? ([...(row.inline ?? [])] as Range[]) : [],
       });
       for (const row of seg.dels) {
         const key = `d:${row.old}`;
