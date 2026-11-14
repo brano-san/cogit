@@ -79,3 +79,64 @@ fn there_is_nothing_to_cancel_but_a_running_network_operation() {
     drop(running);
     assert!(!state.cancel_network(7), "it is over");
 }
+
+/// A background fetch hung on a remote held the lane for minutes; Cancel in the footer now
+/// stops it like any fetch, and what waited behind it runs (R-946).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_background_fetch_cancelled_frees_the_work_behind_it() {
+    let f = test_fixtures::linear(1).unwrap();
+    silent_remote(&f);
+    let state = Arc::new(AppState::new());
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let (done, finished) = std::sync::mpsc::channel();
+    {
+        let (state, root) = (Arc::clone(&state), f.path().to_path_buf());
+        std::thread::spawn(move || {
+            let _ = done.send(state.pull_probe(&root));
+        });
+    }
+    let started = Instant::now();
+    while git_engine::children::running() == 0 {
+        assert!(
+            started.elapsed() < test_fixtures::scaled(Duration::from_secs(20)),
+            "git never started"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let behind = Arc::clone(&state);
+    let committing = tokio::spawn(async move {
+        behind
+            .enqueue(repo, OperationKind::Commit, "Committing")
+            .await
+            .finish(true);
+    });
+    let background = loop {
+        if let Some(op) = state
+            .operations()
+            .into_iter()
+            .find(|op| op.kind == OperationKind::Fetch)
+        {
+            break op;
+        }
+        assert!(
+            started.elapsed() < test_fixtures::scaled(Duration::from_secs(20)),
+            "the background fetch was never announced"
+        );
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    };
+    assert!(background.cancellable, "{background:?}");
+
+    assert!(state.cancel_network(background.id));
+    let result = finished
+        .recv_timeout(Duration::from_secs(20))
+        .expect("the background fetch was still running 20 s after it was cancelled");
+    assert!(
+        matches!(result, Err(git_engine::GitError::Cancelled(_))),
+        "{result:?}"
+    );
+    tokio::time::timeout(Duration::from_secs(20), committing)
+        .await
+        .expect("the commit behind it never ran")
+        .unwrap();
+    assert!(state.operations().is_empty(), "the lane is free again");
+}

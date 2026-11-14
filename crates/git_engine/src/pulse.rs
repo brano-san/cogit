@@ -166,6 +166,16 @@ impl RepoHandle {
         &self,
         credential: impl Fn(&str) -> Option<crate::Credential>,
     ) -> Result<Option<bool>> {
+        self.pull_probe_until(credential, None)
+    }
+
+    /// `pull_probe` that `stop` ends: the fetch running is killed, the remotes after it
+    /// are not asked (R-946).
+    pub fn pull_probe_until(
+        &self,
+        credential: impl Fn(&str) -> Option<crate::Credential>,
+        stop: Option<&crate::NetworkStop>,
+    ) -> Result<Option<bool>> {
         let branch = match self.head()? {
             crate::Head::Branch { name, oid } => {
                 gix::refs::FullName::try_from(format!("refs/heads/{name}"))
@@ -184,8 +194,12 @@ impl RepoHandle {
             if !self.background_fetch_of(&remote) {
                 continue;
             }
+            if stop.is_some_and(crate::NetworkStop::is_stopped) {
+                return Err(crate::GitError::Cancelled(format!("git fetch {remote}")));
+            }
             let auth = self.auth_env(&remote, gix::remote::Direction::Fetch, &credential);
-            match self.fetch_quietly(&remote, &auth) {
+            match self.fetch_quietly(&remote, &auth, stop) {
+                Err(err @ crate::GitError::Cancelled(_)) => return Err(err),
                 Err(err) if upstream.as_deref() == Some(remote.as_str()) => {
                     upstream_failed = Some(err);
                 }
@@ -230,7 +244,13 @@ impl RepoHandle {
         Ok(Some(!matches!(base, Ok(base) if base == tip)))
     }
 
-    fn fetch_quietly(&self, remote: &str, auth: &[(String, String)]) -> Result<()> {
+    /// Journalled like any command, and stoppable: `stop` kills git where it is.
+    fn fetch_quietly(
+        &self,
+        remote: &str,
+        auth: &[(String, String)],
+        stop: Option<&crate::NetworkStop>,
+    ) -> Result<()> {
         let mut args = self.background_options();
         args.extend([
             "fetch",
@@ -247,7 +267,14 @@ impl RepoHandle {
             auth.iter()
                 .map(|(key, value)| (key.as_str(), value.as_str())),
         );
-        self.run_git_with_env(&args, &env).map(drop)
+        let mut process = self.base_git(&args);
+        process.envs(env);
+        let to = crate::network::Streamed {
+            root: self.root(),
+            stop,
+            journal: &|entry| self.journal_entry(entry),
+        };
+        to.run(process, &args, |_| {}, crate::network::SILENCE)
     }
 
     pub(crate) fn background_options(&self) -> Vec<&'static str> {

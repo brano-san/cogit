@@ -423,11 +423,11 @@ async fn a_background_fetch_is_announced_once_someone_waits_behind_it() {
     assert_eq!(
         phases[..2],
         [
-            (OperationKind::Fetch, OperationPhase::Running, false),
+            (OperationKind::Fetch, OperationPhase::Running, true),
             (OperationKind::Commit, OperationPhase::Queued, false),
         ]
     );
-    assert!(phases.contains(&(OperationKind::Fetch, OperationPhase::Done, false)));
+    assert!(phases.contains(&(OperationKind::Fetch, OperationPhase::Done, true)));
     assert_eq!(
         phases.last(),
         Some(&(OperationKind::Commit, OperationPhase::Done, false))

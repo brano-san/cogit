@@ -653,7 +653,9 @@ pub fn serve_agent(
             Path::new(&root),
             &parent,
         )),
-        Request::PullProbe { root } => answer(state.pull_probe(Path::new(&root))),
+        Request::PullProbe { root } => {
+            answer(state.pull_probe_until(Path::new(&root), Some(call.stop())))
+        }
         Request::Scan { root, max_depth } => {
             git_engine::discover::scan_cancellable(
                 Path::new(&root),
@@ -882,11 +884,21 @@ impl AppState {
         root: &Path,
         request: impl FnOnce(String) -> Request,
     ) -> Option<Result<T, GitError>> {
+        self.on_host_of_until(root, None, request)
+    }
+
+    /// `on_host_of` that `stop` cancels in the agent.
+    pub(crate) fn on_host_of_until<T: DeserializeOwned>(
+        &self,
+        root: &Path,
+        stop: Option<&NetworkStop>,
+        request: impl FnOnce(String) -> Request,
+    ) -> Option<Result<T, GitError>> {
         let host = host_of(root)?;
         let request = request(host.agent_path(root));
         Some(
             self.agent(&host)
-                .and_then(|agent| agent.ask(&request, None)),
+                .and_then(|agent| agent.ask(&request, stop)),
         )
     }
 

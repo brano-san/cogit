@@ -154,7 +154,8 @@ impl Queue {
         (operation, Some(wait), blocker)
     }
 
-    fn admit_background(&self, lane: &Path, repo: RepoId) -> Option<oneshot::Receiver<()>> {
+    /// The background fetch's operation id, and the wait while the lane is someone else's.
+    fn admit_background(&self, lane: &Path, repo: RepoId) -> (u32, Option<oneshot::Receiver<()>>) {
         let mut lanes = self.lanes.lock();
         let lane = lanes.entry(lane.to_path_buf()).or_default();
         let mut turn = Turn {
@@ -165,19 +166,22 @@ impl Queue {
                 label: "Background fetch".to_owned(),
                 phase: OperationPhase::Queued,
                 success: None,
-                cancellable: false,
+                // Stopped like any fetch (`cancel_network`): a hung remote no longer holds
+                // the work queued behind it until `http.lowSpeedTime` (R-946).
+                cancellable: true,
             },
             background: true,
             announced: false,
         };
+        let id = turn.operation.id;
         if lane.running.is_none() {
             turn.operation.phase = OperationPhase::Running;
             lane.running = Some(turn);
-            return None;
+            return (id, None);
         }
         let (wake, wait) = oneshot::channel();
         lane.waiting.push_back((turn, wake));
-        Some(wait)
+        (id, Some(wait))
     }
 
     /// Hands the lane to whoever is next in it. Returns what the footer must hear of
@@ -313,10 +317,15 @@ impl crate::AppState {
 
     pub fn background_turn(&self, repo: RepoId) -> BackgroundTurn<'_> {
         let lane = self.lane_of(repo);
-        if let Some(wait) = self.queue.admit_background(&lane, repo) {
+        let (operation, wait) = self.queue.admit_background(&lane, repo);
+        if let Some(wait) = wait {
             let _ = wait.blocking_recv();
         }
-        BackgroundTurn { state: self, lane }
+        BackgroundTurn {
+            state: self,
+            lane,
+            operation,
+        }
     }
 
     /// Everything queued or running, for a panel that has just been opened again (P1.5).
@@ -395,6 +404,8 @@ impl Drop for OperationPermit<'_> {
 pub struct BackgroundTurn<'a> {
     state: &'a crate::AppState,
     lane: PathBuf,
+    /// What `cancel_network` knows the fetch by.
+    pub(crate) operation: u32,
 }
 
 impl Drop for BackgroundTurn<'_> {
