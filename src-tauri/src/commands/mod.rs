@@ -48,6 +48,16 @@ pub use staging::*;
 pub use terminal::*;
 pub use windows::*;
 
+/// `items` handed out `size` at a time, moved: a channel takes its chunks by value, and a
+/// copy of each would clone every string in them.
+fn in_chunks<T>(items: Vec<T>, size: usize) -> impl Iterator<Item = Vec<T>> {
+    let mut rest = items.into_iter();
+    std::iter::from_fn(move || {
+        let chunk: Vec<T> = rest.by_ref().take(size.max(1)).collect();
+        (!chunk.is_empty()).then_some(chunk)
+    })
+}
+
 /// Every blocking command goes through here, so the profile log holds one line per IPC
 /// call: what ran, how long it took and whether it worked.
 async fn blocking<T, F>(label: &'static str, work: F) -> Result<T, GitError>

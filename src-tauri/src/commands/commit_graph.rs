@@ -116,10 +116,11 @@ pub async fn lost_commits(
         app_state.lost_commits(repo, u32::MAX)
     })
     .await?;
-    for chunk in lost.chunks(DEFAULT_CHUNK_SIZE) {
-        let _ = on_chunk.send(chunk.to_vec());
+    let total = u32::try_from(lost.len()).unwrap_or(u32::MAX);
+    for chunk in super::in_chunks(lost, DEFAULT_CHUNK_SIZE) {
+        let _ = on_chunk.send(chunk);
     }
-    Ok(u32::try_from(lost.len()).unwrap_or(u32::MAX))
+    Ok(total)
 }
 
 #[tauri::command]

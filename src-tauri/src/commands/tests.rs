@@ -498,3 +498,11 @@ fn the_main_thread_list_has_no_leftovers() {
 
     assert!(gone.is_empty(), "no longer commands at all: {gone:?}");
 }
+
+#[test]
+fn chunks_hand_every_item_out_once_in_order() {
+    let chunks: Vec<Vec<u32>> = super::in_chunks((0..7).collect(), 3).collect();
+    assert_eq!(chunks, vec![vec![0, 1, 2], vec![3, 4, 5], vec![6]]);
+    assert_eq!(super::in_chunks(Vec::<u32>::new(), 3).count(), 0);
+    assert_eq!(super::in_chunks(vec![1, 2], 0).count(), 2);
+}

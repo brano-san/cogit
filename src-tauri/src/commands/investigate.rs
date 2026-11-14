@@ -48,10 +48,11 @@ pub async fn investigate_log(
         app_state.file_log(repo, &path, rev.as_deref(), follow)
     })
     .await?;
-    for chunk in log.chunks(CHUNK) {
-        let _ = on_chunk.send(chunk.to_vec());
+    let total = u32::try_from(log.len()).unwrap_or(u32::MAX);
+    for chunk in super::in_chunks(log, CHUNK) {
+        let _ = on_chunk.send(chunk);
     }
-    Ok(u32::try_from(log.len()).unwrap_or(u32::MAX))
+    Ok(total)
 }
 
 /// The file at `rev` (the working tree when absent), each line with its origin.
@@ -84,10 +85,8 @@ pub async fn investigate_blame(
         commits: report.commits,
         sources: report.sources,
     });
-    for chunk in report.lines.chunks(CHUNK) {
-        let _ = on_chunk.send(BlameChunk::Lines {
-            lines: chunk.to_vec(),
-        });
+    for lines in super::in_chunks(report.lines, CHUNK) {
+        let _ = on_chunk.send(BlameChunk::Lines { lines });
     }
     Ok(total)
 }
