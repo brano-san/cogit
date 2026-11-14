@@ -14,6 +14,8 @@ import {
   nextRow,
   nodeCentre,
   nodeSquare,
+  nodeSizes,
+  snapToGrid,
   nodeFill,
   rowStarts,
   striped,
@@ -409,6 +411,34 @@ describe("nodeCentre", () => {
 
   it("follows the scroll", () => {
     expect(nodeCentre(0, 10, GRAPH.rowHeight * 10).y).toBe(GRAPH.rowHeight / 2);
+  });
+});
+
+describe("nodeSizes", () => {
+  it("puts a ring's stroke edges on device-pixel edges at every scale", () => {
+    for (const ratio of [1, 1.25, 1.5, 1.75, 2, 2.5, 3]) {
+      const { ringRadius, ringStroke, dotRadius } = nodeSizes(ratio);
+      const inner = (ringRadius - ringStroke / 2) * ratio;
+      const outer = (ringRadius + ringStroke / 2) * ratio;
+
+      expect(inner).toBeCloseTo(Math.round(inner), 9);
+      expect(outer).toBeCloseTo(Math.round(outer), 9);
+      expect(dotRadius * ratio).toBeCloseTo(Math.round(dotRadius * ratio), 9);
+      // A little under the ring's outer edge, and close to the CSS sizes.
+      expect(dotRadius).toBeLessThan(ringRadius + ringStroke / 2);
+      expect(Math.abs(outer / ratio - (GRAPH.ringRadius + GRAPH.ringStroke / 2))).toBeLessThanOrEqual(0.5 / ratio + 1e-9);
+    }
+  });
+
+  it("draws a crisp 8 px ring with a 2 px stroke at 100 %", () => {
+    expect(nodeSizes(1)).toEqual({ ringRadius: 3, ringStroke: 2, dotRadius: 3 });
+  });
+});
+
+describe("snapToGrid", () => {
+  it("lands on a device-pixel corner, past the canvas's own offset", () => {
+    expect(snapToGrid(12.5, 1.25, 0.5) * 1.25 + 0.5).toBe(16);
+    expect(snapToGrid(24, 1, 0)).toBe(24);
   });
 });
 

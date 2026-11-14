@@ -102,6 +102,44 @@ export function setGraphRowHeight(px: number): void {
   rowHeight = Math.min(Math.max(Math.round(px), ROW_HEIGHT.min), ROW_HEIGHT.max);
 }
 
+/** The device-pixel grid under the canvas: `ratio` device pixels a CSS pixel, the drawing
+    moved `x`, `y` device pixels to sit level with the rows (`subpixelOffset`). */
+export interface PixelGrid {
+  ratio: number;
+  x: number;
+  y: number;
+}
+
+export const CSS_GRID: PixelGrid = { ratio: 1, x: 0, y: 0 };
+
+/** A coordinate moved onto the nearest device-pixel corner along one axis of a grid. */
+export function snapToGrid(value: number, ratio: number, offset: number): number {
+  return (Math.round(value * ratio + offset) - offset) / ratio;
+}
+
+/** A node's sizes in whole device pixels, given in CSS pixels. Centred on a pixel corner, a
+    ring's stroke then starts and ends on pixel edges, as the repository icon's outlines do:
+    3.5 and 1.5 put both edges a quarter pixel off the grid and every ring read as blurred. */
+export interface NodeSizes {
+  ringRadius: number;
+  ringStroke: number;
+  dotRadius: number;
+}
+
+const nodeSizesCache = new Map<number, NodeSizes>();
+
+export function nodeSizes(ratio: number): NodeSizes {
+  let sizes = nodeSizesCache.get(ratio);
+  if (sizes) return sizes;
+  const stroke = Math.max(1, Math.round(GRAPH.ringStroke * ratio));
+  const outer = Math.max(stroke + 1, Math.round((GRAPH.ringRadius + GRAPH.ringStroke / 2) * ratio));
+  // A little under the ring's outer edge, as the CSS sizes have it.
+  const dot = Math.max(1, Math.min(Math.round(GRAPH.workingTreeRadius * ratio), outer - 1));
+  sizes = { ringRadius: (outer - stroke / 2) / ratio, ringStroke: stroke / ratio, dotRadius: dot / ratio };
+  nodeSizesCache.set(ratio, sizes);
+  return sizes;
+}
+
 export function laneX(lane: number): number {
   return GRAPH.leftPad + GRAPH.laneWidth * lane;
 }

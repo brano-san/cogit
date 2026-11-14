@@ -106,6 +106,7 @@
         clipX,
         stripes,
         coloring: settings.current.graphColoring,
+        grid: { ratio, x: off.x, y: off.y },
       },
       tokenColor,
     );

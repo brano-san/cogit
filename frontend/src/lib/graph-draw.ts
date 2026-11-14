@@ -1,5 +1,9 @@
 import {
+  CSS_GRID,
   GRAPH,
+  nodeSizes,
+  snapToGrid,
+  type PixelGrid,
   arrowStub,
   laneX,
   nodeCentre,
@@ -49,6 +53,8 @@ export interface GraphScene {
   clipX: number;
   stripes: boolean;
   coloring: GraphColoring;
+  /** The device pixels the canvas is drawn on; nodes snap to them. CSS pixels when absent. */
+  grid?: PixelGrid;
 }
 
 /** One path per look in a layer, as the frame fills it. */
@@ -111,7 +117,9 @@ export function paintGraph(context: CanvasRenderingContext2D, scene: GraphScene,
     clipX,
     stripes,
     coloring,
+    grid = CSS_GRID,
   } = scene;
+  const sizes = nodeSizes(grid.ratio);
   const main = token("--graph-main");
   const line = token("--graph-line");
   const options = { accentLit: coloring === "mergeable", branchOnly: coloring === "branch", focusLane };
@@ -214,7 +222,7 @@ export function paintGraph(context: CanvasRenderingContext2D, scene: GraphScene,
   if (workingTree !== null) {
     const { x, y } = nodeCentre(headerLane ?? headLane ?? 0, headerRow, scrollTop);
     context.beginPath();
-    context.arc(x, y, GRAPH.workingTreeRadius, 0, Math.PI * 2);
+    context.arc(snapToGrid(x, grid.ratio, grid.x), snapToGrid(y, grid.ratio, grid.y), sizes.dotRadius, 0, Math.PI * 2);
     context.fillStyle = token(workingTree === "clean" ? "--graph-working-tree-clean" : "--graph-working-tree-changed");
     context.fill();
   }
@@ -228,15 +236,15 @@ export function paintGraph(context: CanvasRenderingContext2D, scene: GraphScene,
   for (const row of rows) {
     const local = !row.stash && row.unpushed === true;
     nodeFillInto(behind, row.listRow, selectedRows, hoverRow, stripes, row.bisect?.tint ?? null);
-    // `nodeCentre` and `nodeSquare`, without their objects.
-    const x = laneX(row.layout.lane);
-    const y = rowY(row.listRow, scrollTop);
+    // `nodeCentre` and `nodeSquare`, without their objects, on a device-pixel corner.
+    const x = snapToGrid(laneX(row.layout.lane), grid.ratio, grid.x);
+    const y = snapToGrid(rowY(row.listRow, scrollTop), grid.ratio, grid.y);
     context.beginPath();
     if (row.stash) {
-      const size = GRAPH.ringRadius * 2;
+      const size = sizes.ringRadius * 2;
       context.rect(x - size / 2, y - size / 2, size, size);
     } else {
-      context.arc(x, y, GRAPH.ringRadius, 0, Math.PI * 2);
+      context.arc(x, y, sizes.ringRadius, 0, Math.PI * 2);
     }
     const ring = nodeStroke(row.layout, row.paint, options);
     const ringInk = row.stash ? stash : ink(ring.token, ring.alpha);
@@ -253,7 +261,7 @@ export function paintGraph(context: CanvasRenderingContext2D, scene: GraphScene,
       context.fillStyle = token(dot);
       context.fill();
     }
-    context.lineWidth = GRAPH.ringStroke;
+    context.lineWidth = sizes.ringStroke;
     context.strokeStyle = ringInk;
     context.stroke();
     // A row wider than the cap or the room left is cut off with a fade, not a hard edge.
