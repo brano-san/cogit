@@ -306,3 +306,46 @@ fn a_stacked_rebase_finished_by_continue_undoes_with_its_branches() {
     assert_eq!(f.oid("dev").unwrap(), dev);
     assert_eq!(f.oid("feat-1").unwrap(), feat);
 }
+
+/// A rebase with `rebase.updateRefs` run by any tool moves the stacked branches too; Undo
+/// Last Rebase puts them all back, and names them before it does (R-948).
+#[test]
+fn undoing_a_rebase_with_update_refs_puts_every_moved_branch_back() {
+    let f = test_fixtures::branched().unwrap();
+    f.git(&["checkout", "-q", "-b", "feat-1", "dev"]).unwrap();
+    f.git(&["checkout", "-q", "-b", "feat-2"]).unwrap();
+    f.commit_file(5, "feat-2.txt", "two\n").unwrap();
+    let (feat_1, feat_2, dev) = (
+        f.oid("feat-1").unwrap(),
+        f.oid("feat-2").unwrap(),
+        f.oid("dev").unwrap(),
+    );
+    f.git(&["rebase", "--update-refs", "main"]).unwrap();
+    assert_ne!(f.oid("feat-1").unwrap(), feat_1, "the stack moved");
+    let (state, repo) = open(&f);
+
+    let info = state.undo_rewrite_info(repo).unwrap().unwrap();
+    let mut stacked = info.stacked.clone();
+    stacked.sort();
+    assert_eq!(stacked, ["dev", "feat-1"]);
+    state.undo_rewrite(repo).unwrap();
+
+    assert_eq!(f.oid("feat-2").unwrap(), feat_2);
+    assert_eq!(f.oid("feat-1").unwrap(), feat_1);
+    assert_eq!(f.oid("dev").unwrap(), dev);
+}
+
+/// A branch moved again after the rebase is not the rebase's to take back.
+#[test]
+fn a_stacked_branch_moved_since_the_rebase_stays() {
+    let f = test_fixtures::branched().unwrap();
+    f.git(&["checkout", "-q", "-b", "feat-1", "dev"]).unwrap();
+    f.git(&["checkout", "-q", "-b", "feat-2"]).unwrap();
+    f.commit_file(5, "feat-2.txt", "two\n").unwrap();
+    f.git(&["rebase", "--update-refs", "main"]).unwrap();
+    f.git(&["branch", "--force", "feat-1", "main"]).unwrap();
+    let (state, repo) = open(&f);
+
+    let info = state.undo_rewrite_info(repo).unwrap().unwrap();
+    assert_eq!(info.stacked, ["dev"]);
+}

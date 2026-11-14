@@ -205,6 +205,8 @@ export const commands = {
 	head: string,
 	/**  Staged or unstaged changes in tracked files. */
 	dirty: boolean,
+	/**  Other branches the last rebase moved with `rebase.updateRefs`; they go back too (R-948). */
+	stacked: string[],
 } | null, GitError>(__TAURI_INVOKE("undo_rewrite_info", { repo })),
 	isAncestor: (repo: RepoId, ancestor: string, descendant: string) => typedError<boolean, GitError>(__TAURI_INVOKE("is_ancestor", { repo, ancestor, descendant })),
 	compareFiles: (repo: RepoId, from: string, to: string) => typedError<FileEntry_Serialize[], GitError>(__TAURI_INVOKE("compare_files", { repo, from, to })),
@@ -3158,6 +3160,8 @@ export type UndoRewrite = {
 	head: string,
 	/**  Staged or unstaged changes in tracked files. */
 	dirty: boolean,
+	/**  Other branches the last rebase moved with `rebase.updateRefs`; they go back too (R-948). */
+	stacked: string[],
 };
 
 /**  Commits a submodule holds that no remote has: removing the worktree deletes the only copy. */

@@ -12,6 +12,8 @@ pub struct UndoRewrite {
     pub head: String,
     /// Staged or unstaged changes in tracked files.
     pub dirty: bool,
+    /// Other branches the last rebase moved with `rebase.updateRefs`; they go back too (R-948).
+    pub stacked: Vec<String>,
 }
 
 impl AppState {
@@ -115,10 +117,16 @@ impl AppState {
             git_engine::Head::Unborn { .. } => return Ok(None),
         };
         let status = handle.status()?;
+        let stacked = handle
+            .stacked_by_last_rebase()?
+            .into_iter()
+            .map(|moved| moved.branch)
+            .collect();
         Ok(Some(UndoRewrite {
             orig,
             head,
             dirty: status.staged > 0 || status.unstaged > 0 || status.conflicted > 0,
+            stacked,
         }))
     }
 
@@ -136,7 +144,25 @@ impl AppState {
                 "ORIG_HEAD is where HEAD already is: there is nothing to undo".to_owned(),
             ));
         }
-        self.reset_to(repo, "ORIG_HEAD", ResetMode::Keep)
+        // Read before the reset: it is the newest move of the current branch that names them.
+        let stacked = self.handle(repo)?.stacked_by_last_rebase()?;
+        self.reset_to(repo, "ORIG_HEAD", ResetMode::Keep)?;
+        let handle = self.handle(repo)?;
+        let mut left = Vec::new();
+        for moved in stacked {
+            if let Err(err) = handle.put_branch_back(&moved.branch, &moved.after, &moved.before) {
+                tracing::warn!(branch = %moved.branch, error = %err, "a stacked branch stayed");
+                left.push(moved.branch);
+            }
+        }
+        if left.is_empty() {
+            Ok(())
+        } else {
+            Err(GitError::InvalidState(format!(
+                "the current branch went back, but {} moved since the rebase and stayed where it is",
+                left.join(", ")
+            )))
+        }
     }
 
     pub(crate) fn local_is_ancestor(

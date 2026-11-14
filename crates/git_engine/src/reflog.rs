@@ -387,3 +387,99 @@ impl RepoHandle {
         Some(hasher.finish())
     }
 }
+
+/// One reflog entry as the stacked-branch undo reads it.
+#[derive(Debug, Clone)]
+struct Move {
+    previous: gix::ObjectId,
+    new: gix::ObjectId,
+    message: String,
+    time: i64,
+}
+
+/// A branch the last rebase moved with `rebase.updateRefs` besides the current one, and
+/// where it was before.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StackedMove {
+    pub branch: String,
+    pub before: String,
+    pub after: String,
+}
+
+impl RepoHandle {
+    /// The newest entries of `name`'s reflog, newest first.
+    fn moves(&self, name: &str, limit: usize) -> Vec<Move> {
+        let Ok(reference) = self.repo.find_reference(name) else {
+            return Vec::new();
+        };
+        let mut platform = reference.log_iter();
+        let Ok(Some(lines)) = platform.rev() else {
+            return Vec::new();
+        };
+        lines
+            .take(limit)
+            .filter_map(|line| line.ok())
+            .map(|line| Move {
+                previous: line.previous_oid,
+                new: line.new_oid,
+                message: line.message.to_string(),
+                time: line.signature.time.seconds,
+            })
+            .collect()
+    }
+
+    /// The other branches the last rebase of the current one rewrote (`rebase.updateRefs`,
+    /// by any tool), each still where that rebase left it. Empty unless the current branch's
+    /// newest move is that rebase's finish from `ORIG_HEAD` (R-948): git names the others
+    /// `rewritten during rebase` in their reflogs, between the rebase's start and finish in
+    /// HEAD's.
+    pub fn stacked_by_last_rebase(&self) -> Result<Vec<StackedMove>> {
+        let crate::Head::Branch { name: current, .. } = self.head()? else {
+            return Ok(Vec::new());
+        };
+        let Some(finish) = self
+            .moves(&format!("refs/heads/{current}"), 1)
+            .into_iter()
+            .next()
+            .filter(|top| top.message.starts_with("rebase (finish)"))
+        else {
+            return Ok(Vec::new());
+        };
+        if self.orig_head().as_deref() != Some(finish.previous.to_string().as_str()) {
+            return Ok(Vec::new());
+        }
+        // The rebase's own start: HEAD's newest `rebase (start)` before the finish.
+        let Some(start) = self
+            .moves("HEAD", 10_000)
+            .into_iter()
+            .filter(|line| line.time <= finish.time)
+            .find(|line| line.message.starts_with("rebase (start)"))
+        else {
+            return Ok(Vec::new());
+        };
+        let mut stacked = Vec::new();
+        for (branch, tip) in self.local_branch_tips()? {
+            if branch == current {
+                continue;
+            }
+            let Some(top) = self
+                .moves(&format!("refs/heads/{branch}"), 1)
+                .into_iter()
+                .next()
+            else {
+                continue;
+            };
+            if top.message.trim() == "rewritten during rebase"
+                && (start.time..=finish.time).contains(&top.time)
+                && gix::ObjectId::from_hex(tip.as_bytes()).is_ok_and(|tip| tip == top.new)
+            {
+                stacked.push(StackedMove {
+                    branch,
+                    before: top.previous.to_string(),
+                    after: tip,
+                });
+            }
+        }
+        Ok(stacked)
+    }
+}

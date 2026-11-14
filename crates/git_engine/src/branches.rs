@@ -119,6 +119,22 @@ impl RepoHandle {
         }
     }
 
+    /// `refs/heads/<name>` from `from` to `to`, refused unless it is still at `from`: a
+    /// branch moved since is left alone.
+    pub fn put_branch_back(&self, name: &str, from: &str, to: &str) -> Result<()> {
+        let name = require_name(name)?;
+        let full = format!("refs/heads/{name}");
+        self.run_git(&[
+            "update-ref",
+            "-m",
+            "cogit: undo last rebase",
+            &full,
+            to,
+            from,
+        ])
+        .map(drop)
+    }
+
     /// Moves `name` back to a commit its reflog remembers; returns where it was.
     pub fn restore_branch(&self, name: &str, oid: &str) -> Result<String> {
         let before = self

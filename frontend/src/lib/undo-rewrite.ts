@@ -14,12 +14,18 @@ export function undoRewriteQuestion(
   const moved =
     `Move the current branch back from ${info.head.slice(0, 7)} to ${info.orig.slice(0, 7)} ` +
     "(ORIG_HEAD), where it was before the last merge, rebase or reset.";
+  // A rebase with rebase.updateRefs moved the branches stacked on this one as well (R-948).
+  const stacked =
+    info.stacked.length === 0
+      ? ""
+      : ` ${info.stacked.length === 1 ? "Branch" : "Branches"} ${info.stacked.join(", ")}, which the rebase ` +
+        "moved with rebase.updateRefs, go back too.";
   const kept = info.dirty
     ? "\n\nYou have uncommitted changes. They stay in your files (staged ones may become " +
       "unstaged); if the move would overwrite one of them, git refuses and nothing changes."
     : "";
   return {
-    message: `${moved}${kept}\n\nThe commits it leaves behind stay in Lost Commits, and Undo Last Operation takes this back.`,
+    message: `${moved}${stacked}${kept}\n\nThe commits it leaves behind stay in Lost Commits, and Undo Last Operation takes this back.`,
     warning: info.dirty,
   };
 }

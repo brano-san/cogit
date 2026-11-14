@@ -160,7 +160,7 @@ pub use presets::{
 pub use progress::{RebaseProgress, RebaseStep};
 pub use pulse::{ASKPASS_REFUSAL_VAR, RepoPulse, pulse};
 pub use ref_meta::{OtherRef, RefDate};
-pub use reflog::{Reachable, ReflogEntry};
+pub use reflog::{Reachable, ReflogEntry, StackedMove};
 pub use remotes::RemoteInfo;
 pub use repo::{Branch, BranchKind, Head, RepoHandle, Tag, warm_up};
 pub use repo_settings::{REPO_SETTING_KEYS, RepoSetting, RepoSettingChange};
