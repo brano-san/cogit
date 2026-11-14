@@ -70,6 +70,36 @@ const TICK_BOX = "input.tick-box, input.box";
 /** A branch leaf: `feature/003` sits under the folder `feature`, labelled `003`. */
 const BRANCH_BOX = { sel: `[role="treeitem"].local`, text: "003", exact: ".label", child: TICK_BOX };
 
+const pause = (ms) => new Promise((ok) => setTimeout(ok, ms));
+
+/** `steps` wheel notches of `delta` px over the list `selector`, a frame apart. The samples:
+    the whole scroll until the page settles (`longest`: the longest frame), how many frames
+    took longer than two, and how many KB the JS heap grew (no collection in between). */
+async function wheel(ctx, selector, steps, delta) {
+  const cdp = ctx.cdp;
+  const at = await cdp.eval(`(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+  await cdp.send("Performance.enable");
+  const heap = async () => (await cdp.send("Performance.getMetrics")).metrics.find((m) => m.name === "JSHeapUsedSize")?.value ?? 0;
+  await cdp.send("HeapProfiler.collectGarbage").catch(() => {});
+  const before = await heap();
+  await cdp.eval(`(() => { const gaps = (window.__wheelGaps = []); let last = performance.now(); window.__wheelOn = true; const tick = (t) => { gaps.push(t - last); last = t; if (window.__wheelOn) requestAnimationFrame(tick); }; requestAnimationFrame(tick); })()`);
+  const started = Date.now();
+  for (let i = 0; i < steps; i += 1) {
+    await cdp.send("Input.dispatchMouseEvent", { type: "mouseWheel", x: at.x, y: at.y, deltaX: 0, deltaY: delta });
+    await pause(16);
+  }
+  await cdp.eval("window.__bench.idle(150, 15000)");
+  const total = Date.now() - started - 150;
+  const gaps = await cdp.eval("(() => { window.__wheelOn = false; return window.__wheelGaps.slice(1); })()");
+  const grown = (await heap()) - before;
+  const longest = Math.max(0, ...gaps);
+  return {
+    "graph.wheel": { total, longest },
+    "graph.wheel.slow-frames": { total: gaps.filter((gap) => gap > 33.4).length, longest },
+    "graph.wheel.heap-kb": { total: Math.round(grown / 1024) },
+  };
+}
+
 export const SCENARIOS = [
   {
     id: "repo.open",
@@ -113,6 +143,17 @@ export const SCENARIOS = [
     sets: ["medium", "large", ...GRAPH_CG],
     measure: (ctx) =>
       ctx.measure.run(`(() => { document.querySelector('.scroll[aria-label="Commits"]').scrollTop = ${((ctx.iteration % 4) + 1) * 24000}; })()`),
+    reset: (ctx) => ctx.prep.run(`(() => { document.querySelector('.scroll[aria-label="Commits"]').scrollTop = 0; })()`),
+  },
+  {
+    // The wheel, not a jump: about 120 notches as a hand gives them, a frame apart. What a
+    // jump hides shows here: frames the page missed while rows came and went, and the heap
+    // the scroll left behind (doc/15-benchmark.md).
+    id: "graph.wheel",
+    group: "Граф",
+    title: "прокрутка колесом, 120 шагов по 40 px",
+    sets: ["medium", "large", ...GRAPH_CG],
+    measure: (ctx) => wheel(ctx, ".scroll[aria-label=\"Commits\"]", 120, 40),
     reset: (ctx) => ctx.prep.run(`(() => { document.querySelector('.scroll[aria-label="Commits"]').scrollTop = 0; })()`),
   },
   {
