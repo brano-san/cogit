@@ -263,9 +263,14 @@
     color: var(--text-secondary);
   }
 
+  /* A column the output fills, as high as the window and never higher: the command, the
+     output and the buttons share it instead of spilling past its bottom. */
   .detail {
+    display: flex;
+    flex-direction: column;
     flex: 1 1 auto;
     min-width: 0;
+    min-height: 0;
   }
 
   .gone {

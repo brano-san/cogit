@@ -229,7 +229,7 @@
         <dt>Repository</dt>
         <dd class="mono" title={entry.repo}>{repoName}</dd>
         <dt>Command</dt>
-        <dd class="mono">{entry.command}</dd>
+        <dd class="mono command">{entry.command}</dd>
         <dt>Exit code</dt>
         <dd class="mono tabular">{entry.exitCode ?? "did not start"}</dd>
         <dt>Duration</dt>
@@ -415,6 +415,8 @@
     flex: 1 1 auto;
     min-height: 0;
     padding: var(--sp-4) var(--sp-4) 0;
+    /* What does not fit stays inside, under the footer's buttons, never over them. */
+    overflow: hidden;
   }
 
   .facts {
@@ -431,6 +433,13 @@
     color: var(--text-primary);
     user-select: text;
     overflow-wrap: anywhere;
+  }
+
+  /* A command can name hundreds of commits: five lines of it, the rest scrolled, so the
+     output keeps the window instead of being pushed out of it. */
+  .facts .command {
+    max-height: 7.5em;
+    overflow-y: auto;
   }
 
   .find {
@@ -459,7 +468,8 @@
 
   .out {
     flex: 1 1 auto;
-    min-height: 0;
+    /* Four lines of output however small the window: the reason is in it. */
+    min-height: calc(4 * 18px + 2px);
     margin: var(--sp-3) 0 0;
     background: var(--surface-input);
     border: 1px solid var(--divider);
