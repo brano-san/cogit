@@ -203,7 +203,14 @@ impl RepoHandle {
 }
 
 type Stamp = Vec<Option<std::time::SystemTime>>;
-type BrokenSubmodules = std::sync::Mutex<std::collections::HashMap<std::path::PathBuf, Stamp>>;
+/// The stamp a skip was taken with, and when: past `RECHECK` the submodules are read
+/// again whatever the stamp says.
+type BrokenSubmodules =
+    std::sync::Mutex<std::collections::HashMap<std::path::PathBuf, (Stamp, std::time::Instant)>>;
+
+/// A repair the stamp cannot see (an object or a ref deep in `.git/modules/<name>`) ends the
+/// skip within this; a submodule still broken then costs one failing read a minute (R-947).
+const RECHECK: std::time::Duration = std::time::Duration::from_secs(60);
 
 fn broken_submodules() -> &'static BrokenSubmodules {
     static BROKEN: std::sync::OnceLock<BrokenSubmodules> = std::sync::OnceLock::new();
@@ -238,6 +245,7 @@ fn watched_paths(repo: &RepoHandle) -> Vec<std::path::PathBuf> {
         }
         if let Ok(git_dir) = module.git_dir() {
             watched.push(git_dir.join("HEAD"));
+            watched.push(git_dir.join("config"));
             watched.push(git_dir);
         }
     }
@@ -269,12 +277,21 @@ fn skipping_broken_submodules<T>(
     stamp: impl Fn() -> Stamp,
     read: impl Fn(bool) -> Result<T>,
 ) -> Result<T> {
+    skipping_broken_submodules_at(root, stamp, read, std::time::Instant::now())
+}
+
+fn skipping_broken_submodules_at<T>(
+    root: &std::path::Path,
+    stamp: impl Fn() -> Stamp,
+    read: impl Fn(bool) -> Result<T>,
+    now: std::time::Instant,
+) -> Result<T> {
     let known = broken_submodules()
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .get(root)
         .cloned();
-    if known.is_some_and(|known| known == stamp()) {
+    if known.is_some_and(|(known, at)| now.duration_since(at) < RECHECK && known == stamp()) {
         return read(true);
     }
     match read(false) {
@@ -286,7 +303,7 @@ fn skipping_broken_submodules<T>(
             broken_submodules()
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .insert(root.to_path_buf(), stamp());
+                .insert(root.to_path_buf(), (stamp(), now));
             read(true)
         }
         other => other,
@@ -337,6 +354,29 @@ mod tests {
             .set_modified(std::time::SystemTime::now() + std::time::Duration::from_secs(5))
             .unwrap();
         skipping_broken_submodules(dir.path(), watched, read).unwrap();
+        assert_eq!(*calls.borrow(), [false, true, true, false, true]);
+    }
+
+    #[test]
+    fn a_skipped_submodule_is_read_again_after_a_minute_whatever_the_stamp() {
+        let dir = tempfile::tempdir().unwrap();
+        let calls = RefCell::new(Vec::new());
+        let read = |skip: bool| {
+            calls.borrow_mut().push(skip);
+            if skip {
+                Ok(())
+            } else {
+                Err(GitError::Internal(
+                    "Could not determine status for submodule at 'x'".to_owned(),
+                ))
+            }
+        };
+        let unchanged = || vec![None];
+        let start = std::time::Instant::now();
+        skipping_broken_submodules_at(dir.path(), unchanged, read, start).unwrap();
+        skipping_broken_submodules_at(dir.path(), unchanged, read, start + RECHECK / 2).unwrap();
+        assert_eq!(*calls.borrow(), [false, true, true]);
+        skipping_broken_submodules_at(dir.path(), unchanged, read, start + RECHECK).unwrap();
         assert_eq!(*calls.borrow(), [false, true, true, false, true]);
     }
 }
