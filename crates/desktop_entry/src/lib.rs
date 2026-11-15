@@ -97,7 +97,7 @@ pub fn desktop_file(exe: &Path, comment: &str) -> String {
     format!(
         "[Desktop Entry]\nType=Application\nName=Cogit\nComment={comment}\nExec={exec} %F\n\
          Icon={APP_NAME}\nTerminal=false\nStartupWMClass={APP_NAME}\n\
-         Categories=Development;RevisionControl;\nMimeType=inode/directory;\n\
+         Categories=Development;RevisionControl;\n\
          StartupNotify=true\n"
     )
 }

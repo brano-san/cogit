@@ -36,7 +36,7 @@ fn desktop_text_is_exact() {
         text,
         "[Desktop Entry]\nType=Application\nName=Cogit\nComment=Git GUI\n\
          Exec=\"/opt/my apps/cogit\" %F\nIcon=cogit\nTerminal=false\nStartupWMClass=cogit\n\
-         Categories=Development;RevisionControl;\nMimeType=inode/directory;\n\
+         Categories=Development;RevisionControl;\n\
          StartupNotify=true\n"
     );
 }
@@ -130,13 +130,14 @@ fn version_and_help_print_and_run_returns_none() {
     assert!(err.is_empty());
 }
 
-// F-946: file managers offer "Open with Cogit" on folders and pass the folder's path.
+// F-946: a launcher's paths reach Cogit. No `MimeType=inode/directory`: where folders have
+// no default handler, xdg-open would open every folder in Cogit, its own Reveal included.
 #[test]
 fn the_packaged_entry_is_the_one_install_writes() {
     let packaged = include_str!("../../../src-tauri/linux/cogit.desktop").replace("\r\n", "\n");
     let comment = "Blazing-fast Git GUI client for power users";
     assert_eq!(packaged, desktop_file(Path::new("cogit"), comment));
-    assert!(packaged.contains("\nMimeType=inode/directory;\n"));
+    assert!(!packaged.contains("MimeType"));
     assert!(packaged.contains("\nExec=cogit %F\n"));
 }
 

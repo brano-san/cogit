@@ -7,5 +7,4 @@ Icon=cogit
 Terminal=false
 StartupWMClass=cogit
 Categories=Development;RevisionControl;
-MimeType=inode/directory;
 StartupNotify=true
