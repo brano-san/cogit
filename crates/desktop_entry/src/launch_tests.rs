@@ -27,7 +27,23 @@ fn bare_paths_open_repositories() {
 }
 
 #[test]
-fn a_folder_named_like_an_option_is_reached_after_a_separator() {
+fn log_takes_an_optional_path_and_blame_a_required_one() {
+    assert_eq!(parse(os(&["log"])), Ok(command(Show::Log, &[])));
+    assert_eq!(
+        parse(os(&["log", "src/a.rs"])),
+        Ok(command(Show::Log, &["src/a.rs"]))
+    );
+    assert_eq!(
+        parse(os(&["blame", "a.rs"])),
+        Ok(command(Show::Blame, &["a.rs"]))
+    );
+    assert!(parse(os(&["blame"])).is_err());
+    assert!(parse(os(&["log", "a", "b"])).is_err());
+    assert!(parse(os(&["blame", "a", "b"])).is_err());
+}
+
+#[test]
+fn a_folder_named_like_a_subcommand_is_reached_after_a_separator() {
     assert_eq!(
         parse(os(&["--", "log"])),
         Ok(command(Show::Repository, &["log"]))
@@ -68,13 +84,20 @@ fn absolute_paths_are_kept() {
     let elsewhere = std::env::temp_dir().join("elsewhere");
     let request = resolve(
         Command {
-            show: Show::Repository,
+            show: Show::Blame,
             paths: vec![elsewhere.clone().into_os_string()],
         },
         &cwd.join("somewhere"),
     );
-    assert_eq!(request.show, Show::Repository);
+    assert_eq!(request.show, Show::Blame);
     assert_eq!(request.paths, [elsewhere]);
+}
+
+#[test]
+fn log_alone_is_the_working_directory() {
+    let cwd = std::env::temp_dir().join("repo");
+    let request = resolve(command(Show::Log, &[]).unwrap(), &cwd.join("."));
+    assert_eq!(request.paths, [cwd]);
 }
 
 #[test]

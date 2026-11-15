@@ -1264,7 +1264,7 @@ export async function onNotificationClicked(handler: (event: NotificationClicked
   return await counted(events.notificationClicked.listen((event) => handler(event.payload)));
 }
 
-/** What `cogit <path>` asked for since the last call: this
+/** What `cogit <path>`, `cogit log` and `cogit blame` asked for since the last call: this
     process's command line first, then each one another `cogit` handed over. */
 export async function takeLaunchRequests() {
   return await commands.takeLaunchRequests();

@@ -141,10 +141,23 @@ fn the_packaged_entry_is_the_one_install_writes() {
 }
 
 #[test]
-fn paths_are_left_to_the_window() {
+fn a_command_line_the_window_cannot_take_is_refused_before_it_opens() {
     let (mut out, mut err) = (Vec::new(), Vec::new());
-    for args in [&["a", "b"][..], &["--", "-dir"], &["."]] {
-        assert_eq!(handle(os(args), "1", "c", &mut out, &mut err), None);
+    assert_eq!(
+        handle(os(&["blame"]), "1", "c", &mut out, &mut err),
+        Some(2)
+    );
+    let message = String::from_utf8(err).unwrap();
+    assert!(message.starts_with("cogit blame: "));
+    assert!(message.contains("Usage: cogit"));
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    for ok in [
+        &["log"][..],
+        &["log", "a.rs"],
+        &["blame", "a.rs"],
+        &["a", "b"],
+    ] {
+        assert_eq!(handle(os(ok), "1", "c", &mut out, &mut err), None);
     }
     assert!(out.is_empty() && err.is_empty());
 }

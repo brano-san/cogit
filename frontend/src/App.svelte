@@ -3621,7 +3621,7 @@ ${event.error}`,
     if (event.failed) await openErrorsWindow().catch((err) => errors.report(err, "Could not open the Errors window"));
   }
 
-  /** `cogit <path>`: this process's command line and each one
+  /** `cogit <path>`, `cogit log`, `cogit blame`: this process's command line and each one
       another `cogit` hands over, once startup has read the settings, one at a time. */
   let allowLaunches = () => {};
   const launchesAllowed = new Promise<void>((resolve) => (allowLaunches = resolve));
@@ -3643,6 +3643,9 @@ ${event.error}`,
           activate,
           refreshList: () => repository.refreshList(),
           report: (err, title) => errors.report(err, title),
+          shown: () => repository.current?.repo ?? null,
+          investigate: (repo, path) => openInvestigate(repo, path, null),
+          blame: (repo, path) => openBlame(repo, path, "HEAD"),
         });
       }
     }).catch((err) => errors.report(err, "Could not open what the command line asked for"));

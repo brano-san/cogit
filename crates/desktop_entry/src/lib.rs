@@ -189,10 +189,14 @@ fn refresh_caches(data_home: &Path) {
         .status();
 }
 
-const HELP: &str = "Usage: cogit [OPTIONS] [PATH]...\n\n\
-    Arguments:\n  \
+const HELP: &str = "Usage: cogit [OPTIONS] [PATH]...\n       \
+    cogit log [PATH]\n       \
+    cogit blame FILE\n\n\
+    Commands:\n  \
     PATH...      Open the repository at or above each path; a running Cogit takes it over\n  \
-    -- PATH...   Open folders named like an option\n\n\
+    log [PATH]   Open the repository and show the history of PATH (default: this folder)\n  \
+    blame FILE   Open the repository and show Blame for FILE\n  \
+    -- PATH...   Open folders named like a command or an option\n\n\
     Options:\n  \
     --install-desktop-entry    Add the launcher entry and icons to the user's data directory, or /usr/local/share as root (Linux)\n  \
     --uninstall-desktop-entry  Remove them again (Linux)\n  \

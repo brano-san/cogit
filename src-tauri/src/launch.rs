@@ -1,4 +1,4 @@
-//! `cogit <path>` (F-946): the request from this process's
+//! `cogit <path>`, `cogit log`, `cogit blame` (F-946, F-947): the request from this process's
 //! command line, and from every later `cogit` the single-instance plugin hands over. The
 //! page pulls them, so one made before it listens is not lost.
 
@@ -13,6 +13,8 @@ use tauri_specta::Event as _;
 #[serde(rename_all = "camelCase")]
 pub enum LaunchShow {
     Repository,
+    Log,
+    Blame,
 }
 
 /// `folder` is `path` itself for a folder (or a path that does not exist), else its parent:
@@ -61,6 +63,8 @@ pub fn request<I: IntoIterator<Item = OsString>>(args: I, cwd: &Path) -> Option<
 fn to_dto(request: launch::Request) -> LaunchRequest {
     let show = match request.show {
         Show::Repository => LaunchShow::Repository,
+        Show::Log => LaunchShow::Log,
+        Show::Blame => LaunchShow::Blame,
     };
     let paths = request
         .paths
@@ -139,6 +143,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let cwd = dir.path().to_string_lossy();
         assert!(handed_over(args(&["cogit.exe"]), &cwd).is_none());
+        assert!(handed_over(args(&["cogit.exe", "blame"]), &cwd).is_none());
     }
 
     #[test]
@@ -156,12 +161,22 @@ mod tests {
         assert_eq!(open.paths[0].folder, sub);
         assert_eq!(open.paths[1].folder, missing);
 
-        let file = handed_over(args(&["cogit.exe", "sub/a.rs"]), &cwd).unwrap();
+        let blame = handed_over(args(&["cogit.exe", "blame", "sub/a.rs"]), &cwd).unwrap();
+        assert!(matches!(blame.show, LaunchShow::Blame));
         assert_eq!(
-            file.paths[0].path,
+            blame.paths[0].path,
             text(&dir.path().join("sub").join("a.rs"))
         );
-        assert_eq!(file.paths[0].folder, sub);
+        assert_eq!(blame.paths[0].folder, sub);
+    }
+
+    #[test]
+    fn log_alone_is_the_other_process_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let cwd = dir.path().to_string_lossy();
+        let log = handed_over(args(&["cogit", "log"]), &cwd).unwrap();
+        assert!(matches!(log.show, LaunchShow::Log));
+        assert_eq!(log.paths[0].folder, text(dir.path()));
     }
 
     #[test]
@@ -169,7 +184,7 @@ mod tests {
         let pending = Pending::new(None);
         assert!(pending.0.lock().is_empty());
         let first = LaunchRequest {
-            show: LaunchShow::Repository,
+            show: LaunchShow::Log,
             paths: Vec::new(),
         };
         let pending = Pending::new(Some(first));

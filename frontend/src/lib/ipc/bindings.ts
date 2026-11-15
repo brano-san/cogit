@@ -2114,7 +2114,7 @@ export type LaunchRequested = {
 	queued: number,
 };
 
-export type LaunchShow = "repository";
+export type LaunchShow = "repository" | "log" | "blame";
 
 /**  A file `.gitattributes` puts in Git LFS; `lock` is the owner from the local lock cache. */
 export type LfsFileState = {
