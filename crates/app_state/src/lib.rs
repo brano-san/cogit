@@ -45,6 +45,7 @@ mod stashing;
 mod streams;
 pub mod taskbar;
 pub mod terminal;
+pub mod user_commands;
 mod walks;
 mod watching;
 mod worktrees;

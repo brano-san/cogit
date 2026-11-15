@@ -146,6 +146,8 @@
   import * as fileMenus from "$lib/ipc/file-menus";
   import { desktop } from "$stores/desktop.svelte";
   import { groupChoices, parseRepoCommand, repoMenu } from "$lib/repo-menu";
+  import { toolPaletteCommands, withTools } from "$lib/user-commands";
+  import { userTools } from "$stores/user-tools.svelte";
   import { listedName, listedRepos, type ListedRepo } from "$lib/repo-list";
   import { TODO_PREFIX, editedSteps, movedSteps, todoMenu } from "$lib/rebase-todo";
   import { rowSync, summaryPulse } from "$lib/repo-sync";
@@ -585,6 +587,12 @@
   const reposColumn = $derived(shown.repositories || shown.worktrees);
   const leftColumn = $derived(reposColumn || shown.refs);
   const repo = $derived(repository.current);
+  /** HEAD's branch for `${branch}` of a user command; null on a detached HEAD (F-954). */
+  const toolBranch = $derived(headBranch(repo?.head));
+  /** What a user command picked in the palette runs on: the selected commit, the open diff's file. */
+  const toolContext = $derived<import("$lib/ipc").ToolContext | null>(
+    repo ? { file: diff.path, commit: commit.oid, branch: toolBranch } : null,
+  );
   const lastUndo = $derived(safety.lastFor(repo?.repo ?? null));
   /** One field for every panel that depends on an open repository. The panel decides
       from it both what its header counts and what its body says (R-119). */
@@ -932,6 +940,9 @@
       actions,
     ),
     ...bisectCommands(repo?.state, (action) => bisectActions?.command(action)),
+    ...toolPaletteCommands(settings.current.userCommands, toolContext, (command) => {
+      if (repo && toolContext) void userTools.run(command, repo.repo, toolContext);
+    }),
     ...remoteCommands(
       {
         repository: repo !== null,
@@ -2524,6 +2535,13 @@ ${event.error}`,
   }
 
   void desktop.load();
+  // Refresh after of a user command: the repository shown is read again; another one is
+  // read when it is shown next (F-954).
+  userTools.onRefresh(async (id) => {
+    if (repository.current?.repo !== id) return;
+    await repository.refresh();
+    await afterMutation();
+  });
 
   /** `section` is the list the row sits in: "Staged" is the index, the rest the working
       tree (#40). A commit's files get their own menu (#41). */
@@ -2551,7 +2569,8 @@ ${event.error}`,
         onDisk: true,
         fileManager: info.fileManager,
       });
-      await popupContextMenu(items, x, y).catch(() => {});
+      const tools = userTools.submenu("file", id, { file: path, commit: commit.oid, branch: toolBranch });
+      await popupContextMenu(withTools(items, tools), x, y).catch(() => {});
       return;
     }
 
@@ -2570,7 +2589,8 @@ ${event.error}`,
       editBlocked: refusal(editRoute(rowFile(path), rowPlace(path))),
       modeChanged: paths.some((each) => worktree.unstaged.some((file) => file.path === each && file.modeChange !== null)),
     });
-    await popupContextMenu(items, x, y).catch(() => {});
+    const tools = userTools.submenu("file", id, { file: path, commit: null, branch: toolBranch });
+    await popupContextMenu(withTools(items, tools), x, y).catch(() => {});
   }
 
   function runFileCommand(id: string): boolean {
@@ -2975,7 +2995,12 @@ ${event.error}`,
       },
       info,
     );
-    await popupContextMenu(items, x, y).catch(() => {});
+    const tools = userTools.submenu("repository", row.overview?.repo ?? null, {
+      file: null,
+      commit: null,
+      branch: active ? toolBranch : (row.overview?.branch ?? null),
+    });
+    await popupContextMenu(withTools(items, tools), x, y).catch(() => {});
   }
 
   /** A submodule node: the same menu, with the four list-only items explained away. */
@@ -3873,6 +3898,7 @@ ${event.error}`,
       if (!menuCommandRuns(id, modals)) return;
       if (id === "toolbar-preferences") return openSettings("toolbar");
       if (id === "select-all") return selectAllFromMenu();
+      if (userTools.runMenu(id)) return;
       if (refActions?.run(id)) return;
       if (refGroupActions?.run(id)) return;
       if (selectionActions?.run(id)) return;

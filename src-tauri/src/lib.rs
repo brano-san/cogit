@@ -418,6 +418,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::hooks::set_hook_enabled,
             commands::hooks::use_hooks_path,
             commands::hooks::run_hook,
+            commands::tools::run_user_command,
             commands::rollback_to,
             commands::is_published,
             commands::unpushed_commits,

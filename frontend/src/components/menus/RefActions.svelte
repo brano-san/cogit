@@ -68,6 +68,8 @@
     type RefTarget,
   } from "$lib/ref-menus";
   import { bisectCommitMenu } from "$lib/bisect";
+  import { withTools } from "$lib/user-commands";
+  import { userTools } from "$stores/user-tools.svelte";
   import {
     checkoutOffer,
     checkoutRequest,
@@ -286,7 +288,13 @@
       const { details, facts } = factsReady(id, oid, true) ?? (await factsOf(id, oid, true));
       if (token !== asked) return;
       const bisect = bisectCommitMenu(repository.current?.state, oid);
-      await show({ ...blank(), oid, details, facts }, graphCommitMenu(facts, bisect), x, y);
+      const head = repository.current?.head;
+      const tools = userTools.submenu("commit", id, {
+        file: null,
+        commit: details?.oid ?? oid,
+        branch: head?.kind === "branch" ? head.name : null,
+      });
+      await show({ ...blank(), oid, details, facts }, withTools(graphCommitMenu(facts, bisect), tools), x, y);
     } catch (err) {
       errors.report(err, "Could not open the commit menu");
     }

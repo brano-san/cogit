@@ -85,6 +85,7 @@ mod tags;
 mod text_search;
 mod textconv;
 mod topo;
+mod user_command;
 mod worktree;
 mod worktree_scan;
 mod worktrees;
@@ -181,7 +182,7 @@ pub use rerere::RerereStatus;
 pub use reset::ResetMode;
 pub use revision::{CommitPreview, RevisionCheck};
 pub use runner::{
-    CommandSink, GitOutput, git_version, gix_version, next_output_id, redact_command,
+    CommandSink, GitOutput, git_version, gix_version, next_output_id, redact_command, redact_words,
     use_git_program,
 };
 pub use search::{
@@ -200,6 +201,7 @@ pub use submodules::{Submodule, SubmodulePointer, SubmoduleState, resolve_relati
 pub use subtrees::SubtreeOp;
 pub use tags::TagRequest;
 pub use text_search::TextFields;
+pub use user_command::UserCommand;
 pub use worktree::{WorktreeFiles, WorktreeView};
 pub use worktree_scan::{UnpushedInSubmodule, WorktreeScan, WorktreeSubmodules};
 pub use worktrees::{WorktreeBranch, WorktreeEntry, worktree_folder_problem};

@@ -230,6 +230,9 @@ export type {
   TagRequest,
   TodoAction,
   TodoEntry,
+  ToolContext,
+  ToolRequest,
+  ToolRun,
   TreeChanged,
   Whitespace,
   WorktreeFiles,
@@ -1116,6 +1119,11 @@ export async function setHookEnabled(repo: RepoId, name: string, enabled: boolea
 
 export async function useHooksPath(repo: RepoId, path: string) {
   return unwrap(await commands.useHooksPath(repo, path));
+}
+
+/** A user command of Preferences ▸ Tools (F-954); a captured one returns when it ends. */
+export async function runUserCommand(repo: RepoId, request: import("./bindings").ToolRequest) {
+  return unwrap(await commands.runUserCommand(repo, request));
 }
 
 export async function runHook(repo: RepoId, name: string) {

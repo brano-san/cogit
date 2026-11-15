@@ -564,6 +564,12 @@ const HIDDEN: &str = "<redacted>";
 /// with whitespace or a quote is written in single quotes as sh reads them, so the line
 /// can be pasted into a terminal and `outcome` can tell where each argument ends.
 pub fn redact_command(args: &[&str]) -> String {
+    format!("git {}", redact_words(args))
+}
+
+/// `redact_command` without the `git` in front: the line of any program, such as a user
+/// command (F-954), whose words may carry a URL with a password.
+pub fn redact_words(args: &[&str]) -> String {
     let parts: Vec<String> = args
         .iter()
         .enumerate()
@@ -579,7 +585,7 @@ pub fn redact_command(args: &[&str]) -> String {
             shell_word(&shown)
         })
         .collect();
-    format!("git {}", parts.join(" "))
+    parts.join(" ")
 }
 
 /// `http.proxy`, `http.<url>.proxy`, `remote.<name>.proxy`: its value may carry a password

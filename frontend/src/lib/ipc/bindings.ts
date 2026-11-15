@@ -813,6 +813,8 @@ export const commands = {
 	setHookEnabled: (repo: RepoId, name: string, enabled: boolean) => typedError<null, GitError>(__TAURI_INVOKE("set_hook_enabled", { repo, name, enabled })),
 	useHooksPath: (repo: RepoId, path: string) => typedError<null, GitError>(__TAURI_INVOKE("use_hooks_path", { repo, path })),
 	runHook: (repo: RepoId, name: string) => typedError<HookRun, GitError>(__TAURI_INVOKE("run_hook", { repo, name })),
+	/**  Captured: a cancellable queue operation, like a hook's dry run. Detached: no queue turn. */
+	runUserCommand: (repo: RepoId, request: ToolRequest) => typedError<ToolRun, GitError>(__TAURI_INVOKE("run_user_command", { repo, request })),
 	rollbackTo: (repo: RepoId, rev: string, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("rollback_to", { repo, rev, paths })),
 	isPublished: (repo: RepoId, rev: string) => typedError<boolean, GitError>(__TAURI_INVOKE("is_published", { repo, rev })),
 	/**
@@ -3253,6 +3255,29 @@ export type TodoEntry = {
 	oid: string,
 	action: TodoAction,
 	message: string | null,
+};
+
+export type ToolContext = {
+	/**  Relative to the root, `/`-separated. */
+	file: string | null,
+	commit: string | null,
+	branch: string | null,
+};
+
+export type ToolRequest = {
+	name: string,
+	program: string,
+	args: string,
+	cwd: string,
+	/**  Started and left to run, output unseen (a GUI tool); else captured into the journal. */
+	detached: boolean,
+	context: ToolContext,
+};
+
+export type ToolRun = {
+	record: number,
+	/**  `None` when the user stopped it; a detached run that started is `0`. */
+	exitCode: number | null,
 };
 
 export type Trailer = {

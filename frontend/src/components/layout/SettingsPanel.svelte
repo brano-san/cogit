@@ -36,6 +36,7 @@
   import GraphField from "$components/layout/GraphField.svelte";
   import NetworkSettings from "$components/layout/NetworkSettings.svelte";
   import ToolbarEditor from "$components/layout/ToolbarEditor.svelte";
+  import UserCommandsEditor from "$components/layout/UserCommandsEditor.svelte";
   import { DEFAULT_LAYOUT } from "$lib/toolbar";
   import { LANE_WIDTH } from "$lib/graph-geometry";
   import { recordEdit } from "$lib/toolbar-layout";
@@ -729,6 +730,8 @@
               <GraphField {field} value={draft} onset={set} />
             {:else if field.key === "network"}
               <NetworkSettings />
+            {:else if field.key === "userCommands"}
+              <UserCommandsEditor commands={draft.userCommands} onchange={(next) => set("userCommands", next)} />
             {:else if field.key === "toolbar"}
               <ToolbarEditor
                 layout={toolbarLayout}

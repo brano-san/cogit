@@ -23,6 +23,7 @@ pub mod repo_rows;
 pub mod spelling;
 pub mod stash;
 pub mod toolbar;
+pub mod tools;
 pub mod worktrees;
 
 pub mod app;

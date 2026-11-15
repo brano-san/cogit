@@ -680,6 +680,24 @@ export const CATEGORIES: Category[] = [
       },
     ],
   },
+  {
+    id: "user-tools",
+    title: "Tools",
+    parent: "tools",
+    groups: [
+      {
+        title: "Your commands",
+        fields: [
+          {
+            key: "userCommands",
+            label: "Commands",
+            hint: "Each appears in a Tools submenu of the menus you tick, and in the command palette as Tools: <name>. Arguments are split into words first (quote what holds spaces), then ${repo} (the repository root), ${file} (the selected file, absolute), ${relfile} (relative to the root), ${commit}, ${shortcommit} and ${branch} are filled in; a word stays one argument whatever it holds. No shell runs it and environment variables are not expanded. A command whose placeholder a menu cannot fill is left out of that menu. It runs on this computer: for a repository inside WSL ${repo} is its \\\\wsl.localhost\\… path.",
+            keywords: ["tools", "user commands", "custom", "external", "program", "script", "run", "placeholder", "arguments", "repo", "file", "commit", "branch", "menu"],
+          },
+        ],
+      },
+    ],
+  },
   heading("advanced", "Advanced"),
   {
     id: "updates",
@@ -784,7 +802,11 @@ export function changedKeys(draft: Settings, saved: Settings): (keyof Settings)[
 /** A list setting is a new array after every edit; equal items are an unchanged value. */
 function sameValue(a: unknown, b: unknown): boolean {
   if (Array.isArray(a) && Array.isArray(b)) {
-    return a.length === b.length && a.every((item, index) => item === b[index]);
+    return a.length === b.length && a.every((item, index) => sameValue(item, b[index]));
+  }
+  // A user command is an object, rebuilt on every edit and on every read of the file.
+  if (typeof a === "object" && a !== null && typeof b === "object" && b !== null) {
+    return JSON.stringify(a) === JSON.stringify(b);
   }
   return a === b;
 }

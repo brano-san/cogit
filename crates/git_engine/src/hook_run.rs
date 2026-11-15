@@ -60,38 +60,45 @@ impl Capped {
     }
 }
 
-struct Finished {
+pub(crate) struct Finished {
     /// `None` when the user stopped it: a verdict of "interrupted", not of failure.
-    exit_code: Option<i32>,
-    stdout: String,
-    stderr: String,
+    pub(crate) exit_code: Option<i32>,
+    pub(crate) stdout: String,
+    pub(crate) stderr: String,
+}
+
+/// Runs `command` until it ends or `stop` is asked to end it, its output capped.
+pub(crate) fn run_stoppable(
+    command: &mut std::process::Command,
+    stop: Option<&crate::NetworkStop>,
+) -> std::io::Result<Finished> {
+    command
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    let (child, _tracked) = crate::children::spawn(command)?;
+    if let Some(stop) = stop {
+        stop.hold(child.id());
+    }
+    let (mut stdout, mut stderr) = (Capped::default(), Capped::default());
+    let status = crate::children::collect(child, stop, |is_stderr, chunk| {
+        if is_stderr { &mut stderr } else { &mut stdout }.push(chunk);
+    })?;
+    Ok(Finished {
+        exit_code: if stop.is_some_and(crate::NetworkStop::is_stopped) {
+            None
+        } else {
+            status.code()
+        },
+        stdout: stdout.finish(),
+        stderr: stderr.finish(),
+    })
 }
 
 impl RepoHandle {
     /// Runs `command` until it ends or this handle's `stop` is asked to end it.
     fn run_stoppable(&self, command: &mut std::process::Command) -> std::io::Result<Finished> {
-        command
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped());
-        let (child, _tracked) = crate::children::spawn(command)?;
-        let stop = self.stop.as_ref();
-        if let Some(stop) = stop {
-            stop.hold(child.id());
-        }
-        let (mut stdout, mut stderr) = (Capped::default(), Capped::default());
-        let status = crate::children::collect(child, stop, |is_stderr, chunk| {
-            if is_stderr { &mut stderr } else { &mut stdout }.push(chunk);
-        })?;
-        Ok(Finished {
-            exit_code: if stop.is_some_and(crate::NetworkStop::is_stopped) {
-                None
-            } else {
-                status.code()
-            },
-            stdout: stdout.finish(),
-            stderr: stderr.finish(),
-        })
+        run_stoppable(command, self.stop.as_ref())
     }
 }
 

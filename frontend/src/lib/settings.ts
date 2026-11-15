@@ -4,6 +4,7 @@ import { LANE_WIDTH } from "$lib/graph-geometry";
 import { DEFAULT_FILTER_FIELDS, knownFields, type FilterField } from "$lib/filter-fields";
 import { knownPatterns } from "$lib/filter-patterns";
 import { knownWords } from "$lib/spelling";
+import { knownUserCommands, type UserCommand } from "$lib/user-commands";
 import type { PerspectiveId } from "$lib/perspectives";
 import { GRAPH_COLORINGS, migratedColoring, type GraphColoring } from "$lib/graph-coloring";
 
@@ -69,6 +70,8 @@ export interface Settings {
       program the desktop opens the file with. */
   externalEditor: string;
   externalEditorArgs: string;
+  /** Preferences ▸ Tools: the user's own commands in the Tools submenus and the palette (F-954). */
+  userCommands: UserCommand[];
   /** A commit message prefix from the branch name: a regular expression and a template with
       $1…$9 (F-943). Repository ▸ Settings can override both. Empty pattern: no prefix. */
   commitPrefixPattern: string;
@@ -184,6 +187,7 @@ export const DEFAULT_SETTINGS: Settings = {
   diffExternalToolArgs: "",
   externalEditor: "",
   externalEditorArgs: "",
+  userCommands: [],
   commitPrefixPattern: "",
   commitPrefixTemplate: "$1: ",
   logLevel: "info",
@@ -306,6 +310,7 @@ export function merge(stored: Partial<Settings> | null | undefined): Settings {
     graphFilterPatterns: [...DEFAULT_SETTINGS.graphFilterPatterns],
     protectedBranches: [...DEFAULT_SETTINGS.protectedBranches],
     spellWords: [...DEFAULT_SETTINGS.spellWords],
+    userCommands: [...DEFAULT_SETTINGS.userCommands],
   };
   if (typeof stored !== "object" || stored === null) return merged;
   const record = stored as Record<string, unknown>;
@@ -327,6 +332,10 @@ export function merge(stored: Partial<Settings> | null | undefined): Settings {
     }
     if (key === "spellWords") {
       merged.spellWords = knownWords(value) ?? merged.spellWords;
+      continue;
+    }
+    if (key === "userCommands") {
+      merged.userCommands = knownUserCommands(value) ?? merged.userCommands;
       continue;
     }
     if (key === "protectedBranches") {
