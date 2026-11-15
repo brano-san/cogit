@@ -35,6 +35,9 @@ function killStrayWebviews() {
 export async function resetProfile() {
   await mkdir(CONFIG_DIR, { recursive: true });
   await writeFile(join(CONFIG_DIR, "settings.json"), JSON.stringify(SETTINGS, null, 2));
+  // A window the hidden desktop once squeezed to its work area came back 13 px tall on every
+  // later run: no row could be clicked, and each cold open waited out its timeout.
+  await rm(join(CONFIG_DIR, ".window-state.json"), { force: true });
   const webview = join(DATA_DIR, "EBWebView");
   try {
     await rm(webview, { recursive: true, force: true, maxRetries: 30, retryDelay: 100 });
