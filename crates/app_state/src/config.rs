@@ -16,7 +16,7 @@ impl AppState {
                 let repo = repo.ok_or_else(|| {
                     git_engine::GitError::InvalidState("no repository is open".to_owned())
                 })?;
-                self.handle(repo)?.config_path()
+                Ok(self.handle(repo)?.config_path())
             }
         }
     }

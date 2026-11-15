@@ -354,11 +354,17 @@ impl RepoHandle {
         let todo = self.git_dir().join("cogit-rebase-todo");
         std::fs::write(&todo, body)?;
 
-        let head = self
-            .run_git_reading(&["rev-parse", "HEAD"])?
-            .stdout
-            .trim()
-            .to_owned();
+        let head = match self.repo.head_id() {
+            Ok(head) => head.to_string(),
+            // Keep Git's diagnostic on an unreadable HEAD.
+            Err(err) => {
+                tracing::error!(error = ?err, context = "reading HEAD for an interactive rebase");
+                self.run_git_reading(&["rev-parse", "HEAD"])?
+                    .stdout
+                    .trim()
+                    .to_owned()
+            }
+        };
         self.run_git(&["update-ref", "ORIG_HEAD", &head])?;
 
         // Git runs the sequence editor through a shell with the todo path appended, so

@@ -18,7 +18,7 @@ fn same(a: &Path, b: &Path) -> bool {
 #[test]
 fn a_repositorys_config_is_the_one_in_its_git_directory() {
     let f = test_fixtures::linear(1).unwrap();
-    let path = RepoHandle::open(f.path()).unwrap().config_path().unwrap();
+    let path = RepoHandle::open(f.path()).unwrap().config_path();
     assert!(same(&path, &f.git_dir().join("config")));
 }
 
@@ -28,7 +28,7 @@ fn a_repositorys_config_is_the_one_in_its_git_directory() {
 fn a_submodules_config_is_under_the_parents_modules() {
     let f = test_fixtures::with_submodule().unwrap();
     let inner = RepoHandle::open_exact(&f.path().join("vendor/lib")).unwrap();
-    let path = inner.config_path().unwrap();
+    let path = inner.config_path();
     assert!(same(&path, &f.git_dir().join("modules/vendor/lib/config")));
 }
 
@@ -44,7 +44,7 @@ fn a_linked_worktree_edits_the_config_it_shares() {
     let gitdir = std::fs::read_to_string(admin.join("gitdir")).unwrap();
     let linked = Path::new(gitdir.trim()).parent().unwrap().to_path_buf();
 
-    let path = RepoHandle::open(&linked).unwrap().config_path().unwrap();
+    let path = RepoHandle::open(&linked).unwrap().config_path();
     assert!(same(&path, &f.git_dir().join("config")));
 }
 

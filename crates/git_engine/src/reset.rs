@@ -30,12 +30,17 @@ impl RepoHandle {
         if rev.is_empty() || rev.starts_with('-') {
             return Err(GitError::InvalidState(format!("cannot reset to '{rev}'")));
         }
-        let target = format!("{rev}^{{commit}}");
-        let oid = self
-            .run_git_reading(&["rev-parse", "--verify", "--quiet", &target])?
-            .stdout
-            .trim()
-            .to_owned();
+        let oid = match self.resolve_commit(rev) {
+            Ok(oid) => oid.to_string(),
+            Err(err) => {
+                tracing::error!(error = ?err, rev, context = "resolving a reset target through Git");
+                let target = format!("{rev}^{{commit}}");
+                self.run_git_reading(&["rev-parse", "--verify", "--quiet", &target])?
+                    .stdout
+                    .trim()
+                    .to_owned()
+            }
+        };
         self.run_git(&["reset", mode.flag(), &oid]).map(drop)
     }
 

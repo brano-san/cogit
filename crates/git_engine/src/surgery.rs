@@ -169,6 +169,12 @@ impl RepoHandle {
     }
 
     fn rev_parse(&self, rev: &str) -> Result<String> {
+        match self.resolve_commit(rev) {
+            Ok(oid) => return Ok(oid.to_string()),
+            Err(err) => {
+                tracing::error!(error = ?err, rev, context = "resolving a surgery target through Git");
+            }
+        }
         Ok(self
             .run_git_reading(&["rev-parse", "--verify", &format!("{rev}^{{commit}}")])?
             .stdout

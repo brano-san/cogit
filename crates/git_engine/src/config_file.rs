@@ -32,10 +32,12 @@ pub struct ConfigFile {
 }
 
 impl RepoHandle {
-    /// `--git-path`: `<root>/.git/config` is wrong for submodules and worktrees.
-    pub fn config_path(&self) -> Result<PathBuf> {
-        let output = self.run_git_reading(&["rev-parse", "--git-path", "config"])?;
-        Ok(self.root().join(output.stdout.trim()))
+    /// gix's common directory is what `rev-parse --git-path config` answers: both cover
+    /// submodules and linked worktrees, and neither sees `GIT_COMMON_DIR` (`env_free`, and
+    /// the runner clears it).
+    #[must_use]
+    pub fn config_path(&self) -> PathBuf {
+        self.common_dir().join("config")
     }
 }
 
