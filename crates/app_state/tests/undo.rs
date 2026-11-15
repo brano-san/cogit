@@ -481,13 +481,7 @@ fn undoing_an_octopus_merge_puts_the_branch_back_where_it_was() {
     let f = test_fixtures::linear(2).unwrap();
     for (at, name) in [(30, "a"), (31, "b"), (32, "c")] {
         f.git(&["switch", "-c", name, "main"]).unwrap();
-        f.commit_file(
-            at,
-            &format!("{name}.txt"),
-            "x
-",
-        )
-        .unwrap();
+        f.commit_file(at, &format!("{name}.txt"), "x\n").unwrap();
     }
     f.git(&["switch", "main"]).unwrap();
     let (state, repo) = open(&f);

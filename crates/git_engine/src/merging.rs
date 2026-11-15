@@ -22,7 +22,8 @@ pub struct OctopusOptions {
 /// Git's octopus strategy refuses a merge that conflicts and puts the tree back.
 const OCTOPUS_FAILED: &str = "Merge with strategy octopus failed";
 
-const OCTOPUS_SUMMARY: &str = "An octopus merge cannot stop on conflicts, so Git left everything                                as it was. Merge the branches one by one.";
+const OCTOPUS_SUMMARY: &str = "An octopus merge cannot stop on conflicts, so Git left everything \
+                               as it was. Merge the branches one by one.";
 
 impl RepoHandle {
     pub fn merge(&self, options: &MergeOptions) -> Result<()> {

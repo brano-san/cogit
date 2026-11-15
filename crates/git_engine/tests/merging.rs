@@ -331,10 +331,10 @@ fn a_conflicting_octopus_leaves_everything_as_it_was_and_says_why() {
 
     match err {
         git_engine::GitError::Command(details) => {
-            assert!(
-                details.summary.contains("merge the branches one by one")
-                    || details.summary.contains("Merge the branches one by one"),
-                "{details:?}"
+            assert_eq!(
+                details.summary,
+                "An octopus merge cannot stop on conflicts, so Git left everything as it was. \
+                 Merge the branches one by one."
             );
             let raw = format!("{}{}", details.stdout, details.stderr);
             assert!(raw.contains("octopus"), "Git's own words are kept: {raw}");
