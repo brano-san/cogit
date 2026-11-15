@@ -78,8 +78,30 @@ function isChange(row: DiffRow): boolean {
   return row.kind === "delete" || row.kind === "insert";
 }
 
-function inside(line: number, ranges: readonly LineRange[]): boolean {
-  return ranges.some((range) => line >= range.from && line <= range.to);
+/** Reveal clicks can overlap and arrive in any order. Merge once per fold, then look
+    up a line logarithmically instead of scanning every previous click for every row. */
+function revealedLines(ranges: readonly LineRange[]): (line: number) => boolean {
+  if (ranges.length === 0) return () => false;
+  if (ranges.length === 1) {
+    const { from, to } = ranges[0]!;
+    return (line) => line >= from && line <= to;
+  }
+  const merged: LineRange[] = [];
+  for (const range of ranges.filter((range) => range.from <= range.to).sort((a, b) => a.from - b.from)) {
+    const last = merged.at(-1);
+    if (last && range.from <= last.to) last.to = Math.max(last.to, range.to);
+    else merged.push({ ...range });
+  }
+  return (line) => {
+    let low = 0;
+    let high = merged.length;
+    while (low < high) {
+      const middle = (low + high) >>> 1;
+      if (merged[middle]!.from <= line) low = middle + 1;
+      else high = middle;
+    }
+    return low > 0 && line <= merged[low - 1]!.to;
+  };
 }
 
 /** The first line past a hunk on one side. A side with no lines starts at the line it
@@ -100,6 +122,7 @@ function before(hunk: Hunk): number {
 
 export function foldDiff(input: FoldInput): FoldEntry[] {
   const { hunks, oldTotal, newTotal, context, revealed, strips = false } = input;
+  const inside = revealedLines(revealed);
   const out: FoldEntry[] = [];
   let block = 0;
   let declared: string | null = null;
@@ -160,7 +183,7 @@ export function foldDiff(input: FoldInput): FoldEntry[] {
         (cell, offset) =>
           (before && offset < context) ||
           (after && offset >= run.length - context) ||
-          inside(cell.old, revealed),
+          inside(cell.old),
       );
       // Git starts a new hunk past twice the context; a gap in the run is the strip already.
       const wanted = strips && after && (before ? run.length > 2 * context : !stripped);
@@ -217,7 +240,15 @@ export function foldDiff(input: FoldInput): FoldEntry[] {
 }
 
 function trimmed(line: string): string {
-  return [...line.trimEnd()].slice(0, MAX_CONTEXT).join("");
+  const text = line.trimEnd();
+  if (text.length <= MAX_CONTEXT) return text;
+  let prefix = "";
+  let length = 0;
+  for (const point of text) {
+    prefix += point;
+    if (++length === MAX_CONTEXT) break;
+  }
+  return prefix;
 }
 
 /** ▲ opens the lines just above the change below, ▼ those just below the change above. */
@@ -245,8 +276,17 @@ export function highlightedRows(
     old += hunk.oldLines;
     next += hunk.newLines;
   }
-  if (old <= max && next <= max) return hunks.flatMap((hunk) => hunk.rows);
-  return shown().flatMap((entry) => (entry.kind === "row" ? [entry.row] : []));
+  if (old <= max && next <= max) {
+    const rows: DiffRow[] = [];
+    for (const hunk of hunks) for (const row of hunk.rows) rows.push(row);
+    return rows;
+  }
+  const entries = shown();
+  const rows = new Array<DiffRow>(entries.length);
+  let used = 0;
+  for (const entry of entries) if (entry.kind === "row") rows[used++] = entry.row;
+  rows.length = used;
+  return rows;
 }
 
 /** Unchanged lines kept around each change: every one while the whole file is shown. */

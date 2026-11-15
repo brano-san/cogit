@@ -20,8 +20,6 @@ export function alignModel(model: BlockModel): BlockModel {
 
   const blocks = model.blocks.map((b) => {
     const row = left.length;
-    const l = model.left.slice(b.leftRow, b.leftRow + b.leftRows);
-    const r = model.right.slice(b.rightRow, b.rightRow + b.rightRows);
     const filler = (): PaneFiller => ({ kind: "filler", block: b.id, blockKind: b.kind });
     const push = (x: PaneRow | undefined, y: PaneRow | undefined) => {
       left.push(x ?? filler());
@@ -29,11 +27,15 @@ export function alignModel(model: BlockModel): BlockModel {
     };
 
     if (b.kind === "changed") {
+      const l = model.left.slice(b.leftRow, b.leftRow + b.leftRows);
+      const r = model.right.slice(b.rightRow, b.rightRow + b.rightRows);
       const text = (x: PaneRow) => (x as PaneLine).text;
       for (const [i, j] of alignLines(l.map(text), r.map(text))) push(i === null ? undefined : l[i], j === null ? undefined : r[j]);
     } else {
       // equal (the sides are as long as each other), added, removed, one half of a move.
-      for (let k = 0; k < Math.max(l.length, r.length); k++) push(l[k], r[k]);
+      for (let k = 0; k < Math.max(b.leftRows, b.rightRows); k++) {
+        push(k < b.leftRows ? model.left[b.leftRow + k] : undefined, k < b.rightRows ? model.right[b.rightRow + k] : undefined);
+      }
     }
     const rows = left.length - row;
     return { ...b, leftRow: row, leftRows: rows, rightRow: row, rightRows: rows };

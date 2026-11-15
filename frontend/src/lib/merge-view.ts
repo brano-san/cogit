@@ -52,20 +52,24 @@ export function conflictRows(rows: readonly MergeRow[]): number[] {
 }
 
 export function conflictCount(regions: readonly Region[]): number {
-  return regions.filter((region) => region.kind === "conflict").length;
+  let count = 0;
+  for (const region of regions) if (region.kind === "conflict") count += 1;
+  return count;
 }
 
 /** Regions the merge settled on its own. They are correct, and still worth a look. */
 export function autoResolvedCount(regions: readonly Region[]): number {
-  return regions.filter((region) => region.kind === "clean" && region.origin !== "unchanged")
-    .length;
+  let count = 0;
+  for (const region of regions) if (region.kind === "clean" && region.origin !== "unchanged") count += 1;
+  return count;
 }
 
 /** Settled by the parser, not by the line diff. Called out on its own: the rule is that
     it gets looked at before the merge is committed (doc/08-diff-engine.md §8). */
 export function syntacticCount(regions: readonly Region[]): number {
-  return regions.filter((region) => region.kind === "clean" && region.origin === "syntactic")
-    .length;
+  let count = 0;
+  for (const region of regions) if (region.kind === "clean" && region.origin === "syntactic") count += 1;
+  return count;
 }
 
 export function nextConflict(

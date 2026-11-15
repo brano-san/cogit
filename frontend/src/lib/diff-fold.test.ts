@@ -44,6 +44,24 @@ function context(from: number, to: number, shift = 0): DiffRow[] {
   return rows;
 }
 
+it("folds unsorted overlapping reveals exactly like their union without changing the input", () => {
+  const hunks = [hunk(context(1, 150))];
+  const revealed = [{ from: 70, to: 90 }, { from: 20, to: 40 }, { from: 30, to: 50 }, { from: 60, to: 55 }];
+  const before = structuredClone(revealed);
+  const fold = (ranges: typeof revealed) => foldDiff({ hunks, oldTotal: 150, newTotal: 150, context: 3, revealed: ranges });
+  expect(fold(revealed)).toEqual(fold([{ from: 20, to: 50 }, { from: 70, to: 90 }]));
+  expect(revealed).toEqual(before);
+  const shown = fold(revealed).flatMap((entry) => entry.kind === "row" && entry.row.kind === "context" ? [entry.row.old] : []);
+  expect(shown).toEqual([...Array.from({ length: 31 }, (_, i) => i + 20), ...Array.from({ length: 21 }, (_, i) => i + 70)]);
+});
+
+it("caps long declaration headers at 80 Unicode code points without splitting surrogate pairs", () => {
+  const text = "Declaration" + "😀".repeat(10000) + "  ";
+  const folded = foldDiff({ hunks: [hunk(context(1, 20).map((row) => ({ ...row, text })))], oldTotal: 20, newTotal: 20, context: 3, revealed: [] });
+  const contexts = folded.flatMap((entry) => entry.kind === "gap" && entry.gap.context ? [entry.gap.context] : []);
+  expect(contexts).toEqual([[...text.trimEnd()].slice(0, 80).join("")]);
+});
+
 function gaps(entries: FoldEntry[]): Gap[] {
   return entries.flatMap((entry) => (entry.kind === "gap" ? [entry.gap] : []));
 }
