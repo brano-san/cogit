@@ -144,13 +144,22 @@ const BY_HAND: [&str; 18] = [
     "save_config_file",
 ];
 
-const ON_WINDOWS: [(&str, &str); 11] = [
+const ON_WINDOWS: [(&str, &str); 15] = [
     ("background_turn", "the queue of Windows"),
     ("cancel_merge_tool", "the merge tool runs on Windows"),
     ("merge_tools_running", "the merge tool runs on Windows"),
     (
         "start_diff_tool",
         "a Windows program on Windows paths; refused for a WSL repository (R-955)",
+    ),
+    // The patch is made by routed `format_patches` / `worktree_patch`; only the file the
+    // user chose, or the text for the clipboard, is on the Windows side (F-948).
+    ("save_commit_patches", "writes the patch to a Windows path"),
+    ("commit_patch_text", "patch text for the Windows clipboard"),
+    ("save_worktree_patch", "writes the patch to a Windows path"),
+    (
+        "worktree_patch_text",
+        "patch text for the Windows clipboard",
     ),
     ("agent_process_id", "the agent process itself"),
     ("is_remote", "the routing table itself"),
