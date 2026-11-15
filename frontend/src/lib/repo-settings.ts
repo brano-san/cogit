@@ -1,15 +1,17 @@
+import { PATTERN_KEY, TEMPLATE_KEY, patternProblem } from "./commit-prefix";
 import type { RepoSetting, RepoSettingChange } from "./ipc/remote-ops";
 
 /** Repository ▸ Settings (#42): the tabs, the options and where each one is kept. Every
     option lives in the repository's `.git/config`; `cogit.*` keys are Cogit's own there. */
 
-export type SettingTab = "user" | "fetch" | "push" | "merge" | "signing" | "encoding" | "network" | "tags";
+export type SettingTab = "user" | "fetch" | "push" | "merge" | "commit" | "signing" | "encoding" | "network" | "tags";
 
 export const TABS: readonly (readonly [SettingTab, string])[] = [
   ["user", "User"],
   ["fetch", "Fetch and Pull"],
   ["push", "Push"],
   ["merge", "Merge"],
+  ["commit", "Commit"],
   ["signing", "Signing"],
   ["encoding", "Encoding"],
   ["network", "Network"],
@@ -220,6 +222,23 @@ export const FIELDS: readonly SettingField[] = [
     hint: "Tags are grouped into folders at this character in the Branches panel: release/1.0 goes into release/. Set it empty to show tags without folders.",
     empty: "(empty — tags are not grouped)",
   },
+  {
+    key: PATTERN_KEY,
+    tab: "commit",
+    label: "Message prefix: branch pattern",
+    control: { kind: "text", placeholder: "^(?:feature|bugfix)/([A-Z]+-\\d+)" },
+    fallback: "",
+    hint: "A regular expression over the current branch name; on a matching branch an empty commit message starts with the prefix. Not set: Preferences ▸ Commands ▸ Commit applies. Set it empty to turn the prefix off here.",
+    empty: "(empty — no prefix in this repository)",
+  },
+  {
+    key: TEMPLATE_KEY,
+    tab: "commit",
+    label: "Message prefix",
+    control: { kind: "text", placeholder: "$1: " },
+    fallback: "",
+    hint: "$1…$9 are the pattern's groups, $& the whole match. Not set: the prefix from Preferences.",
+  },
 ];
 
 /** Where the dialog says the option is kept. */
@@ -279,6 +298,13 @@ export function changes(settings: readonly RepoSetting[], drafts: Drafts): RepoS
     if (draft !== entry.local) out.push({ key: entry.key, value: draft });
   }
   return out;
+}
+
+/** What the dialog says under a field whose draft it cannot save; null when it can. */
+export function fieldProblem(key: string, value: string | null): string | null {
+  if (key === "cogit.tagGroupSeparator") return separatorProblem(value);
+  if (key === PATTERN_KEY) return value === null ? null : patternProblem(value);
+  return null;
 }
 
 /** The separator must be one or more characters that can sit inside a tag name. */

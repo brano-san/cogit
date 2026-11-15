@@ -7,15 +7,18 @@
     /** What "Commit What You See" will actually commit, given the file filter. */
     scope: ReturnType<typeof import("$lib/commit-scope").commitScope>;
     template: string | null;
+    /** The commit message prefix from the branch name (F-943). */
+    prefix: string | null;
     oncommit: (message: string, amend: boolean, noVerify: boolean) => Promise<boolean> | void;
   }
 
-  let { scope, template, oncommit }: Props = $props();
+  let { scope, template, prefix, oncommit }: Props = $props();
 </script>
 
 <CommitBox
   {scope}
   {template}
+  {prefix}
   stagedCount={worktree.staged.length}
   busy={worktree.loading}
   unborn={repository.current?.head.kind === "unborn"}

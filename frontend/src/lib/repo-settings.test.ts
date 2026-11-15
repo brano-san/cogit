@@ -45,6 +45,8 @@ const BACKEND_KEYS = [
   "http.sslVerify",
   "http.sslCAInfo",
   "cogit.tagGroupSeparator",
+  "cogit.commitPrefixPattern",
+  "cogit.commitPrefixTemplate",
 ];
 
 describe("repository settings", () => {
@@ -54,6 +56,7 @@ describe("repository settings", () => {
       "Fetch and Pull",
       "Push",
       "Merge",
+      "Commit",
       "Signing",
       "Encoding",
       "Network",

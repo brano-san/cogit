@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { onDestroy } from "svelte";
+  import { onDestroy, tick, untrack } from "svelte";
   import Checkbox from "$components/common/Checkbox.svelte";
   import { commitBox } from "$stores/commit-box.svelte";
   import { afterCommit, amends, commitBlocker, draftToSave, initialMessage, messageAfterCommit } from "$lib/commit-draft";
+  import { messageSeed } from "$lib/commit-prefix";
   import { SUBJECT_HARD, SUBJECT_SOFT, subjectOf, subjectState } from "$lib/commit-message";
   import { ON_MAC, primary } from "$lib/platform";
   import { spellField } from "$lib/spell-field.svelte";
@@ -18,12 +19,17 @@
     template?: string | null;
     /** HEAD has no commit yet: nothing to amend. */
     unborn?: boolean;
+    /** From the branch name (F-943): seeds an empty field when `template` does not. */
+    prefix?: string | null;
     /** `false` means nothing was committed (a question was cancelled, a hook refused). */
     oncommit: (message: string, amend: boolean, noVerify: boolean) => Promise<boolean> | void;
   }
 
-  let { scope, stagedCount, busy = false, draftKey, template = null, unborn = false, oncommit }: Props =
+  let { scope, stagedCount, busy = false, draftKey, template = null, unborn = false, prefix = null, oncommit }: Props =
     $props();
+
+  /** What an empty field opens with; git's own prefill is never mixed with the prefix. */
+  const seed = $derived(messageSeed(template, prefix));
 
   let message = $state("");
   let amend = $state(false);
@@ -38,7 +44,7 @@
     if (unborn) amend = false;
   });
   const blocked = $derived(
-    commitBlocker({ message, template, stagedCount, amend, busy, committing, scopeEmpty: scope.empty, unborn }),
+    commitBlocker({ message, template: seed, stagedCount, amend, busy, committing, scopeEmpty: scope.empty, unborn }),
   );
   const ready = $derived(blocked === null);
 
@@ -63,12 +69,20 @@
       }
     }
     if (!after.resetField) return;
-    message = messageAfterCommit(template);
+    message = messageAfterCommit(seed);
+    void caretAfterPrefix();
     amend = false;
     noVerify = false;
   }
 
   let field: HTMLTextAreaElement | undefined = $state();
+
+  /** A prefix is followed by what the user types: the caret goes after it. */
+  async function caretAfterPrefix() {
+    if (prefix === null || message !== prefix) return;
+    await tick();
+    if (field && message === prefix) field.setSelectionRange(message.length, message.length);
+  }
 
   // Local ▸ Commit… (Ctrl+Enter), Commit with Amend (Ctrl+Shift+Enter) and Go to the Commit Message reach the
   // box from anywhere in the window (11 §4).
@@ -97,10 +111,12 @@
   // than the cost of one key per repository in browser storage.
   $effect(() => {
     try {
-      message = initialMessage(localStorage.getItem(draftKey), template);
+      message = initialMessage(localStorage.getItem(draftKey), seed);
     } catch {
-      message = initialMessage(null, template);
+      message = initialMessage(null, seed);
     }
+    // Read outside: typing must not run this again.
+    untrack(() => void caretAfterPrefix());
   });
 
   // The Commit window (Ctrl+K) keeps the same draft: what it writes or clears arrives here.
@@ -108,7 +124,7 @@
     const key = draftKey;
     const onstorage = (event: StorageEvent) => {
       if (event.key !== key) return;
-      const next = initialMessage(event.newValue, template);
+      const next = initialMessage(event.newValue, seed);
       if (next !== message) message = next;
     };
     window.addEventListener("storage", onstorage);
@@ -117,7 +133,7 @@
 
   $effect(() => {
     try {
-      const kept = draftToSave(message, template);
+      const kept = draftToSave(message, seed);
       if (kept === null) localStorage.removeItem(draftKey);
       else localStorage.setItem(draftKey, kept);
     } catch {

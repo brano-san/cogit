@@ -59,6 +59,10 @@ export interface Settings {
       {base} {ours} {theirs} {result}. Empty: git's `merge.tool`. */
   mergeExternalTool: string;
   mergeExternalToolArgs: string;
+  /** A commit message prefix from the branch name: a regular expression and a template with
+      $1…$9 (F-943). Repository ▸ Settings can override both. Empty pattern: no prefix. */
+  commitPrefixPattern: string;
+  commitPrefixTemplate: string;
   logLevel: "error" | "warn" | "info" | "debug" | "trace";
   /** On by default: a face per row is what the commit list is read by, and the request
       carries a hash rather than the address (doc/12-risks.md, R-145). `ask` is what a
@@ -165,6 +169,8 @@ export const DEFAULT_SETTINGS: Settings = {
   terminal: "system",
   mergeExternalTool: "",
   mergeExternalToolArgs: "",
+  commitPrefixPattern: "",
+  commitPrefixTemplate: "$1: ",
   logLevel: "info",
   avatars: "gravatar",
   autoUpdate: true,

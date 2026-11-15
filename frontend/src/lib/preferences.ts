@@ -99,6 +99,30 @@ export const CATEGORIES: Category[] = [
     ],
   },
   {
+    id: "commit",
+    title: "Commit",
+    parent: "commands",
+    groups: [
+      {
+        title: "Message prefix from the branch",
+        fields: [
+          {
+            key: "commitPrefixPattern",
+            label: "Branch pattern",
+            hint: "A regular expression over the current branch name, for example ^(?:feature|bugfix)/([A-Z]+-\\d+). On a matching branch an empty commit message starts with the prefix. Empty: no prefix. Repository ▸ Settings ▸ Commit can override it.",
+            keywords: ["commit", "message", "prefix", "branch", "regex", "regular expression", "ticket", "jira", "issue"],
+          },
+          {
+            key: "commitPrefixTemplate",
+            label: "Prefix",
+            hint: "$1…$9 are the pattern's groups, $& the whole match. For example $1: turns feature/ABC-123-login into ABC-123: .",
+            keywords: ["commit", "message", "prefix", "template", "ticket", "jira", "issue"],
+          },
+        ],
+      },
+    ],
+  },
+  {
     id: "auth",
     title: "Authentication",
     parent: "commands",

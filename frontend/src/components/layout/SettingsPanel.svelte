@@ -21,6 +21,7 @@
   } from "$lib/preferences";
   import { NO_FILTER_FOLDS, shownFolds, toggle, toggleFilterFold, type TreeNode } from "$lib/tree";
   import { protectedNames, staleChoices } from "$lib/push-dialog";
+  import { patternProblem } from "$lib/commit-prefix";
   import { needsRestart, THEMES, type Settings } from "$lib/settings";
   import { diffFontChoices, fontChoices, uiFontChoices, zoomChoices } from "$lib/ui-metrics";
   import { uiMetricsStore } from "$stores/ui-metrics.svelte";
@@ -198,6 +199,8 @@
     });
     if (typeof picked === "string") set("mergeExternalTool", picked);
   }
+
+  const prefixProblem = $derived(patternProblem(draft.commitPrefixPattern));
 
   function set<K extends keyof Settings>(key: K, next: Settings[K]) {
     draft = { ...draft, [key]: next };
@@ -487,6 +490,34 @@
                   value={draft.mergeExternalToolArgs}
                   oninput={(e) => set("mergeExternalToolArgs", e.currentTarget.value)}
                 />
+              </div>
+            {:else if field.key === "commitPrefixTemplate"}
+              <div class="row">
+                {@render caption(field)}
+                <input
+                  type="text"
+                  class="text mono"
+                  aria-label={field.label}
+                  placeholder="$1: "
+                  value={draft.commitPrefixTemplate}
+                  oninput={(e) => set("commitPrefixTemplate", e.currentTarget.value)}
+                />
+              </div>
+            {:else if field.key === "commitPrefixPattern"}
+              <div class="row">
+                {@render caption(field)}
+                <input
+                  type="text"
+                  class="text mono"
+                  aria-label={field.label}
+                  aria-invalid={prefixProblem !== null}
+                  placeholder={"^(?:feature|bugfix)/([A-Z]+-\\d+)"}
+                  value={draft.commitPrefixPattern}
+                  oninput={(e) => set("commitPrefixPattern", e.currentTarget.value)}
+                />
+                {#if prefixProblem}
+                  <span class="verdict bad" role="alert"><span aria-hidden="true">✗</span> {prefixProblem}</span>
+                {/if}
               </div>
             {:else if field.key === "algorithm"}
               <div class="row choice" role="radiogroup" aria-label={field.label}>

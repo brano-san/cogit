@@ -11,6 +11,8 @@
   import VirtualList from "$components/common/VirtualList.svelte";
   import { installChildWindow } from "$lib/child-window";
   import { draftToSave, initialMessage, messageAfterCommit } from "$lib/commit-draft";
+  import { amendedMessage, branchPrefix, effectiveRule, headBranch, messageSeed, repoRule } from "$lib/commit-prefix";
+  import { repoSettings } from "$lib/ipc/remote-ops";
   import {
     COUNTER_INFO,
     amendMessage,
@@ -74,6 +76,10 @@
   let descending = $state(false);
   let message = $state("");
   let template = $state<string | null>(null);
+  /** The prefix from the branch name (F-943), read once on opening like the template. */
+  let prefix = $state<string | null>(null);
+  /** What an empty field opens with: git's own prefill or `commit.template`, else the prefix. */
+  const seed = $derived(messageSeed(template, prefix));
   let amend = $state(false);
   let before = $state<string | null>(null);
   let more = $state(false);
@@ -126,7 +132,7 @@
   const blocked = $derived(
     readyBlocker({
       message,
-      template,
+      template: seed,
       ticked: selected.length,
       stagedTotal: worktree.staged.length,
       amend,
@@ -215,24 +221,28 @@
   $effect(() =>
     untrack(() => {
       if (!request) return;
-      void settings.load();
       void (async () => {
         const id = request.repo;
-        const [text, refs, log] = await Promise.all([
+        const [text, refs, log, own] = await Promise.all([
           commitTemplate(id).catch(() => null),
           repoRefs(id).catch(() => null),
           recentCommits(id, 100).catch(() => [] as CommitDetails[]),
+          repoSettings(id).catch(() => []),
           worktree.load(id),
+          settings.load().catch(() => undefined),
         ]);
         template = text ?? null;
         unborn = refs?.head.kind === "unborn";
         history = log;
-        message = initialMessage(readDraft(), template);
+        const rule = { pattern: settings.current.commitPrefixPattern, template: settings.current.commitPrefixTemplate };
+        prefix = branchPrefix(effectiveRule(rule, repoRule(own)), headBranch(refs?.head));
+        message = initialMessage(readDraft(), seed);
         const start = opening(request.paths, worktree.staged, worktree.unstaged);
         mode = start.mode;
         tickAll(start.ticked);
         loaded = true;
         field?.focus();
+        if (field && message === prefix) field.setSelectionRange(message.length, message.length);
       })();
     }),
   );
@@ -258,12 +268,12 @@
   // when the other window changes it. Amend's borrowed message is nobody's draft.
   $effect(() => {
     if (!loaded || amend) return;
-    writeDraft(draftToSave(message, template));
+    writeDraft(draftToSave(message, seed));
   });
   $effect(() => {
     const onstorage = (event: StorageEvent) => {
       if (event.key !== draftKey || amend) return;
-      const next = initialMessage(event.newValue, template);
+      const next = initialMessage(event.newValue, seed);
       if (next !== message) message = next;
     };
     window.addEventListener("storage", onstorage);
@@ -275,7 +285,7 @@
       amend = false;
       return;
     }
-    const next = amendMessage(checked, message, last ?? "", before);
+    const next = amendMessage(checked, message, amendedMessage(last ?? "", prefix), before);
     message = next.message;
     before = next.before;
   }
@@ -326,7 +336,7 @@
     }
     // Amend committed the last commit's message; the stored draft is the next one's.
     if (!amend) writeDraft(null);
-    message = messageAfterCommit(template);
+    message = messageAfterCommit(seed);
     if (pushAfter) await requestPush(request.repo);
     void closeThisWindow();
   }
@@ -518,7 +528,7 @@
         role="menuitem"
         disabled={pending === null}
         title={pending === null ? "No message was saved" : undefined}
-        onclick={() => useMessage(initialMessage(pending, template))}>Pending Message</button
+        onclick={() => useMessage(initialMessage(pending, seed))}>Pending Message</button
       >
       {#if recent.length > 0}<hr />{/if}
       {#each recent as text (text)}

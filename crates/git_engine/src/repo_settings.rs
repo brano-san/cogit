@@ -26,6 +26,8 @@ pub const REPO_SETTING_KEYS: &[&str] = &[
     "http.sslVerify",
     "http.sslCAInfo",
     "cogit.tagGroupSeparator",
+    "cogit.commitPrefixPattern",
+    "cogit.commitPrefixTemplate",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]

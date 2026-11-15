@@ -84,7 +84,8 @@
   import { cloneWizard } from "$stores/clone.svelte";
   import { parentFolder, runClone } from "$lib/clone";
   import { cloneRepository, type CloneRequest } from "$lib/ipc/clone";
-  import { submoduleOp } from "$lib/ipc/remote-ops";
+  import { repoSettings, submoduleOp } from "$lib/ipc/remote-ops";
+  import { branchPrefix, effectiveRule, headBranch, repoRule } from "$lib/commit-prefix";
   import PromptDialog from "$components/layout/PromptDialog.svelte";
   import SignInDialog from "$components/layout/SignInDialog.svelte";
   import MasterPasswordDialog from "$components/layout/MasterPasswordDialog.svelte";
@@ -387,6 +388,17 @@
   /** A commit the plan rewrites is on a remote: the editor warns about the force-push. */
   let rebasePublished = $state(false);
   let template = $state<string | null>(null);
+  /** Repository ▸ Settings' own commit prefix rule, over Preferences' (F-943). */
+  let prefixOverride = $state.raw<ReturnType<typeof repoRule>>({ pattern: null, template: null });
+  const commitPrefix = $derived(
+    branchPrefix(
+      effectiveRule(
+        { pattern: settings.current.commitPrefixPattern, template: settings.current.commitPrefixTemplate },
+        prefixOverride,
+      ),
+      headBranch(repository.current?.head),
+    ),
+  );
   /** The commit Split Off is open on, as it was when it opened. */
   let split = $state.raw<import("$lib/split-off").SplitRequest | null>(null);
   /** Which shared branches hold a commit, once asked. Answering costs a graph walk per
@@ -2696,6 +2708,7 @@ ${event.error}`,
       stale = new Set();
       // The Commit box seeds an empty draft from it, under the next repository's key.
       template = null;
+      prefixOverride = { pattern: null, template: null };
       if (configEdit?.scope === "repository") configEdit = null;
       indexEditing = null;
       removingFiles = null;
@@ -3499,6 +3512,20 @@ ${event.error}`,
     await afterWorkingTreeChange(paths);
   }
 
+  /** Read on opening a repository and after its settings are saved, not on every refresh:
+      it runs `git config` twice. */
+  async function loadPrefixRule() {
+    const id = repository.current?.repo;
+    if (!id) return;
+    const epoch = repository.epoch;
+    const read = await repoSettings(id).catch(() => null);
+    if (repository.epoch === epoch) prefixOverride = repoRule(read ?? []);
+  }
+
+  $effect(() => {
+    if (repository.current?.repo) untrack(() => void loadPrefixRule());
+  });
+
   /** Seeds an empty draft from `commit.template`, the way `git commit` would. */
   async function loadTemplate() {
     const id = repository.current?.repo;
@@ -4299,7 +4326,7 @@ ${event.error}`,
             count={worktree.staged.length}
             stale={stale.has("commit")}
           >
-            <CommitPanel {scope} {template} oncommit={commitStaged} />
+            <CommitPanel {scope} {template} prefix={commitPrefix} oncommit={commitStaged} />
           </Panel>
         </div>
         {/if}
@@ -4635,7 +4662,7 @@ ${event.error}`,
     <RepoSettingsDialog
       repo={repo.repo}
       name={repo.name}
-      onsaved={() => repository.refresh()}
+      onsaved={() => Promise.all([repository.refresh(), loadPrefixRule()]).then(() => {})}
       onclose={() => (repoSettingsOpen = false)}
     />
   {/if}

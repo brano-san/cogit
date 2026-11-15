@@ -13,7 +13,7 @@
     isOn,
     normalise,
     origin,
-    separatorProblem,
+    fieldProblem,
     source,
     storage,
     type SettingField,
@@ -39,7 +39,10 @@
   const inherited = $derived(new Map((read ?? []).map((entry) => [entry.key, entry.inherited])));
   const sources = $derived(new Map((read ?? []).map((entry) => [entry.key, source(entry)])));
   const shown = $derived(FIELDS.filter((field) => field.tab === tab));
-  const problem = $derived(separatorProblem(drafts.get("cogit.tagGroupSeparator") ?? null));
+  const problems = $derived(
+    new Map(FIELDS.map((field) => [field.key, fieldProblem(field.key, drafts.get(field.key) ?? null)])),
+  );
+  const problem = $derived([...problems.values()].find((each) => each !== null) ?? null);
 
   $effect(() => {
     void repoSettings(repo)
@@ -173,8 +176,8 @@
                 <button type="button" class="inherit" onclick={() => set(field, null)}>Use inherited</button>
               {/if}
             </div>
-            {#if field.key === "cogit.tagGroupSeparator" && problem}
-              <p class="problem" role="alert">{problem}</p>
+            {#if problems.get(field.key)}
+              <p class="problem" role="alert">{problems.get(field.key)}</p>
             {/if}
             {#if field.hint}<p class="hint">{field.hint}</p>{/if}
             <p class="where">Stored as {storage(field)}.</p>
