@@ -901,6 +901,7 @@
       if (prUrl) void import("@tauri-apps/plugin-clipboard-manager").then((m) => m.writeText(prUrl));
     },
     blame: () => void showBlame(),
+    "diff-wrap": () => void settings.set("diffWrap", !settings.current.diffWrap),
     abort: () => {
       const action = abortAction(banner);
       if (action) void runBannerAction(action);

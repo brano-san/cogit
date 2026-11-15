@@ -1,4 +1,5 @@
 import type { Block, BlockKind, BlockModel } from "./diff-blocks";
+import { paneGeometry, type Heights, type RowGeometry } from "./diff-wrap";
 
 /** Geometry of the band between the two panes of a split diff: where it sits, the connector
     of every block near the viewport, and the outline of one. Kept out of the component
@@ -146,8 +147,8 @@ export function visibleCenter(top: number, bottom: number, height: number, inset
 }
 
 /** y of a pane row boundary in the gutter: the same row sits at the same y as in the pane. */
-function yOf(view: PaneView, row: number, rowHeight: number): number {
-  return Math.round((view.top ?? 0) + row * rowHeight - view.scrollTop);
+function yOf(view: PaneView, row: number, rows: RowGeometry): number {
+  return Math.round((view.top ?? 0) + rows.top(row) - view.scrollTop);
 }
 
 function connectorOf(
@@ -183,20 +184,22 @@ function connectorOf(
  * moves are all checked; there are few.
  *
  * `inset` keeps the anchor that far from the gutter's top and bottom edge (half a button).
+ * `heights`: one row height, or each pane's rows when lines wrap (F-950).
  */
 export function blockConnectors(
   model: BlockModel,
   left: PaneView,
   right: PaneView,
-  rowHeight: number,
+  heights: Heights,
   inset = 0,
 ): BlockConnector[] {
   const { blocks } = model;
+  const rows = paneGeometry(model, heights);
   const height = Math.max(left.viewport, right.viewport);
-  const endL = (b: Block) => yOf(left, b.leftRow + b.leftRows, rowHeight);
-  const endR = (b: Block) => yOf(right, b.rightRow + b.rightRows, rowHeight);
-  const startL = (b: Block) => yOf(left, b.leftRow, rowHeight);
-  const startR = (b: Block) => yOf(right, b.rightRow, rowHeight);
+  const endL = (b: Block) => yOf(left, b.leftRow + b.leftRows, rows.left);
+  const endR = (b: Block) => yOf(right, b.rightRow + b.rightRows, rows.right);
+  const startL = (b: Block) => yOf(left, b.leftRow, rows.left);
+  const startR = (b: Block) => yOf(right, b.rightRow, rows.right);
 
   // First block that is not entirely above the viewport on both sides.
   let lo = 0;

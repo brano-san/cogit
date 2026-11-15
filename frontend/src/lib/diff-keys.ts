@@ -5,6 +5,7 @@ export type DiffKey =
   | { kind: "layout" }
   | { kind: "find" }
   | { kind: "investigate" }
+  | { kind: "wrap" }
   | { kind: "close-find" };
 
 export interface DiffPress {
@@ -38,6 +39,8 @@ export function diffKey(press: DiffPress, state: DiffKeyState): DiffKey | null {
   }
   if (press.ctrl && !press.shift && !press.alt && letter === "f") return { kind: "find" };
   if (press.ctrl && press.alt && press.shift && letter === "l") return { kind: "investigate" };
+  // Alt+Z, as in VS Code: no menu has a Z mnemonic, and AltGr arrives with Ctrl.
+  if (press.alt && !press.ctrl && !press.shift && letter === "z") return { kind: "wrap" };
   if (state.findShowing && press.key === "Escape") return { kind: "close-find" };
   return null;
 }

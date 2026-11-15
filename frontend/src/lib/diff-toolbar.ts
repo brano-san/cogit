@@ -107,6 +107,26 @@ export function alignedButton(layout: DiffLayout): {
   };
 }
 
+/** The Wrap toggle of the diff bar (F-950). Wrapped rows are the diff's own HTML rows, so the
+    working file is not edited in place meanwhile; with edits not saved it stays as it is: the
+    edits live in the editor it would close. */
+export function wrapButton(
+  on: boolean,
+  editing: { editable: boolean; dirty: boolean },
+): { pressed: boolean; disabled: boolean; title: string } {
+  if (editing.dirty) {
+    return { pressed: on, disabled: true, title: "Save the file first (Ctrl+S): wrapped lines are not edited in place" };
+  }
+  const edit = editing.editable ? "\nThe working file is edited in place only while lines are not wrapped." : "";
+  return {
+    pressed: on,
+    disabled: false,
+    title: on
+      ? `ON: long lines wrap at the width of their pane (Alt+Z).\nClick for: one row per line, long lines scroll sideways.${edit}`
+      : `OFF: one row per line, long lines scroll sideways (Alt+Z).\nClick for: long lines wrap at the width of their pane.${edit}`,
+  };
+}
+
 /** What the » and × of the band do: only Discard, and only against the index. In the
     staged diff Unstage is on the hunks and the toolbar; a Discard there would throw away
     working-tree edits the diff does not show. */

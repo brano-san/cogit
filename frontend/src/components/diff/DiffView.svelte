@@ -13,7 +13,7 @@
   import { diffEdit } from "$stores/diff-edit.svelte";
   import type { SearchRow } from "$lib/diff-rows";
   import { diffTokens, paneTokens, unifiedTokens } from "$lib/diff-highlight";
-  import { FLASH_MS, changeSteps, foldDiff, missingLines, navState, revealLead, revealRange, revealTop, stepsAround, type ChangeSteps, type Gap, type LineRange } from "$lib/diff-fold";
+  import { FLASH_MS, changeSteps, foldDiff, missingLines, navState, revealLead, revealRange, stepsAround, type ChangeSteps, type Gap, type LineRange } from "$lib/diff-fold";
   import {
     buildBlocks,
     changeRow,
@@ -45,6 +45,16 @@
     type PaneView,
   } from "$lib/diff-band";
   import { mapLeftScrollToRight, mapRightScrollToLeft, wheelScroll } from "$lib/diff-sync";
+  import {
+    anchoredTop,
+    fontEstimate,
+    rowCounts,
+    uniformRows,
+    visibleRows,
+    wrappedRows,
+    type PaneGeometry,
+    type RowGeometry,
+  } from "$lib/diff-wrap";
   import { ScrollGuard, type PaneSide } from "$lib/diff-scroll-guard";
   import { sideCaptions, type SideCaptions } from "$lib/compare-params";
   import { settings } from "$stores/settings.svelte";
@@ -73,12 +83,12 @@
     layoutTip,
     modeChangeText,
     whitespaceButton,
+    wrapButton,
     WHITESPACE_SHOWN_LABEL,
   } from "$lib/diff-toolbar";
   import { languageSupport, loadLanguage, mergePieces } from "$lib/highlight";
   import { discardsWholeNewFile } from "$lib/diff-selection";
   import { investigateRev, openInvestigate } from "$lib/investigate/open";
-  import { visibleRange } from "$lib/graph-geometry";
   import type { FileDiff, Hunk } from "$lib/ipc";
   // The panel above belongs to `master` and cannot grow props for the branch's own view
   // preferences, so the view reads them from the branch's own store.
@@ -137,8 +147,6 @@
   /** The working file, open for this very diff: the right side (Unified: every line but the
       deleted ones) is then the file, typed into where it is shown. */
   const opened = $derived(diffEdit.openFor(diffStore.repo, diffStore.shownSpec, path));
-  /** One editor per file: it lives on through new diffs of it, a layout switch and a save. */
-  const editorFor = $derived(opened && diff.kind === "text" ? `${opened.repo}:${opened.spec.kind}:${opened.path}` : null);
   let editor = $state.raw<DiffPaneEditor | null>(null);
   /** Where the editor goes: the right pane side by side, the one pane in Unified. */
   let editorHost: HTMLDivElement | undefined = $state();
@@ -147,6 +155,24 @@
   /** Edits not saved yet: Stage, Unstage and Discard wait, their patch is cut from the disk. */
   const dirty = $derived(editor !== null && diffEdit.dirty);
   const SAVE_FIRST = "Save the file first (Ctrl+S): staging takes the lines on disk";
+  /** Long lines wrap at their pane's width (F-950). Wrapped rows are the HTML rows, so the
+      editor gives way to them, except while it holds edits not saved yet. Aligned side by
+      side is not wrapped yet: its pairs need one height for both sides. */
+  const wrap = $derived(
+    settings.current.diffWrap && diff.kind === "text" && !dirty &&
+      !(diffStore.layout === "split" && settings.current.diffLayout === "aligned"),
+  );
+  const wrapTool = $derived(
+    wrapButton(settings.current.diffWrap, { editable: edit !== null && edit.blocked === null, dirty }),
+  );
+  /** One editor per file: it lives on through new diffs of it, a layout switch and a save. */
+  const editorFor = $derived(
+    opened && diff.kind === "text" && !wrap ? `${opened.repo}:${opened.spec.kind}:${opened.path}` : null,
+  );
+
+  function toggleWrap() {
+    if (!wrapTool.disabled) void settings.set("diffWrap", !settings.current.diffWrap);
+  }
 
   const ROW_HEIGHT = 18;
   const BUFFER_ROWS = 12;
@@ -224,9 +250,6 @@
     ),
   );
 
-  const unifiedRange = $derived(visibleRange(uTop, viewportHeight, ROW_HEIGHT, model.unified.length, BUFFER_ROWS));
-  const leftRange = $derived(visibleRange(lTop, viewportHeight, ROW_HEIGHT, model.left.length, BUFFER_ROWS));
-  const rightRange = $derived(visibleRange(rTop, viewportHeight, ROW_HEIGHT, model.right.length, BUFFER_ROWS));
 
   const changeList = $derived(changes(model));
   /** Where each change starts in the list a jump scrolls: the left pane, or the unified one. */
@@ -316,20 +339,6 @@
     );
   }
 
-  /** The connectors of the blocks near the viewport, from both panes' live scroll (08 §12).
-      The scroll events that move `lTop` and `rTop` are once a frame and the state is read by
-      the same flush that moves the rows, so the band and the rows share a frame. */
-  const links = $derived(
-    mode === "split"
-      ? blockConnectors(
-          model,
-          { scrollTop: lTop, viewport: viewportHeight },
-          { scrollTop: rTop, viewport: viewportHeight },
-          ROW_HEIGHT,
-          ACT_HEIGHT / 2,
-        )
-      : [],
-  );
 
   /** Only code is searchable: a hit on a fold would scroll to nothing useful. Side by side
       a row index is a row of that side's own pane. */
@@ -354,8 +363,144 @@
   let rightWidth = $state(0);
   let probeWidth = $state(0);
   const charWidth = $derived(probeWidth / PROBE.length);
+  let probeEl: HTMLSpanElement | undefined = $state();
   /** Pixels the code of every column is moved left by; the numbers stay put. */
   let sideways = $state(0);
+
+  // --- wrapped rows (F-950): where each row is, from estimates and the rows drawn ---
+
+  /** The advances of the code font, read again when the probe says the font changed. */
+  const estimate = $derived.by(() => {
+    void probeWidth;
+    if (!wrap || !probeEl) return null;
+    const style = getComputedStyle(probeEl);
+    return fontEstimate(`${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`, charWidth);
+  });
+  /** Visual rows of the rows drawn, by index; they win over the estimate. Kept for one model,
+      one width per pane and one font. */
+  const measured = { unified: new Map<number, number>(), left: new Map<number, number>(), right: new Map<number, number>() };
+  let measuredFor: readonly unknown[] = [];
+  /** Each side's own visual rows the geometry was built from, to tell a measurement that differs. */
+  let counted: { unified: Uint32Array | null; left: Uint32Array | null; right: Uint32Array | null } = {
+    unified: null,
+    left: null,
+    right: null,
+  };
+  let measuredVersion = $state(0);
+
+  /** Where every row of each list is. Unwrapped, `index · ROW_HEIGHT`; wrapped, a line is as
+      many rows as its text takes. */
+  const geo = $derived.by(() => {
+    void measuredVersion;
+    const plain = {
+      key: [model, mode, sideLayout] as readonly unknown[],
+      unified: uniformRows(model.unified.length, ROW_HEIGHT),
+      left: uniformRows(model.left.length, ROW_HEIGHT),
+      right: uniformRows(model.right.length, ROW_HEIGHT),
+    };
+    // Unwrapped, nothing else is read: a resize or a divider drag does not rebuild the marks.
+    counted = { unified: null, left: null, right: null };
+    if (!wrap) return plain;
+    const est = estimate;
+    const rightCode = mode === "split" ? rightWidth : codeWidth;
+    if (!est || codeWidth <= 0 || rightCode <= 0) return plain;
+    const key = [model, codeWidth, rightCode, est];
+    if (key.some((part, i) => part !== measuredFor[i])) {
+      measuredFor = key;
+      for (const map of Object.values(measured)) map.clear();
+    }
+    if (mode === "unified") {
+      const unified = rowCounts(model.unified, codeWidth, est, measured.unified);
+      counted = { unified, left: null, right: null };
+      return { ...plain, unified: wrappedRows(unified, ROW_HEIGHT) };
+    }
+    const left = rowCounts(model.left, codeWidth, est, measured.left);
+    const right = rowCounts(model.right, rightCode, est, measured.right);
+    counted = { unified: null, left, right };
+    return { ...plain, left: wrappedRows(left, ROW_HEIGHT), right: wrappedRows(right, ROW_HEIGHT) };
+  });
+  const panes = $derived<PaneGeometry>({ left: geo.left, right: geo.right });
+
+  const unifiedRange = $derived(visibleRows(geo.unified, uTop, viewportHeight, BUFFER_ROWS));
+  const leftRange = $derived(visibleRows(geo.left, lTop, viewportHeight, BUFFER_ROWS));
+  const rightRange = $derived(visibleRows(geo.right, rTop, viewportHeight, BUFFER_ROWS));
+
+  /** The connectors of the blocks near the viewport, from both panes' live scroll (08 §12).
+      The scroll events that move `lTop` and `rTop` are once a frame and the state is read by
+      the same flush that moves the rows, so the band and the rows share a frame. */
+  const links = $derived(
+    mode === "split"
+      ? blockConnectors(
+          model,
+          { scrollTop: lTop, viewport: viewportHeight },
+          { scrollTop: rTop, viewport: viewportHeight },
+          panes,
+          ACT_HEIGHT / 2,
+        )
+      : [],
+  );
+
+  /** Reads the height of the wrapped rows drawn and not read yet; one that differs from what
+      the geometry assumed moves the rows below it. */
+  function measureRows() {
+    const used = counted;
+    let changed = false;
+    for (const [side, el] of [
+      ["unified", unifiedEl],
+      ["left", leftEl],
+      ["right", rightEl],
+    ] as const) {
+      const counts = used[side];
+      if (!el || !counts) continue;
+      const seen = measured[side];
+      for (const cell of el.querySelectorAll<HTMLElement>("[data-wrap]")) {
+        const index = Number(cell.dataset.wrap);
+        if (seen.has(index)) continue;
+        const rows = Math.max(1, Math.round(cell.offsetHeight / ROW_HEIGHT));
+        seen.set(index, rows);
+        if (counts[index] !== rows) changed = true;
+      }
+    }
+    if (changed) measuredVersion += 1;
+  }
+
+  $effect(() => {
+    if (!wrap) return;
+    void geo;
+    void unifiedRange;
+    void leftRange;
+    void rightRange;
+    untrack(measureRows);
+  });
+
+  /** Rows above the view that changed height (measured, rewrapped at another width, wrapping
+      switched) would move what is on screen: each scroller keeps its top row where it was. */
+  let shownGeo: typeof geo | null = null;
+  $effect(() => {
+    const now = geo;
+    untrack(() => {
+      const before = shownGeo;
+      shownGeo = now;
+      if (!before || revealing || before.key.some((part, i) => part !== now.key[i])) return;
+      if (mode === "unified") {
+        if (unifiedEl) keepTop(unifiedEl, before.unified, now.unified);
+        return;
+      }
+      for (const [side, el] of [
+        ["left", leftEl],
+        ["right", rightEl],
+      ] as const) {
+        if (!el) continue;
+        const top = anchoredTop(before[side], now[side], el.scrollTop);
+        if (top !== el.scrollTop && guard.write(side, el.scrollTop, top)) el.scrollTop = top;
+      }
+    });
+  });
+
+  function keepTop(el: HTMLElement, before: RowGeometry, now: RowGeometry) {
+    const top = anchoredTop(before, now, el.scrollTop);
+    if (top !== el.scrollTop) el.scrollTop = top;
+  }
 
   /** The widest line of each side: side by side, each column scrolls within its own width. */
   const widest = $derived.by(() => {
@@ -371,7 +516,9 @@
   /** How far the lines of the diff move sideways. The editor's text is made at least this
       wide, so it follows the other column; typed past it, the editor reaches further. */
   const linesMax = $derived(
-    mode === "split"
+    wrap
+      ? 0
+      : mode === "split"
       ? Math.max(maxOffset(widest.old, charWidth, codeWidth), maxOffset(widest.new, charWidth, rightWidth))
       : maxOffset(Math.max(widest.old, widest.new), charWidth, codeWidth),
   );
@@ -394,7 +541,7 @@
     if (!leftEl || !rightEl) return;
     const l = viewOf(leftEl);
     const r = viewOf(rightEl);
-    const target = from === "left" ? mapLeftScrollToRight(model, l, r, ROW_HEIGHT) : mapRightScrollToLeft(model, l, r, ROW_HEIGHT);
+    const target = from === "left" ? mapLeftScrollToRight(model, l, r, panes) : mapRightScrollToLeft(model, l, r, panes);
     const other: PaneSide = from === "left" ? "right" : "left";
     const el = paneEl(other)!;
     if (guard.write(other, el.scrollTop, target)) el.scrollTop = target;
@@ -424,7 +571,7 @@
       return;
     }
     const scale = event.deltaMode === 1 ? ROW_HEIGHT : event.deltaMode === 2 ? viewportHeight : 1;
-    const next = wheelScroll(model, viewOf(leftEl), viewOf(rightEl), event.deltaY * scale, ROW_HEIGHT);
+    const next = wheelScroll(model, viewOf(leftEl), viewOf(rightEl), event.deltaY * scale, panes);
     for (const [side, el, top] of [
       ["left", leftEl, next.left],
       ["right", rightEl, next.right],
@@ -439,7 +586,8 @@
   function scrollToRow(index: number, side: PaneSide = "left") {
     const el = mode === "unified" ? unifiedEl : paneEl(side);
     if (!el) return;
-    el.scrollTop = Math.max(index * ROW_HEIGHT - Math.floor(viewportHeight / 2), 0);
+    const rows = mode === "unified" ? geo.unified : geo[side];
+    el.scrollTop = Math.max(rows.top(index) - Math.floor(viewportHeight / 2), 0);
   }
 
   /** Down to the hit the counter points at, and sideways when it is past an edge. */
@@ -448,7 +596,7 @@
     if (!hit) return;
     scrollToRow(hit.index, hit.side);
     const text = searchTexts[hit.index]?.[hit.side === "left" ? 0 : 1];
-    if (text === null || text === undefined || charWidth === 0) return;
+    if (wrap || text === null || text === undefined || charWidth === 0) return;
     const from = textColumns(text.slice(0, hit.from)) * charWidth;
     const to = textColumns(text.slice(0, hit.to)) * charWidth;
     const view = hit.side === "right" ? rightWidth : codeWidth;
@@ -532,37 +680,43 @@
   }
 
   function settle() {
-    const top = Math.floor(navTop / ROW_HEIGHT);
-    const bottom = Math.floor((navTop + viewportHeight) / ROW_HEIGHT) - 1;
+    const rows = mode === "unified" ? geo.unified : geo.left;
+    const top = rows.rowAt(navTop);
+    const bottom = rows.rowAt(navTop + viewportHeight) - 1;
     steps = changeSteps(starts, top, bottom, lead);
   }
 
   const paneTone = (row: PaneRow | undefined, left: boolean) =>
     row?.kind === "line" ? toneOf(row.blockKind, left, true) : "";
+  // The marks stand where their rows are: wrapped, a tall line moves every mark below it.
   const marks = $derived(
     mode === "unified"
       ? rowMarks(
           model.unified.map((row) => (row.kind === "line" ? toneOf(row.blockKind, row.type === "delete") : "")),
-          ROW_HEIGHT,
+          geo.unified,
           viewportHeight,
         )
       : rowMarks(
           model.right.map((row, at) => paneTone(row, false) || paneTone(model.left[at], true)),
-          ROW_HEIGHT,
+          geo.right,
           viewportHeight,
         ),
   );
 
+  /** The scroll offset that puts `row` `lead` base rows below the top of the view: in pixels,
+      so a tall wrapped line above it does not push it off the screen. */
+  const revealAt = (rows: RowGeometry, row: number) => Math.max(rows.top(row) - lead * ROW_HEIGHT, 0);
+
   function placeRow(row: number) {
-    const top = revealTop(row, lead, ROW_HEIGHT);
     if (mode === "unified") {
-      if (unifiedEl) unifiedEl.scrollTop = top;
+      if (unifiedEl) unifiedEl.scrollTop = revealAt(geo.unified, row);
       return;
     }
     for (const [side, el] of [
       ["left", leftEl],
       ["right", rightEl],
     ] as const) {
+      const top = revealAt(geo[side], row);
       if (el && guard.write(side, el.scrollTop, top)) el.scrollTop = top;
     }
   }
@@ -573,7 +727,7 @@
     if (!change) return;
     const rows = changeRows(model, change);
     if (mode === "unified") {
-      if (unifiedEl) unifiedEl.scrollTop = revealTop(rows.unified, lead, ROW_HEIGHT);
+      if (unifiedEl) unifiedEl.scrollTop = revealAt(geo.unified, rows.unified);
       return;
     }
     for (const [side, el, row] of [
@@ -581,7 +735,7 @@
       ["right", rightEl, rows.right],
     ] as const) {
       if (!el) continue;
-      const top = revealTop(row, lead, ROW_HEIGHT);
+      const top = revealAt(geo[side], row);
       if (guard.write(side, el.scrollTop, top)) el.scrollTop = top;
     }
   }
@@ -644,6 +798,7 @@
       else openFind();
     }
     else if (action.kind === "investigate") startInvestigate();
+    else if (action.kind === "wrap") toggleWrap();
     else find.close();
   }
 
@@ -739,9 +894,17 @@
   $effect(() => {
     const repo = diffStore.repo;
     const spec = diffStore.shownSpec;
-    if (repo === null || !spec || diff.kind !== "text" || edit?.blocked !== null) return;
+    if (repo === null || !spec || diff.kind !== "text" || edit?.blocked !== null || wrap) return;
     untrack(() => {
       if (!diffEdit.isFor(path)) void diffEdit.start(repo, spec, path);
+    });
+  });
+
+  // Wrapped, the file is not open: unwrapped again, it is read as it is then, not as it was.
+  $effect(() => {
+    if (!wrap || editor !== null) return;
+    untrack(() => {
+      if (diffEdit.isFor(path) && !diffEdit.dirty) diffEdit.stop();
     });
   });
 
@@ -890,63 +1053,85 @@
 
 <svelte:window onkeydowncapture={onkeydown} />
 
-{#snippet pane(side: PaneSide, rows: PaneRow[], range: { start: number; end: number })}
+{#snippet paneCells(side: PaneSide, row: PaneLine, index: number, tone: string)}
+  <span class="num {tone}">{row.line}</span>
+  <span class="sign {tone}">{tone === "" ? "" : side === "left" ? "−" : "+"}</span>
+  <span class="code mono {tone}"
+    ><span class="text"
+      >{#each mergePieces(row.text, paneLine(side, row), row.inline, find.spansFor(index, side)) as piece, i (i)}<span
+          class={piece.cls}
+          class:word={piece.changed}
+          class:hit={piece.hit}
+          class:current={find.isCurrent(index, side, piece.start)}>{piece.text}</span
+        >{/each}</span
+    ></span
+  >
+{/snippet}
+
+<!-- Wrapped (F-950), a row is as tall as its geometry says: the cells take their text's height,
+     the number on its first visual row. `data-wrap` is what `measureRows` reads. -->
+{#snippet pane(side: PaneSide, rows: PaneRow[], range: { start: number; end: number }, at: RowGeometry)}
   {#each rows.slice(range.start, range.end) as row, k (range.start + k)}
     {@const index = range.start + k}
     {#if row.kind === "gap"}
-      <div class="line" style:top="{index * ROW_HEIGHT}px">
+      <div class="line" style:top="{at.top(index)}px">
         <DiffFold {...foldProps(row.gap, hunkBelow(rows, index), side)} />
       </div>
     {:else if row.kind === "filler"}
-      <div class="line" style:top="{index * ROW_HEIGHT}px" aria-hidden="true">
+      <div class="line" style:top="{at.top(index)}px" style:height={wrap ? `${at.height(index)}px` : undefined} aria-hidden="true">
         <span class="filler"></span>
       </div>
     {:else}
       {@const tone = toneOf(row.blockKind, side === "left", true)}
       <div
         class="line"
+        class:wrapped={wrap}
         class:flash={flashed(row)}
-        style:top="{index * ROW_HEIGHT}px"
+        style:top="{at.top(index)}px"
+        style:height={wrap ? `${at.height(index)}px` : undefined}
         data-line={side === "right" ? row.line : undefined}
       >
-        <span class="num {tone}">{row.line}</span>
-        <span class="sign {tone}">{tone === "" ? "" : side === "left" ? "−" : "+"}</span>
-        <span class="code mono {tone}"
-          ><span class="text"
-            >{#each mergePieces(row.text, paneLine(side, row), row.inline, find.spansFor(index, side)) as piece, i (i)}<span
-                class={piece.cls}
-                class:word={piece.changed}
-                class:hit={piece.hit}
-                class:current={find.isCurrent(index, side, piece.start)}>{piece.text}</span
-              >{/each}</span
-          ></span
-        >
+        {#if wrap}
+          <div class="cells" data-wrap={index}>{@render paneCells(side, row, index, tone)}</div>
+        {:else}
+          {@render paneCells(side, row, index, tone)}
+        {/if}
       </div>
     {/if}
   {/each}
+{/snippet}
+
+{#snippet unifiedCells(row: UnifiedLine, index: number, tone: string)}
+  <span class="num {tone}">{row.old ?? ""}</span>
+  <span class="num {tone}">{row.new ?? ""}</span>
+  <span class="sign {tone}">{row.type === "delete" ? "−" : row.type === "insert" ? "+" : ""}</span>
+  <span class="code mono {tone}"
+    ><span class="text"
+      >{#each mergePieces(row.text, unifiedTokens(tokens, row), row.inline, find.spansFor(index, "left")) as piece, i (i)}<span
+          class={piece.cls}
+          class:word={piece.changed}
+          class:hit={piece.hit}
+          class:current={find.isCurrent(index, "left", piece.start)}>{piece.text}</span
+        >{/each}</span
+    ></span
+  >
 {/snippet}
 
 {#snippet unifiedRow(row: UnifiedLine, index: number)}
   {@const tone = toneOf(row.blockKind, row.type === "delete")}
   <div
     class="line"
+    class:wrapped={wrap}
     class:flash={flashed(row)}
-    style:top="{index * ROW_HEIGHT}px"
+    style:top="{geo.unified.top(index)}px"
+    style:height={wrap ? `${geo.unified.height(index)}px` : undefined}
     data-line={row.type === "delete" ? undefined : (row.new ?? undefined)}
   >
-    <span class="num {tone}">{row.old ?? ""}</span>
-    <span class="num {tone}">{row.new ?? ""}</span>
-    <span class="sign {tone}">{row.type === "delete" ? "−" : row.type === "insert" ? "+" : ""}</span>
-    <span class="code mono {tone}"
-      ><span class="text"
-        >{#each mergePieces(row.text, unifiedTokens(tokens, row), row.inline, find.spansFor(index, "left")) as piece, i (i)}<span
-            class={piece.cls}
-            class:word={piece.changed}
-            class:hit={piece.hit}
-            class:current={find.isCurrent(index, "left", piece.start)}>{piece.text}</span
-          >{/each}</span
-      ></span
-    >
+    {#if wrap}
+      <div class="cells" data-wrap={index}>{@render unifiedCells(row, index, tone)}</div>
+    {:else}
+      {@render unifiedCells(row, index, tone)}
+    {/if}
   </div>
 {/snippet}
 
@@ -972,6 +1157,14 @@
         aria-pressed={settings.current.diffWholeFile}
         title="Show the whole file; off: unchanged lines fold into “N lines hidden” rows"
         onclick={() => void settings.set("diffWholeFile", !settings.current.diffWholeFile)}>Whole file</button
+      >
+      <button
+        type="button"
+        class="btn sm"
+        aria-pressed={wrapTool.pressed}
+        disabled={wrapTool.disabled}
+        title={wrapTool.title}
+        onclick={toggleWrap}>Wrap</button
       >
       <button
         type="button"
@@ -1099,7 +1292,7 @@
     <div class="scroll" data-select-text="diff" bind:this={unifiedEl} onscroll={onunified} {onwheel}>
       <div
         class="rows"
-        style:height={editor ? undefined : `${model.unified.length * ROW_HEIGHT}px`}
+        style:height={editor ? undefined : `${geo.unified.total}px`}
         style:--shift="{shift}px"
       >
         <div class="line ruler" aria-hidden="true">
@@ -1107,7 +1300,7 @@
           <span class="num"></span>
           <span class="sign" bind:offsetWidth={signWidth}></span>
           <span class="code mono" bind:clientWidth={codeWidth}
-            ><span class="probe" bind:offsetWidth={probeWidth}>{PROBE}</span></span
+            ><span class="probe" bind:this={probeEl} bind:offsetWidth={probeWidth}>{PROBE}</span></span
           >
         </div>
         {#if editor}
@@ -1122,7 +1315,7 @@
           {#each model.unified.slice(unifiedRange.start, unifiedRange.end) as row, k (unifiedRange.start + k)}
             {@const index = unifiedRange.start + k}
             {#if row.kind === "gap"}
-              <div class="line" style:top="{index * ROW_HEIGHT}px">
+              <div class="line" style:top="{geo.unified.top(index)}px">
                 <DiffFold {...foldProps(row.gap, hunkBelow(model.unified, index), "both")} />
               </div>
             {:else}
@@ -1154,15 +1347,15 @@
         onscroll={() => onpane("left")}
         {onwheel}
       >
-        <div class="rows" style:height="{model.left.length * ROW_HEIGHT}px">
+        <div class="rows" style:height="{geo.left.total}px">
           <div class="line ruler" aria-hidden="true">
             <span class="num"></span>
             <span class="sign" bind:offsetWidth={signWidth}></span>
             <span class="code mono" bind:clientWidth={codeWidth}
-              ><span class="probe" bind:offsetWidth={probeWidth}>{PROBE}</span></span
+              ><span class="probe" bind:this={probeEl} bind:offsetWidth={probeWidth}>{PROBE}</span></span
             >
           </div>
-          {@render pane("left", model.left, leftRange)}
+          {@render pane("left", model.left, leftRange, geo.left)}
         </div>
       </div>
       <!-- The band between the panes is the divider (drag it, or arrows while focused), the
@@ -1255,7 +1448,7 @@
         </div>
       </div>
       <div class="pane right" data-select-text="diff" bind:this={rightEl} onscroll={() => onpane("right")} {onwheel}>
-        <div class="rows" style:height={editor ? undefined : `${model.right.length * ROW_HEIGHT}px`}>
+        <div class="rows" style:height={editor ? undefined : `${geo.right.total}px`}>
           <div class="line ruler" aria-hidden="true">
             <span class="num"></span>
             <span class="sign"></span>
@@ -1270,7 +1463,7 @@
               bind:this={editorHost}
             ></div>
           {:else}
-            {@render pane("right", model.right, rightRange)}
+            {@render pane("right", model.right, rightRange, geo.right)}
           {/if}
         </div>
       </div>
@@ -1420,6 +1613,32 @@
     line-height: 18px;
     font-size: var(--fs-code);
     white-space: pre;
+  }
+
+  /* Wrapped (F-950): the row's height is set inline from its geometry, the cells are as tall
+     as their text. Any character may end a visual row, spaces included, as `diff-wrap`
+     counts them. */
+  .line.wrapped {
+    flex-direction: column;
+  }
+
+  .cells {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: stretch;
+    min-height: 18px;
+  }
+
+  .line.wrapped .code {
+    white-space: break-spaces;
+    word-break: break-all;
+    overflow-wrap: anywhere;
+    line-break: anywhere;
+  }
+
+  .line.wrapped .text {
+    display: block;
+    transform: none;
   }
 
   /* Over the row's own fills, fading out in `FLASH_MS`; with reduced motion it just stays

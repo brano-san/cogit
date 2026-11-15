@@ -540,6 +540,12 @@ export const CATEGORIES: Category[] = [
             hint: "Off: unchanged lines fold to the context lines into \"N lines hidden\" rows. The Whole file button of the diff and of the 3-way merge switches it too.",
             keywords: ["whole", "full", "entire", "fold", "hidden", "collapse", "expand", "unchanged"],
           },
+          {
+            key: "diffWrap",
+            label: "Wrap long lines",
+            hint: "Long lines wrap at the width of their pane instead of scrolling sideways. The Wrap button of the diff and Alt+Z switch it too; while on, the working file is not edited in place.",
+            keywords: ["wrap", "word wrap", "soft wrap", "long lines", "sideways", "horizontal"],
+          },
         ],
       },
       {

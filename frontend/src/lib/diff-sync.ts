@@ -1,5 +1,6 @@
 import type { PaneView } from "./diff-band";
 import type { BlockModel } from "./diff-blocks";
+import { paneGeometry, type Heights, type PaneGeometry, type RowGeometry } from "./diff-wrap";
 
 /**
  * Synchronized scrolling of the two panes of a split diff.
@@ -10,6 +11,9 @@ import type { BlockModel } from "./diff-blocks";
  *
  *   equal zone (leftRows == rightRows):  yR = rightRow*rh + (yL - leftRow*rh)
  *   non-equal block:                     yR = rightRow*rh + (yL - leftRow*rh) * rightRows/leftRows
+ *
+ * With wrapped lines (F-950) `row*rh` is the row's top in its pane's `RowGeometry` and a
+ * block's length is its pixel height, so a block maps onto its twin however its lines wrap.
  *
  * A fold is an equal block of one row per side, so a collapsed zone costs one row and an
  * expansion (a new model) moves every later anchor with it. Above the first row and below
@@ -23,14 +27,14 @@ import type { BlockModel } from "./diff-blocks";
 
 type Side = "left" | "right";
 
-function mapY(model: BlockModel, from: Side, y: number, rh: number): number {
-  const rows = (s: Side) => (s === "left" ? model.left.length : model.right.length);
+function mapY(model: BlockModel, rows: PaneGeometry, from: Side, y: number): number {
+  const src = rows[from];
   const to: Side = from === "left" ? "right" : "left";
-  const total = rows(from) * rh;
+  const dst = rows[to];
   if (y < 0) return y;
-  if (y >= total) return y - total + rows(to) * rh;
+  if (y >= src.total) return y - src.total + dst.total;
   const { blocks } = model;
-  const start = (i: number) => (from === "left" ? blocks[i]!.leftRow : blocks[i]!.rightRow) * rh;
+  const start = (i: number) => src.top(from === "left" ? blocks[i]!.leftRow : blocks[i]!.rightRow);
   // Last block starting at or above y; a zero-height block at y sorts before the one after it.
   let lo = 0;
   let hi = blocks.length - 1;
@@ -44,20 +48,21 @@ function mapY(model: BlockModel, from: Side, y: number, rh: number): number {
     from === "left"
       ? [b.leftRow, b.leftRows, b.rightRow, b.rightRows]
       : [b.rightRow, b.rightRows, b.leftRow, b.leftRows];
-  return dstRow * rh + ((y - srcRow * rh) * dstRows) / srcRows;
+  const srcTop = src.top(srcRow);
+  const dstTop = dst.top(dstRow);
+  return dstTop + ((y - srcTop) * (dst.top(dstRow + dstRows) - dstTop)) / (src.top(srcRow + srcRows) - srcTop);
 }
 
-function maxScroll(view: PaneView, rows: number, rh: number): number {
-  return Math.max((view.top ?? 0) + rows * rh + (view.bottom ?? 0) - view.viewport, 0);
+function maxScroll(view: PaneView, rows: RowGeometry): number {
+  return Math.max((view.top ?? 0) + rows.total + (view.bottom ?? 0) - view.viewport, 0);
 }
 
-function sync(model: BlockModel, from: Side, source: PaneView, target: PaneView, rh: number): number {
-  const sourceRows = from === "left" ? model.left.length : model.right.length;
-  const targetRows = from === "left" ? model.right.length : model.left.length;
-  const max = maxScroll(target, targetRows, rh);
-  const sourceMax = maxScroll(source, sourceRows, rh);
+function sync(model: BlockModel, from: Side, source: PaneView, target: PaneView, heights: Heights): number {
+  const rows = paneGeometry(model, heights);
+  const max = maxScroll(target, rows[from === "left" ? "right" : "left"]);
+  const sourceMax = maxScroll(source, rows[from]);
   if (source.scrollTop > 0 && source.scrollTop >= sourceMax) return max;
-  const at = (top: number) => mapY(model, from, top - (source.top ?? 0), rh) + (target.top ?? 0);
+  const at = (top: number) => mapY(model, rows, from, top - (source.top ?? 0)) + (target.top ?? 0);
   let y = at(source.scrollTop);
   // Over the last screenful of the source the target is eased by the gap between where the
   // blocks would put it at the very end and its own bottom, so reaching the end does not jump
@@ -69,13 +74,13 @@ function sync(model: BlockModel, from: Side, source: PaneView, target: PaneView,
 }
 
 /** The right pane's `scrollTop` that lines up with the left pane's. */
-export function mapLeftScrollToRight(model: BlockModel, left: PaneView, right: PaneView, rowHeight: number): number {
-  return sync(model, "left", left, right, rowHeight);
+export function mapLeftScrollToRight(model: BlockModel, left: PaneView, right: PaneView, heights: Heights): number {
+  return sync(model, "left", left, right, heights);
 }
 
 /** The left pane's `scrollTop` that lines up with the right pane's. */
-export function mapRightScrollToLeft(model: BlockModel, left: PaneView, right: PaneView, rowHeight: number): number {
-  return sync(model, "right", right, left, rowHeight);
+export function mapRightScrollToLeft(model: BlockModel, left: PaneView, right: PaneView, heights: Heights): number {
+  return sync(model, "right", right, left, heights);
 }
 
 /** Wheel over the gutter: the same pixel delta for both panes, each kept in its own range. */
@@ -84,9 +89,10 @@ export function wheelScroll(
   left: PaneView,
   right: PaneView,
   delta: number,
-  rowHeight: number,
+  heights: Heights,
 ): { left: number; right: number } {
-  const clamp = (v: PaneView, rows: number) =>
-    Math.min(Math.max(Math.round(v.scrollTop + delta), 0), maxScroll(v, rows, rowHeight));
-  return { left: clamp(left, model.left.length), right: clamp(right, model.right.length) };
+  const rows = paneGeometry(model, heights);
+  const clamp = (v: PaneView, of: RowGeometry) =>
+    Math.min(Math.max(Math.round(v.scrollTop + delta), 0), maxScroll(v, of));
+  return { left: clamp(left, rows.left), right: clamp(right, rows.right) };
 }

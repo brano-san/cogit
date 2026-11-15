@@ -46,6 +46,16 @@ describe("diffKey", () => {
     expect(diffKey(toggle, state({ active: false }))).toEqual({ kind: "layout" });
   });
 
+  it("wraps lines with Alt+Z while it has the keyboard, and only with Alt alone", () => {
+    const wrap = press({ key: "z", code: "KeyZ", alt: true });
+    expect(diffKey(wrap, state())).toEqual({ kind: "wrap" });
+    expect(diffKey(wrap, state({ active: false }))).toBeNull();
+    expect(diffKey(press({ key: "я", code: "KeyZ", alt: true }), state())).toEqual({ kind: "wrap" });
+    // AltGr arrives as Ctrl+Alt: a character typed, not a command.
+    expect(diffKey(press({ key: "z", code: "KeyZ", alt: true, ctrl: true }), state())).toBeNull();
+    expect(diffKey(press({ key: "Z", code: "KeyZ", alt: true, shift: true }), state())).toBeNull();
+  });
+
   it("reads letters by where they sit, with any layout", () => {
     expect(diffKey(press({ key: "а", code: "KeyF", ctrl: true }), state())).toEqual({ kind: "find" });
   });

@@ -85,6 +85,7 @@ export type AppCommandId =
   | "reveal-log"
   | "copy-pr"
   | "blame"
+  | "diff-wrap"
   | "abort";
 
 /** One action per id; a toolbar button busies itself while the promise it returns runs. */
@@ -387,6 +388,14 @@ export function appCommands(facts: AppCommandFacts, run: AppCommandActions): Pal
       title: "Blame This File",
       unavailable: facts.diffPath ? undefined : NO_FILE_IN_DIFF,
       run: run.blame,
+    },
+    // A setting, not an action on the file: it is there with no diff open too.
+    {
+      id: "diff-wrap",
+      title: "Toggle Wrapped Lines in Diff",
+      shortcut: "Alt+Z",
+      synonyms: ["wrap", "word wrap", "soft wrap", "long lines"],
+      run: run["diff-wrap"],
     },
     {
       id: "abort",

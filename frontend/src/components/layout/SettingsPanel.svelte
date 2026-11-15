@@ -621,6 +621,10 @@
               <div class="row check">
                 <Checkbox checked={draft.diffWholeFile} onchange={(checked) => set("diffWholeFile", checked)} label={field.label} />
               </div>
+            {:else if field.key === "diffWrap"}
+              <div class="row check">
+                <Checkbox checked={draft.diffWrap} onchange={(checked) => set("diffWrap", checked)} label={field.label} />
+              </div>
             {:else if field.key === "startupShowWelcome"}
               <div class="row check">
                 <Checkbox

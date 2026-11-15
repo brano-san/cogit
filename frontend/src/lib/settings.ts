@@ -52,6 +52,8 @@ export interface Settings {
   /** The diff and the 3-way merge show the whole file, not unchanged lines folded to the
       context lines into "N lines hidden" rows. */
   diffWholeFile: boolean;
+  /** Long lines of the diff wrap at the width of their pane instead of scrolling sideways (F-950). */
+  diffWrap: boolean;
   laneWidth: number;
   gitPath: string;
   terminal: string;
@@ -172,6 +174,7 @@ export const DEFAULT_SETTINGS: Settings = {
   diffSplit: 0.5,
   diffLayout: "aligned",
   diffWholeFile: false,
+  diffWrap: false,
   laneWidth: LANE_WIDTH.default,
   gitPath: "git",
   terminal: "system",

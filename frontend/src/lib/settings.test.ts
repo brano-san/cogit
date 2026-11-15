@@ -44,6 +44,12 @@ describe("merge", () => {
     expect(merge({ diffWholeFile: "yes" } as never).diffWholeFile).toBe(false);
   });
 
+  it("scrolls long diff lines sideways until asked to wrap them", () => {
+    expect(merge({}).diffWrap).toBe(false);
+    expect(merge({ diffWrap: true }).diffWrap).toBe(true);
+    expect(merge({ diffWrap: 1 } as never).diffWrap).toBe(false);
+  });
+
   it("lays side by side out aligned unless asked for compact", () => {
     expect(merge({}).diffLayout).toBe("aligned");
     expect(merge({ diffLayout: "compact" }).diffLayout).toBe("compact");

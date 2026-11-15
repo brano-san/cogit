@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EolInfo } from "./ipc/bindings";
-import { alignedButton, bandAction, isAbsentFromBothSides, eolChangeText, eolLabel, layoutTip, modeChangeText, whitespaceButton } from "./diff-toolbar";
+import { alignedButton, bandAction, isAbsentFromBothSides, eolChangeText, eolLabel, layoutTip, modeChangeText, whitespaceButton, wrapButton } from "./diff-toolbar";
 
 function eol(old: EolInfo["old"], next: EolInfo["new"]): EolInfo {
   return { old, new: next, normalized: old !== next };
@@ -103,6 +103,26 @@ describe("alignedButton", () => {
     expect(off).toMatchObject({ pressed: false, next: "aligned" });
     expect(off.title).toContain("OFF: Compact");
     expect(off.title).toContain("Click for: Aligned 1:1");
+  });
+});
+
+describe("wrapButton (F-950)", () => {
+  it("says which way lines go now, what a click does, and the key", () => {
+    const on = wrapButton(true, { editable: false, dirty: false });
+    expect(on).toMatchObject({ pressed: true, disabled: false });
+    expect(on.title).toBe("ON: long lines wrap at the width of their pane (Alt+Z).\nClick for: one row per line, long lines scroll sideways.");
+    const off = wrapButton(false, { editable: false, dirty: false });
+    expect(off).toMatchObject({ pressed: false, disabled: false });
+    expect(off.title.startsWith("OFF: one row per line")).toBe(true);
+  });
+
+  it("tells an editable diff that wrapped lines are not edited in place", () => {
+    expect(wrapButton(false, { editable: true, dirty: false }).title).toContain("edited in place only while lines are not wrapped");
+  });
+
+  // The edits live in the editor wrapping would close.
+  it("waits for unsaved edits to be saved", () => {
+    expect(wrapButton(false, { editable: true, dirty: true })).toMatchObject({ disabled: true, title: expect.stringContaining("Save the file first") });
   });
 });
 

@@ -144,6 +144,7 @@ describe("app commands", () => {
       ["reveal-log", "Reveal Log File"],
       ["copy-pr", "Copy Pull Request Link"],
       ["blame", "Blame This File"],
+      ["diff-wrap", "Toggle Wrapped Lines in Diff"],
       ["abort", "Abort Operation In Progress"],
     ]);
   });
