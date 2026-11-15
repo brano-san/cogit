@@ -144,10 +144,14 @@ const BY_HAND: [&str; 18] = [
     "save_config_file",
 ];
 
-const ON_WINDOWS: [(&str, &str); 10] = [
+const ON_WINDOWS: [(&str, &str); 11] = [
     ("background_turn", "the queue of Windows"),
     ("cancel_merge_tool", "the merge tool runs on Windows"),
     ("merge_tools_running", "the merge tool runs on Windows"),
+    (
+        "start_diff_tool",
+        "a Windows program on Windows paths; refused for a WSL repository (R-955)",
+    ),
     ("agent_process_id", "the agent process itself"),
     ("is_remote", "the routing table itself"),
     ("close_repository", "the registry; tells the agent itself"),
