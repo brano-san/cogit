@@ -236,3 +236,59 @@ fn every_file_chosen_ends_as_a_plain_apply_does() {
 fn every_file_chosen_with_the_index_ends_as_apply_index_does() {
     same_as_plain_apply(true);
 }
+
+const LINES: &str = "one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\n";
+
+/// `lines.txt` stashed with its second line changed, then HEAD moved on with `later` as
+/// the file's content.
+fn stashed_then_moved(later: &str) -> test_fixtures::Fixture {
+    let f = test_fixtures::linear(1).unwrap();
+    f.commit_file(1, "lines.txt", LINES).unwrap();
+    f.write_file("lines.txt", &LINES.replace("two", "TWO from the stash"))
+        .unwrap();
+    f.write_file("file0.txt", "stashed 0\n").unwrap();
+    f.git_at(2, &["stash", "push", "-m", "wip"]).unwrap();
+    f.commit_file(3, "lines.txt", later).unwrap();
+    f
+}
+
+#[test]
+fn a_commit_made_since_the_stash_is_kept_beside_its_change() {
+    let f = stashed_then_moved(&LINES.replace("eight", "EIGHT committed later"));
+    let (state, repo) = open(&f);
+
+    state
+        .stash_apply_paths(repo, &oid(&state, repo), &paths(&["lines.txt"]), false)
+        .unwrap();
+
+    let merged = text(&f, "lines.txt");
+    assert!(merged.contains("TWO from the stash"), "{merged}");
+    assert!(merged.contains("EIGHT committed later"), "{merged}");
+    assert_eq!(status(&f), " M lines.txt\n");
+}
+
+#[test]
+fn a_clash_with_a_later_commit_stops_on_conflicts_and_undo_takes_it_back() {
+    let later = LINES.replace("two", "TWO committed later");
+    let f = stashed_then_moved(&later);
+    let (state, repo) = open(&f);
+
+    let err = state
+        .stash_apply_paths(repo, &oid(&state, repo), &paths(&["lines.txt"]), false)
+        .unwrap_err();
+
+    let git_engine::GitError::Command(run) = &err else {
+        panic!("not git's own account of the conflict: {err}");
+    };
+    assert!(run.command.contains("stash apply"), "{}", run.command);
+    assert_eq!(run.exit_code, Some(1));
+    assert!(text(&f, "lines.txt").contains("<<<<<<<"));
+    assert!(status(&f).starts_with("UU lines.txt"), "{}", status(&f));
+    assert_eq!(text(&f, "file0.txt"), "content 0\n", "a file not chosen");
+    assert!(state.safety_log().iter().any(|entry| entry.undoable));
+
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(status(&f), "");
+    assert_eq!(text(&f, "lines.txt"), later);
+}
