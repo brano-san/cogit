@@ -29,6 +29,8 @@ impl Drop for Tracked {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .remove(&self.0);
+        #[cfg(windows)]
+        job::forget(self.0);
     }
 }
 
@@ -45,6 +47,8 @@ pub(crate) fn spawn(command: &mut Command) -> std::io::Result<(Child, Tracked)> 
     }
     let child = command.spawn()?;
     SPAWNED.fetch_add(1, Ordering::Relaxed);
+    #[cfg(windows)]
+    job::enclose(&child);
     // What runs, for counting spawns per action in a debug log (doc/14-profiling.md).
     tracing::debug!(
         program = ?command.get_program(),
@@ -237,6 +241,9 @@ pub fn stop_all() -> usize {
 #[cfg(windows)]
 pub(crate) fn stop_tree(pid: u32) -> std::io::Result<()> {
     use std::os::windows::process::CommandExt as _;
+    if job::terminate(pid) {
+        return Ok(());
+    }
     // `/T` for sh, ssh and git-remote-https; `/F` since a windowless process cannot close.
     let status = Command::new("taskkill")
         .creation_flags(crate::runner::CREATE_NO_WINDOW)
@@ -261,5 +268,75 @@ pub(crate) fn stop_tree(pid: u32) -> std::io::Result<()> {
         Ok(())
     } else {
         Err(std::io::Error::other(format!("kill exited with {status}")))
+    }
+}
+
+/// A job object per process, holding everything it starts. `taskkill /T` follows parent
+/// pids, and Git for Windows' bash breaks that chain: its `exec` leaves the new program
+/// under a pid that is gone, so a hook's `exec sleep 600` outlived Stop.
+///
+/// No `KILL_ON_JOB_CLOSE`: what git leaves running on purpose (fsmonitor, credential-cache,
+/// `gc --auto`) must outlive the command. The job only serves Stop and exiting.
+#[cfg(windows)]
+#[allow(unsafe_code)]
+mod job {
+    use std::collections::BTreeMap;
+    use std::os::windows::io::{AsRawHandle as _, FromRawHandle as _, OwnedHandle};
+    use std::sync::{Mutex, PoisonError};
+    use windows::Win32::Foundation::HANDLE;
+    use windows::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, TerminateJobObject,
+    };
+    use windows::core::PCWSTR;
+
+    static JOBS: Mutex<BTreeMap<u32, OwnedHandle>> = Mutex::new(BTreeMap::new());
+
+    /// Without a job the process is still stopped by `taskkill /T`, as before.
+    pub(super) fn enclose(child: &std::process::Child) {
+        let job = || -> windows::core::Result<OwnedHandle> {
+            // SAFETY: an anonymous job with default security; the handle is owned from here on.
+            let job =
+                unsafe { OwnedHandle::from_raw_handle(CreateJobObjectW(None, PCWSTR::null())?.0) };
+            // SAFETY: both handles are open for the duration of the call.
+            unsafe {
+                AssignProcessToJobObject(
+                    HANDLE(job.as_raw_handle()),
+                    HANDLE(child.as_raw_handle()),
+                )?;
+            }
+            Ok(job)
+        };
+        match job() {
+            Ok(job) => {
+                JOBS.lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .insert(child.id(), job);
+            }
+            Err(err) => {
+                tracing::error!(error = ?err, context = "putting a child process in a job object");
+            }
+        }
+    }
+
+    /// `false` when `pid` has no job or it could not be ended: `taskkill` is tried then.
+    pub(super) fn terminate(pid: u32) -> bool {
+        let jobs = JOBS.lock().unwrap_or_else(PoisonError::into_inner);
+        let Some(job) = jobs.get(&pid) else {
+            return false;
+        };
+        // SAFETY: the handle is open while it is in `JOBS`, and the lock is held.
+        match unsafe { TerminateJobObject(HANDLE(job.as_raw_handle()), 1) } {
+            Ok(()) => true,
+            Err(err) => {
+                tracing::error!(error = ?err, pid, context = "ending a job object");
+                false
+            }
+        }
+    }
+
+    pub(super) fn forget(pid: u32) {
+        JOBS.lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(&pid);
     }
 }

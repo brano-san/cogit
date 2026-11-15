@@ -152,6 +152,9 @@ windows = { version = "0.62", features = [
     "Win32_UI_Shell_PropertiesSystem",
     "Win32_UI_WindowsAndMessaging",
     "Win32_System_Shutdown",
+    # A job per child process, so Stop reaches what Git's bash started (crates/git_engine/src/children.rs).
+    "Win32_System_JobObjects",
+    "Win32_Security",
     # Toasts when an operation ends in the background (src-tauri/src/notify).
     "Data_Xml_Dom",
     "Foundation",

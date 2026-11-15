@@ -294,7 +294,9 @@ fn a_hook_that_never_ends_can_be_stopped() {
     write_hook(
         &f.path().join(".git/hooks"),
         "pre-commit",
-        "#!/bin/sh\nexec sleep 600\n",
+        // A background child and an `exec`: Git for Windows' bash leaves both under parent
+        // pids `taskkill /T` cannot follow. Whatever outlives Stop writes `survived`.
+        "#!/bin/sh\n(sleep 4; echo > \"$PWD/.git/survived\") &\nexec sleep 600\n",
     );
     let stop = git_engine::NetworkStop::default();
     let repo = open(&f).with_stop(stop.clone());
@@ -311,4 +313,9 @@ fn a_hook_that_never_ends_can_be_stopped() {
         .unwrap();
 
     assert_eq!(run.exit_code, None, "{run:?}");
+    std::thread::sleep(test_fixtures::scaled(std::time::Duration::from_secs(6)));
+    assert!(
+        !f.path().join(".git/survived").exists(),
+        "a process the hook started outlived Stop"
+    );
 }
