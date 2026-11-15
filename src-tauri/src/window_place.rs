@@ -223,6 +223,111 @@ pub fn recentre<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) {
     let _ = window.set_position(tauri::PhysicalPosition::new(now.x, now.y));
 }
 
+/// Window ▸ Size: menu id, label, and the logical size of the outer window (`None`: the work area).
+pub type SizePreset = (&'static str, &'static str, Option<(u32, u32)>);
+
+pub const SIZE_PRESETS: &[SizePreset] = &[
+    ("window-size-1280x800", "1280 × 800", Some((1280, 800))),
+    ("window-size-1440x900", "1440 × 900", Some((1440, 900))),
+    ("window-size-1600x1000", "1600 × 1000", Some((1600, 1000))),
+    ("window-size-1920x1080", "1920 × 1080", Some((1920, 1080))),
+    ("window-size-fit", "Fit to Screen", None),
+];
+
+/// The window at `wanted` (physical, outer) on `screen`: never larger than the work area, the
+/// top-left corner kept unless the window would hang off the monitor, then moved inside.
+#[must_use]
+pub fn resized(window: Rect, wanted: (i32, i32), screen: Rect) -> Rect {
+    let w = wanted.0.min(screen.w).max(1);
+    let h = wanted.1.min(screen.h).max(1);
+    Rect {
+        x: window.x.min(screen.right() - w).max(screen.x),
+        y: window.y.min(screen.bottom() - h).max(screen.y),
+        w,
+        h,
+    }
+}
+
+fn scaled(logical: u32, scale: f64) -> i32 {
+    let physical = (f64::from(logical) * scale).round();
+    if physical >= f64::from(i32::MAX) {
+        return i32::MAX;
+    }
+    // In range and already rounded: the cast is exact.
+    #[allow(clippy::cast_possible_truncation)]
+    let value = physical as i32;
+    value.max(1)
+}
+
+/// Window ▸ Size: one of `SIZE_PRESETS` by menu id, on the monitor the window is on. A
+/// maximized or fullscreen window is restored first: its geometry is Windows' business and
+/// nothing is saved while it is maximized (R-118). Without a position (Wayland) only the
+/// size changes.
+pub fn apply_preset<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>, id: &str) {
+    let Some((_, _, preset)) = SIZE_PRESETS.iter().find(|(each, ..)| *each == id) else {
+        return;
+    };
+    if window.is_minimized().unwrap_or(false) {
+        return;
+    }
+    if window.is_fullscreen().unwrap_or(false) {
+        let _ = window.set_fullscreen(false);
+    }
+    if window.is_maximized().unwrap_or(false) {
+        let _ = window.unmaximize();
+    }
+    let Some(monitor) = window.current_monitor().ok().flatten() else {
+        tracing::warn!(id, "window size preset: the window is on no monitor");
+        return;
+    };
+    let screen = Rect::from(&monitor);
+    let wanted = match preset {
+        Some((w, h)) => (
+            scaled(*w, monitor.scale_factor()),
+            scaled(*h, monitor.scale_factor()),
+        ),
+        None => (screen.w, screen.h),
+    };
+    let Ok(size) = window.outer_size() else {
+        return;
+    };
+    let (w, h) = (
+        i32::try_from(size.width).unwrap_or(i32::MAX),
+        i32::try_from(size.height).unwrap_or(i32::MAX),
+    );
+    let Ok(position) = window.outer_position() else {
+        let now = resized(
+            Rect {
+                x: screen.x,
+                y: screen.y,
+                w,
+                h,
+            },
+            wanted,
+            screen,
+        );
+        set_outer_size(window, now);
+        return;
+    };
+    let was = Rect {
+        x: position.x,
+        y: position.y,
+        w,
+        h,
+    };
+    let now = resized(was, wanted, screen);
+    tracing::info!(
+        id,
+        from = ?(was.x, was.y, was.w, was.h),
+        to = ?(now.x, now.y, now.w, now.h),
+        "window size preset"
+    );
+    set_outer_size(window, now);
+    if (now.x, now.y) != (was.x, was.y) {
+        let _ = window.set_position(tauri::PhysicalPosition::new(now.x, now.y));
+    }
+}
+
 /// The middle of `screen`, shrunk to fit it: where a new window opens when it must land on
 /// a given monitor.
 #[must_use]
@@ -444,5 +549,64 @@ mod tests {
     fn with_no_monitors_at_all_it_still_returns_something_usable() {
         let placed = place(window(200, 150, 1200, 800), &[], LAPTOP);
         assert!(placed.w > 0 && placed.h > 0);
+    }
+
+    #[test]
+    fn a_preset_keeps_the_top_left_corner_when_it_fits() {
+        let now = resized(window(100, 50, 1000, 700), (1280, 800), LAPTOP);
+        assert_eq!(now, window(100, 50, 1280, 800));
+    }
+
+    #[test]
+    fn a_preset_that_would_hang_off_the_monitor_is_moved_inside() {
+        let now = resized(window(900, 600, 1000, 400), (1280, 800), LAPTOP);
+        assert_eq!(now, window(1920 - 1280, 1040 - 800, 1280, 800));
+    }
+
+    #[test]
+    fn a_preset_larger_than_the_work_area_is_clamped_to_it() {
+        let now = resized(window(300, 200, 1000, 700), (2560, 1600), LAPTOP);
+        assert_eq!(now, LAPTOP);
+    }
+
+    #[test]
+    fn fit_to_screen_fills_the_work_area_of_the_monitor_it_is_on() {
+        let now = resized(window(2500, 400, 1000, 700), (SECOND.w, SECOND.h), SECOND);
+        assert_eq!(now, SECOND);
+    }
+
+    #[test]
+    fn a_preset_on_a_monitor_left_of_the_primary_stays_on_it() {
+        let left = Rect {
+            x: -1920,
+            y: -200,
+            w: 1920,
+            h: 1040,
+        };
+        let now = resized(window(-1900, -250, 800, 600), (1440, 900), left);
+        assert_eq!(now, window(-1900, -200, 1440, 900));
+    }
+
+    #[test]
+    fn logical_sizes_follow_the_monitor_scale() {
+        assert_eq!(scaled(1280, 1.5), 1920);
+        assert_eq!(scaled(1440, 1.25), 1800);
+        assert_eq!(scaled(800, 1.0), 800);
+    }
+
+    #[test]
+    fn every_preset_is_a_window_size_command() {
+        assert!(
+            SIZE_PRESETS
+                .iter()
+                .all(|(id, ..)| id.starts_with("window-size-"))
+        );
+        assert_eq!(
+            SIZE_PRESETS
+                .iter()
+                .filter(|(.., size)| size.is_none())
+                .count(),
+            1
+        );
     }
 }

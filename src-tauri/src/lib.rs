@@ -716,6 +716,12 @@ pub fn dispatch_menu_command(app: &tauri::AppHandle, id: &str) {
         copy_diagnostics(app);
         return;
     }
+    if id.starts_with("window-size-") {
+        if let Some(window) = app.get_webview_window(child_window::MAIN) {
+            window_place::apply_preset(&window, id);
+        }
+        return;
+    }
     if id == "reset-window-position" {
         if let Some(window) = app.get_webview_window("main") {
             window_place::recentre(&window);

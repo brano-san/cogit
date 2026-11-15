@@ -128,6 +128,11 @@ describe("app commands", () => {
       ["panel-commit", "Toggle Commit Message Panel"],
       ["panel-diff", "Toggle Diff Panel"],
       ["panel-worktrees", "Toggle Worktrees Panel"],
+      ["window-size-1280x800", "Window Size: 1280 × 800"],
+      ["window-size-1440x900", "Window Size: 1440 × 900"],
+      ["window-size-1600x1000", "Window Size: 1600 × 1000"],
+      ["window-size-1920x1080", "Window Size: 1920 × 1080"],
+      ["window-size-fit", "Window Size: Fit to Screen"],
       ["palette", "Find Command"],
       ["check-updates", "Check for Updates"],
       ["edit-config-repository", "Edit Git Config: Repository"],
@@ -155,6 +160,8 @@ describe("app commands", () => {
       command.run();
       if (command.id.startsWith("panel-")) {
         expect(actions.togglePanel).toHaveBeenLastCalledWith(command.id.slice("panel-".length));
+      } else if (command.id.startsWith("window-size-")) {
+        expect(actions.windowSize).toHaveBeenLastCalledWith(command.id);
       } else if (["flow-feature", "flow-release", "flow-hotfix"].includes(command.id)) {
         expect(actions.flowStart).toHaveBeenLastCalledWith(command.id.slice("flow-".length));
       } else {

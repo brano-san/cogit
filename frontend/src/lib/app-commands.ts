@@ -21,6 +21,15 @@ export const PANEL_TITLES: Record<PanelId, string> = {
 export type FlowKind = "feature" | "release" | "hotfix";
 const FLOW_KINDS: readonly FlowKind[] = ["feature", "release", "hotfix"];
 
+/** Window ▸ Size: answered in Rust (`window_place::SIZE_PRESETS`), which owns the geometry. */
+export const WINDOW_SIZES: readonly { id: string; title: string }[] = [
+  { id: "window-size-1280x800", title: "1280 × 800" },
+  { id: "window-size-1440x900", title: "1440 × 900" },
+  { id: "window-size-1600x1000", title: "1600 × 1000" },
+  { id: "window-size-1920x1080", title: "1920 × 1080" },
+  { id: "window-size-fit", title: "Fit to Screen" },
+];
+
 export type AppCommandId =
   | "open"
   | "clone"
@@ -92,6 +101,7 @@ export type AppCommandId =
 export type AppCommandActions = Record<AppCommandId, () => unknown> & {
   flowStart: (kind: FlowKind) => void;
   togglePanel: (panel: PanelId) => void;
+  windowSize: (id: string) => void;
 };
 
 /** What the rules read; data only, so they can be tested without the app. */
@@ -316,6 +326,12 @@ export function appCommands(facts: AppCommandFacts, run: AppCommandActions): Pal
       id: `panel-${panel}`,
       title: `Toggle ${PANEL_TITLES[panel]} Panel`,
       run: () => run.togglePanel(panel),
+    })),
+    ...WINDOW_SIZES.map((size) => ({
+      id: size.id,
+      title: `Window Size: ${size.title}`,
+      synonyms: ["resize window", "window size", "screen", "screenshot"],
+      run: () => run.windowSize(size.id),
     })),
     { id: "palette", title: "Find Command", run: run.palette },
     { id: "check-updates", title: "Check for Updates", run: run["check-updates"] },

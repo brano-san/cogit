@@ -871,6 +871,7 @@
     "maintenance-gc": () => void runNoticeAction({ id: RUN_GC, label: "Run gc…", targets: [] }),
     "apply-patch": () => (patches.applying = true),
     togglePanel: (panel) => layout.togglePanel(panel),
+    windowSize: (id) => void runMenuCommand(id).catch((err) => errors.report(err, "Could not resize the window")),
     palette: () => {
       if (commit.oid) void learnProtection(commit.oid);
       paletteOpen = true;

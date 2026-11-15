@@ -577,8 +577,16 @@ pub fn build<R: Runtime>(
         )?);
     #[cfg(not(target_os = "linux"))]
     let window = window.minimize().maximize();
+    let mut sizes = SubmenuBuilder::new(app, "Size");
+    for (id, label, preset) in crate::window_place::SIZE_PRESETS {
+        if preset.is_none() {
+            sizes = sizes.separator();
+        }
+        sizes = sizes.item(&MenuItem::with_id(app, *id, *label, true, None::<&str>)?);
+    }
     let window = window
         .separator()
+        .item(&sizes.build()?)
         .item(&MenuItem::with_id(
             app,
             "reset-window-position",
