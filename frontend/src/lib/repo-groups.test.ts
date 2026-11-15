@@ -65,7 +65,7 @@ describe("removeGroup", () => {
     expect(removeGroup(withTwo, "g1").order).toEqual(["g2"]);
   });
 
-  it("returns its repositories to the ungrouped bucket rather than losing them", () => {
+  it("returns its repositories to the top level rather than losing them", () => {
     const left = removeGroup(withTwo, "g1");
     expect(left.of["/w/alpha"]).toBeUndefined();
     expect(left.of["/w/gamma"]).toBe("g2");
@@ -74,7 +74,7 @@ describe("removeGroup", () => {
   // Delete this group went at once, name, nesting and members, with nothing to take it back.
   it("is asked about with its name and what moves where", () => {
     expect(removalQuestion(withTwo, "g1")).toBe(
-      "Delete the group Work? Its 2 repositories go to Ungrouped. Nothing on disk changes.",
+      "Delete the group Work? Its 2 repositories move to the top level. Nothing on disk changes.",
     );
     const nested = { ...withTwo, under: { g2: "g1" } };
     expect(removalQuestion(nested, "g1")).toContain("Its 1 group moves up a level.");
@@ -86,7 +86,7 @@ describe("assign", () => {
     expect(assign(withTwo, "/w/gamma", "g1").of["/w/gamma"]).toBe("g1");
   });
 
-  it("takes it out of every group when the target is the ungrouped bucket", () => {
+  it("takes it out of every group when the target is the top level", () => {
     expect(assign(withTwo, "/w/alpha", UNGROUPED).of["/w/alpha"]).toBeUndefined();
   });
 
@@ -103,19 +103,19 @@ describe("groupRows", () => {
     expect(rows.filter((row) => row.kind === "group").map((row) => row.name)).toEqual([
       "Work",
       "Toys",
-      "Ungrouped",
     ]);
   });
 
-  it("puts a repository nobody claimed in the ungrouped bucket", () => {
+  // Folders are only folders, as in Branches: no Ungrouped heading gathers the rest.
+  it("puts a repository nobody claimed at the top level, after the folders", () => {
     const rows = groupRows(withTwo, roots, new Set());
-    const at = rows.findIndex((row) => row.kind === "group" && row.id === UNGROUPED);
-    expect(rows[at + 1]).toEqual({ kind: "repo", root: "/w/loose", group: UNGROUPED, depth: 1 });
+    expect(rows.at(-1)).toEqual({ kind: "repo", root: "/w/loose", group: UNGROUPED, depth: 0 });
+    expect(rows.some((row) => row.kind === "group" && row.id === UNGROUPED)).toBe(false);
   });
 
-  it("leaves out the ungrouped heading when everything is claimed", () => {
-    const rows = groupRows(withTwo, ["/w/alpha", "/w/gamma"], new Set());
-    expect(rows.some((row) => row.kind === "group" && row.id === UNGROUPED)).toBe(false);
+  it("keeps the top level out of the folds", () => {
+    const rows = groupRows(withTwo, roots, new Set(["g1", "g2", UNGROUPED]));
+    expect(rows.some((row) => row.kind === "repo" && row.root === "/w/loose")).toBe(true);
   });
 
   it("shows an empty group so it can be dropped into", () => {
@@ -146,7 +146,6 @@ describe("groupRows", () => {
     expect(open).toEqual([
       ["g1", false],
       ["g2", true],
-      [UNGROUPED, true],
     ]);
   });
 });
@@ -175,7 +174,7 @@ describe("groupRows while filtering", () => {
   it("draws the folds from before once the filter is cleared", () => {
     const folds = shownFolds(everyFolded, "", NO_FILTER_FOLDS);
     const every = ["/w/alpha", "/w/gamma", "/w/loose"];
-    expect(ids(groupRows(withTwo, every, folds))).toEqual(["g:g1", "g:g2", `g:${UNGROUPED}`]);
+    expect(ids(groupRows(withTwo, every, folds))).toEqual(["g:g1", "g:g2", "/w/loose"]);
   });
 });
 
@@ -256,8 +255,7 @@ describe("backendRows", () => {
       "0backend:backend:WSL: Ubuntu",
       "1group:g1",
       "2/w/beta",
-      "1group:",
-      "2/w/loose",
+      "1/w/loose",
     ]);
   });
 

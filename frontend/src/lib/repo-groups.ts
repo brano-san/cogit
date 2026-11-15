@@ -1,5 +1,6 @@
 /** Virtual folders over the open repositories. They group nothing on disk — a repository
-    belongs to at most one, and one that belongs to none falls into the ungrouped bucket. */
+    belongs to at most one, and one that belongs to none sits at the top level, beside the
+    folders, as a branch outside any folder does in Branches. */
 export interface RepoGroups {
   order: string[];
   names: Record<string, string>;
@@ -9,7 +10,7 @@ export interface RepoGroups {
   under: Record<string, string>;
 }
 
-/** Not a group: the heading the unclaimed repositories gather under. */
+/** Not a group: where a repository in none of them is, the top level. */
 export const UNGROUPED = "";
 
 export type GroupRow =
@@ -59,13 +60,13 @@ export function removalQuestion(groups: RepoGroups, id: string): string {
   for (const group of Object.values(groups.of)) if (group === id) members += 1;
   for (const parent of Object.values(groups.under)) if (parent === id) children += 1;
   const parts = [`Delete the group ${groups.names[id] ?? id}?`];
-  if (members > 0) parts.push(`Its ${members} ${members === 1 ? "repository goes" : "repositories go"} to Ungrouped.`);
+  if (members > 0) parts.push(`Its ${members} ${members === 1 ? "repository moves" : "repositories move"} to the top level.`);
   if (children > 0) parts.push(`Its ${children} ${children === 1 ? "group moves" : "groups move"} up a level.`);
   parts.push("Nothing on disk changes.");
   return parts.join(" ");
 }
 
-/** The group goes; its repositories return to the ungrouped bucket rather than vanish. */
+/** The group goes; its repositories return to the top level rather than vanish. */
 export function removeGroup(groups: RepoGroups, id: string): RepoGroups {
   const names = { ...groups.names };
   delete names[id];
@@ -178,7 +179,7 @@ export function groupRows(
   };
 
   // A collapsed group is still walked: its children's repositories belong to them, not to
-  // Ungrouped. Collapsing only decides what is drawn.
+  // the top level. Collapsing only decides what is drawn.
   const walk = (parent: string | null, depth: number, shown: boolean) => {
     for (const id of children.get(parent) ?? []) {
       const inside = inGroup.get(id) ?? [];
@@ -203,13 +204,9 @@ export function groupRows(
   };
   walk(null, 0, true);
 
-  const loose = roots.filter((root) => !claimed.has(root));
-  if (loose.length === 0) return rows;
-
-  const open = !collapsed.has(UNGROUPED);
-  rows.push({ kind: "group", id: UNGROUPED, name: "Ungrouped", count: loose.length, depth: 0, open });
-  if (open) {
-    for (const root of loose) rows.push({ kind: "repo", root, group: UNGROUPED, depth: 1 });
+  // After the folders, with no heading of their own: folders are only folders.
+  for (const root of roots) {
+    if (!claimed.has(root)) rows.push({ kind: "repo", root, group: UNGROUPED, depth: 0 });
   }
   return rows;
 }

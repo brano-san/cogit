@@ -337,10 +337,15 @@
 
     {#each rows as row, at (rowKey(row))}
       {#if row.kind === "backend"}
+        <!-- A section like Local Branches; dropping on it takes a group or a repository
+             out of every folder, to the top level. -->
         <div
-          class="group"
+          class="group heading"
+          class:striped={striped(starts[at] ?? 0, stripes)}
+          class:over={over === UNGROUPED}
           role="button"
           tabindex="0"
+          data-drop={UNGROUPED}
           data-key-row={row.id}
           data-key-label={row.name}
           onclick={() => fold(row.id)}
@@ -353,10 +358,11 @@
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
           class="group"
+          class:striped={striped(starts[at] ?? 0, stripes)}
           class:over={over === row.id}
           role="button"
           tabindex="0"
-          data-drag={row.id === UNGROUPED ? undefined : GROUP_DRAG + row.id}
+          data-drag={GROUP_DRAG + row.id}
           data-drop={row.id}
           data-key-row={GROUP_DRAG + (row.backend ?? "") + ":" + row.id}
           data-key-label={row.name}
@@ -364,7 +370,6 @@
           onclick={() => fold(row.id)}
           onkeydown={(event) => event.key === "Enter" && fold(row.id)}
           oncontextmenu={(event) => {
-            if (row.id === UNGROUPED) return;
             event.preventDefault();
             ongroupcontext(row.id, event.clientX, event.clientY);
           }}
@@ -397,6 +402,7 @@
       <div
         class="row"
         data-drag={REPO_DRAG + entry.root}
+        data-drop={row.group}
         data-key-row={entry.root}
         data-key-label={listed.name}
         style:padding-left="calc(var(--tree-base) + {row.depth} * var(--tree-step))"
@@ -443,6 +449,7 @@
             class:striped={striped(starts[at] ?? 0, stripes)}
             class:menu={repoMenuRow.key === listed.root}
             data-drag={REPO_DRAG + listed.root}
+            data-drop={row.group}
             data-key-row={listed.root}
             data-key-label={listed.name}
             role="button"
@@ -563,8 +570,9 @@
   }
 
   /* By the row's place in the list as drawn (#41), before hover, selection and the menu
-     ring, which cover it. A group heading has its own fill and is counted, not striped. */
-  .row.striped {
+     ring, which cover it. Headings and folders are rows like any other, as in Branches. */
+  .row.striped,
+  .group.striped {
     background: var(--row-stripe);
   }
 
@@ -592,12 +600,20 @@
     gap: var(--tree-gap);
     height: var(--h-row-dense);
     padding: 0 var(--sp-5);
-    background: var(--surface-raised);
+    font-size: var(--fs-dense);
+    white-space: nowrap;
+  }
+
+  .group:hover {
+    background: var(--state-hover);
+  }
+
+  /* Local and a WSL distribution, set as Branches sets Local Branches: no fill of its own. */
+  .group.heading {
     color: var(--text-secondary);
     font-size: var(--fs-header);
     font-weight: 600;
-    letter-spacing: 0.04em;
-    white-space: nowrap;
+    letter-spacing: 0.03em;
   }
 
   .group.over {
