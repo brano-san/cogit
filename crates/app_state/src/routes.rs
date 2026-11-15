@@ -325,6 +325,7 @@ fn bisect_start(bad: &str, good: Option<&str>) -> Result<(), GitError> = local_b
     fn subtree_prefixes() -> Result<Vec<String>, GitError> = local_subtree_prefixes;
     fn lfs_op(op: &LfsOp, stop: &NetworkStop) -> Result<(), GitError> = local_lfs_op;
     fn repo_settings() -> Result<Vec<RepoSetting>, GitError> = local_repo_settings;
+    fn issue_trackers() -> Result<Vec<git_engine::IssueTracker>, GitError> = local_issue_trackers;
     fn write_repo_settings(changes: &[RepoSettingChange]) -> Result<(), GitError> = local_write_repo_settings;
     fn abort_operation() -> Result<(), git_engine::GitError> = local_abort_operation;
     fn remove_index_lock() -> Result<(), git_engine::GitError> = local_remove_index_lock;

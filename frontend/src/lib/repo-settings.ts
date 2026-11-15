@@ -1,4 +1,5 @@
 import { PATTERN_KEY, TEMPLATE_KEY, patternProblem } from "./commit-prefix";
+import { ISSUE_PATTERN_KEY, ISSUE_URL_KEY, issueUrlProblem } from "./issue-links";
 import type { RepoSetting, RepoSettingChange } from "./ipc/remote-ops";
 
 /** Repository ▸ Settings (#42): the tabs, the options and where each one is kept. Every
@@ -239,6 +240,22 @@ export const FIELDS: readonly SettingField[] = [
     fallback: "",
     hint: "$1…$9 are the pattern's groups, $& the whole match. Not set: the prefix from Preferences.",
   },
+  {
+    key: ISSUE_PATTERN_KEY,
+    tab: "commit",
+    label: "Issue links: pattern",
+    control: { kind: "text", placeholder: String.raw`[A-Z]+-\d+  or  #(\d+)` },
+    fallback: "",
+    hint: "A regular expression over commit messages; its groups are the issue ids, or the whole match when it has none. Not set: bugtraq.logregex from git config or TortoiseGit's .tgitconfig.",
+  },
+  {
+    key: ISSUE_URL_KEY,
+    tab: "commit",
+    label: "Issue links: URL",
+    control: { kind: "text", placeholder: "https://tracker.example.com/browse/%BUGID%" },
+    fallback: "",
+    hint: "%BUGID% is replaced by the id. Ids become links in the commit details. Not set: bugtraq.url.",
+  },
 ];
 
 /** Where the dialog says the option is kept. */
@@ -303,7 +320,8 @@ export function changes(settings: readonly RepoSetting[], drafts: Drafts): RepoS
 /** What the dialog says under a field whose draft it cannot save; null when it can. */
 export function fieldProblem(key: string, value: string | null): string | null {
   if (key === "cogit.tagGroupSeparator") return separatorProblem(value);
-  if (key === PATTERN_KEY) return value === null ? null : patternProblem(value);
+  if (key === PATTERN_KEY || key === ISSUE_PATTERN_KEY) return value === null ? null : patternProblem(value);
+  if (key === ISSUE_URL_KEY) return issueUrlProblem(value);
   return null;
 }
 

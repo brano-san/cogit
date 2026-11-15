@@ -219,3 +219,61 @@ fn proxy_and_tls_are_set_and_unset_in_the_repository() {
         .unwrap();
     assert_eq!(local_config(&f, "http.proxy"), None);
 }
+
+#[test]
+fn no_issue_tracker_anywhere_is_an_empty_list() {
+    let f = test_fixtures::linear(1).unwrap();
+    assert_eq!(open(&f).issue_trackers(), Vec::new());
+}
+
+#[test]
+fn tortoisegit_s_file_is_read_with_its_escapes() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file(
+        ".tgitconfig",
+        r#"[bugtraq]
+	url = https://tracker.example/issue/%BUGID%
+	logregex = "[Ii]ssues?:?(\\s*#\\d+)+\n(\\d+)"
+	message = Issue: %BUGID%
+"#,
+    )
+    .unwrap();
+
+    let found = open(&f).issue_trackers();
+
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].origin, ".tgitconfig");
+    assert_eq!(
+        found[0].url.as_deref(),
+        Some("https://tracker.example/issue/%BUGID%")
+    );
+    assert_eq!(
+        found[0].log_regex.as_deref(),
+        Some("[Ii]ssues?:?(\\s*#\\d+)+\n(\\d+)")
+    );
+    assert_eq!(found[0].message.as_deref(), Some("Issue: %BUGID%"));
+}
+
+#[test]
+fn cogit_s_own_rule_comes_before_git_config_and_tortoisegit() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file(".tgitconfig", "[bugtraq]\n\turl = https://t/%BUGID%\n")
+        .unwrap();
+    f.git(&["config", "bugtraq.url", "https://c/%BUGID%"])
+        .unwrap();
+    f.git(&["config", "bugtraq.logregex", r"#(\d+)"]).unwrap();
+    let repo = open(&f);
+    repo.write_repo_settings(&[
+        change("cogit.issuePattern", Some(r"[A-Z]+-\d+")),
+        change("cogit.issueUrl", Some("https://jira/browse/%BUGID%")),
+    ])
+    .unwrap();
+
+    let found = open(&f).issue_trackers();
+
+    let origins: Vec<&str> = found.iter().map(|each| each.origin.as_str()).collect();
+    assert_eq!(origins, ["cogit", "config", ".tgitconfig"]);
+    assert_eq!(found[0].log_regex.as_deref(), Some(r"[A-Z]+-\d+"));
+    assert_eq!(found[0].message, None);
+    assert_eq!(found[1].log_regex.as_deref(), Some(r"#(\d+)"));
+}

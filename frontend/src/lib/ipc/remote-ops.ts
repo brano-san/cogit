@@ -46,6 +46,11 @@ export async function repoSettings(repo: RepoId) {
   return unwrap(await commands.repoSettings(repo));
 }
 
+/** Where issue ids in messages link to, most specific first (F-953). */
+export async function issueTrackers(repo: RepoId) {
+  return unwrap(await commands.issueTrackers(repo));
+}
+
 export async function writeRepoSettings(repo: RepoId, changes: RepoSettingChange[]) {
   unwrap(await commands.writeRepoSettings(repo, changes));
 }

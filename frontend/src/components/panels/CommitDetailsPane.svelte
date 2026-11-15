@@ -8,6 +8,10 @@
   import { commitSignature, type SignatureCheck } from "$lib/ipc";
   import { signatureLabel } from "$lib/signature";
   import { refDialogs } from "$stores/ref-dialogs.svelte";
+  import { issueLinks as issueParts } from "$lib/issue-links";
+  import { openExternal } from "$lib/ipc/file-menus";
+  import { errors } from "$stores/errors.svelte";
+  import { issueLinks } from "$stores/issue-links.svelte";
 
   /** What the Diff panel shows when there is no file to diff: the selected commit, or
       what to do next. Why a repository would not open is told once, in the notification
@@ -17,6 +21,11 @@
   const repo = $derived(repository.current);
   const details = $derived(commit.details);
   const commitNote = $derived(details?.notes.find((note) => note.namespace === "commits")?.text.trim() ?? "");
+
+  async function openIssue(event: MouseEvent, href: string) {
+    event.preventDefault();
+    await openExternal(href).catch((err) => errors.report(err, "Could not open the issue"));
+  }
 
   /** Checked on request: gpg or ssh-keygen may be slow, or ask for nothing but still spawn. */
   let signature = $state<{ oid: string; check: SignatureCheck } | null>(null);
@@ -34,12 +43,15 @@
   }
 </script>
 
+<!-- Issue ids as links (F-953); plain text without a rule. -->
+{#snippet linked(text: string)}{#each issueParts(text, issueLinks.rule) as part, index (index)}{#if part.href}<a class="issue" href={part.href} title={part.href} onclick={(event) => void openIssue(event, part.href ?? "")}>{part.text}</a>{:else}{part.text}{/if}{/each}{/snippet}
+
 <div class="detail" data-select-text="diff">
   {#if commit.error}
     <p class="error">{commit.error.message}</p>
   {:else if details}
-    <p class="subject">{details.summary}</p>
-    {#if details.body}<pre class="body">{details.body}</pre>{/if}
+    <p class="subject">{@render linked(details.summary)}</p>
+    {#if details.body}<pre class="body">{@render linked(details.body)}</pre>{/if}
     {#each details.notes as note (note.namespace)}
       <p class="note-head">Notes ({note.namespace})</p>
       <pre class="body">{note.text}</pre>
@@ -67,7 +79,7 @@
       </dd>
       {#each details.trailers as trailer, at (at)}
         <dt>{trailer.key}</dt>
-        <dd>{trailer.value}</dd>
+        <dd>{@render linked(trailer.value)}</dd>
       {/each}
       {#if details.signed}
         <dt>Signature</dt>
@@ -106,6 +118,11 @@
 </div>
 
 <style>
+  /* Underlined at rest: an id in running text does not look like a link otherwise. */
+  .issue {
+    text-decoration: underline;
+  }
+
   .note-row {
     display: flex;
     align-items: center;

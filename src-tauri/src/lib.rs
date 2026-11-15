@@ -264,6 +264,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::remote_ops::lfs_version,
             commands::remote_ops::lfs_op,
             commands::remote_ops::repo_settings,
+            commands::remote_ops::issue_trackers,
             commands::remote_ops::write_repo_settings,
             commands::stage_selection,
             commands::blame,

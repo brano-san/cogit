@@ -28,7 +28,48 @@ pub const REPO_SETTING_KEYS: &[&str] = &[
     "cogit.tagGroupSeparator",
     "cogit.commitPrefixPattern",
     "cogit.commitPrefixTemplate",
+    "cogit.issuePattern",
+    "cogit.issueUrl",
 ];
+
+/// Where issue numbers in messages link to (F-953): `bugtraq.*`, as TortoiseGit names them.
+#[derive(
+    Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type,
+)]
+#[serde(rename_all = "camelCase")]
+pub struct IssueTracker {
+    /// `cogit`, `config` or `.tgitconfig`.
+    pub origin: String,
+    /// With `%BUGID%` where the issue's id goes.
+    pub url: Option<String>,
+    /// One regular expression, or two on separate lines (TortoiseGit's form).
+    pub log_regex: Option<String>,
+    /// `bugtraq.message`, e.g. `Issue: %BUGID%`: how ids are found when there is no regex.
+    pub message: Option<String>,
+}
+
+impl IssueTracker {
+    fn read(
+        origin: &str,
+        value: impl Fn(&str) -> Option<String>,
+        (url, regex, message): (&str, &str, Option<&str>),
+    ) -> Option<Self> {
+        let found = Self {
+            origin: origin.to_owned(),
+            url: value(url),
+            log_regex: value(regex),
+            message: message.and_then(&value),
+        };
+        (found.url.is_some() || found.log_regex.is_some() || found.message.is_some())
+            .then_some(found)
+    }
+}
+
+const BUGTRAQ: (&str, &str, Option<&str>) =
+    ("bugtraq.url", "bugtraq.logregex", Some("bugtraq.message"));
+
+/// TortoiseGit's file in the working tree, read like a git config file without includes.
+pub const TGITCONFIG: &str = ".tgitconfig";
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -164,6 +205,57 @@ impl RepoHandle {
             }
         }
         Ok(())
+    }
+
+    /// Every place that says where issue ids link to, the one that wins first: Repository ▸
+    /// Settings (`cogit.issue*`), `bugtraq.*` in git config, then `.tgitconfig`.
+    #[must_use]
+    pub fn issue_trackers(&self) -> Vec<IssueTracker> {
+        let snapshot = self.repo.config_snapshot();
+        let config = |key: &str| snapshot.string(key).map(|value| value.to_string());
+        let mut found: Vec<IssueTracker> = [
+            IssueTracker::read(
+                "cogit",
+                config,
+                ("cogit.issueUrl", "cogit.issuePattern", None),
+            ),
+            IssueTracker::read("config", config, BUGTRAQ),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+        if let Some(tracker) = self.tgitconfig_tracker() {
+            found.push(tracker);
+        }
+        found
+    }
+
+    fn tgitconfig_tracker(&self) -> Option<IssueTracker> {
+        let path = self.repo.workdir()?.join(TGITCONFIG);
+        let bytes = match std::fs::read(&path) {
+            Ok(bytes) => bytes,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return None,
+            Err(err) => {
+                tracing::warn!(error = ?err, context = "reading .tgitconfig");
+                return None;
+            }
+        };
+        let file = match gix::config::File::from_bytes_no_includes(
+            &bytes,
+            gix::config::file::Metadata::from(Source::Local),
+            gix::config::file::init::Options::default(),
+        ) {
+            Ok(file) => file,
+            Err(err) => {
+                tracing::warn!(error = ?err, context = "parsing .tgitconfig");
+                return None;
+            }
+        };
+        IssueTracker::read(
+            TGITCONFIG,
+            |key| file.string(key).map(|value| value.to_string()),
+            BUGTRAQ,
+        )
     }
 
     #[must_use]

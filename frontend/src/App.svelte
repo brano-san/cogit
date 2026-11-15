@@ -259,6 +259,7 @@
   import { worktrees } from "$stores/worktrees.svelte";
   import { diff } from "$stores/diff.svelte";
   import { errors } from "$stores/errors.svelte";
+  import { issueLinks } from "$stores/issue-links.svelte";
   import { errorWindow } from "$stores/error-window.svelte";
   import { notices } from "$stores/notices.svelte";
   import {
@@ -2740,6 +2741,7 @@ ${event.error}`,
       // The Commit box seeds an empty draft from it, under the next repository's key.
       template = null;
       prefixOverride = { pattern: null, template: null };
+      issueLinks.clear();
       if (configEdit?.scope === "repository") configEdit = null;
       indexEditing = null;
       removingFiles = null;
@@ -3551,6 +3553,7 @@ ${event.error}`,
     const epoch = repository.epoch;
     const read = await repoSettings(id).catch(() => null);
     if (repository.epoch === epoch) prefixOverride = repoRule(read ?? []);
+    await issueLinks.load(id);
   }
 
   $effect(() => {

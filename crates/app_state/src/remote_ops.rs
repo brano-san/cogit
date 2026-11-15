@@ -98,6 +98,13 @@ impl AppState {
         Ok(self.handle(repo)?.repo_settings())
     }
 
+    pub(crate) fn local_issue_trackers(
+        &self,
+        repo: RepoId,
+    ) -> Result<Vec<git_engine::IssueTracker>, GitError> {
+        Ok(self.handle(repo)?.issue_trackers())
+    }
+
     pub(crate) fn local_write_repo_settings(
         &self,
         repo: RepoId,

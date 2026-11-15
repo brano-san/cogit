@@ -47,6 +47,8 @@ const BACKEND_KEYS = [
   "cogit.tagGroupSeparator",
   "cogit.commitPrefixPattern",
   "cogit.commitPrefixTemplate",
+  "cogit.issuePattern",
+  "cogit.issueUrl",
 ];
 
 describe("repository settings", () => {

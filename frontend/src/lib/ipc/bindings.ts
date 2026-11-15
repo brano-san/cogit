@@ -421,6 +421,8 @@ export const commands = {
 	lfsVersion: () => typedError<string | null, GitError>(__TAURI_INVOKE("lfs_version")),
 	lfsOp: (repo: RepoId, op: LfsOp) => typedError<null, GitError>(__TAURI_INVOKE("lfs_op", { repo, op })),
 	repoSettings: (repo: RepoId) => typedError<RepoSetting[], GitError>(__TAURI_INVOKE("repo_settings", { repo })),
+	/**  Where issue ids in commit messages link to (F-953). */
+	issueTrackers: (repo: RepoId) => typedError<IssueTracker[], GitError>(__TAURI_INVOKE("issue_trackers", { repo })),
 	writeRepoSettings: (repo: RepoId, changes: RepoSettingChange[]) => typedError<null, GitError>(__TAURI_INVOKE("write_repo_settings", { repo, changes })),
 	stageSelection: (repo: RepoId, request: PatchRequest_Deserialize, reverse: boolean) => typedError<null, GitError>(__TAURI_INVOKE("stage_selection", { repo, request, reverse })),
 	blame: (repo: RepoId, path: string, rev: string) => typedError<BlameLine[], GitError>(__TAURI_INVOKE("blame", { repo, path, rev })),
@@ -2108,6 +2110,18 @@ export type InvestigationStep = {
 	path: string,
 	/**  The unified diff of this edit, restricted to the range. */
 	diff: string,
+};
+
+/**  Where issue numbers in messages link to (F-953): `bugtraq.*`, as TortoiseGit names them. */
+export type IssueTracker = {
+	/**  `cogit`, `config` or `.tgitconfig`. */
+	origin: string,
+	/**  With `%BUGID%` where the issue's id goes. */
+	url: string | null,
+	/**  One regular expression, or two on separate lines (TortoiseGit's form). */
+	logRegex: string | null,
+	/**  `bugtraq.message`, e.g. `Issue: %BUGID%`: how ids are found when there is no regex. */
+	message: string | null,
 };
 
 /**  One row of the keymap editor. */

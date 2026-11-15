@@ -114,6 +114,17 @@ pub async fn repo_settings(
     blocking("repo_settings", move || app_state.repo_settings(repo)).await
 }
 
+/// Where issue ids in commit messages link to (F-953).
+#[tauri::command]
+#[specta::specta]
+pub async fn issue_trackers(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<Vec<git_engine::IssueTracker>, GitError> {
+    let app_state = state.state.clone();
+    blocking("issue_trackers", move || app_state.issue_trackers(repo)).await
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn write_repo_settings(
