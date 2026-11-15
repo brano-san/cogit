@@ -1,4 +1,5 @@
 import type { Branch, Head } from "$lib/ipc";
+import { splitUpstream } from "./push-to";
 
 export type PullScope = "current" | "all";
 
@@ -41,9 +42,7 @@ export function currentRemote(
   remotes: readonly string[],
 ): string | null {
   if (upstream) {
-    const tracked = remotes
-      .filter((remote) => upstream.startsWith(`${remote}/`))
-      .sort((a, b) => b.length - a.length)[0];
+    const tracked = splitUpstream(upstream, remotes)?.remote;
     if (tracked) return tracked;
   }
   return remotes.includes("origin") ? "origin" : (remotes[0] ?? null);
@@ -59,8 +58,13 @@ export function headRemote(
   return currentRemote(branch?.upstream, remotes);
 }
 
+/** Every remote but `current`, by name: what the fetch menu lists after it and Pull all fetches. */
+function otherRemotes(remotes: readonly string[], current: string | null): string[] {
+  return remotes.filter((remote) => remote !== current).sort((a, b) => a.localeCompare(b));
+}
+
 export function remotesInOrder(remotes: readonly string[], current: string | null): string[] {
-  const others = remotes.filter((remote) => remote !== current).sort((a, b) => a.localeCompare(b));
+  const others = otherRemotes(remotes, current);
   return current !== null && remotes.includes(current) ? [current, ...others] : others;
 }
 
@@ -70,7 +74,7 @@ export function pullSteps(
   current: string,
 ): { fetch: string[]; pull: string } {
   return {
-    fetch: scope === "all" ? remotesInOrder(remotes, current).filter((r) => r !== current) : [],
+    fetch: scope === "all" ? otherRemotes(remotes, current) : [],
     pull: current,
   };
 }
