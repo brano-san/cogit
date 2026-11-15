@@ -36,6 +36,47 @@ fn stream(state: &AppState, repo: RepoId, chunk_size: usize) -> Vec<Laid> {
 }
 
 #[test]
+fn special_states_open_read_status_and_build_graph() {
+    for name in ["detached", "merge", "rebase", "locked"] {
+        let f = match name {
+            "detached" => test_fixtures::detached_head().unwrap(),
+            "merge" | "rebase" => test_fixtures::conflicted().unwrap(),
+            _ => test_fixtures::linear(3).unwrap(),
+        };
+        if name == "rebase" {
+            f.git(&["merge", "--abort"]).unwrap();
+            assert!(f.git(&["rebase", "dev"]).is_err());
+        }
+        if name == "locked" {
+            std::fs::write(f.git_dir().join("index.lock"), "held").unwrap();
+        }
+        let head = f.oid("HEAD").unwrap();
+        let expected = match name {
+            "detached" => git_engine::RepoState::DetachedHead { oid: head.clone() },
+            "merge" => git_engine::RepoState::Merging,
+            "rebase" => git_engine::RepoState::Rebasing,
+            _ => git_engine::RepoState::Clean,
+        };
+        let state = AppState::new();
+        let opened = state.open_repository(f.path()).unwrap();
+        assert_eq!(opened.state, expected, "{name}");
+        assert_eq!(opened.index_lock.is_some(), name == "locked", "{name}");
+        let status = state.repo_status(opened.repo).unwrap();
+        assert_eq!(
+            status.conflicted,
+            u32::from(matches!(name, "merge" | "rebase"))
+        );
+        let chunks = stream(&state, opened.repo, 100);
+        assert!(
+            chunks
+                .iter()
+                .any(|c| c.commits.iter().any(|row| row.oid == head))
+        );
+        assert!(chunks.iter().any(|c| !c.rows.is_empty()), "{name}");
+    }
+}
+
+#[test]
 fn every_commit_arrives_with_a_lane() {
     let f = test_fixtures::linear(5).unwrap();
     let state = AppState::new();
