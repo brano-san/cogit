@@ -1,5 +1,5 @@
 import { commands } from "./bindings";
-import type { DesktopInfo, GitError, IndexEditorSides, IndexFlag, RepoId } from "./bindings";
+import type { DesktopInfo, DiffSpec, GitError, IndexEditorSides, IndexFlag, RepoId } from "./bindings";
 import { CogitError } from "./index";
 
 /** The commands behind the repository and file context menus (#36, #40, #41), kept apart
@@ -93,4 +93,22 @@ export async function presentOnDisk(repo: RepoId, paths: string[]) {
 /** Native leftovers (GTK file chooser) follow the Cogit theme; a no-op outside Linux. */
 export async function setNativeTheme(dark: boolean, background: string) {
   await commands.setNativeTheme(dark, background);
+}
+
+/** Open in External Editor (F-944): `path` absolute; an empty `program` is the desktop's own. */
+export async function openInEditor(path: string, line: number | null, program: string, args: string) {
+  return unwrap(await commands.openInEditor(path, line, program, args));
+}
+
+/** Open in External Diff Tool (F-944): `git difftool` on what `spec` compares; returns once
+    the tool is up. An empty `program` is git's `diff.tool`. */
+export async function launchDiffTool(
+  repo: RepoId,
+  spec: DiffSpec,
+  path: string,
+  oldPath: string | null,
+  program: string,
+  args: string,
+) {
+  return unwrap(await commands.launchDiffTool(repo, spec, path, oldPath, program, args));
 }

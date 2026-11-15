@@ -616,6 +616,11 @@ export const commands = {
 	openPowerShell: (path: string) => typedError<null, GitError>(__TAURI_INVOKE("open_power_shell", { path })),
 	openGitShell: (path: string) => typedError<null, GitError>(__TAURI_INVOKE("open_git_shell", { path })),
 	moveToTrash: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("move_to_trash", { repo, paths })),
+	/**
+	 *  Open in External Editor: the editor from Preferences on `path` (absolute, `/`), or the
+	 *  program the desktop pairs with the file when `program` is empty.
+	 */
+	openInEditor: (path: string, line: number | null, program: string, args: string) => typedError<null, GitError>(__TAURI_INVOKE("open_in_editor", { path, line, program, args })),
 	/**  `git rm --cached` or, with `delete_local`, `git rm`. */
 	removeFromRepository: (repo: RepoId, paths: string[], deleteLocal: boolean) => typedError<null, GitError>(__TAURI_INVOKE("remove_from_repository", { repo, paths, deleteLocal })),
 	movePath: (repo: RepoId, from: string, to: string) => typedError<null, GitError>(__TAURI_INVOKE("move_path", { repo, from, to })),
@@ -633,6 +638,11 @@ export const commands = {
 	/**  One file's change from `rev`, applied forward (Cherry-Pick) or backward (Revert). */
 	applyCommitFile: (repo: RepoId, rev: string, path: string, oldPath: string | null, reverse: boolean) => typedError<null, GitError>(__TAURI_INVOKE("apply_commit_file", { repo, rev, path, oldPath, reverse })),
 	presentOnDisk: (repo: RepoId, paths: string[]) => typedError<string[], GitError>(__TAURI_INVOKE("present_on_disk", { repo, paths })),
+	/**
+	 *  Open in External Diff Tool: `git difftool` on the side of `path` the Files pane shows,
+	 *  left running. An empty `program` is git's `diff.tool`.
+	 */
+	launchDiffTool: (repo: RepoId, spec: DiffSpec, path: string, oldPath: string | null, program: string, args: string) => typedError<null, GitError>(__TAURI_INVOKE("launch_diff_tool", { repo, spec, path, oldPath, program, args })),
 	/**  Not `async`: touching menu items off the main thread deadlocks on Windows. */
 	setMenuState: (disabled: string[], checked: string[]) => __TAURI_INVOKE<void>("set_menu_state", { disabled, checked }),
 	/**

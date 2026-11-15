@@ -120,3 +120,36 @@ pub async fn move_to_trash(
     )
     .await
 }
+
+/// Open in External Editor: the editor from Preferences on `path` (absolute, `/`), or the
+/// program the desktop pairs with the file when `program` is empty.
+#[tauri::command]
+#[specta::specta]
+pub async fn open_in_editor(
+    path: String,
+    line: Option<u32>,
+    program: String,
+    args: String,
+) -> Result<(), GitError> {
+    blocking("open_in_editor", move || {
+        let platform = Platform::current();
+        if !std::path::Path::new(&desktop::native_path(platform, &path)).is_file() {
+            return Err(GitError::InvalidState(format!(
+                "{path} is not a file on disk"
+            )));
+        }
+        if program.trim().is_empty() {
+            return crate::shell_open::open(&path)
+                .map_err(|err| GitError::Io(format!("cannot open {path}: {err}")));
+        }
+        let launch = app_state::external::editor_command(platform, &program, &args, &path, line)
+            .map_err(|err| GitError::InvalidState(err.to_string()))?;
+        let program = launch.program.clone();
+        start("editor", launch, None).map_err(|err| {
+            GitError::Io(format!(
+                "{err}. Check {program} in Preferences ▸ Tools & Integrations ▸ External Editor; a .cmd or .bat needs its full path."
+            ))
+        })
+    })
+    .await
+}

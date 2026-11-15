@@ -27,6 +27,8 @@ describe("worktreeFileMenu", () => {
       "Reveal in Explorer",
       "Show Changes",
       "Edit",
+      "Open in External Diff Tool",
+      "Open in External Editor",
       "Log",
       "Blame",
       "Investigate",
@@ -146,6 +148,24 @@ describe("worktreeFileMenu", () => {
     expect(on(worktreeFileMenu({ ...MODIFIED, statuses: ["untracked"] }), "file-assume-unchanged")).toBe(false);
   });
 
+  it("opens the diff tool only on a change Git can show, and the editor only on a file on disk", () => {
+    expect(on(worktreeFileMenu(MODIFIED), "file-diff-tool")).toBe(true);
+    expect(on(worktreeFileMenu({ ...MODIFIED, section: "index", staged: true }), "file-diff-tool")).toBe(true);
+    expect(find(worktreeFileMenu({ ...MODIFIED, statuses: ["untracked"] }), "file-diff-tool")?.label).toBe(
+      "Open in External Diff Tool (untracked: Git has no other version)",
+    );
+    expect(on(worktreeFileMenu({ ...MODIFIED, statuses: ["conflicted"] }), "file-diff-tool")).toBe(false);
+    expect(on(worktreeFileMenu({ ...MODIFIED, statuses: ["unchanged"] }), "file-diff-tool")).toBe(false);
+    expect(on(worktreeFileMenu({ ...MODIFIED, statuses: ["deleted"] }), "file-diff-tool")).toBe(true);
+    expect(find(worktreeFileMenu({ ...MODIFIED, statuses: ["deleted"] }), "file-external-editor")?.label).toBe(
+      "Open in External Editor (not on disk)",
+    );
+    expect(on(worktreeFileMenu({ ...MODIFIED, statuses: ["untracked"] }), "file-external-editor")).toBe(true);
+    const many = worktreeFileMenu({ ...MODIFIED, statuses: ["modified", "modified"] });
+    expect(on(many, "file-diff-tool")).toBe(false);
+    expect(on(many, "file-external-editor")).toBe(false);
+  });
+
   it("names the file manager of the platform", () => {
     expect(find(worktreeFileMenu({ ...MODIFIED, fileManager: "File Manager" }), "file-reveal")?.label).toBe(
       "Reveal in File Manager",
@@ -161,6 +181,8 @@ describe("commitFileMenu", () => {
       "Show Changes",
       "Compare with Working Tree",
       "Open File",
+      "Open in External Diff Tool",
+      "Open in External Editor",
       "Reveal in Explorer",
       "—",
       "Save As…",
@@ -175,6 +197,16 @@ describe("commitFileMenu", () => {
       "Copy Relative Path",
       "Copy Name",
     ]);
+  });
+
+  it("opens a commit's change in the diff tool, and its file in the editor while it is on disk", () => {
+    expect(on(commitFileMenu(base), "file-diff-tool")).toBe(true);
+    expect(on(commitFileMenu({ ...base, status: "deleted" }), "file-diff-tool")).toBe(true);
+    expect(on(commitFileMenu(base), "file-external-editor")).toBe(true);
+    expect(find(commitFileMenu({ ...base, status: "deleted" }), "file-external-editor")?.label).toBe(
+      "Open in External Editor (deleted in this commit)",
+    );
+    expect(on(commitFileMenu({ ...base, onDisk: false }), "file-external-editor")).toBe(false);
   });
 
   it("does not reveal a file that is gone from the working tree", () => {

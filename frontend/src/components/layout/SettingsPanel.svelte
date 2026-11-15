@@ -189,18 +189,27 @@
     gitChecker.check(picked);
   }
 
-  async function browseMergeTool() {
+  async function browseProgram(key: "mergeExternalTool" | "diffExternalTool" | "externalEditor", title: string) {
     const { open } = await import("@tauri-apps/plugin-dialog");
     const picked = await open({
-      title: "Select Merge Tool",
+      title,
       multiple: false,
       directory: false,
       filters: ON_WINDOWS ? [{ name: "Programs", extensions: ["exe", "cmd", "bat"] }] : undefined,
     });
-    if (typeof picked === "string") set("mergeExternalTool", picked);
+    if (typeof picked === "string") set(key, picked);
   }
 
   const prefixProblem = $derived(patternProblem(draft.commitPrefixPattern));
+  const PROGRAMS = {
+    diffExternalTool: ["Select Diff Tool", "Browse for the diff tool"],
+    externalEditor: ["Select Editor", "Browse for the editor"],
+  } as const;
+  const ARGUMENTS = {
+    diffExternalToolArgs: '"{local}" "{remote}"',
+    externalEditorArgs: '"${file}"',
+    commitPrefixTemplate: "$1: ",
+  } as const;
 
   function set<K extends keyof Settings>(key: K, next: Settings[K]) {
     draft = { ...draft, [key]: next };
@@ -476,7 +485,7 @@
                     value={draft.mergeExternalTool}
                     oninput={(e) => set("mergeExternalTool", e.currentTarget.value)}
                   />
-                  <button type="button" class="btn browse" title="Browse…" aria-label="Browse for the merge tool" onclick={browseMergeTool}>...</button>
+                  <button type="button" class="btn browse" title="Browse…" aria-label="Browse for the merge tool" onclick={() => browseProgram("mergeExternalTool", "Select Merge Tool")}>...</button>
                 </div>
               </div>
             {:else if field.key === "mergeExternalToolArgs"}
@@ -491,16 +500,32 @@
                   oninput={(e) => set("mergeExternalToolArgs", e.currentTarget.value)}
                 />
               </div>
-            {:else if field.key === "commitPrefixTemplate"}
+            {:else if field.key === "diffExternalTool" || field.key === "externalEditor"}
+              {@const key = field.key}
+              <div class="row">
+                {@render caption(field)}
+                <div class="path">
+                  <input
+                    type="text"
+                    class="text"
+                    aria-label={field.label}
+                    value={draft[key]}
+                    oninput={(e) => set(key, e.currentTarget.value)}
+                  />
+                  <button type="button" class="btn browse" title="Browse…" aria-label={PROGRAMS[key][1]} onclick={() => browseProgram(key, PROGRAMS[key][0])}>...</button>
+                </div>
+              </div>
+            {:else if field.key === "diffExternalToolArgs" || field.key === "externalEditorArgs" || field.key === "commitPrefixTemplate"}
+              {@const key = field.key}
               <div class="row">
                 {@render caption(field)}
                 <input
                   type="text"
                   class="text mono"
                   aria-label={field.label}
-                  placeholder="$1: "
-                  value={draft.commitPrefixTemplate}
-                  oninput={(e) => set("commitPrefixTemplate", e.currentTarget.value)}
+                  placeholder={ARGUMENTS[key]}
+                  value={draft[key]}
+                  oninput={(e) => set(key, e.currentTarget.value)}
                 />
               </div>
             {:else if field.key === "commitPrefixPattern"}

@@ -8,6 +8,7 @@ mod credentials;
 pub mod desktop;
 mod diffing;
 pub mod environment;
+pub mod external;
 mod file_actions;
 mod flow;
 mod graph_cache;

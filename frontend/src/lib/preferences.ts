@@ -586,6 +586,30 @@ export const CATEGORIES: Category[] = [
     ],
   },
   {
+    id: "difftool",
+    title: "Diff Tool",
+    parent: "diffmerge",
+    groups: [
+      {
+        title: "External diff tool",
+        fields: [
+          {
+            key: "diffExternalTool",
+            label: "Program",
+            hint: "Opened by Open in External Diff Tool in the Files menu, through git difftool. Empty: the tool named by diff.tool (else merge.tool) in the Git config.",
+            keywords: ["diff", "tool", "difftool", "external", "meld", "kdiff3", "beyond compare", "vscode", "winmerge", "compare"],
+          },
+          {
+            key: "diffExternalToolArgs",
+            label: "Arguments",
+            hint: "{local} is the older side, {remote} the newer one (the working file itself when the working tree is compared). Quote what holds spaces. Empty: {local} {remote}.",
+            keywords: ["diff", "tool", "arguments", "placeholders", "local", "remote"],
+          },
+        ],
+      },
+    ],
+  },
+  {
     id: "moves",
     title: "Move Detection",
     parent: "diffmerge",
@@ -617,6 +641,23 @@ export const CATEGORIES: Category[] = [
             key: "terminal",
             label: "Open in Terminal uses",
             keywords: ["shell", "powershell", "cmd", "bash", "console"],
+          },
+        ],
+      },
+      {
+        title: "External editor",
+        fields: [
+          {
+            key: "externalEditor",
+            label: "Editor",
+            hint: "Opened by Open in External Editor in the Files menu. Empty: the program the desktop opens the file with. A .cmd or .bat needs its full path.",
+            keywords: ["editor", "external", "open", "vscode", "code", "notepad", "sublime", "vim", "ide"],
+          },
+          {
+            key: "externalEditorArgs",
+            label: "Editor arguments",
+            hint: "${file} is the file on disk, ${line} the line (1 when none is known). Quote what holds spaces. Empty: ${file}.",
+            keywords: ["editor", "arguments", "placeholders", "file", "line", "goto"],
           },
         ],
       },

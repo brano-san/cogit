@@ -19,6 +19,8 @@ function spyActions(): FileActions {
     "showChanges",
     "edit",
     "compareWithWorkTree",
+    "diffTool",
+    "externalEditor",
     "log",
     "blame",
     "investigate",
@@ -99,6 +101,15 @@ describe("runFileMenuCommand", () => {
     expect(runFileMenuCommand("file-resolve-external", SCOPE, actions, WINDOWS)).toBe(true);
     expect(actions.solver).toHaveBeenCalledWith("src/a.ts");
     expect(actions.externalTool).toHaveBeenCalledWith("src/a.ts");
+  });
+
+  it("opens the clicked file in the diff tool, with a rename's source, and in the editor", () => {
+    const actions = spyActions();
+    const scope = { ...SCOPE, rev: "abc123", oldPath: "old/a.ts" };
+    expect(runFileMenuCommand("file-diff-tool", scope, actions, WINDOWS)).toBe(true);
+    expect(runFileMenuCommand("file-external-editor", scope, actions, WINDOWS)).toBe(true);
+    expect(actions.diffTool).toHaveBeenCalledWith("src/a.ts", "old/a.ts");
+    expect(actions.externalEditor).toHaveBeenCalledWith("src/a.ts");
   });
 
   it("cherry-picks forward and reverts backward, with the rename source", () => {

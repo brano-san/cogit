@@ -59,6 +59,14 @@ export interface Settings {
       {base} {ours} {theirs} {result}. Empty: git's `merge.tool`. */
   mergeExternalTool: string;
   mergeExternalToolArgs: string;
+  /** Open in External Diff Tool: a program and its arguments with {local} {remote}, run by
+      `git difftool`. Empty: git's `diff.tool` (F-944). */
+  diffExternalTool: string;
+  diffExternalToolArgs: string;
+  /** Open in External Editor: a program and its arguments with ${file} ${line}. Empty: the
+      program the desktop opens the file with. */
+  externalEditor: string;
+  externalEditorArgs: string;
   /** A commit message prefix from the branch name: a regular expression and a template with
       $1…$9 (F-943). Repository ▸ Settings can override both. Empty pattern: no prefix. */
   commitPrefixPattern: string;
@@ -169,6 +177,10 @@ export const DEFAULT_SETTINGS: Settings = {
   terminal: "system",
   mergeExternalTool: "",
   mergeExternalToolArgs: "",
+  diffExternalTool: "",
+  diffExternalToolArgs: "",
+  externalEditor: "",
+  externalEditorArgs: "",
   commitPrefixPattern: "",
   commitPrefixTemplate: "$1: ",
   logLevel: "info",

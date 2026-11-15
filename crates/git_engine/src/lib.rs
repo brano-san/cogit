@@ -14,6 +14,7 @@ mod config_file;
 mod conflicts;
 mod credentials;
 mod detached;
+mod difftool;
 pub mod discover;
 pub mod editable;
 mod error;
@@ -113,6 +114,7 @@ pub use credentials::{
     refused_url, run_as_helper, ssh_command, wants_auth,
 };
 pub use detached::{PullOutcome, Pushed};
+pub use difftool::{NO_TOOL as NO_DIFF_TOOL, diff_tool_from_listing, difftool_args};
 pub use error::{AuthRequired, GitCommandError, GitError};
 pub use file_log::{FileChange, FileRevision};
 pub use file_ops::{IgnoreRule, IndexEditorSides, IndexFlag};

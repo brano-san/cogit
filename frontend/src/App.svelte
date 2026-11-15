@@ -2581,6 +2581,18 @@ ${event.error}`,
     showChanges: (path) => openInWindow(path, fileSpec(path)),
     edit: (path) => follow(path, editRoute(rowFile(path), rowPlace(path))),
     compareWithWorkTree: (path, rev) => openInWindow(path, { kind: "commitVsWorkTree", oid: rev }),
+    diffTool: (path, oldPath) => void openDiffTool(path, oldPath),
+    externalEditor: (path) =>
+      void onDesktop(
+        (root) =>
+          fileMenus.openInEditor(
+            `${root}/${path}`,
+            null,
+            settings.current.externalEditor,
+            settings.current.externalEditorArgs,
+          ),
+        "Could not open the file in the external editor",
+      ),
     log: (path) => filterGraph({ ...graph.query, path }),
     blame: (path) => void blameOne(path),
     solver: (path) => openSolverAt(path),
@@ -2614,6 +2626,17 @@ ${event.error}`,
     if (fileSection === "commit") return commit.oid ? { kind: "commitVsParent", oid: commit.oid } : null;
     const staged = worktree.staged.some((file) => file.path === path);
     return fileSection === "index" && staged ? { kind: "indexVsHead" } : { kind: "workTreeVsIndex" };
+  }
+
+  /** `git difftool` on the side of the file the Files pane shows (F-944). */
+  async function openDiffTool(path: string, oldPath: string | null) {
+    const spec = fileSpec(path);
+    if (!spec) return;
+    const { diffExternalTool, diffExternalToolArgs } = settings.current;
+    await withRepo(
+      (id) => fileMenus.launchDiffTool(id, spec, path, oldPath, diffExternalTool, diffExternalToolArgs),
+      "Could not open the external diff tool",
+    );
   }
 
   async function withRepo(step: (id: import("$lib/ipc").RepoId) => Promise<unknown>, failure: string) {

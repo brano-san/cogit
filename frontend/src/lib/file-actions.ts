@@ -20,6 +20,10 @@ export interface FileActions {
   /** The working file alone in the Diff panel's editor (F-722). */
   edit(path: string): void;
   compareWithWorkTree(path: string, rev: string): void;
+  /** `git difftool` on what the Files pane shows for the file (F-944). */
+  diffTool(path: string, oldPath: string | null): void;
+  /** The working file in the editor from Preferences, else the desktop's program for it. */
+  externalEditor(path: string): void;
   log(path: string): void;
   blame(path: string): void;
   investigate(path: string): void;
@@ -113,6 +117,12 @@ export function runFileMenuCommand(
       return true;
     case "file-edit":
       actions.edit(path);
+      return true;
+    case "file-diff-tool":
+      actions.diffTool(path, scope.oldPath);
+      return true;
+    case "file-external-editor":
+      actions.externalEditor(path);
       return true;
     case "file-compare-worktree":
       if (rev) actions.compareWithWorkTree(path, rev);

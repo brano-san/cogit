@@ -38,6 +38,14 @@ function discardBlocked(statuses: readonly string[]): string | null {
   return stageBlocked(statuses);
 }
 
+/** Why `git difftool` has nothing to show for the right-clicked file of a Working Tree list. */
+function diffToolBlocked(status: string): string | null {
+  if (status === "untracked") return "untracked: Git has no other version";
+  if (status === "conflicted") return "conflicted: use Resolve ▸ Open in External Tool";
+  if (status === "unchanged" || status === "ignored") return "no changes";
+  return null;
+}
+
 function deleteBlocked(statuses: readonly string[]): string | null {
   return statuses.some((status) => status !== "deleted") ? null : "Not on disk";
 }
@@ -61,6 +69,8 @@ export function worktreeFileMenu(at: WorktreeFileTarget): ContextItem[] {
     offer("file-reveal", `Reveal in ${at.fileManager}`, single ?? (onDisk ? null : "not on disk")),
     offer("file-changes", "Show Changes", single),
     offer("file-edit", "Edit", single ?? at.editBlocked ?? (onDisk ? null : "not on disk")),
+    offer("file-diff-tool", "Open in External Diff Tool", single ?? diffToolBlocked(status)),
+    offer("file-external-editor", "Open in External Editor", single ?? (onDisk ? null : "not on disk")),
     item("file-log", "Log", history),
     item("file-blame", "Blame", history),
     item("file-investigate", "Investigate", history),
@@ -135,6 +145,12 @@ export function commitFileMenu(at: CommitFileTarget): ContextItem[] {
     offer("file-changes", "Show Changes", single),
     offer("file-compare-worktree", "Compare with Working Tree", single),
     offer("file-open-version", "Open File", inCommit),
+    offer("file-diff-tool", "Open in External Diff Tool", single),
+    offer(
+      "file-external-editor",
+      "Open in External Editor",
+      single ?? (at.status === "deleted" ? "deleted in this commit" : at.onDisk ? null : "not in the working tree"),
+    ),
     offer(
       "file-reveal",
       `Reveal in ${at.fileManager}`,

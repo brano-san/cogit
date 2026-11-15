@@ -211,3 +211,23 @@ pub async fn present_on_disk(
     })
     .await
 }
+
+/// Open in External Diff Tool: `git difftool` on the side of `path` the Files pane shows,
+/// left running. An empty `program` is git's `diff.tool`.
+#[tauri::command]
+#[specta::specta]
+pub async fn launch_diff_tool(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    spec: git_engine::DiffSpec,
+    path: String,
+    old_path: Option<String>,
+    program: String,
+    args: String,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    blocking("launch_diff_tool", move || {
+        app_state.start_diff_tool(repo, &spec, &path, old_path.as_deref(), &program, &args)
+    })
+    .await
+}
