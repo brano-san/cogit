@@ -816,6 +816,70 @@ fn undoing_a_stash_drop_lists_the_stash_again_in_its_place() {
     );
 }
 
+// Pop was the one way to lose a stash with nothing to take it back: a dialog asked first.
+#[test]
+fn undoing_a_pop_lists_the_stash_again_and_keeps_what_it_applied() {
+    let f = test_fixtures::with_stashes(2).unwrap();
+    let (state, repo) = open(&f);
+    let before = state.stashes(repo).unwrap();
+
+    state
+        .stash_apply(repo, &before[0].oid, true, false)
+        .unwrap();
+    assert_eq!(state.stashes(repo).unwrap().len(), 1, "the pop dropped it");
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(state.stashes(repo).unwrap(), before);
+    assert_eq!(text(&f, "work-in-progress.txt"), "unfinished work 1\n");
+}
+
+#[test]
+fn a_pop_that_keeps_its_stash_records_nothing_to_undo() {
+    let f = test_fixtures::with_stashes(1).unwrap();
+    let (state, repo) = open(&f);
+    let oid = state.stashes(repo).unwrap()[0].oid.clone();
+    // The untracked file is in the way: git refuses and keeps the stash.
+    f.write_file("work-in-progress.txt", "in the way\n")
+        .unwrap();
+
+    assert!(state.stash_apply(repo, &oid, true, false).is_err());
+
+    assert_eq!(state.stashes(repo).unwrap().len(), 1);
+    assert!(state.safety_log().iter().all(|entry| !entry.undoable));
+}
+
+// Every amend of an unpublished commit asked first, because none could be undone.
+#[test]
+fn undoing_an_amend_puts_the_commit_back_and_keeps_the_changes_staged() {
+    let f = test_fixtures::linear(2).unwrap();
+    let (state, repo) = open(&f);
+    let before = head_oid(&state, repo);
+    f.write_file("added.txt", "amended in\n").unwrap();
+    f.git(&["add", "added.txt"]).unwrap();
+
+    state
+        .commit(
+            repo,
+            &git_engine::CommitRequest {
+                message: "amended".to_owned(),
+                amend: true,
+                no_verify: false,
+                signoff: false,
+                only: Vec::new(),
+            },
+        )
+        .unwrap();
+    assert_ne!(head_oid(&state, repo), before);
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(head_oid(&state, repo), before);
+    assert_eq!(
+        f.git(&["diff", "--cached", "--name-only"]).unwrap().trim(),
+        "added.txt"
+    );
+    assert_eq!(text(&f, "added.txt"), "amended in\n");
+}
+
 // Undo applied the stash taken at the old tip on top of the new one: the branch stayed
 // where the reset put it and the file got conflict markers.
 #[test]

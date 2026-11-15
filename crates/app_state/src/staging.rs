@@ -165,9 +165,34 @@ impl AppState {
         let finishing = handle
             .state()
             .is_ok_and(|state| state.is_interrupted_operation());
+        // What an amend replaces: undo puts HEAD back on it softly, the amended changes
+        // staged again, so nothing the amend took in is lost and no dialog has to ask first.
+        let replaced = if request.amend && !finishing {
+            match handle.head()? {
+                git_engine::Head::Branch { name, oid } => Some((Some(name), oid)),
+                git_engine::Head::Detached { oid } => Some((None, oid)),
+                git_engine::Head::Unborn { .. } => None,
+            }
+        } else {
+            None
+        };
         let oid = handle.commit(request)?;
         if finishing {
             self.settle_moves(repo);
+        }
+        if let Some((branch, was)) = replaced {
+            self.record(
+                repo,
+                format!("Amend {}", &was[..was.len().min(8)]),
+                crate::Recovery::Reset {
+                    branch,
+                    oid: was,
+                    mode: git_engine::ResetMode::Soft,
+                    stash: None,
+                    kept: Vec::new(),
+                    after: Some(oid.clone()),
+                },
+            );
         }
         Ok(oid)
     }
