@@ -589,7 +589,9 @@ async function appOnce(exe, keep) {
       let painted = null;
       for (let i = 0; i < 3000; i += 1) {
         const at = await frame();
-        const shown = document.querySelectorAll('[role="listitem"]').length > 0 && document.querySelectorAll('[role="treeitem"]').length > 0;
+        // The last session comes back closed (R-770): ready is that row listed and the
+        // window quiet. Waiting for the graph, as before R-770, waited for nothing.
+        const shown = document.querySelector('.row.closed[data-key-row]') !== null;
         const s = window.__bench.state;
         const busy = !shown || s.inflight > 0 || s.dirty;
         s.dirty = false;
@@ -599,7 +601,7 @@ async function appOnce(exe, keep) {
       }
       return null;
     })()`);
-    if (keep && ready) record("app.ready", "medium", "cold", { total: ready - restored.spawnedAt }, meta("запуск до готовности (medium восстановлен)"));
+    if (keep && ready) record("app.ready", "medium", "cold", { total: ready - restored.spawnedAt }, meta("запуск до готовности (medium в списке закрытым, R-770)"));
 
     const asked = Date.now();
     await restored.cdp.eval(`window.__bench.emit("menu-command", "exit")`).catch(() => {});
