@@ -75,7 +75,7 @@ class RepoPulseStore {
     onPulse: (root, pulse) => {
       // Read before the panels took it over; they keep it current now.
       if (root === this.#owned) return;
-      this.pulses = new Map([...this.pulses, [root, pulse]]);
+      this.pulses = new Map(this.pulses).set(root, pulse);
       const fetchedSince =
         (this.#probesAnswered.get(root) ?? 0) !==
         this.#probesBeforeRead.get(root);
@@ -118,7 +118,7 @@ class RepoPulseStore {
       this.pulses = next;
     }
     if (left === null || left === root || !this.#roots.includes(left)) return;
-    if (leftMarks) this.pulses = new Map([...this.pulses, [left, leftMarks]]);
+    if (leftMarks) this.pulses = new Map(this.pulses).set(left, leftMarks);
     setTimeout(() => {
       if (left !== this.#owned && this.#roots.includes(left))
         this.changed(left);

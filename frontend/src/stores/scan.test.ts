@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const commands = { scanForRepositories: vi.fn(), cancelOperation: vi.fn() };
 
@@ -34,6 +34,7 @@ function walksOn(id: number) {
 }
 
 describe("scan store", () => {
+  afterEach(() => { scan.clear(); vi.useRealTimers(); });
   beforeEach(() => {
     commands.scanForRepositories.mockReset();
     scan.clear();
@@ -45,6 +46,61 @@ describe("scan store", () => {
     findsBackend([hit("/w/alpha"), hit("/w/beta")]);
     await scan.run("/w", 6);
     expect(scan.hits.map((found) => found.name)).toEqual(["alpha", "beta"]);
+  });
+
+  it("publishes a live batch within 16ms without mutating an earlier snapshot", () => {
+    vi.useFakeTimers();
+    walksOn(7);
+    void scan.run("/w", 6);
+    const channel = commands.scanForRepositories.mock.calls[0]![2];
+    const empty = scan.hits;
+    channel.onmessage({ kind: "found", hit: hit("/w/first") });
+    vi.advanceTimersByTime(16);
+    const first = scan.hits;
+    expect(first.map((hit) => hit.root)).toEqual(["/w/first"]);
+    channel.onmessage({ kind: "found", hit: hit("/w/second") });
+    vi.advanceTimersByTime(16);
+    expect(scan.hits.map((hit) => hit.root)).toEqual(["/w/first", "/w/second"]);
+    expect(first).toHaveLength(1);
+    expect(empty).toHaveLength(0);
+  });
+
+  it("discards pending hits and their timer when a scan is superseded or cleared", () => {
+    vi.useFakeTimers();
+    walksOn(7);
+    void scan.run("/w", 6);
+    const old = commands.scanForRepositories.mock.calls[0]![2];
+    old.onmessage({ kind: "found", hit: hit("/w/stale") });
+    walksOn(8);
+    void scan.run("/other", 6);
+    old.onmessage({ kind: "found", hit: hit("/w/late") });
+    vi.advanceTimersByTime(32);
+    expect(scan.hits).toEqual([]);
+    const current = commands.scanForRepositories.mock.calls[1]![2];
+    current.onmessage({ kind: "found", hit: hit("/other/pending") });
+    scan.clear();
+    vi.advanceTimersByTime(32);
+    expect(scan.hits).toEqual([]);
+  });
+
+  it("flushes the last partial batch on failure and bounds burst publications", async () => {
+    vi.useFakeTimers();
+    let publications = 0;
+    commands.scanForRepositories.mockImplementation((_path, _depth, channel) => {
+      let before = scan.hits;
+      for (let i = 0; i < 1000; i++) {
+        channel.onmessage({ kind: "found", hit: hit(`/w/${i}`) });
+        if (scan.hits !== before) publications++;
+        before = scan.hits;
+      }
+      return Promise.resolve({ status: "error", error: { kind: "internal", data: "walk failed" } });
+    });
+    await scan.run("/w", 6);
+    expect(publications).toBe(7);
+    expect(scan.hits).toHaveLength(1000);
+    expect(scan.error?.message).toContain("walk failed");
+    expect(scan.busy).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("walks every drive when no folder is given, and says so", async () => {

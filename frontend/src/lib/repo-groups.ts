@@ -54,8 +54,10 @@ export function renameGroup(groups: RepoGroups, id: string, name: string): RepoG
 
 /** What Delete this group asks: what `removeGroup` moves, and where. */
 export function removalQuestion(groups: RepoGroups, id: string): string {
-  const members = Object.values(groups.of).filter((group) => group === id).length;
-  const children = Object.values(groups.under).filter((parent) => parent === id).length;
+  let members = 0;
+  let children = 0;
+  for (const group of Object.values(groups.of)) if (group === id) members += 1;
+  for (const parent of Object.values(groups.under)) if (parent === id) children += 1;
   const parts = [`Delete the group ${groups.names[id] ?? id}?`];
   if (members > 0) parts.push(`Its ${members} ${members === 1 ? "repository goes" : "repositories go"} to Ungrouped.`);
   if (children > 0) parts.push(`Its ${children} ${children === 1 ? "group moves" : "groups move"} up a level.`);

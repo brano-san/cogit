@@ -9,6 +9,7 @@ export interface ScanSection {
 }
 
 const slashed = (path: string) => path.replace(/\\/g, "/").replace(/\/+$/, "");
+const folderOrder = new Intl.Collator(undefined, { sensitivity: "base" });
 
 /** The folder a hit sits in, relative to the scanned one; the scanned folder's own name for
     a repository directly inside it. */
@@ -32,9 +33,11 @@ export function scanSections(hits: readonly ScanHit[], layout: ScanLayout, base:
     const folders = new Map<string, ScanHit[]>();
     for (const hit of main) {
       const folder = parentOf(hit.root, base);
-      folders.set(folder, [...(folders.get(folder) ?? []), hit]);
+      const group = folders.get(folder);
+      if (group) group.push(hit);
+      else folders.set(folder, [hit]);
     }
-    const names = [...folders.keys()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+    const names = [...folders.keys()].sort(folderOrder.compare);
     for (const name of names) sections.push({ title: name, hits: folders.get(name) ?? [] });
   }
   const bare = hits.filter((hit) => hit.bare && !hit.alreadyOpen);

@@ -17,6 +17,22 @@ class ScanStore {
   #generation = 0;
   /** The walk still going, by the id that stops it. */
   #walking: number | null = null;
+  #pending: ScanHit[] = [];
+  #publish: ReturnType<typeof setTimeout> | null = null;
+
+  #flushHits(): void {
+    if (this.#publish !== null) clearTimeout(this.#publish);
+    this.#publish = null;
+    if (this.#pending.length === 0) return;
+    this.hits = this.hits.concat(this.#pending);
+    this.#pending = [];
+  }
+
+  #discardHits(): void {
+    if (this.#publish !== null) clearTimeout(this.#publish);
+    this.#publish = null;
+    this.#pending = [];
+  }
 
   get openable(): ScanHit[] {
     return this.hits.filter((hit) => !hit.alreadyOpen);
@@ -30,6 +46,7 @@ class ScanStore {
   async run(folder: string | null, depth: number, listed: readonly string[] = []): Promise<void> {
     const known = new Set(listed.map(pathKey));
     this.#stopWalk();
+    this.#discardHits();
     const generation = ++this.#generation;
     this.folder = folder ?? ALL_DRIVES;
     this.hits = [];
@@ -46,7 +63,11 @@ class ScanStore {
           if (generation !== this.#generation) return;
           // Nothing ticked until the user ticks it: a search of a whole drive found dozens
           // and one click opened them all (R-821).
-          this.hits = [...this.hits, { ...hit, alreadyOpen: hit.alreadyOpen || known.has(pathKey(hit.root)) }];
+          this.#pending.push({ ...hit, alreadyOpen: hit.alreadyOpen || known.has(pathKey(hit.root)) });
+          // Bound both live-result latency and copies of the accumulated list. Every
+          // publication is a new snapshot, so old subscribers cannot see mutations.
+          if (this.#pending.length >= 128) this.#flushHits();
+          else this.#publish ??= setTimeout(() => this.#flushHits(), 16);
         },
         (id) => {
           if (generation === this.#generation) this.#walking = id;
@@ -59,6 +80,7 @@ class ScanStore {
       this.error = toCogitError(err);
     } finally {
       if (generation === this.#generation) {
+        this.#flushHits();
         this.busy = false;
         this.#walking = null;
       }
@@ -80,7 +102,11 @@ class ScanStore {
   /** Select All and Select None act on `shown`, the rows a filter leaves; what it hides
       keeps its tick either way. */
   toggleAll(shown: readonly string[] | null = null): void {
-    const rows = this.openable.map((hit) => hit.root).filter((root) => shown === null || shown.includes(root));
+    const visible = shown === null ? null : new Set(shown);
+    const rows: string[] = [];
+    for (const hit of this.hits) {
+      if (!hit.alreadyOpen && (visible === null || visible.has(hit.root))) rows.push(hit.root);
+    }
     const next = new Set(this.chosen);
     const all = rows.every((root) => next.has(root));
     for (const root of rows) {
@@ -92,6 +118,7 @@ class ScanStore {
 
   clear(): void {
     this.#stopWalk();
+    this.#discardHits();
     this.#generation += 1;
     this.folder = null;
     this.hits = [];

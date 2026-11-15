@@ -1,5 +1,7 @@
 import type { RepoOverview } from "./ipc";
 
+const nameOrder = new Intl.Collator(undefined, { sensitivity: "base" });
+
 /** What the Repositories list remembers beyond what is open: repositories closed but kept
     in the list, the names the user gave them, and which are pinned (#36). Keyed by root,
     as the groups are; nothing here touches the folder or the repository itself. */
@@ -79,11 +81,13 @@ export function togglePin(list: RepoList, root: string): RepoList {
 /** Open and closed rows together: the pinned first, in pin order, then by name. Groups
     keep this order inside each bucket, so a pin puts a row at the top of its group. */
 export function listedRepos(open: readonly RepoOverview[], list: RepoList): ListedRepo[] {
+  const pins = new Map<string, number>();
+  for (const [at, root] of list.pinned.entries()) if (!pins.has(root)) pins.set(root, at);
   const rows: ListedRepo[] = open.map((overview) => ({
     root: overview.root,
     name: listedName(list, overview.root, overview),
     overview,
-    pinned: list.pinned.includes(overview.root),
+    pinned: pins.has(overview.root),
   }));
   const shown = new Set(rows.map((row) => row.root));
   for (const root of list.closed) {
@@ -93,14 +97,14 @@ export function listedRepos(open: readonly RepoOverview[], list: RepoList): List
       root,
       name: listedName(list, root, null),
       overview: null,
-      pinned: list.pinned.includes(root),
+      pinned: pins.has(root),
     });
   }
-  const pinRank = (row: ListedRepo) => (row.pinned ? list.pinned.indexOf(row.root) : Infinity);
+  const pinRank = (row: ListedRepo) => pins.get(row.root) ?? Infinity;
   return rows.sort(
     (a, b) =>
       pinRank(a) - pinRank(b) ||
-      a.name.localeCompare(b.name, undefined, { sensitivity: "base" }) ||
+      nameOrder.compare(a.name, b.name) ||
       a.root.localeCompare(b.root),
   );
 }

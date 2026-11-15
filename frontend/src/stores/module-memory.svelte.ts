@@ -32,12 +32,14 @@ class ModuleMemoryStore {
   }
 
   openModule(root: string): void {
-    if (!this.openModules.has(root)) this.openModules = new Set([...this.openModules, root]);
+    if (!this.openModules.has(root)) this.openModules = new Set(this.openModules).add(root);
   }
 
   closeModule(root: string): void {
     if (!this.openModules.has(root)) return;
-    this.openModules = new Set([...this.openModules].filter((each) => each !== root));
+    const next = new Set(this.openModules);
+    next.delete(root);
+    this.openModules = next;
   }
 
   /** A repository closes, and every submodule in it with it. */

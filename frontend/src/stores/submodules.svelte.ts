@@ -107,7 +107,7 @@ class SubmoduleStore {
     const generation = this.#generation;
     // Not initialised: nothing to read, and the row already says why.
     const found = await listSubmodules(this.#repo, key).catch(() => []);
-    if (generation === this.#generation) this.children = new Map([...this.children, [key, found]]);
+    if (generation === this.#generation) this.children = new Map(this.children).set(key, found);
   }
 
   async update(repo: RepoId, path: string, init: boolean): Promise<void> {

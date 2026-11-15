@@ -43,7 +43,9 @@ export function groupChoices(groups: RepoGroups): GroupChoice[] {
   const children = new Map<string | null, string[]>();
   for (const id of groups.order) {
     const parent = groups.under[id] ?? null;
-    children.set(parent, [...(children.get(parent) ?? []), id]);
+    const siblings = children.get(parent);
+    if (siblings) siblings.push(id);
+    else children.set(parent, [id]);
   }
   const out: GroupChoice[] = [];
   const walk = (parent: string | null, depth: number) => {
