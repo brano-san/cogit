@@ -87,10 +87,13 @@ pub enum Recovery {
         oid: String,
     },
     /// The patch that was reversed. Undo applies it again, which puts back exactly the
-    /// lines that went and leaves the rest of the file alone.
+    /// lines that went and leaves the rest of the file alone. `reverse`: the patch was
+    /// applied forward (F-948), so undo takes it back out, of the index too when `index`.
     Patch {
         path: String,
         patch: String,
+        reverse: bool,
+        index: bool,
     },
     /// A worktree removed by force: undo adds it back where it was, on its branch or its
     /// commit, and applies the stash of its changes there, not in the owner's tree.
@@ -397,9 +400,19 @@ impl AppState {
                 message: None,
                 force: false,
             })?,
-            Recovery::Patch { patch, .. } => {
+            Recovery::Patch {
+                patch,
+                reverse: false,
+                ..
+            } => {
                 handle.apply_patch_to(patch, false, git_engine::PatchTarget::WorkTree)?;
             }
+            Recovery::Patch {
+                patch,
+                reverse: true,
+                index,
+                ..
+            } => handle.unapply_user_patch(patch, *index)?,
             Recovery::Worktree {
                 path,
                 checkout,

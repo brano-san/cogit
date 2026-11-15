@@ -133,6 +133,9 @@ export function graphCommitMenu(facts: CommitFacts, bisect?: ContextItem): Conte
               : null,
     ),
     SEPARATOR,
+    offer(id("save-patch"), "Save as Patch…", replayBlocked(facts)),
+    offer(id("copy-patch"), "Copy as Patch", replayBlocked(facts)),
+    SEPARATOR,
     offer(id("copy-message"), "Copy Message", null),
     offer(id("copy-id"), "Copy ID", null),
   ]);

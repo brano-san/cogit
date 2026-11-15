@@ -21,6 +21,16 @@ const find = (items: ContextItem[], id: string) => items.find((item) => item.id 
 const on = (items: ContextItem[], id: string) => find(items, id)?.enabled;
 
 describe("worktreeFileMenu", () => {
+  // F-948: a patch of Staged is the index against HEAD, of Unstaged the tree against the index.
+  it("offers a patch of the list the files are in", () => {
+    const stagedOnly = { ...MODIFIED, staged: true, unstaged: false };
+    expect(on(worktreeFileMenu(MODIFIED), "file-save-patch")).toBe(true);
+    expect(on(worktreeFileMenu({ ...stagedOnly, section: "index" }), "file-copy-patch")).toBe(true);
+    expect(on(worktreeFileMenu(stagedOnly), "file-save-patch")).toBe(false);
+    expect(on(worktreeFileMenu({ ...MODIFIED, statuses: ["untracked"] }), "file-save-patch")).toBe(true);
+    expect(on(worktreeFileMenu({ ...MODIFIED, statuses: ["conflicted"] }), "file-save-patch")).toBe(false);
+  });
+
   it("is the list from the task, in its order, with its separators", () => {
     expect(shape(worktreeFileMenu(MODIFIED))).toEqual([
       "Open File",
@@ -35,6 +45,8 @@ describe("worktreeFileMenu", () => {
       "—",
       "Commit…",
       "Stash Selection…",
+      "Save as Patch…",
+      "Copy as Patch",
       "—",
       "Stage",
       "Stage Mode Change Only",

@@ -50,6 +50,9 @@ export interface FileActions {
   trash(paths: string[]): void;
   saveAs(path: string, rev: string): void;
   applyChange(path: string, oldPath: string | null, rev: string, reverse: boolean): void;
+  /** The files' changes as a patch (F-948): the Staged list's from the index. */
+  savePatch(paths: string[]): void;
+  copyPatch(paths: string[]): void;
   copy(text: string): void;
   setFlag(paths: string[], flag: IndexFlag, on: boolean): void;
 }
@@ -196,6 +199,12 @@ export function runFileMenuCommand(
     case "file-cherry-pick":
     case "file-revert":
       if (rev) actions.applyChange(path, scope.oldPath, rev, id === "file-revert");
+      return true;
+    case "file-save-patch":
+      actions.savePatch(paths);
+      return true;
+    case "file-copy-patch":
+      actions.copyPatch(paths);
       return true;
     case "file-copy-name":
       actions.copy(copiedText("name", paths, place));

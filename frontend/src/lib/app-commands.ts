@@ -64,6 +64,7 @@ export type AppCommandId =
   | "worktree-add"
   | "worktree-remove"
   | "worktree-prune"
+  | "apply-patch"
   | "resolve-conflicts"
   | "undo-rewrite"
   | "range-diff"
@@ -274,6 +275,13 @@ export function appCommands(facts: AppCommandFacts, run: AppCommandActions): Pal
       synonyms: ["worktree prune", "missing worktree"],
       unavailable: noRepo ?? (facts.worktrees.stale ? undefined : "Nothing to prune"),
       run: run["worktree-prune"],
+    },
+    {
+      id: "apply-patch",
+      title: "Apply Patch…",
+      synonyms: ["git apply", "git am", "diff", "mailbox", "format-patch", "paste patch", "clipboard"],
+      unavailable: noRepo,
+      run: run["apply-patch"],
     },
     {
       id: "resolve-conflicts",

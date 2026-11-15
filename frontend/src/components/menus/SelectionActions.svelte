@@ -24,6 +24,7 @@
   import { graph } from "$stores/graph.svelte";
   import { network } from "$stores/network.svelte";
   import { notices } from "$stores/notices.svelte";
+  import { patches } from "$stores/patches.svelte";
   import { refs } from "$stores/refs.svelte";
   import { repository } from "$stores/repository.svelte";
 
@@ -142,6 +143,10 @@
           return replay(id, at.oids, true);
         case "revert":
           return replay(id, at.oids, false);
+        case "save-patch":
+          return patches.saveCommits(id, at.oids, null);
+        case "copy-patch":
+          return patches.copyCommits(id, at.oids);
         case "copy-id":
           return copy(replayOrder(await rowsOf(at.oids), at.oids, "newest-first").join("\n"));
         case "copy-message": {

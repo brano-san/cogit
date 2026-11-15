@@ -308,6 +308,8 @@ impl AppState {
             Recovery::Patch {
                 path: request.path.clone(),
                 patch,
+                reverse: false,
+                index: false,
             },
         );
         Ok(())

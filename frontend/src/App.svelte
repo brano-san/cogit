@@ -96,6 +96,9 @@
   import { gitReasonOf } from "$lib/git-missing";
   import RemoteOpsDialog from "$components/remote/RemoteOpsDialog.svelte";
   import RepoSettingsDialog from "$components/remote/RepoSettingsDialog.svelte";
+  import ApplyPatchDialog from "$components/menus/ApplyPatchDialog.svelte";
+  import { applyPatch } from "$lib/ipc/patches";
+  import { patches } from "$stores/patches.svelte";
   import { remoteCommands, submoduleScope } from "$lib/remote-menu";
   import { remoteOps } from "$stores/remote-ops.svelte";
   import { remoteDialogs } from "$stores/remote-dialogs.svelte";
@@ -866,6 +869,7 @@
     "undo-rewrite": () => void undoLastRewrite(),
     "range-diff": () => void showRangeDiff(),
     "maintenance-gc": () => void runNoticeAction({ id: RUN_GC, label: "Run gc…", targets: [] }),
+    "apply-patch": () => (patches.applying = true),
     togglePanel: (panel) => layout.togglePanel(panel),
     palette: () => {
       if (commit.oid) void learnProtection(commit.oid);
@@ -2617,6 +2621,8 @@ ${event.error}`,
     trash: (paths) => void deleteFromDisk(paths),
     saveAs: (path, rev) => void saveVersionAs(path, rev),
     applyChange: (path, oldPath, rev, reverse) => void applyFileChange(path, oldPath, rev, reverse),
+    savePatch: (paths) => void withRepo((id) => patches.saveChanges(id, paths, fileSection === "index"), "Could not save the patch"),
+    copyPatch: (paths) => void withRepo((id) => patches.copyChanges(id, paths, fileSection === "index"), "Could not copy the patch"),
     copy: (text) => void copyText(text),
     setFlag: (paths, flag, on) => void mutate((id) => fileMenus.setIndexFlag(id, paths, flag, on), paths),
   };
@@ -4678,6 +4684,17 @@ ${event.error}`,
         onclose={() => remoteOps.close()}
       />
     {/key}
+  {/if}
+
+  {#if patches.applying && repo}
+    <ApplyPatchDialog
+      repo={repo.repo}
+      onapply={(text, mode) => {
+        patches.close();
+        void mutate((id) => applyPatch(id, text, mode));
+      }}
+      onclose={() => patches.close()}
+    />
   {/if}
 
   {#if repoSettingsOpen && repo}

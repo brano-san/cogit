@@ -170,12 +170,14 @@ export function branchSelectionMenu(facts: BranchSelectionFacts): ContextItem[] 
   return groupVariant(template, live, "several selected");
 }
 
-/** Several commits of the graph: Cherry-Pick…, Revert…, Copy Message and Copy ID. */
+/** Several commits of the graph: Cherry-Pick…, Revert…, Save and Copy as Patch, Copy Message and Copy ID. */
 export function commitSelectionMenu(): ContextItem[] {
   const template = graphCommitMenu(NEUTRAL);
   const live = new Map<string, ContextItem>([
     [single("cherry-pick"), offer(id("cherry-pick"), "Cherry-Pick…", null)],
     [single("revert"), offer(id("revert"), "Revert…", null)],
+    [single("save-patch"), offer(id("save-patch"), "Save as Patch…", null)],
+    [single("copy-patch"), offer(id("copy-patch"), "Copy as Patch", null)],
     [single("copy-message"), offer(id("copy-message"), "Copy Message", null)],
     [single("copy-id"), offer(id("copy-id"), "Copy ID", null)],
   ]);

@@ -14,6 +14,7 @@ pub mod flow;
 pub mod hooks;
 pub mod investigate;
 pub mod network;
+pub mod patches;
 pub mod presets;
 pub mod ref_ops;
 pub mod remote_ops;

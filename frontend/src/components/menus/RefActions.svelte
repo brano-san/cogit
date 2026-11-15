@@ -94,6 +94,7 @@
   import { confirmation } from "$stores/confirm.svelte";
   import { autostashDialog } from "$stores/autostash-dialog.svelte";
   import { errors } from "$stores/errors.svelte";
+  import { patches } from "$stores/patches.svelte";
   import { graph } from "$stores/graph.svelte";
   import { network } from "$stores/network.svelte";
   import { notices } from "$stores/notices.svelte";
@@ -589,6 +590,12 @@
         return copy(at.ref?.name ?? "");
       case "copy-message":
         return copy(at.details ? fullMessage(at.details) : "");
+      case "save-patch":
+        if (oid) await patches.saveCommits(id, [oid], at.details?.summary ?? null);
+        return;
+      case "copy-patch":
+        if (oid) await patches.copyCommits(id, [oid]);
+        return;
       case "copy-id":
         return copy(oid ?? "");
       case "reveal":

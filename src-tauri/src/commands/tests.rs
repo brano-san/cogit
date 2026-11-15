@@ -191,6 +191,7 @@ fn commands_that_write_the_repository_wait_for_its_lane() {
         "install_preset",
         "run_hook",
         "add_remote",
+        "apply_patch",
         "rename_remote",
         "remove_remote",
         "set_remote_properties",

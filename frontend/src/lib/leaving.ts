@@ -4,6 +4,7 @@ import { prompt } from "$stores/prompt.svelte";
 import { refDialogs } from "$stores/ref-dialogs.svelte";
 import { remoteDialogs } from "$stores/remote-dialogs.svelte";
 import { remoteOps } from "$stores/remote-ops.svelte";
+import { patches } from "$stores/patches.svelte";
 import { stashDialog } from "$stores/stash-dialog.svelte";
 
 /** What is asked or edited about the repository on screen, closed when the panels leave
@@ -16,4 +17,5 @@ export function leaveRepositoryDialogs(): void {
   refDialogs.close();
   remoteOps.close();
   remoteDialogs.close();
+  patches.close();
 }

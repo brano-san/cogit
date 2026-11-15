@@ -51,6 +51,7 @@ mod origin_search;
 pub mod outcome;
 pub mod output_text;
 mod overlap;
+mod patches;
 pub mod phases;
 mod presets;
 mod progress;
@@ -161,6 +162,9 @@ pub use origin_search::{
 };
 pub use outcome::{Expected, Severity};
 pub use overlap::{Overlap, OverlapRow, overlap_of, shared_paths};
+pub use patches::{
+    PatchFile, PatchMode, PatchPreview, PatchStat, looks_like_patch, parse_numstat, pasted_patch,
+};
 pub use presets::{
     Preset, PresetTool, builtin_presets, find_tool, parse_preset, preset_toml, tool_search_places,
 };

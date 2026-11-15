@@ -138,11 +138,13 @@ describe("branchSelectionMenu", () => {
 });
 
 describe("commitSelectionMenu", () => {
-  it("enables only the four that act on a group", () => {
+  it("enables only the six that act on a group", () => {
     const items = commitSelectionMenu().filter((entry) => !entry.separator);
     expect(items.filter((entry) => entry.enabled).map((entry) => entry.label)).toEqual([
       "Cherry-Pick…",
       "Revert…",
+      "Save as Patch…",
+      "Copy as Patch",
       "Copy Message",
       "Copy ID",
     ]);

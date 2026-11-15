@@ -81,6 +81,9 @@ describe("graphCommitMenu (#38)", () => {
       "—",
       "Push Up To",
       "—",
+      "Save as Patch…",
+      "Copy as Patch",
+      "—",
       "Copy Message",
       "Copy ID",
     ]);

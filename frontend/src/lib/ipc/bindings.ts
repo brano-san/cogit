@@ -187,6 +187,17 @@ export const commands = {
 	stashApply: (repo: RepoId, oid: string, pop: boolean, restoreIndex: boolean) => typedError<null, GitError>(__TAURI_INVOKE("stash_apply", { repo, oid, pop, restoreIndex })),
 	/**  Only the chosen files of a stash; the stash stays listed (F-945). */
 	stashApplyPaths: (repo: RepoId, oid: string, paths: string[], restoreIndex: boolean) => typedError<null, GitError>(__TAURI_INVOKE("stash_apply_paths", { repo, oid, paths, restoreIndex })),
+	/**  `target`: a folder for one file per commit, or the one file when `one_file`. */
+	saveCommitPatches: (repo: RepoId, commits: string[], target: string, oneFile: boolean) => typedError<string[], GitError>(__TAURI_INVOKE("save_commit_patches", { repo, commits, target, oneFile })),
+	commitPatchText: (repo: RepoId, commits: string[]) => typedError<string, GitError>(__TAURI_INVOKE("commit_patch_text", { repo, commits })),
+	/**  `staged`: the Staged list (`diff --cached`), else the Unstaged one. */
+	saveWorktreePatch: (repo: RepoId, paths: string[], staged: boolean, target: string) => typedError<null, GitError>(__TAURI_INVOKE("save_worktree_patch", { repo, paths, staged, target })),
+	worktreePatchText: (repo: RepoId, paths: string[], staged: boolean) => typedError<string, GitError>(__TAURI_INVOKE("worktree_patch_text", { repo, paths, staged })),
+	readPatchFile: (path: string) => typedError<string, GitError>(__TAURI_INVOKE("read_patch_file", { path })),
+	/**  Only a patch leaves the clipboard: the rest of it stays out of the page (R-563). */
+	clipboardPatch: () => typedError<string | null, GitError>(__TAURI_INVOKE("clipboard_patch")),
+	patchPreview: (repo: RepoId, text: string, mode: PatchMode) => typedError<PatchPreview, GitError>(__TAURI_INVOKE("patch_preview", { repo, text, mode })),
+	applyPatch: (repo: RepoId, text: string, mode: PatchMode) => typedError<null, GitError>(__TAURI_INVOKE("apply_patch", { repo, text, mode })),
 	stashDrop: (repo: RepoId, oid: string) => typedError<null, GitError>(__TAURI_INVOKE("stash_drop", { repo, oid })),
 	createTag: (repo: RepoId, request: TagRequest) => typedError<null, GitError>(__TAURI_INVOKE("create_tag", { repo, request })),
 	deleteTag: (repo: RepoId, name: string) => typedError<null, GitError>(__TAURI_INVOKE("delete_tag", { repo, name })),
@@ -2396,6 +2407,15 @@ export type PaintTip = {
 	slot: number,
 };
 
+/**  `apply` to the working tree, `apply --3way` to the index too, `am --3way` for commits. */
+export type PatchMode = "workTree" | "index" | "mailbox";
+
+export type PatchPreview = {
+	files: PatchStat[],
+	problem: string | null,
+	conflicts: boolean,
+};
+
 export type PatchRequest = PatchRequest_Serialize | PatchRequest_Deserialize;
 
 export type PatchRequest_Deserialize = {
@@ -2410,6 +2430,13 @@ export type PatchRequest_Serialize = {
 	hunks: Hunk_Serialize[],
 	selectedDeletes: number[],
 	selectedInserts: number[],
+};
+
+export type PatchStat = {
+	path: string,
+	oldPath: string | null,
+	added: number | null,
+	removed: number | null,
 };
 
 export type PresetStatus = {

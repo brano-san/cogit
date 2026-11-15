@@ -28,6 +28,8 @@ const REPOSITORY: &[Entry] = &[
     Entry::Item("worktree-remove", "Remove Worktree…", None),
     Entry::Item("worktree-prune", "Prune Obsolete Worktrees…", None),
     Entry::Separator,
+    Entry::Item("apply-patch", "Apply Patch…", None),
+    Entry::Separator,
     Entry::Item("undo-rewrite", "Undo Last Merge / Rebase / Reset…", None),
     Entry::Item("range-diff", "Compare Before and After Rewrite", None),
     Entry::Item("maintenance-gc", "Run Maintenance (gc)…", None),

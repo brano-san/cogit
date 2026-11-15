@@ -50,6 +50,13 @@ function deleteBlocked(statuses: readonly string[]): string | null {
   return statuses.some((status) => status !== "deleted") ? null : "Not on disk";
 }
 
+/** A patch of the Staged list is the index against HEAD, of Unstaged the working tree
+    against the index (F-948): something has to differ there. */
+function patchable(at: WorktreeFileTarget): boolean {
+  if (at.statuses.some((status) => status === "conflicted")) return false;
+  return at.section === "index" ? at.staged : at.unstaged && stageBlocked(at.statuses) === null;
+}
+
 /** The buttons on an Unstaged row (FilesPanel). */
 /** The Files panel on the Working Tree, in a fixed order (#40). */
 export function worktreeFileMenu(at: WorktreeFileTarget): ContextItem[] {
@@ -77,6 +84,8 @@ export function worktreeFileMenu(at: WorktreeFileTarget): ContextItem[] {
     SEPARATOR,
     item("file-commit", "Commit…", !conflicted),
     item("file-stash", "Stash Selection…", !conflicted),
+    item("file-save-patch", "Save as Patch…", patchable(at)),
+    item("file-copy-patch", "Copy as Patch", patchable(at)),
     SEPARATOR,
     item("file-stage", "Stage", at.unstaged && stageBlocked(at.statuses) === null),
     item("file-stage-mode", "Stage Mode Change Only", at.unstaged && at.modeChanged === true),
