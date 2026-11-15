@@ -159,6 +159,13 @@ class ConflictStore {
   async forget(path: string): Promise<void> {
     const repo = this.listedFor;
     if (!repo) return;
+    const go = await confirmation.ask({
+      title: "Forget Resolution",
+      message: `Forget the recorded resolution of ${path} and restore its conflict markers? Undo cannot bring the resolution back.`,
+      confirm: "Forget",
+      warning: true,
+    });
+    if (!go || this.listedFor !== repo) return;
     try {
       await rerereForget(repo, [path]);
     } catch (err) {

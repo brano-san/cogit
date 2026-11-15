@@ -26,6 +26,19 @@ vi.mock("$stores/notices.svelte", () => ({ notices: { report } }));
 
 const ipc = await import("$lib/ipc");
 const { conflicts } = await import("./conflicts.svelte");
+const { confirmation } = await import("./confirm.svelte");
+
+it.each([false, true])("forgets a resolution only after confirmation: %s", async (yes) => {
+  await conflicts.refresh(1 as never, ["a.txt"]);
+  vi.mocked(ipc.rerereForget).mockClear();
+  const pending = conflicts.forget("a.txt");
+  expect(confirmation.open?.confirm).toBe("Forget");
+  expect(ipc.rerereForget).not.toHaveBeenCalled();
+  confirmation.answer(yes);
+  await pending;
+  expect(ipc.rerereForget).toHaveBeenCalledTimes(yes ? 1 : 0);
+  if (yes) expect(ipc.rerereForget).toHaveBeenCalledWith(1, ["a.txt"]);
+});
 
 const stagesOf = (name: string) => ({ base: `b-${name}`, ours: `o-${name}`, theirs: `t-${name}` });
 const sides = (name: string) => ({
