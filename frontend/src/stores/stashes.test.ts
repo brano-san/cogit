@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const ipc = vi.hoisted(() => ({
   stashApply: vi.fn(async () => null),
+  stashApplyPaths: vi.fn(async () => null),
   listStashes: vi.fn(async () => []),
 }));
 
@@ -28,5 +29,15 @@ describe("applying a stash", () => {
     await stashes.apply(A, "def", false);
 
     expect(ipc.stashApply).toHaveBeenCalledWith(A, "def", false, false);
+  });
+
+  it("applies chosen files without dropping the stash, then reads the list back", async () => {
+    ipc.listStashes.mockClear();
+
+    await stashes.applyPaths(A, "abc", ["a.txt"], true);
+
+    expect(ipc.stashApplyPaths).toHaveBeenCalledWith(A, "abc", ["a.txt"], true);
+    expect(ipc.stashApply).not.toHaveBeenCalled();
+    expect(ipc.listStashes).toHaveBeenCalledWith(A);
   });
 });
