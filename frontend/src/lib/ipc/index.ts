@@ -34,6 +34,7 @@ import type {
   MergeResolved,
   MergeToolFinished,
   ModuleProblem,
+  OctopusOptions,
   CommandNotice,
   TaskbarSignals,
   RevealCommit,
@@ -172,6 +173,7 @@ export type {
   MergeResolved,
   MergeToolFinished,
   MergeToolOutcome,
+  OctopusOptions,
   OpenModule,
   ConflictContext,
   ConflictOperation,
@@ -879,6 +881,10 @@ export async function isAncestor(repo: RepoId, ancestor: string, descendant: str
 
 export async function mergeInto(repo: RepoId, options: MergeOptions) {
   return unwrap(await commands.merge(repo, options));
+}
+
+export async function mergeOctopus(repo: RepoId, options: OctopusOptions) {
+  return unwrap(await commands.mergeOctopus(repo, options));
 }
 
 export async function remoteUrl(repo: RepoId, name: string) {

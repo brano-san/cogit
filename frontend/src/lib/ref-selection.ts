@@ -143,10 +143,12 @@ export interface BranchSelectionFacts {
   deletable: boolean;
   /** Why no box of the selection can change, or null. */
   toggle: string | null;
+  /** Why the selection cannot be merged into HEAD (`octopusBlocked`), or null. */
+  merge: string | null;
 }
 
-/** Several rows of Branches: Push To…, Delete…, Copy and Toggle act on all of them, every
-    other item of the single menu stays and is off. */
+/** Several rows of Branches: Merge…, Push To…, Delete…, Copy and Toggle act on all of them,
+    every other item of the single menu stays and is off. */
 export function branchSelectionMenu(facts: BranchSelectionFacts): ContextItem[] {
   const template = branchesBranchMenu({ kind: "branch", name: "", isHead: false }, NEUTRAL, {
     selected: null,
@@ -155,6 +157,7 @@ export function branchSelectionMenu(facts: BranchSelectionFacts): ContextItem[] 
   });
   const refs = facts.picks.locals.length + facts.picks.remotes.length + facts.picks.tags.length;
   const live = new Map<string, ContextItem>([
+    [single("merge"), offer(id("merge"), "Merge…", facts.merge)],
     [
       single("push-to"),
       offer(
@@ -170,10 +173,12 @@ export function branchSelectionMenu(facts: BranchSelectionFacts): ContextItem[] 
   return groupVariant(template, live, "several selected");
 }
 
-/** Several commits of the graph: Cherry-Pick…, Revert…, Save and Copy as Patch, Copy Message and Copy ID. */
-export function commitSelectionMenu(): ContextItem[] {
+/** Several commits of the graph: Merge…, Cherry-Pick…, Revert…, Save and Copy as Patch, Copy
+    Message and Copy ID. `merge`: why they cannot be merged into HEAD, or null. */
+export function commitSelectionMenu(merge: string | null): ContextItem[] {
   const template = graphCommitMenu(NEUTRAL);
   const live = new Map<string, ContextItem>([
+    [single("merge"), offer(id("merge"), "Merge…", merge)],
     [single("cherry-pick"), offer(id("cherry-pick"), "Cherry-Pick…", null)],
     [single("revert"), offer(id("revert"), "Revert…", null)],
     [single("save-patch"), offer(id("save-patch"), "Save as Patch…", null)],

@@ -146,7 +146,7 @@ pub use listing::{
 };
 pub use mailmap::Mailmap;
 pub use merged_by_patch::{BranchMerge, MERGE_SCAN_CAP, MergeCache, MergeKind};
-pub use merging::MergeOptions;
+pub use merging::{MergeOptions, OctopusOptions};
 pub use module_ops::SubmoduleOp;
 pub use network::NetworkStop;
 pub use network_config::{

@@ -2,7 +2,7 @@
 
 use super::{blocking, mutating, mutating_titled};
 use app_state::{OperationKind, RepoId};
-use git_engine::{GitError, MergeOptions, RebaseOptions};
+use git_engine::{GitError, MergeOptions, OctopusOptions, RebaseOptions};
 
 macro_rules! repo_command {
     ($name:ident, $kind:ident, $title:literal) => {
@@ -46,6 +46,25 @@ pub async fn merge(
         OperationKind::Merge,
         "merge",
         move || app_state.merge(repo, &options),
+    )
+    .await
+}
+
+/// Several branches into the current one (F-952).
+#[tauri::command]
+#[specta::specta]
+pub async fn merge_octopus(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    options: OctopusOptions,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Merge,
+        "merge",
+        move || app_state.merge_octopus(repo, &options),
     )
     .await
 }

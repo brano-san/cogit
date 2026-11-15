@@ -247,6 +247,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::remotes::fetch_more,
             commands::remotes::fetch_depth,
             commands::merge,
+            commands::merge_octopus,
             commands::rebase,
             commands::skip_operation,
             commands::cherry_pick,

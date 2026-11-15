@@ -256,3 +256,102 @@ fn fix_up_waits_for_a_stopped_merge() {
     assert!(err.to_string().contains("in progress"), "{err}");
     assert_eq!(repo.state().unwrap(), RepoState::Merging);
 }
+
+/// main with three branches off it, each adding a file of its own; `clash` also edits
+/// `base.txt`, which main changes too.
+fn three_branches() -> test_fixtures::Fixture {
+    let f = test_fixtures::linear(2).unwrap();
+    for (at, name) in [(30, "a"), (31, "b"), (32, "c")] {
+        f.git(&["switch", "-c", name, "main"]).unwrap();
+        f.commit_file(at, &format!("{name}.txt"), &format!("{name}\n"))
+            .unwrap();
+    }
+    f.git(&["switch", "main"]).unwrap();
+    f.commit_file(33, "main.txt", "main\n").unwrap();
+    f
+}
+
+fn octopus(sources: &[&str]) -> git_engine::OctopusOptions {
+    git_engine::OctopusOptions {
+        sources: sources.iter().map(|each| (*each).to_owned()).collect(),
+        no_fast_forward: false,
+        message: None,
+    }
+}
+
+#[test]
+fn three_branches_merge_into_one_commit_with_four_parents() {
+    let f = three_branches();
+    let repo = open(&f);
+
+    repo.merge_octopus(&octopus(&["a", "b", "c"])).unwrap();
+
+    let details = repo.commit_details("HEAD").unwrap();
+    assert_eq!(details.parents.len(), 4, "{details:?}");
+    assert_eq!(details.summary, "Merge branches 'a', 'b' and 'c'");
+    assert_eq!(repo.state().unwrap(), RepoState::Clean);
+    for name in ["a.txt", "b.txt", "c.txt", "main.txt"] {
+        assert!(f.path().join(name).exists(), "{name}");
+    }
+}
+
+#[test]
+fn an_octopus_takes_the_message_it_is_given() {
+    let f = three_branches();
+    let repo = open(&f);
+
+    repo.merge_octopus(&git_engine::OctopusOptions {
+        message: Some("bring a and b in".to_owned()),
+        ..octopus(&["a", "b"])
+    })
+    .unwrap();
+
+    assert_eq!(
+        repo.commit_details("HEAD").unwrap().summary,
+        "bring a and b in"
+    );
+}
+
+#[test]
+fn a_conflicting_octopus_leaves_everything_as_it_was_and_says_why() {
+    let f = three_branches();
+    f.git(&["switch", "a"]).unwrap();
+    f.write_file("base.txt", "a version\n").unwrap();
+    f.git(&["add", "--", "base.txt"]).unwrap();
+    f.commit_staged(40, "a edits base").unwrap();
+    f.git(&["switch", "b"]).unwrap();
+    f.write_file("base.txt", "b version\n").unwrap();
+    f.git(&["add", "--", "base.txt"]).unwrap();
+    f.commit_staged(41, "b edits base").unwrap();
+    f.git(&["switch", "main"]).unwrap();
+    let head = f.oid("HEAD").unwrap();
+    let repo = open(&f);
+
+    let err = repo.merge_octopus(&octopus(&["a", "b", "c"])).unwrap_err();
+
+    match err {
+        git_engine::GitError::Command(details) => {
+            assert!(
+                details.summary.contains("merge the branches one by one")
+                    || details.summary.contains("Merge the branches one by one"),
+                "{details:?}"
+            );
+            let raw = format!("{}{}", details.stdout, details.stderr);
+            assert!(raw.contains("octopus"), "Git's own words are kept: {raw}");
+        }
+        other => panic!("expected a command failure, got {other:?}"),
+    }
+    assert_eq!(f.oid("HEAD").unwrap(), head);
+    assert_eq!(repo.state().unwrap(), RepoState::Clean);
+    let files = repo.worktree_files().unwrap();
+    assert!(
+        files.staged.is_empty() && files.unstaged.is_empty(),
+        "{files:?}"
+    );
+}
+
+#[test]
+fn an_octopus_of_fewer_than_two_sources_is_refused_before_git_is_started() {
+    let f = three_branches();
+    assert!(open(&f).merge_octopus(&octopus(&["a", " "])).is_err());
+}

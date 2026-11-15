@@ -1,6 +1,14 @@
 <script lang="ts">
   import PushBranchesDialog from "./PushBranchesDialog.svelte";
-  import { cherryPick, commitDetails, popupContextMenu, revertCommits, type RepoId } from "$lib/ipc";
+  import {
+    cherryPick,
+    commitDetails,
+    mergeInto,
+    mergeOctopus,
+    popupContextMenu,
+    revertCommits,
+    type RepoId,
+  } from "$lib/ipc";
   import { pushTo } from "$lib/ipc/ref-ops";
   import { shortOid } from "$lib/format";
   import { appDeleteHost } from "$lib/ref-delete-host";
@@ -19,6 +27,16 @@
     toggleSelected,
   } from "$lib/ref-selection";
   import { fullMessage } from "$lib/rewrite-plans";
+  import { askMerge } from "$lib/merge-choice";
+  import {
+    branchMergeSources,
+    commitMergeSource,
+    commitMergeSources,
+    octopusBlocked,
+    octopusMessage,
+    octopusQuestion,
+    type MergeSources,
+  } from "$lib/octopus";
   import { confirmation } from "$stores/confirm.svelte";
   import { errors } from "$stores/errors.svelte";
   import { graph } from "$stores/graph.svelte";
@@ -56,7 +74,51 @@
   /** `oids` in any order: what the menu needs is only that there are several. */
   export async function commitsContext(oids: readonly string[], x: number, y: number) {
     target = { kind: "commits", oids };
-    await popupContextMenu(commitSelectionMenu(), x, y).catch(() => {});
+    await popupContextMenu(commitSelectionMenu(octopusBlocked(commitSources(oids))), x, y).catch(() => {});
+  }
+
+  /** The branch HEAD is on, or null when it is detached. */
+  function headBranch(): string | null {
+    const head = repository.current?.head;
+    return head && head.kind !== "detached" ? head.name : null;
+  }
+
+  function commitSources(oids: readonly string[]): MergeSources {
+    const summary = repository.current;
+    const head = summary?.head;
+    return commitMergeSources(oids, head && head.kind !== "unborn" ? head.oid : null, (oid) =>
+      commitMergeSource(oid, summary?.branches ?? [], summary?.tags ?? []),
+    );
+  }
+
+  function refSources(nodes: readonly RefNode[]): MergeSources {
+    const summary = repository.current;
+    return branchMergeSources(nodes, summary?.branches ?? [], summary?.tags ?? []);
+  }
+
+  /** One source is the ordinary merge; several are one octopus merge commit (F-952). */
+  async function merge(id: RepoId, picked: MergeSources) {
+    const into = headBranch();
+    const only = picked.sources.length === 1 ? picked.sources[0] : undefined;
+    if (only) {
+      const way = await askMerge(id, only.rev, into ?? "HEAD");
+      if (!way) return;
+      await attempt("Could not merge", () => mergeInto(id, { source: only.rev, ...way, squash: false, message: null }));
+      await afterRefChange(id);
+      return;
+    }
+    if (picked.sources.length === 0) return;
+    const message = octopusMessage(picked.sources, into);
+    const answer = await confirmation.askWithOption(octopusQuestion(picked, into, message));
+    if (!answer.yes) return;
+    await attempt("Could not merge", () =>
+      mergeOctopus(id, {
+        sources: picked.sources.map((source) => source.rev),
+        noFastForward: answer.checked,
+        message,
+      }),
+    );
+    await afterRefChange(id);
   }
 
   export async function refsContext(nodes: readonly RefNode[], x: number, y: number) {
@@ -68,6 +130,7 @@
       hasRemote: network.remotes.length > 0,
       deletable: selectionDeletable(selectionDeletion(nodes, network.remotes)),
       toggle: nodes.some((node) => ticks.get(node.id)?.tickable) ? null : "nothing here is drawn in the graph",
+      merge: octopusBlocked(refSources(nodes)),
     });
     await popupContextMenu(items, x, y).catch(() => {});
   }
@@ -139,6 +202,9 @@
     if (!id || !at) return;
     if (at.kind === "commits") {
       switch (name) {
+        case "merge":
+          // Newest first, as the graph lists them: the parents and the message follow it.
+          return merge(id, commitSources(replayOrder(await rowsOf(at.oids), at.oids, "newest-first")));
         case "cherry-pick":
           return replay(id, at.oids, true);
         case "revert":
@@ -163,6 +229,8 @@
       return;
     }
     switch (name) {
+      case "merge":
+        return merge(id, refSources(at.nodes));
       case "push-to": {
         const locals = refPicks(at.nodes).locals.flatMap((node) =>
           node.branch ? [{ name: node.branch.name, upstream: node.branch.upstream ?? null }] : [],

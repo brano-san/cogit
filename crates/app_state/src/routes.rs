@@ -342,6 +342,7 @@ fn bisect_start(bad: &str, good: Option<&str>) -> Result<(), GitError> = local_b
     fn is_merged_into_head(rev: &str) -> Result<bool, git_engine::GitError> = local_is_merged_into_head;
     fn split_off(rev: &str, paths: &[String], message: &str, split_first: bool) -> Result<(), git_engine::GitError> = local_split_off;
     fn merge(options: &git_engine::MergeOptions) -> Result<(), git_engine::GitError> = local_merge;
+    fn merge_octopus(options: &git_engine::OctopusOptions) -> Result<(), git_engine::GitError> = local_merge_octopus;
     fn rebase(options: &git_engine::RebaseOptions) -> Result<(), git_engine::GitError> = local_rebase;
     fn skip_operation() -> Result<(), git_engine::GitError> = local_skip_operation;
     fn cherry_pick(commits: &[String]) -> Result<(), git_engine::GitError> = local_cherry_pick;

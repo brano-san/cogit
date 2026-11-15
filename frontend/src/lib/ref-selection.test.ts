@@ -102,22 +102,28 @@ describe("branchSelectionMenu", () => {
     hasRemote: true,
     deletable: true,
     toggle: null,
+    merge: null,
     ...over,
   });
   const byLabel = (items: ReturnType<typeof branchSelectionMenu>) =>
     new Map(items.filter((entry) => !entry.separator).map((entry) => [entry.label, entry]));
 
-  it("enables only Push To, Delete, Copy and Toggle", () => {
+  it("enables only Merge, Push To, Delete, Copy and Toggle", () => {
     const on = branchSelectionMenu(facts())
       .filter((entry) => !entry.separator && entry.enabled)
       .map((entry) => entry.label);
-    expect(on).toEqual(["Push To…", "Delete…", "Copy", "Toggle"]);
+    expect(on).toEqual(["Merge…", "Push To…", "Delete…", "Copy", "Toggle"]);
   });
 
   it("keeps the other items visible, off, with a reason", () => {
     const items = byLabel(branchSelectionMenu(facts()));
-    expect(items.get("Merge (several selected)")?.enabled).toBe(false);
+    expect(items.get("Squash Merge (several selected)")?.enabled).toBe(false);
     expect(items.get("Check Out (several selected)")?.enabled).toBe(false);
+  });
+
+  it("switches Merge off with the reason it cannot run", () => {
+    const items = byLabel(branchSelectionMenu(facts({ merge: "only the current branch" })));
+    expect(items.get("Merge… (only the current branch)")?.enabled).toBe(false);
   });
 
   it("gives Toggle its key", () => {
@@ -138,9 +144,10 @@ describe("branchSelectionMenu", () => {
 });
 
 describe("commitSelectionMenu", () => {
-  it("enables only the six that act on a group", () => {
-    const items = commitSelectionMenu().filter((entry) => !entry.separator);
+  it("enables only the seven that act on a group", () => {
+    const items = commitSelectionMenu(null).filter((entry) => !entry.separator);
     expect(items.filter((entry) => entry.enabled).map((entry) => entry.label)).toEqual([
+      "Merge…",
       "Cherry-Pick…",
       "Revert…",
       "Save as Patch…",
@@ -152,7 +159,7 @@ describe("commitSelectionMenu", () => {
   });
 
   it("has no doubled or edge separators", () => {
-    const items = commitSelectionMenu();
+    const items = commitSelectionMenu(null);
     expect(items[0]?.separator).toBe(false);
     expect(items.at(-1)?.separator).toBe(false);
     expect(items.some((entry, at) => entry.separator && items[at - 1]?.separator)).toBe(false);

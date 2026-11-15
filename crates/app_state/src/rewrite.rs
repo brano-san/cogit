@@ -243,6 +243,25 @@ impl AppState {
         result
     }
 
+    pub(crate) fn local_merge_octopus(
+        &self,
+        repo: RepoId,
+        options: &git_engine::OctopusOptions,
+    ) -> Result<(), git_engine::GitError> {
+        let _quiet = self.quiet(repo);
+        let handle = self.handle(repo)?;
+        let before = crate::safety::Before::head(&handle)?;
+        let result = handle.merge_octopus(options);
+        self.record_move(
+            repo,
+            &handle,
+            before,
+            format!("Merge {}", options.sources.join(", ")),
+            &result,
+        );
+        result
+    }
+
     pub(crate) fn local_rebase(
         &self,
         repo: RepoId,

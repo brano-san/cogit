@@ -477,6 +477,42 @@ fn undoing_a_merge_puts_the_branch_back_where_it_was() {
 }
 
 #[test]
+fn undoing_an_octopus_merge_puts_the_branch_back_where_it_was() {
+    let f = test_fixtures::linear(2).unwrap();
+    for (at, name) in [(30, "a"), (31, "b"), (32, "c")] {
+        f.git(&["switch", "-c", name, "main"]).unwrap();
+        f.commit_file(
+            at,
+            &format!("{name}.txt"),
+            "x
+",
+        )
+        .unwrap();
+    }
+    f.git(&["switch", "main"]).unwrap();
+    let (state, repo) = open(&f);
+    let before = head_oid(&state, repo);
+
+    state
+        .merge_octopus(
+            repo,
+            &git_engine::OctopusOptions {
+                sources: vec!["a".to_owned(), "b".to_owned(), "c".to_owned()],
+                no_fast_forward: true,
+                message: None,
+            },
+        )
+        .unwrap();
+    assert_ne!(head_oid(&state, repo), before);
+    assert!(f.path().join("c.txt").exists());
+
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(head_oid(&state, repo), before);
+    assert!(!f.path().join("c.txt").exists());
+}
+
+#[test]
 fn undoing_a_merge_moves_the_branch_back_after_the_user_left_it() {
     let f = test_fixtures::branched().unwrap();
     let (state, repo) = open(&f);

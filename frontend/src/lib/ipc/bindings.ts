@@ -390,6 +390,8 @@ export const commands = {
 	remember: boolean,
 } | null, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("fetch_depth", { repo, remote, depth, credential, onProgress })),
 	merge: (repo: RepoId, options: MergeOptions) => typedError<null, GitError>(__TAURI_INVOKE("merge", { repo, options })),
+	/**  Several branches into the current one (F-952). */
+	mergeOctopus: (repo: RepoId, options: OctopusOptions) => typedError<null, GitError>(__TAURI_INVOKE("merge_octopus", { repo, options })),
 	rebase: (repo: RepoId, options: RebaseOptions) => typedError<null, GitError>(__TAURI_INVOKE("rebase", { repo, options })),
 	skipOperation: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("skip_operation", { repo })),
 	cherryPick: (repo: RepoId, commits: string[]) => typedError<null, GitError>(__TAURI_INVOKE("cherry_pick", { repo, commits })),
@@ -2274,6 +2276,13 @@ export type NotesFetch = {
 export type NotificationClicked = {
 	repo: RepoId | null,
 	failed: boolean,
+};
+
+/**  Several heads merged into HEAD at once: one commit with a parent per source. */
+export type OctopusOptions = {
+	sources: string[],
+	noFastForward: boolean,
+	message: string | null,
 };
 
 /**
