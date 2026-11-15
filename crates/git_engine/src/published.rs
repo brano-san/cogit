@@ -135,7 +135,21 @@ impl RepoHandle {
         for id in tips {
             walk.add(&reader, id, false);
         }
-        walk.run(&reader)
+        walk.run(&reader, usize::MAX).unwrap_or_default()
+    }
+
+    /// `git rev-list <tip> --not <hidden>`, or `None` once more than `cap` commits are kept.
+    pub(crate) fn only_reachable_within(
+        &self,
+        tip: ObjectId,
+        hidden: ObjectId,
+        cap: usize,
+    ) -> Option<Vec<ObjectId>> {
+        let reader = crate::graph_walk::CommitReader::new(&self.repo);
+        let mut walk = Exclusion::default();
+        walk.add(&reader, hidden, true);
+        walk.add(&reader, tip, false);
+        walk.run(&reader, cap)
     }
 
     pub(crate) fn commit_of(&self, rev: &str) -> Option<ObjectId> {
@@ -234,7 +248,12 @@ impl Exclusion {
         }
     }
 
-    fn run(mut self, reader: &crate::graph_walk::CommitReader<'_>) -> Vec<ObjectId> {
+    /// `None` once more than `cap` commits are kept; one hidden later only makes it early.
+    fn run(
+        mut self,
+        reader: &crate::graph_walk::CommitReader<'_>,
+        cap: usize,
+    ) -> Option<Vec<ObjectId>> {
         let mut kept = Vec::new();
         let mut oldest_kept = i64::MAX;
         let mut slop = SLOP;
@@ -248,6 +267,9 @@ impl Exclusion {
             }
             if !hidden {
                 kept.push(id);
+                if kept.len() > cap {
+                    return None;
+                }
                 oldest_kept = time;
                 continue;
             }
@@ -263,7 +285,7 @@ impl Exclusion {
             }
         }
         kept.retain(|id| self.nodes.get(id).is_some_and(|node| !node.hidden));
-        kept
+        Some(kept)
     }
 }
 

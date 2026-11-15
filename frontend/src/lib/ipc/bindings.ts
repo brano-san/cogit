@@ -817,8 +817,10 @@ export const commands = {
 	 */
 	unpushedCommits: (repo: RepoId) => typedError<string[], GitError>(__TAURI_INVOKE("unpushed_commits", { repo })),
 	isMergedIntoHead: (repo: RepoId, rev: string) => typedError<boolean, GitError>(__TAURI_INVOKE("is_merged_into_head", { repo, rev })),
-	/**  After a pull: deletes merged branches whose upstream is gone; returns their names. */
-	deleteMergedBranches: (repo: RepoId) => typedError<string[], GitError>(__TAURI_INVOKE("delete_merged_branches", { repo })),
+	/**  After a pull: deletes merged branches whose upstream is gone; returns them and how merged. */
+	deleteMergedBranches: (repo: RepoId) => typedError<BranchMerge[], GitError>(__TAURI_INVOKE("delete_merged_branches", { repo })),
+	/**  Branches ▸ merged marks, by squash and rebase too (F-949). A read: a newer one stops it. */
+	branchMerges: (repo: RepoId) => typedError<BranchMerge[], GitError>(__TAURI_INVOKE("branch_merges", { repo })),
 	splitOff: (repo: RepoId, rev: string, paths: string[], message: string, splitFirst: boolean) => typedError<null, GitError>(__TAURI_INVOKE("split_off", { repo, rev, paths, message, splitFirst })),
 	rebaseTodo: (repo: RepoId, base: string) => typedError<TodoEntry[], GitError>(__TAURI_INVOKE("rebase_todo", { repo, base })),
 	interactiveRebase: (repo: RepoId, base: string, plan: TodoEntry[], paused: boolean) => typedError<null, GitError>(__TAURI_INVOKE("interactive_rebase", { repo, base, plan, paused })),
@@ -1098,6 +1100,13 @@ export type BranchDeletion = "deleted" |
 "notFullyMerged";
 
 export type BranchKind = "local" | "remote";
+
+export type BranchMerge = {
+	name: string,
+	/**  The tip judged, so an answer for a branch that moved since is not shown. */
+	oid: string,
+	kind: MergeKind,
+};
 
 /**
  *  Git records nothing about `--no-verify`, so Cogit keeps its own note per clone: in the
@@ -2195,6 +2204,10 @@ export type MaintenanceTask = "gc" | "commitGraph" | "clearGcLock" | "clearCommi
  *  runs the same code path the palette would.
  */
 export type MenuCommand = string;
+
+export type MergeKind = "merged" | "squash" | "rebase" | "notMerged" | 
+/**  More than [`MERGE_SCAN_CAP`] commits on a side since the merge base. */
+"notChecked";
 
 export type MergeOptions = {
 	source: string,

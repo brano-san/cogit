@@ -412,7 +412,13 @@ fn a_pull_forgets_a_branch_the_remote_deleted() {
         f.git(&["rev-parse", "--verify", "-q", "refs/remotes/origin/topic"])
             .is_err()
     );
-    assert_eq!(repo.merged_gone_branches().unwrap(), ["topic"]);
+    let gone = repo
+        .merged_gone_branches(&mut git_engine::MergeCache::default())
+        .unwrap();
+    assert_eq!(
+        gone.iter().map(|b| b.name.as_str()).collect::<Vec<_>>(),
+        ["topic"]
+    );
 }
 
 // Preferences ▸ Pull ▸ Merge ran a bare `git pull`: with no `pull.rebase` git 2.33+ refuses

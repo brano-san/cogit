@@ -302,6 +302,7 @@
       {/if}
 
       {#if node.status}<span class="status">{node.status}</span>{/if}
+      {#if node.merged}<span class="status merged" title={node.mergedHint}>{node.merged}</span>{/if}
 
       {#if node.branch && node.kind === "local" && (node.branch.ahead > 0 || node.branch.behind > 0) && !node.detail}
         <span class="track">

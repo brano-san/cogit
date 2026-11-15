@@ -131,6 +131,20 @@ describe("buildRefTree", () => {
     expect(node?.status).toBe("><origin");
   });
 
+  // F-949: a squash or rebase merge leaves no ancestry; the mark says which it was.
+  it("marks a local branch HEAD took in by squash, and drops the mark once the tip moves", () => {
+    const merges = [
+      { name: "topic", oid: OID, kind: "squash" as const },
+      { name: "moved", oid: "b".repeat(40), kind: "rebase" as const },
+    ];
+    const nodes = buildRefTree(input({ branches: [branch("topic"), branch("moved"), branch("plain")], merges }));
+    const topic = nodes.find((n) => n.id === "local:topic");
+    expect(topic?.merged).toBe("merged by squash");
+    expect(topic?.mergedHint).toContain("force");
+    expect(nodes.find((n) => n.id === "local:moved")?.merged).toBeUndefined();
+    expect(nodes.find((n) => n.id === "local:plain")?.merged).toBeUndefined();
+  });
+
   // F-040: the message and the date, as the stash list had them before the one tree (R-47).
   it("leads a stash with its date and time in gray, then its message, nothing on the right", () => {
     const made = new Date(2026, 8, 20, 17, 5).getTime() / 1000;

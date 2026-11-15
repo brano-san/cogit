@@ -205,18 +205,27 @@ impl AppState {
     }
 
     /// Pull ▸ Delete merged branches after Pull (#26). Each deletion is journalled, so
-    /// Undo brings a branch back; one that refuses is logged and the rest still go.
+    /// Undo brings a branch back; one that refuses is logged and the rest still go. One
+    /// merged by squash or rebase goes with `-D`, which `-d` would refuse (F-949).
     pub(crate) fn local_delete_merged_branches(
         &self,
         repo: RepoId,
-    ) -> Result<Vec<String>, git_engine::GitError> {
-        let names = self.handle(repo)?.merged_gone_branches()?;
-        let mut deleted = Vec::with_capacity(names.len());
-        for name in names {
-            match self.delete_branch(repo, &name, false) {
-                Ok(git_engine::BranchDeletion::Deleted) => deleted.push(name),
+    ) -> Result<Vec<git_engine::BranchMerge>, git_engine::GitError> {
+        let handle = self.handle(repo)?;
+        let merged = self.with_merge_cache(repo, |cache| handle.merged_gone_branches(cache))?;
+        let mut deleted = Vec::with_capacity(merged.len());
+        for branch in merged {
+            let name = &branch.name;
+            let title = match branch.kind {
+                git_engine::MergeKind::Squash => format!("Delete branch {name} (merged by squash)"),
+                git_engine::MergeKind::Rebase => format!("Delete branch {name} (merged by rebase)"),
+                _ => format!("Delete branch {name}"),
+            };
+            let force = branch.kind.needs_force();
+            match self.remove_branch(repo, name, force, Some(&branch.oid), title) {
+                Ok(git_engine::BranchDeletion::Deleted) => deleted.push(branch),
                 Ok(git_engine::BranchDeletion::NotFullyMerged) => {
-                    tracing::warn!(branch = %name, "kept a branch that is not fully merged");
+                    tracing::warn!(branch = %name, "kept a branch that is not fully merged or moved");
                 }
                 Err(err) => {
                     tracing::error!(error = ?err, branch = %name, context = "failed to delete a merged branch");

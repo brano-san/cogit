@@ -25,6 +25,7 @@
     sort: refs.sort,
     dates: refs.dates,
     worktrees: worktrees.entries,
+    merges: refs.merges,
   });
 
   // A re-read of the repository hands over new ref arrays, so a moved tip is re-dated; a
@@ -40,6 +41,15 @@
   $effect(() => {
     void [branches, tags];
     if (repo !== undefined) void refs.loadOthers(repo);
+  });
+  // A string, not the object: a status refresh that hands over a new one moved nothing.
+  const headOid = $derived.by(() => {
+    const head = repository.current?.head;
+    return head?.kind === "unborn" ? undefined : head?.oid;
+  });
+  $effect(() => {
+    void [branches, headOid];
+    if (repo !== undefined) void refs.loadMerges(repo);
   });
 </script>
 

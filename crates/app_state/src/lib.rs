@@ -23,6 +23,7 @@ pub mod legacy_dirs;
 pub mod licences;
 pub mod logging;
 pub mod merge_tool;
+mod merges;
 mod network;
 mod network_dialogs;
 mod password_store;
@@ -250,6 +251,10 @@ pub struct AppState {
     graph_generation: AtomicU32,
     graph: Arc<RwLock<graph_cache::GraphCache>>,
     reachable: parking_lot::Mutex<HashMap<RepoId, git_engine::Reachable>>,
+    /// Merged-by-patch answers per repository (F-949); taken out while a scan runs.
+    merges: parking_lot::Mutex<HashMap<RepoId, git_engine::MergeCache>>,
+    /// The newest `branch_merges`; an older one stops when this moves on.
+    merge_scan: AtomicU32,
     parked_reachable: parking_lot::Mutex<Vec<(std::path::PathBuf, git_engine::Reachable)>>,
     handles: handles::HandleCache,
     /// The fetch, pull or push running as each queue operation, for `cancel_network`.
@@ -311,6 +316,8 @@ impl AppState {
             graph_generation: AtomicU32::new(0),
             graph: Arc::new(RwLock::new(graph_cache::GraphCache::default())),
             reachable: parking_lot::Mutex::new(HashMap::new()),
+            merges: parking_lot::Mutex::new(HashMap::new()),
+            merge_scan: AtomicU32::new(0),
             parked_reachable: parking_lot::Mutex::new(Vec::new()),
             handles: handles::HandleCache::default(),
             network_runs: parking_lot::Mutex::new(HashMap::new()),

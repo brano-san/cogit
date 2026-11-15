@@ -220,7 +220,7 @@ impl RepoHandle {
         Ok(String::from_utf8_lossy_owned(stdout))
     }
 
-    fn read_bytes_fed(
+    pub(crate) fn read_bytes_fed(
         &self,
         args: &[&str],
         env: &[(&str, &str)],

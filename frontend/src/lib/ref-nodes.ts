@@ -1,4 +1,5 @@
-import type { Branch, CommitRow, Head, OtherRef, StashEntry, Tag, WorktreeEntry } from "$lib/ipc";
+import type { Branch, BranchMerge, CommitRow, Head, MergeKind, OtherRef, StashEntry, Tag, WorktreeEntry } from "$lib/ipc";
+import { marksByName, mergeHint, mergeMark } from "$lib/merged-branches";
 import { shortOid } from "$lib/format";
 import { compareDated, compareNames, DEFAULT_REF_SORT, type RefSort } from "$lib/ref-sort";
 import { upstreamStatus } from "$lib/upstream-status";
@@ -32,6 +33,9 @@ export interface RefNode {
   lead?: string;
   /** Gray, next to the name: how a local branch stands against its upstream. */
   status?: string;
+  /** Gray, next to the name: how HEAD took the branch in (F-949). */
+  merged?: string;
+  mergedHint?: string;
   /** What the backend should walk from; absent on groups and folders. */
   rev?: string;
   oid?: string;
@@ -66,9 +70,18 @@ export interface RefTreeInput {
   /** Tip dates by full ref name; only read while the sort goes by date (#20). */
   dates?: ReadonlyMap<string, number>;
   worktrees?: readonly WorktreeEntry[];
+  /** Local branches HEAD already has, as `branch_merges` last judged them. */
+  merges?: readonly BranchMerge[];
 }
 
 export type CheckState = "on" | "off" | "mixed";
+
+/** The mark and its tooltip, or nothing to spread. */
+function mergedOf(kind: MergeKind | undefined): Pick<RefNode, "merged" | "mergedHint"> {
+  if (kind === undefined) return {};
+  const merged = mergeMark(kind);
+  return merged === undefined ? {} : { merged, mergedHint: mergeHint(kind) };
+}
 
 /** Tag folders get an owner no remote can be called: a ref name cannot hold a colon. */
 const TAG_OWNER = ":tags";
@@ -215,6 +228,8 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
   });
 
   const held = worktreeMarks(input.worktrees ?? [], input.branches);
+  const localTips = input.branches.filter((branch) => branch.kind === "local").map((branch) => [branch.name, branch.oid] as const);
+  const marks = marksByName(input.merges ?? [], new Map(localTips));
   const localBranches = input.branches.filter((branch) => branch.kind === "local" && matches(branch.name, branch.oid, needle));
   const names = new Set(localBranches.some((branch) => branch.upstream !== null) ? input.branches.map((branch) => branch.name) : []);
   const locals = localBranches.map<RefNode>((branch) => ({
@@ -225,6 +240,7 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
       current: branch.isHead || undefined,
       detail: upstreamDetail(branch, names),
       status: upstreamStatus(upstreamRemote(branch), branch.ahead, branch.behind),
+      ...mergedOf(marks.get(branch.name)),
       rev: branch.fullName,
       oid: branch.oid,
       branch,

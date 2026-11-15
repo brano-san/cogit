@@ -74,12 +74,28 @@ impl AppState {
         name: &str,
         force: bool,
     ) -> Result<git_engine::BranchDeletion, git_engine::GitError> {
+        self.remove_branch(repo, name, force, None, format!("Delete branch {name}"))
+    }
+
+    /// `title`: its line in the Undo journal. `tip`: kept unless the branch is still there,
+    /// so a force delete judged on one commit never takes a newer one.
+    pub(crate) fn remove_branch(
+        &self,
+        repo: RepoId,
+        name: &str,
+        force: bool,
+        tip: Option<&str>,
+        title: String,
+    ) -> Result<git_engine::BranchDeletion, git_engine::GitError> {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let deleted = handle
             .branches_without_divergence()?
             .into_iter()
             .find(|branch| branch.name == name);
+        if tip.is_some_and(|tip| deleted.as_ref().is_none_or(|branch| branch.oid != tip)) {
+            return Ok(git_engine::BranchDeletion::NotFullyMerged);
+        }
         if let Some(branch) = &deleted {
             handle
                 .pin_for_undo(&branch.oid)
@@ -99,7 +115,7 @@ impl AppState {
 
         self.record(
             repo,
-            format!("Delete branch {name}"),
+            title,
             deleted.map_or(Recovery::None, |branch| Recovery::Branch {
                 name: name.to_owned(),
                 oid: branch.oid,

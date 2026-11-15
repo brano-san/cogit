@@ -20,9 +20,15 @@ impl RepoHandle {
         }
     }
 
-    /// Merged into HEAD, upstream deleted on the remote; not HEAD's nor another worktree's
-    /// branch, which `git branch -d` would refuse (R-211).
-    pub fn merged_gone_branches(&self) -> Result<Vec<String>> {
+    /// Merged into HEAD (also by squash or rebase, F-949), upstream deleted on the remote;
+    /// not HEAD's nor another worktree's branch, which `git branch -d` would refuse (R-211).
+    pub fn merged_gone_branches(
+        &self,
+        cache: &mut crate::MergeCache,
+    ) -> Result<Vec<crate::BranchMerge>> {
+        let Ok(head) = self.repo.head_id() else {
+            return Ok(Vec::new());
+        };
         let branches = self.branches_without_divergence()?;
         let remote: std::collections::HashSet<&str> = branches
             .iter()
@@ -30,7 +36,7 @@ impl RepoHandle {
             .map(|branch| branch.name.as_str())
             .collect();
 
-        let mut names: Vec<String> = branches
+        let gone: Vec<(&str, gix::ObjectId)> = branches
             .iter()
             .filter(|branch| branch.kind == crate::BranchKind::Local && !branch.is_head)
             .filter(|branch| {
@@ -39,11 +45,33 @@ impl RepoHandle {
                     .as_deref()
                     .is_some_and(|upstream| !remote.contains(upstream))
             })
-            .filter(|branch| self.is_merged_into_head(&branch.oid).unwrap_or(false))
-            .map(|branch| branch.name.clone())
+            .filter_map(|branch| {
+                let tip = gix::ObjectId::from_hex(branch.oid.as_bytes()).ok()?;
+                Some((branch.name.as_str(), tip))
+            })
             .collect();
-        if names.is_empty() {
-            return Ok(names);
+        if gone.is_empty() {
+            return Ok(Vec::new());
+        }
+        let tips: Vec<gix::ObjectId> = gone.iter().map(|(_, tip)| *tip).collect();
+        let kinds =
+            self.merge_kinds(head.detach(), &tips, crate::MERGE_SCAN_CAP, cache, &|| {
+                false
+            })?;
+        let mut merged: Vec<crate::BranchMerge> = gone
+            .into_iter()
+            .zip(kinds)
+            .filter_map(|((name, tip), kind)| {
+                let kind = kind.filter(|kind| kind.is_merged())?;
+                Some(crate::BranchMerge {
+                    name: name.to_owned(),
+                    oid: tip.to_string(),
+                    kind,
+                })
+            })
+            .collect();
+        if merged.is_empty() {
+            return Ok(merged);
         }
 
         let held: Vec<String> = self
@@ -51,7 +79,7 @@ impl RepoHandle {
             .into_iter()
             .filter_map(|entry| entry.branch)
             .collect();
-        names.retain(|name| !held.contains(name));
-        Ok(names)
+        merged.retain(|branch| !held.contains(&branch.name));
+        Ok(merged)
     }
 }

@@ -35,13 +35,13 @@ pub async fn stash_keeping_worktree(
     .await
 }
 
-/// After a pull: deletes merged branches whose upstream is gone; returns their names.
+/// After a pull: deletes merged branches whose upstream is gone; returns them and how merged.
 #[tauri::command]
 #[specta::specta]
 pub async fn delete_merged_branches(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,
-) -> Result<Vec<String>, GitError> {
+) -> Result<Vec<git_engine::BranchMerge>, GitError> {
     let app_state = state.state.clone();
     mutating(
         &state.state,
@@ -51,4 +51,15 @@ pub async fn delete_merged_branches(
         move || app_state.delete_merged_branches(repo),
     )
     .await
+}
+
+/// Branches ▸ merged marks, by squash and rebase too (F-949). A read: a newer one stops it.
+#[tauri::command]
+#[specta::specta]
+pub async fn branch_merges(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<Vec<git_engine::BranchMerge>, GitError> {
+    let app_state = state.state.clone();
+    blocking("branch_merges", move || app_state.branch_merges(repo)).await
 }

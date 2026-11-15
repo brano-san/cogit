@@ -113,6 +113,8 @@ export type {
   OperationPhase,
   BlameLine,
   Branch,
+  BranchMerge,
+  MergeKind,
   BranchKind,
   Bypass,
   ChangeKind,
@@ -1137,6 +1139,11 @@ export async function isMergedIntoHead(repo: RepoId, rev: string) {
 
 export async function deleteMergedBranches(repo: RepoId) {
   return unwrap(await commands.deleteMergedBranches(repo));
+}
+
+/** Branches ▸ merged marks, by squash and rebase too (F-949); a newer call stops this one. */
+export async function branchMerges(repo: RepoId) {
+  return unwrap(await commands.branchMerges(repo));
 }
 
 export async function splitOff(

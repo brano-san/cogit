@@ -1,7 +1,7 @@
 import { defaultVisible, type RefNode } from "$lib/ref-nodes";
 import { parseRefSort, type RefSort } from "$lib/ref-sort";
 import { recall, remember } from "$lib/session-memory";
-import { listRemotes, otherRefs, refDates, remoteUrl, type OtherRef, type RepoId } from "$lib/ipc";
+import { branchMerges, listRemotes, otherRefs, refDates, remoteUrl, type BranchMerge, type OtherRef, type RepoId } from "$lib/ipc";
 
 /** Per repository, so ticking `master` in one does not change what another shows. */
 const STORAGE_KEY = "cogit.visible-refs.v2";
@@ -56,6 +56,21 @@ class RefsStore {
   dates = $state.raw<ReadonlyMap<string, number>>(new Map());
   others = $state.raw<OtherRef[]>([]);
   #othersAsked = 0;
+  /** Local branches HEAD already has, also by squash or rebase (F-949), as last judged. */
+  merges = $state.raw<BranchMerge[]>([]);
+  #mergesAsked = 0;
+
+  /** Off the open's path: patch-ids cost git runs per branch the first time. A failed
+      read keeps the old marks; each is shown only while its branch is at the tip judged. */
+  async loadMerges(repo: RepoId): Promise<void> {
+    const asked = ++this.#mergesAsked;
+    try {
+      const found = await branchMerges(repo);
+      if (asked === this.#mergesAsked) this.merges = found;
+    } catch {
+      // No marks is what the Branches list showed before them.
+    }
+  }
 
   async loadOthers(repo: RepoId): Promise<void> {
     const asked = ++this.#othersAsked;
@@ -180,6 +195,8 @@ class RefsStore {
     this.dates = new Map();
     this.#othersAsked += 1;
     this.others = [];
+    this.#mergesAsked += 1;
+    this.merges = [];
   }
 }
 

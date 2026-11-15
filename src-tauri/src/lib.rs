@@ -421,6 +421,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::unpushed_commits,
             commands::toolbar::is_merged_into_head,
             commands::toolbar::delete_merged_branches,
+            commands::toolbar::branch_merges,
             commands::split_off,
             commands::rebase_todo,
             commands::interactive_rebase,

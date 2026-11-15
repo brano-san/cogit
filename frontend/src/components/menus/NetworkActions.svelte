@@ -2,7 +2,8 @@
   import PullDialog from "./PullDialog.svelte";
   import PushDialog from "./PushDialog.svelte";
   import { eachAtMost, FETCH_ALL_LANES } from "$lib/fetch-all";
-  import { deleteMergedBranches, fetchRemote, listRemotes, reportTiming, type Branch, type RepoId } from "$lib/ipc";
+  import { deleteMergedBranches, fetchRemote, listRemotes, reportTiming, type Branch, type BranchMerge, type RepoId } from "$lib/ipc";
+  import { deletedMergedText } from "$lib/merged-branches";
   import { networkDefaults, pushDryRun, saveNetworkDefaults, type PushOptions } from "$lib/ipc/network-dialogs";
   import {
     EMPTY_DEFAULTS,
@@ -144,7 +145,7 @@
         if (step.kind === "fetch") await network.fetch(id, step.remote);
         // Local changes kept where they are: the branch did not move, so neither does the rest.
         if (step.kind === "pull" && !(await pullWithDefaults(id, step.remote))) return;
-        if (step.kind === "deleteMerged") await deleteMergedBranches(id);
+        if (step.kind === "deleteMerged") deletedToast(await deleteMergedBranches(id));
         if (step.kind === "push") pushed = await network.push(id, step.remote, false);
       }
     });
@@ -171,6 +172,12 @@
   async function pullWithDefaults(id: RepoId, remote: string): Promise<boolean> {
     const options = pullOptionsOf(pullChoiceOf(await defaultsOf(id)));
     return pulledToast(await pullFlow(networkApi, flowUi, id, remote, options));
+  }
+
+  /** Added to what the pull said: which branches went, and which only by force (F-949). */
+  function deletedToast(deleted: BranchMerge[]) {
+    const text = deletedMergedText(deleted);
+    if (text !== null) successToast.show(successToast.text ? `${successToast.text}. ${text}` : text);
   }
 
   /** A gone upstream is the Errors window's warning, not a success (R-840). */

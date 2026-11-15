@@ -40,6 +40,7 @@ mod line_match;
 mod listing;
 mod mailmap;
 mod maintenance;
+mod merged_by_patch;
 mod merging;
 mod module_ops;
 mod network;
@@ -144,6 +145,7 @@ pub use listing::{
     BATCH, ContentMatch, MAX_SEARCH_BYTES, PREVIEW_CHARS, SearchRequest, SearchScope,
 };
 pub use mailmap::Mailmap;
+pub use merged_by_patch::{BranchMerge, MERGE_SCAN_CAP, MergeCache, MergeKind};
 pub use merging::MergeOptions;
 pub use module_ops::SubmoduleOp;
 pub use network::NetworkStop;

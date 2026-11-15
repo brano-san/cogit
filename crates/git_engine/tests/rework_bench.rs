@@ -132,3 +132,31 @@ fn c03_a_scan_beside_short_reads() {
         waits.len()
     );
 }
+
+/// F-949: the merged marks of every local branch, cold (patch-ids from git) and cached.
+/// `COGIT_BENCH_MERGES=<repository with many local branches>`.
+#[test]
+#[ignore = "needs COGIT_BENCH_MERGES"]
+fn f949_branch_merges() {
+    let Ok(path) = std::env::var("COGIT_BENCH_MERGES") else {
+        return;
+    };
+    let handle = RepoHandle::open_exact(Path::new(&path)).unwrap();
+    let mut cold = Vec::new();
+    let mut warm = Vec::new();
+    let mut found = 0;
+    for _ in 0..5 {
+        let mut cache = git_engine::MergeCache::default();
+        let started = Instant::now();
+        found = handle.branch_merges(&mut cache, &|| false).unwrap().len();
+        cold.push(started.elapsed());
+        let started = Instant::now();
+        handle.branch_merges(&mut cache, &|| false).unwrap();
+        warm.push(started.elapsed());
+    }
+    println!(
+        "F-949 branch_merges, {found} merged: cold median {:?}, cached median {:?}",
+        median(cold),
+        median(warm)
+    );
+}
