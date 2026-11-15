@@ -686,6 +686,10 @@ export const commands = {
 	readGitConfig: (repo: number | null, scope: ConfigScope) => typedError<ConfigFile, GitError>(__TAURI_INVOKE("read_git_config", { repo, scope })),
 	/**  Written only after `git config --file` has read the text back without complaint. */
 	writeGitConfig: (repo: number | null, scope: ConfigScope, text: string, crlf: boolean) => typedError<null, GitError>(__TAURI_INVOKE("write_git_config", { repo, scope, text, crlf })),
+	/**  Preferences ▸ Network (F-942): proxy and TLS keys of the user's global Git config. */
+	globalNetworkSettings: () => typedError<GlobalSetting[], GitError>(__TAURI_INVOKE("global_network_settings")),
+	/**  `None` or empty removes the key (`git config --global --unset-all`). */
+	setGlobalNetworkSetting: (key: string, value: string | null) => typedError<null, GitError>(__TAURI_INVOKE("set_global_network_setting", { key, value })),
 	/**  Stops a running read. `false` when it had already finished. */
 	cancelOperation: (id: number) => __TAURI_INVOKE<boolean>("cancel_operation", { id }),
 	/**  Everything queued or running, for a panel that has just been opened again (P1.5). */
@@ -1852,6 +1856,12 @@ export type GitProbe = {
 	error: string | null,
 	/**  `2.45` when the version works but is older than `MIN_GIT`: a warning, not a refusal. */
 	olderThan: string | null,
+};
+
+export type GlobalSetting = {
+	key: string,
+	/**  `None`: not set in the user's global config. */
+	value: string | null,
 };
 
 export type GraphOverlay = {

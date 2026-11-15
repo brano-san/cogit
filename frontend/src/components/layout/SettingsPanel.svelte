@@ -33,6 +33,7 @@
   import type { KeyBinding } from "$lib/ipc";
   import KeymapEditor from "$components/layout/KeymapEditor.svelte";
   import GraphField from "$components/layout/GraphField.svelte";
+  import NetworkSettings from "$components/layout/NetworkSettings.svelte";
   import ToolbarEditor from "$components/layout/ToolbarEditor.svelte";
   import { DEFAULT_LAYOUT } from "$lib/toolbar";
   import { LANE_WIDTH } from "$lib/graph-geometry";
@@ -666,6 +667,8 @@
               </div>
             {:else if field.key.startsWith("graph")}
               <GraphField {field} value={draft} onset={set} />
+            {:else if field.key === "network"}
+              <NetworkSettings />
             {:else if field.key === "toolbar"}
               <ToolbarEditor
                 layout={toolbarLayout}

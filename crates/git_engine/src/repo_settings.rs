@@ -22,6 +22,9 @@ pub const REPO_SETTING_KEYS: &[&str] = &[
     "rerere.enabled",
     "rerere.autoUpdate",
     "rebase.updateRefs",
+    "http.proxy",
+    "http.sslVerify",
+    "http.sslCAInfo",
     "cogit.tagGroupSeparator",
 ];
 

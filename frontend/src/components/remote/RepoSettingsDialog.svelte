@@ -65,6 +65,12 @@
     drafts = new Map(drafts).set(field.key, value === null ? null : normalise(field, value));
   }
 
+  async function browse(field: SettingField, title: string) {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const picked = await open({ title, multiple: false, directory: false });
+    if (typeof picked === "string") set(field, picked);
+  }
+
   async function save() {
     if (!read || saving || problem) return;
     const pending = changes(read, drafts);
@@ -121,17 +127,28 @@
       {:else}
         {#each shown as field (field.key)}
           <div class="row">
-            {#if field.control.kind === "text"}
+            {#if field.control.kind === "text" || field.control.kind === "path"}
+              {@const control = field.control}
               <label class="text">
                 <span class="label">{field.label}</span>
-                <input
-                  type="text"
-                  value={draftOf(field) ?? ""}
-                  placeholder={draftOf(field) === "" && field.empty
-                    ? field.empty
-                    : (inherited.get(field.key) ?? field.control.placeholder ?? field.fallback)}
-                  oninput={(event) => set(field, event.currentTarget.value)}
-                />
+                <span class="path">
+                  <input
+                    type="text"
+                    value={draftOf(field) ?? ""}
+                    placeholder={draftOf(field) === "" && field.empty
+                      ? field.empty
+                      : (inherited.get(field.key) ?? control.placeholder ?? field.fallback)}
+                    oninput={(event) => set(field, event.currentTarget.value)}
+                  />
+                  {#if control.kind === "path"}
+                    <button
+                      type="button"
+                      class="btn browse"
+                      aria-label={control.title}
+                      onclick={() => void browse(field, control.title)}>...</button
+                    >
+                  {/if}
+                </span>
               </label>
             {:else if field.control.kind === "bool"}
               {@const control = field.control}
@@ -257,6 +274,16 @@
 
   .label {
     font-weight: 600;
+  }
+
+  .path {
+    display: flex;
+    gap: var(--sp-2);
+  }
+
+  .path input {
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   fieldset {

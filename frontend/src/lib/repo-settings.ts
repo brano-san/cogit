@@ -3,7 +3,7 @@ import type { RepoSetting, RepoSettingChange } from "./ipc/remote-ops";
 /** Repository ▸ Settings (#42): the tabs, the options and where each one is kept. Every
     option lives in the repository's `.git/config`; `cogit.*` keys are Cogit's own there. */
 
-export type SettingTab = "user" | "fetch" | "push" | "merge" | "signing" | "encoding" | "tags";
+export type SettingTab = "user" | "fetch" | "push" | "merge" | "signing" | "encoding" | "network" | "tags";
 
 export const TABS: readonly (readonly [SettingTab, string])[] = [
   ["user", "User"],
@@ -12,11 +12,14 @@ export const TABS: readonly (readonly [SettingTab, string])[] = [
   ["merge", "Merge"],
   ["signing", "Signing"],
   ["encoding", "Encoding"],
+  ["network", "Network"],
   ["tags", "Tag-Grouping"],
 ];
 
 export type Control =
   | { kind: "text"; placeholder?: string }
+  /** Text with a Browse… button that picks a file. */
+  | { kind: "path"; placeholder?: string; title: string }
   /** `on`/`off` are what a tick writes; git's booleans are read in all their spellings. */
   | { kind: "bool"; on: string; off: string }
   | { kind: "choice"; options: readonly (readonly [string, string])[] };
@@ -34,6 +37,35 @@ export interface SettingField {
 }
 
 const BOOL: Control = { kind: "bool", on: "true", off: "false" };
+
+/** Proxy and TLS (F-942): here per repository, and in Preferences ▸ Network for the user's
+    global config. Git reads them for every https:// remote. */
+export const NETWORK_FIELDS: readonly SettingField[] = [
+  {
+    key: "http.proxy",
+    tab: "network",
+    label: "Proxy",
+    control: { kind: "text", placeholder: "http://proxy.example.com:8080" },
+    fallback: "",
+    hint: "[protocol://][user[:password]@]host[:port]. Empty: no proxy, or the one in http_proxy / https_proxy. Output and the log show the password as ***.",
+  },
+  {
+    key: "http.sslVerify",
+    tab: "network",
+    label: "Verify the server's TLS certificate",
+    control: BOOL,
+    fallback: "true",
+    hint: "Turn off only for a server you trust whose certificate git cannot check; anyone in between could then read and change what is sent.",
+  },
+  {
+    key: "http.sslCAInfo",
+    tab: "network",
+    label: "CA certificates file",
+    control: { kind: "path", placeholder: "Path of a .pem or .crt file", title: "Select CA Certificates File" },
+    fallback: "",
+    hint: "Certificates to check the server against, for a company proxy or a self-signed server. Empty: the ones git comes with. With http.sslBackend=schannel git ignores it unless http.schannelUseSSLCAInfo is on.",
+  },
+];
 
 export const FIELDS: readonly SettingField[] = [
   { key: "user.name", tab: "user", label: "Name", control: { kind: "text" }, fallback: "" },
@@ -178,6 +210,7 @@ export const FIELDS: readonly SettingField[] = [
     fallback: "false",
     hint: "A rebase also moves the other local branches that point at the commits it rewrites (--update-refs). The graph's own rebase plans keep their branches where they are.",
   },
+  ...NETWORK_FIELDS,
   {
     key: "cogit.tagGroupSeparator",
     tab: "tags",
@@ -219,7 +252,7 @@ export function effective(field: SettingField, draft: string | null, inherited: 
 /** Empty text means "not set here", so the inherited value applies again — unless the
     field gives empty a meaning of its own. */
 export function normalise(field: SettingField, value: string): string | null {
-  if (field.control.kind !== "text" || value.trim() !== "") return value;
+  if ((field.control.kind !== "text" && field.control.kind !== "path") || value.trim() !== "") return value;
   return field.empty === undefined ? null : "";
 }
 

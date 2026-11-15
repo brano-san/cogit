@@ -1,11 +1,12 @@
 import { DEFAULT_SETTINGS, needsRestart, type GraphColumn, type Settings } from "./settings";
 
-export type FieldKey = keyof Settings | "keymap" | "suppressions" | "toolbar";
+export type FieldKey = keyof Settings | "keymap" | "suppressions" | "toolbar" | "network";
 
 /** Rows that show something other than a setting: the keymap, the hidden-dialogs list,
-    the toolbar layout (kept with the toolbar's own choices). */
+    the toolbar layout (kept with the toolbar's own choices), the global Git config's
+    network keys (F-942). */
 export function isSetting(key: FieldKey): key is keyof Settings {
-  return key !== "keymap" && key !== "suppressions" && key !== "toolbar";
+  return key !== "keymap" && key !== "suppressions" && key !== "toolbar" && key !== "network";
 }
 
 export interface Field {
@@ -102,6 +103,23 @@ export const CATEGORIES: Category[] = [
     title: "Authentication",
     parent: "commands",
     groups: [{ title: "Sign-ins", fields: [] }],
+  },
+  {
+    id: "network",
+    title: "Network",
+    parent: "commands",
+    groups: [
+      {
+        title: "Proxy and TLS",
+        fields: [
+          {
+            key: "network",
+            label: "Proxy, TLS certificate check and CA certificates",
+            keywords: ["proxy", "http.proxy", "ssl", "tls", "https", "certificate", "sslverify", "sslcainfo", "ca", "pem"],
+          },
+        ],
+      },
+    ],
   },
   heading("ui", "User Interface"),
   {

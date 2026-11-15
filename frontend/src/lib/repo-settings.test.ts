@@ -41,6 +41,9 @@ const BACKEND_KEYS = [
   "rerere.enabled",
   "rerere.autoUpdate",
   "rebase.updateRefs",
+  "http.proxy",
+  "http.sslVerify",
+  "http.sslCAInfo",
   "cogit.tagGroupSeparator",
 ];
 
@@ -53,6 +56,7 @@ describe("repository settings", () => {
       "Merge",
       "Signing",
       "Encoding",
+      "Network",
       "Tag-Grouping",
     ]);
   });

@@ -115,3 +115,37 @@ fn an_argument_with_spaces_or_a_quote_is_written_as_sh_reads_it() {
         r"git commit -m 'it'\''s ok' 'a b' ''"
     );
 }
+
+// F-942: git takes a proxy without a scheme, so its password has no `://` to be found by.
+#[test]
+fn a_proxy_password_is_hidden_with_or_without_a_scheme() {
+    for value in [
+        "user:s3cret@proxy.example.com:8080",
+        "http://user:s3cret@proxy.example.com:8080",
+        "socks5://user:s3cret@proxy.example.com:1080",
+    ] {
+        for key in [
+            "http.proxy",
+            "http.https://example.com/.proxy",
+            "remote.origin.proxy",
+        ] {
+            let line = redact_command(&["config", "--global", "--replace-all", "--", key, value]);
+            assert!(!line.contains("s3cret"), "{line}");
+            assert!(line.contains("user:"), "{line}");
+            assert!(line.contains("proxy.example.com"), "{line}");
+        }
+        let line = redact_command(&["-c", &format!("http.proxy={value}"), "fetch"]);
+        assert!(!line.contains("s3cret"), "{line}");
+    }
+}
+
+#[test]
+fn a_proxy_without_credentials_and_other_values_are_left_alone() {
+    let line = redact_command(&["config", "http.proxy", "proxy.example.com:8080"]);
+    assert!(
+        line.ends_with("http.proxy proxy.example.com:8080"),
+        "{line}"
+    );
+    let line = redact_command(&["add", "--", "a.proxy", "b:c@d"]);
+    assert!(line.ends_with("b:c@d"), "{line}");
+}

@@ -187,3 +187,35 @@ fn a_camel_case_setting_says_where_it_comes_from() {
         .unwrap();
     assert_eq!(follow.scope.as_deref(), Some("local"));
 }
+
+// F-942: the repository's own proxy and TLS keys, over what the user's config says.
+#[test]
+fn proxy_and_tls_are_set_and_unset_in_the_repository() {
+    let f = test_fixtures::linear(1).unwrap();
+
+    open(&f)
+        .write_repo_settings(&[
+            change("http.proxy", Some("http://proxy.corp:3128")),
+            change("http.sslverify", Some("false")),
+            change("http.sslCAInfo", Some("C:/certs/corp.pem")),
+        ])
+        .unwrap();
+
+    assert_eq!(
+        local_config(&f, "http.proxy").as_deref(),
+        Some("http://proxy.corp:3128")
+    );
+    assert_eq!(
+        setting(&f, "http.sslVerify").local.as_deref(),
+        Some("false")
+    );
+    assert_eq!(
+        setting(&f, "http.sslCAInfo").local.as_deref(),
+        Some("C:/certs/corp.pem")
+    );
+
+    open(&f)
+        .write_repo_settings(&[change("http.proxy", None)])
+        .unwrap();
+    assert_eq!(local_config(&f, "http.proxy"), None);
+}

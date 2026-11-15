@@ -52,7 +52,7 @@ impl AppState {
     }
 
     /// Into the journal like any run, with no watcher to quieten: no repository yet.
-    fn unowned_sink(&self) -> git_engine::CommandSink {
+    pub(crate) fn unowned_sink(&self) -> git_engine::CommandSink {
         let journal = Arc::clone(&self.journal);
         let tap = Arc::clone(&self.command_tap);
         let events = self.events.clone();

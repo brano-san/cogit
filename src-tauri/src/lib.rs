@@ -369,6 +369,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::trust_directory,
             commands::read_git_config,
             commands::write_git_config,
+            commands::global_network_settings,
+            commands::set_global_network_setting,
             commands::cancel_operation,
             commands::list_operations,
             commands::read_settings,

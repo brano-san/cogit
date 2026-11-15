@@ -263,6 +263,34 @@ pub async fn write_git_config(
     }
 }
 
+/// Preferences ▸ Network (F-942): proxy and TLS keys of the user's global Git config.
+#[tauri::command]
+#[specta::specta]
+pub async fn global_network_settings(
+    state: tauri::State<'_, crate::AppContext>,
+) -> Result<Vec<git_engine::GlobalSetting>, GitError> {
+    let app_state = state.state.clone();
+    blocking("global_network_settings", move || {
+        app_state.global_network_settings()
+    })
+    .await
+}
+
+/// `None` or empty removes the key (`git config --global --unset-all`).
+#[tauri::command]
+#[specta::specta]
+pub async fn set_global_network_setting(
+    state: tauri::State<'_, crate::AppContext>,
+    key: String,
+    value: Option<String>,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    blocking("set_global_network_setting", move || {
+        app_state.set_global_network_setting(&key, value.as_deref())
+    })
+    .await
+}
+
 /// Run in the background after a repository opens; nothing in it changes the repository.
 #[tauri::command]
 #[specta::specta]

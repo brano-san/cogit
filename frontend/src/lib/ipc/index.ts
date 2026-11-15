@@ -95,6 +95,7 @@ export type {
   OsInfo,
   ConfigFile,
   ConfigScope,
+  GlobalSetting,
   HealthFinding,
   HealthIssue,
   IgnoreRule,
@@ -798,6 +799,16 @@ export async function writeGitConfig(
   return unwrap(
     await commands.writeGitConfig(repo === null ? null : repo.valueOf(), scope, text, crlf),
   );
+}
+
+/** Preferences ▸ Network (F-942): proxy and TLS keys of the user's global Git config. */
+export async function globalNetworkSettings() {
+  return unwrap(await commands.globalNetworkSettings());
+}
+
+/** `null` or empty removes the key from the global config. */
+export async function setGlobalNetworkSetting(key: string, value: string | null) {
+  return unwrap(await commands.setGlobalNetworkSetting(key, value));
 }
 
 /** The repository and every submodule below it; read-only apart from a probe file. */

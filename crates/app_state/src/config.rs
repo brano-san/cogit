@@ -55,6 +55,22 @@ impl AppState {
         git_engine::save_config(&self.config_target(repo, scope)?, text, crlf)
     }
 
+    /// Preferences ▸ Network (F-942): this machine's global config, also for WSL repositories.
+    pub fn global_network_settings(
+        &self,
+    ) -> Result<Vec<git_engine::GlobalSetting>, git_engine::GitError> {
+        git_engine::global_network_settings()
+    }
+
+    /// Into the journal like any run, with no repository of its own.
+    pub fn set_global_network_setting(
+        &self,
+        key: &str,
+        value: Option<&str>,
+    ) -> Result<(), git_engine::GitError> {
+        git_engine::set_global_setting(key, value, Some(&self.unowned_sink()))
+    }
+
     pub(crate) fn local_remote_url(
         &self,
         repo: RepoId,

@@ -566,9 +566,35 @@ const HIDDEN: &str = "<redacted>";
 pub fn redact_command(args: &[&str]) -> String {
     let parts: Vec<String> = args
         .iter()
-        .map(|arg| shell_word(&redact_arg(arg)))
+        .enumerate()
+        .map(|(at, arg)| {
+            let after_proxy_key = at
+                .checked_sub(1)
+                .is_some_and(|before| is_proxy_key(args[before]));
+            let shown = if after_proxy_key {
+                redact_proxy(arg)
+            } else {
+                redact_arg(arg)
+            };
+            shell_word(&shown)
+        })
         .collect();
     format!("git {}", parts.join(" "))
+}
+
+/// `http.proxy`, `http.<url>.proxy`, `remote.<name>.proxy`: its value may carry a password
+/// with no scheme in front, `user:secret@host:port` (F-942).
+fn is_proxy_key(key: &str) -> bool {
+    let lower = key.to_ascii_lowercase();
+    (lower.starts_with("http.") || lower.starts_with("remote.")) && lower.ends_with(".proxy")
+}
+
+/// git reads a proxy without a scheme as `http://`.
+fn redact_proxy(value: &str) -> String {
+    if value.contains("://") {
+        return redact_url(value);
+    }
+    crate::output_text::redact_authority("http", value, HIDDEN).unwrap_or_else(|| value.to_owned())
 }
 
 fn shell_word(arg: &str) -> String {
@@ -584,6 +610,11 @@ fn redact_arg(arg: &str) -> String {
         && key.to_ascii_lowercase().ends_with(".extraheader")
     {
         return format!("{key}={HIDDEN}");
+    }
+    if let Some((key, value)) = arg.split_once('=')
+        && is_proxy_key(key)
+    {
+        return format!("{key}={}", redact_proxy(value));
     }
     redact_url(arg)
 }

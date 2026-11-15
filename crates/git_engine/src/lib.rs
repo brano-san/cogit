@@ -42,6 +42,7 @@ mod maintenance;
 mod merging;
 mod module_ops;
 mod network;
+mod network_config;
 mod network_options;
 mod notes;
 mod operations;
@@ -142,6 +143,9 @@ pub use mailmap::Mailmap;
 pub use merging::MergeOptions;
 pub use module_ops::SubmoduleOp;
 pub use network::NetworkStop;
+pub use network_config::{
+    GlobalSetting, NETWORK_CONFIG_KEYS, global_network_settings, set_global_setting,
+};
 pub use network_options::{
     FetchOptions, NetworkDefaults, NotesFetch, PullMethod, PullOptions, Pulled, PushCommit,
     PushOptions, PushOutcome, PushPreview, TagsMode,

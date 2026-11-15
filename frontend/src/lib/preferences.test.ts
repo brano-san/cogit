@@ -351,3 +351,12 @@ describe("fillsPane", () => {
     }
   });
 });
+
+describe("network page (F-942)", () => {
+  it("is found by proxy and certificate words and holds no setting of Cogit's own", () => {
+    expect(firstMatch("proxy")).toBe("network");
+    expect(matchingCategories("sslverify")).toContain("network");
+    expect(isSetting("network")).toBe(false);
+    expect(restoreCategory(DEFAULT_SETTINGS, "network")).toEqual(DEFAULT_SETTINGS);
+  });
+});
