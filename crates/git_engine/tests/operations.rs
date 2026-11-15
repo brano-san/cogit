@@ -31,6 +31,24 @@ fn commands(log: &Log) -> Vec<String> {
 }
 
 #[test]
+fn staging_with_a_locked_index_reports_gits_error_without_changing_the_index() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::write(f.path().join("file0.txt"), "changed\n").unwrap();
+    let index = std::fs::read(f.git_dir().join("index")).unwrap();
+    std::fs::write(f.git_dir().join("index.lock"), "held").unwrap();
+
+    let error = open(&f).stage(&["file0.txt".to_owned()]).unwrap_err();
+
+    let git_engine::GitError::Command(error) = error else {
+        panic!("expected Git's error, got {error:?}");
+    };
+    assert!(error.stderr.contains("index.lock"), "{}", error.stderr);
+    assert!(error.stderr.contains("File exists"), "{}", error.stderr);
+    assert!(error.exit_code.is_some_and(|code| code != 0));
+    assert_eq!(std::fs::read(f.git_dir().join("index")).unwrap(), index);
+}
+
+#[test]
 fn aborting_a_merge_returns_the_repository_to_clean() {
     let f = test_fixtures::conflicted().unwrap();
     let repo = open(&f);
