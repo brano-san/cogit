@@ -88,6 +88,10 @@
     background: var(--surface-panel);
     /* A selected row is the stronger blue only while its panel has the keyboard. */
     --state-selected: var(--bg-selected-inactive);
+    /* The theme's stripe is set against the editor tone the graph sits on; on the panel tone
+       it vanished (Light and Light gray: one step off the panel), and Files and Repositories showed no banding.
+       Taken from the panel itself, it stands out as far as the graph's does in every theme. */
+    --row-stripe: color-mix(in srgb, var(--bg-panel), var(--fg-primary) 3%);
     border: 1px solid var(--divider);
     overflow: hidden;
   }
@@ -98,6 +102,7 @@
 
   .panel.editor {
     background: var(--surface-editor);
+    --row-stripe: var(--bg-row-stripe);
   }
 
   .panel-header {
