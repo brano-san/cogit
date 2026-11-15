@@ -1273,12 +1273,14 @@ ${event.error}`,
     // An empty list would commit every staged file, the hidden ones included.
     if (!id || scope.empty) return false;
 
-    if (amend && (await publishedOrAssume(isPublished(id, "HEAD")))) {
+    if (amend) {
+      const published = await publishedOrAssume(isPublished(id, "HEAD"));
       const go = await confirmation.ask({
-        title: "Amend a Published Commit",
-        message:
-          "This commit is already on a remote. Amending it gives it a new id, so the branch " +
-          "will need a force-push and anyone who pulled it will have to reset. Continue?",
+        title: published ? "Amend a Published Commit" : "Amend Commit",
+        message: published
+          ? "This commit is already on a remote. Amending it gives it a new id, so the branch " +
+            "will need a force-push and anyone who pulled it will have to reset. Continue?"
+          : "Replace the last commit with the staged changes and this message? Undo cannot bring the previous commit back.",
         confirm: "Amend",
         warning: true,
       });

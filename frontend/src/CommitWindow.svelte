@@ -299,7 +299,12 @@
     const out = leftOut(mode, ticked, worktree.staged, worktree.unstaged);
     if (selected.length > 0 && out.length > 0 && !(await ask(partialQuestion(out, pushAfter)))) return;
     const published = amend && !unborn && (await publishedOrAssume(isPublished(request.repo, "HEAD")));
-    if (published && !(await ask(AMEND_PUBLISHED))) return;
+    if (amend && !(await ask(published ? AMEND_PUBLISHED : {
+      title: "Amend Commit",
+      message: "Replace the last commit with the staged changes and this message? Undo cannot bring the previous commit back.",
+      confirm: "Amend",
+      warning: true,
+    }))) return;
     await run(pushAfter);
   }
 
