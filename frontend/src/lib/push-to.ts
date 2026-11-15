@@ -30,9 +30,13 @@ export function splitUpstream(
   upstream: string,
   remotes: readonly string[],
 ): { remote: string; branch: string } | null {
-  const owner = [...remotes]
-    .sort((a, b) => b.length - a.length)
-    .find((remote) => upstream.startsWith(`${remote}/`));
+  let owner: string | undefined;
+  for (const remote of remotes) {
+    if (
+      (owner === undefined || remote.length > owner.length) &&
+      upstream.startsWith(remote) && upstream[remote.length] === "/"
+    ) owner = remote;
+  }
   return owner ? { remote: owner, branch: upstream.slice(owner.length + 1) } : null;
 }
 

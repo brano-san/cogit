@@ -86,7 +86,9 @@ export function listedRows(entries: readonly WorktreeEntry[]): readonly Worktree
 
 /** The header's `Worktrees (N)`: the linked ones, as `git worktree list` minus the main. */
 export function linkedCount(entries: readonly WorktreeEntry[]): number {
-  return entries.filter((entry) => !entry.isMain).length;
+  let count = 0;
+  for (const entry of entries) if (!entry.isMain) count += 1;
+  return count;
 }
 
 /** What `git worktree prune` forgets: a registration whose folder is gone, unless it is

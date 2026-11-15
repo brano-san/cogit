@@ -1,5 +1,6 @@
 import type { Branch, ContextItem, Head, Tag } from "./ipc";
 import { SEPARATOR, offer, tidy } from "./context-menu";
+import { splitUpstream } from "./push-to";
 
 /** What the graph and Branches menus need to know about the commit they act on. */
 export interface CommitFacts {
@@ -364,8 +365,5 @@ export function tagNameOf(node: { label: string; rev?: string }): string {
 
 /** The local branch `git switch` makes for a remote one: `origin/topic` becomes `topic`. */
 export function localNameOf(remoteBranch: string, remotes: readonly string[]): string {
-  const owner = [...remotes]
-    .sort((a, b) => b.length - a.length)
-    .find((remote) => remoteBranch.startsWith(`${remote}/`));
-  return owner ? remoteBranch.slice(owner.length + 1) : remoteBranch.slice(remoteBranch.indexOf("/") + 1);
+  return splitUpstream(remoteBranch, remotes)?.branch ?? remoteBranch.slice(remoteBranch.indexOf("/") + 1);
 }

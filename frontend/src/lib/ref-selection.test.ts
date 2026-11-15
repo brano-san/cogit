@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildRefTree, type RefNode, type RefTreeInput } from "./ref-nodes";
+import { buildRefTree, leavesUnder, type RefNode, type RefTreeInput } from "./ref-nodes";
 import {
   branchSelectionMenu,
   commitSelectionMenu,
@@ -20,6 +20,26 @@ const local = (name: string, extra: Partial<RefNode> = {}) =>
 const remote = (name: string) =>
   node(`remote:${name}`, "remote", { branch: { name, kind: "remote" } as never, label: name.split("/")[1] as string });
 const tag = (name: string) => node(`tag:${name}`, "tag", { tag: { name } as never });
+
+it("preserves selection order and nested/disabled semantics for multi-row toggles", () => {
+  const tree = [
+    node("group", "group", { depth: 0 }), node("folder", "folder"),
+    local("a", { depth: 2 }), local("disabled", { depth: 2, disabled: "unavailable" }),
+    local("b", { depth: 2 }), node("another", "group", { depth: 0 }),
+    local("c"), node("no-rev", "other"),
+  ];
+  for (const ids of [["local:c", "folder", "local:a", "group", "absent"], ["no-rev"], ["another", "folder"], []]) {
+    const leaves = [...new Set(ids.flatMap((id) => leavesUnder(tree, id)))];
+    for (const visible of [new Set<string>(), new Set(leaves), new Set(["outside", "local:b"])]) {
+      const before = [...visible];
+      const expected = new Set(visible);
+      const on = leaves.every((leaf) => visible.has(leaf));
+      for (const leaf of leaves) { if (on) expected.delete(leaf); else expected.add(leaf); }
+      expect([...toggleSelected(tree, ids, visible)]).toEqual([...expected]);
+      expect([...visible]).toEqual(before);
+    }
+  }
+});
 
 describe("selectionDeletion", () => {
   it("leaves out the current branch and a worktree's, with the reason", () => {

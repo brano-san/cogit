@@ -2,7 +2,7 @@ import type { Branch, CommitRow, Head, OtherRef, StashEntry, Tag, WorktreeEntry 
 import { shortOid } from "$lib/format";
 import { compareDated, compareNames, DEFAULT_REF_SORT, type RefSort } from "$lib/ref-sort";
 import { upstreamStatus } from "$lib/upstream-status";
-import { upstreamGone, worktreeMarks, type WorktreeMark } from "$lib/worktree-list";
+import { worktreeMarks, type WorktreeMark } from "$lib/worktree-list";
 import { NO_FILTER_FOLDS, shownFolds, type FilterFolds } from "$lib/tree";
 
 export type RefKind =
@@ -73,12 +73,11 @@ export type CheckState = "on" | "off" | "mixed";
 /** Tag folders get an owner no remote can be called: a ref name cannot hold a colon. */
 const TAG_OWNER = ":tags";
 
-function matches(node: { label: string; oid?: string }, filter: string): boolean {
-  const needle = filter.trim().toLowerCase();
+function matches(label: string, oid: string | undefined, needle: string): boolean {
   if (needle === "") return true;
   return (
-    node.label.toLowerCase().includes(needle) ||
-    (node.oid ?? "").toLowerCase().startsWith(needle)
+    label.toLowerCase().includes(needle) ||
+    (oid ?? "").toLowerCase().startsWith(needle)
   );
 }
 
@@ -97,9 +96,9 @@ function upstreamRemote(branch: Branch): string | null {
 }
 
 /** Only a lost upstream is written out; the counts and status come from the branch. */
-function upstreamDetail(branch: Branch, branches: readonly Branch[]): string | undefined {
+function upstreamDetail(branch: Branch, names: ReadonlySet<string>): string | undefined {
   const remote = upstreamRemote(branch);
-  return remote !== null && upstreamGone(branch, branches) ? `${remote}: gone` : undefined;
+  return remote !== null && branch.upstream !== null && !names.has(branch.upstream) ? `${remote}: gone` : undefined;
 }
 
 interface Level {
@@ -200,6 +199,7 @@ function remoteOf(name: string, remotes: readonly string[]): string {
     is not built cannot be counted (R-158). Hiding is `flatten`'s job alone. */
 export function buildRefTree(input: RefTreeInput): RefNode[] {
   const rows: RefNode[] = [];
+  const needle = input.filter.trim().toLowerCase();
   const sort = input.sort ?? DEFAULT_REF_SORT;
   const dates = sort.dates === "off" ? undefined : input.dates;
   const nesting = (owner: string, separator = "/"): Nesting => ({ owner, separator, sort, dates });
@@ -215,22 +215,21 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
   });
 
   const held = worktreeMarks(input.worktrees ?? [], input.branches);
-  const locals = input.branches
-    .filter((branch) => branch.kind === "local")
-    .map<RefNode>((branch) => ({
+  const localBranches = input.branches.filter((branch) => branch.kind === "local" && matches(branch.name, branch.oid, needle));
+  const names = new Set(localBranches.some((branch) => branch.upstream !== null) ? input.branches.map((branch) => branch.name) : []);
+  const locals = localBranches.map<RefNode>((branch) => ({
       id: `local:${branch.name}`,
       kind: "local",
       label: branch.name,
       depth: 1,
       current: branch.isHead || undefined,
-      detail: upstreamDetail(branch, input.branches),
+      detail: upstreamDetail(branch, names),
       status: upstreamStatus(upstreamRemote(branch), branch.ahead, branch.behind),
       rev: branch.fullName,
       oid: branch.oid,
       branch,
       worktree: held.get(branch.name),
-    }))
-    .filter((node) => matches(node, input.filter));
+    }));
 
   if (locals.length > 0) {
     group(rows, "group:local", `Local Branches (${locals.length})`);
@@ -240,7 +239,7 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
   const remotes = new Map<string, RefNode[]>();
   const configured = input.remotes ?? [];
   for (const branch of input.branches) {
-    if (branch.kind !== "remote") continue;
+    if (branch.kind !== "remote" || !matches(branch.name, branch.oid, needle)) continue;
     const remote = remoteOf(branch.name, configured);
     const node: RefNode = {
       id: `remote:${branch.name}`,
@@ -251,7 +250,6 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
       oid: branch.oid,
       branch,
     };
-    if (!matches({ label: branch.name, oid: branch.oid }, input.filter)) continue;
     const bucket = remotes.get(remote);
     if (bucket) bucket.push(node);
     else remotes.set(remote, [node]);
@@ -276,6 +274,7 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
   }
 
   const tags = input.tags
+    .filter((tag) => matches(tag.name, tag.oid, needle))
     .map<RefNode>((tag) => ({
       id: `tag:${tag.name}`,
       kind: "tag",
@@ -286,8 +285,7 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
       tag,
       detail: tag.isAnnotated ? "annotated" : undefined,
       disabled: tag.pointsToCommit ? undefined : "Tag does not point to a commit",
-    }))
-    .filter((node) => matches(node, input.filter));
+    }));
   if (tags.length > 0) {
     group(rows, "group:tags", `Tags (${tags.length})`);
     nest(rows, tags, 1, nesting(TAG_OWNER, input.tagSeparator ?? "/"));
@@ -295,6 +293,7 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
 
   const others = (input.others ?? [])
     .filter((ref) => input.showPseudoRefs === true || !isPseudoRef(ref.fullName))
+    .filter((ref) => matches(ref.fullName.replace(/^refs\//, ""), ref.oid, needle))
     .map<RefNode>((ref) => ({
       id: `other:${ref.fullName}`,
       kind: "other",
@@ -302,14 +301,14 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
       depth: 1,
       rev: ref.fullName,
       oid: ref.oid,
-    }))
-    .filter((node) => matches(node, input.filter));
+    }));
   if (others.length > 0) {
     group(rows, "group:other", `Other Refs (${others.length})`);
     nest(rows, others, 1, nesting("other"));
   }
 
   const stashes = input.stashes
+    .filter((entry) => matches(entry.message, entry.oid, needle))
     .map<RefNode>((entry) => ({
       id: `stash:${entry.index}`,
       kind: "stash",
@@ -319,14 +318,14 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
       lead: leadDate(entry.timestamp),
       rev: `stash@{${entry.index}}`,
       oid: entry.oid,
-    }))
-    .filter((node) => matches(node, input.filter));
+    }));
   if (stashes.length > 0) {
     group(rows, "group:stashes", `Stashes (${stashes.length})`);
     rows.push(...stashes);
   }
 
   const lost = input.lost
+    .filter((row) => matches(row.summary, row.oid, needle))
     .map<RefNode>((row) => ({
       id: `lost:${row.oid}`,
       kind: "lost",
@@ -336,8 +335,7 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
       lead: leadDate(row.timestamp),
       rev: row.oid,
       oid: row.oid,
-    }))
-    .filter((node) => matches(node, input.filter));
+    }));
   if (lost.length > 0) {
     group(rows, "group:lost", `Lost Commits (${lost.length})`);
     rows.push(...lost);
@@ -369,12 +367,18 @@ export function foldsWhileFiltering(id: string, filter: string): boolean {
     that is not. `nodes` is the whole tree, never the rows on screen. */
 export function leavesUnder(nodes: readonly RefNode[], id: string): string[] {
   const at = nodes.findIndex((node) => node.id === id);
-  if (at < 0) return [];
+  return at < 0 ? [] : leavesAt(nodes, at);
+}
+
+/** `leavesUnder` for a row already located, so a caller holding an index skips the search. */
+export function leavesAt(nodes: readonly RefNode[], at: number): string[] {
   const node = nodes[at]!;
+  const id = node.id;
   if (node.kind !== "group" && node.kind !== "folder") return node.disabled ? [] : [id];
 
   const leaves: string[] = [];
-  for (const next of nodes.slice(at + 1)) {
+  for (let index = at + 1; index < nodes.length; index++) {
+    const next = nodes[index]!;
     if (next.depth <= node.depth) break;
     if (next.rev !== undefined && !next.disabled) leaves.push(next.id);
   }
@@ -387,7 +391,8 @@ export function checkState(
   visible: ReadonlySet<string>,
 ): CheckState {
   const leaves = leavesUnder(nodes, id);
-  const ticked = leaves.filter((leaf) => visible.has(leaf)).length;
+  let ticked = 0;
+  for (const leaf of leaves) if (visible.has(leaf)) ticked += 1;
   if (ticked === 0) return "off";
   return ticked === leaves.length ? "on" : "mixed";
 }

@@ -2,7 +2,7 @@ import type { ContextItem } from "./ipc";
 import { offer } from "./context-menu";
 import { groupVariant } from "./group-menu";
 import type { FolderDeletion } from "./folder-delete";
-import { leavesUnder, type RefNode } from "./ref-nodes";
+import { leavesAt, leavesUnder, type RefNode } from "./ref-nodes";
 import { REF_MENU_PREFIX, branchesBranchMenu, graphCommitMenu, type CommitFacts } from "./ref-menus";
 import { splitUpstream } from "./push-to";
 
@@ -23,10 +23,25 @@ export function toggleSelected(
   ids: readonly string[],
   visible: ReadonlySet<string>,
 ): Set<string> {
-  const leaves = [...new Set(ids.flatMap((each) => leavesUnder(tree, each)))];
+  if (ids.length === 0) return new Set(visible);
+  const leaves = new Set<string>();
+  if (ids.length === 1) {
+    for (const leaf of leavesUnder(tree, ids[0]!)) leaves.add(leaf);
+  } else {
+    // Index once for a multi-selection. Keep selection order (including nested groups),
+    // but do not rescan the whole tree to locate every selected leaf.
+    const positions = new Map<string, number>();
+    for (let at = 0; at < tree.length; at++) if (!positions.has(tree[at]!.id)) positions.set(tree[at]!.id, at);
+    for (const id of ids) {
+      const at = positions.get(id);
+      if (at === undefined) continue;
+      for (const leaf of leavesAt(tree, at)) leaves.add(leaf);
+    }
+  }
   const next = new Set(visible);
-  if (leaves.length === 0) return next;
-  const allOn = leaves.every((leaf) => visible.has(leaf));
+  if (leaves.size === 0) return next;
+  let allOn = true;
+  for (const leaf of leaves) if (!visible.has(leaf)) { allOn = false; break; }
   for (const leaf of leaves) {
     if (allOn) next.delete(leaf);
     else next.add(leaf);
@@ -43,11 +58,13 @@ export interface RefPicks {
 /** The refs among the selected rows; headings, folders, stashes and HEAD are not refs to
     delete, push or copy. `origin/HEAD` is a pointer, not a branch. */
 export function refPicks(nodes: readonly RefNode[]): RefPicks {
-  return {
-    locals: nodes.filter((node) => node.kind === "local" && node.branch !== undefined),
-    remotes: nodes.filter((node) => node.kind === "remote" && node.branch !== undefined && node.label !== "HEAD"),
-    tags: nodes.filter((node) => node.kind === "tag" && node.tag !== undefined),
-  };
+  const picks: RefPicks = { locals: [], remotes: [], tags: [] };
+  for (const node of nodes) {
+    if (node.kind === "local" && node.branch !== undefined) picks.locals.push(node);
+    else if (node.kind === "remote" && node.branch !== undefined && node.label !== "HEAD") picks.remotes.push(node);
+    else if (node.kind === "tag" && node.tag !== undefined) picks.tags.push(node);
+  }
+  return picks;
 }
 
 /** What Delete takes of the selection: the current branch and those checked out in another
@@ -69,7 +86,9 @@ export function selectionDeletion(nodes: readonly RefNode[], remotes: readonly s
   for (const node of picks.remotes) {
     const name = (node.branch as { name: string }).name;
     const remote = splitUpstream(name, remotes)?.remote ?? name.split("/")[0] ?? name;
-    byRemote.set(remote, [...(byRemote.get(remote) ?? []), name]);
+    const names = byRemote.get(remote);
+    if (names) names.push(name);
+    else byRemote.set(remote, [name]);
   }
   for (const [remote, names] of byRemote) plans.push({ kind: "remoteBranch", remote, names, skipped: [] });
 
@@ -85,8 +104,9 @@ const NOUN = {
 } as const;
 
 export function selectionQuestion(plans: readonly FolderDeletion[]): string {
-  const total = (kind: FolderDeletion["kind"]) =>
-    plans.filter((plan) => plan.kind === kind).reduce((sum, plan) => sum + plan.names.length, 0);
+  const counts = { branch: 0, remoteBranch: 0, tag: 0 };
+  for (const plan of plans) counts[plan.kind] += plan.names.length;
+  const total = (kind: FolderDeletion["kind"]) => counts[kind];
   const parts = (["branch", "remoteBranch", "tag"] as const)
     .map((kind) => [kind, total(kind)] as const)
     .filter(([, count]) => count > 0)
