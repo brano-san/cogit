@@ -130,11 +130,16 @@ export class GraphOverlayStore {
   /** The paint shown until `view`'s is in: all of it under another request for the same
       walk, and the blocks a new walk repeats row for row, so neither flashes grey. */
   #kept(walk: string, view: OverlayView): Map<number, GraphOverlay> {
-    const last = new Map([...this.#stale, ...this.#blocks]);
-    if (walk === this.#walk) return last;
-    const follows = view.base !== null && this.#walk === JSON.stringify([view.repo, view.base]);
-    if (!follows) return new Map();
-    return new Map([...last].filter(([index]) => (index + 1) * BLOCK <= view.kept));
+    const same = walk === this.#walk;
+    const follows = !same && view.base !== null && this.#walk === JSON.stringify([view.repo, view.base]);
+    const last = new Map<number, GraphOverlay>();
+    if (!same && !follows) return last;
+    for (const source of [this.#stale, this.#blocks]) {
+      for (const [index, block] of source) {
+        if (same || (index + 1) * BLOCK <= view.kept) last.set(index, block);
+      }
+    }
+    return last;
   }
 
   #fill(): void {
