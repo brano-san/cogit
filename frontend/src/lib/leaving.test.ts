@@ -9,6 +9,7 @@ const { hooks } = await import("$stores/hooks.svelte");
 const { remoteOps } = await import("$stores/remote-ops.svelte");
 const { refDialogs } = await import("$stores/ref-dialogs.svelte");
 const { remoteDialogs } = await import("$stores/remote-dialogs.svelte");
+const { patches } = await import("$stores/patches.svelte");
 const { leaveRepositoryDialogs } = await import("./leaving");
 
 // Every one of these was asked about the repository on screen; once the panels show
@@ -76,5 +77,14 @@ describe("leaving a repository", () => {
     leaveRepositoryDialogs();
 
     expect(remoteDialogs.adding).toBe(false);
+  });
+
+  // F-948: a patch chosen for A must not be applied to B.
+  it("closes Apply Patch", () => {
+    patches.applying = true;
+
+    leaveRepositoryDialogs();
+
+    expect(patches.applying).toBe(false);
   });
 });
