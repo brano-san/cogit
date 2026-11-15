@@ -107,6 +107,8 @@ const REMOTE: &[Entry] = &[
     Entry::Item("push", "Push", Some("CmdOrCtrl+Shift+O")),
     Entry::Item("synchronize", "Synchronize", Some("CmdOrCtrl+Shift+S")),
     Entry::Separator,
+    Entry::Item("add-remote", "Add Remote…", None),
+    Entry::Separator,
     Entry::Nested("Submodule", SUBMODULE),
     Entry::Nested("Subtree", SUBTREE),
     Entry::Nested("LFS", LFS),

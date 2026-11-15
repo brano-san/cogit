@@ -190,6 +190,7 @@ fn commands_that_write_the_repository_wait_for_its_lane() {
         "move_to_trash",
         "install_preset",
         "run_hook",
+        "add_remote",
         "rename_remote",
         "remove_remote",
         "set_remote_properties",

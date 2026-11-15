@@ -137,3 +137,29 @@ fn a_pull_on_a_branch_without_upstream_fetches_every_remote() {
         "a fetch moves no branch, so Undo has nothing to take back"
     );
 }
+
+// F-941: Branches lists the remote from the state's own handle, opened before the add.
+#[test]
+fn an_added_remote_is_listed_at_once_and_its_command_is_in_the_journal() {
+    let f = test_fixtures::with_remote().unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    assert_eq!(state.remotes(repo).unwrap(), vec!["origin".to_owned()]);
+    let url = state.remote_info(repo, "origin").unwrap().url.unwrap();
+
+    state.add_remote(repo, "mirror", &url).unwrap();
+
+    assert_eq!(
+        state.remotes(repo).unwrap(),
+        vec!["mirror".to_owned(), "origin".to_owned()]
+    );
+    let log = state.command_log();
+    assert!(
+        log.iter()
+            .any(|entry| entry.command.starts_with("git remote add mirror ")),
+        "{:?}",
+        log.iter().map(|entry| &entry.command).collect::<Vec<_>>()
+    );
+    let err = state.add_remote(repo, "mirror", &url).unwrap_err();
+    assert!(err.to_string().contains("already"), "{err}");
+}

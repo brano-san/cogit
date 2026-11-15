@@ -1,4 +1,4 @@
-//! A remote's own menu in Branches: Properties, Rename, Delete (#19 of 25.09).
+//! A remote's own menu in Branches: Properties, Rename, Delete (#19 of 25.09), Add (F-941).
 
 use crate::{GitError, RepoHandle, Result};
 use serde::{Deserialize, Serialize};
@@ -67,6 +67,34 @@ impl RepoHandle {
             return Ok(());
         }
         self.run_git(&["config", "--unset-all", &key]).map(drop)
+    }
+
+    /// `git remote add`. Refused here what git would refuse less plainly: a name taken or
+    /// one `refs/remotes/<name>/…` cannot carry, a URL git would read as an option.
+    pub fn add_remote(&self, name: &str, url: &str) -> Result<()> {
+        let (name, url) = (name.trim(), url.trim());
+        if name.is_empty() {
+            return Err(GitError::InvalidState(
+                "Enter a name for the remote.".to_owned(),
+            ));
+        }
+        if self.remotes()?.iter().any(|remote| remote == name) {
+            return Err(GitError::InvalidState(format!(
+                "There is a remote {name} already."
+            )));
+        }
+        let probe = format!("refs/remotes/{name}/HEAD");
+        if name.starts_with('-') || gix::validate::reference::name(probe.as_str().into()).is_err() {
+            return Err(GitError::InvalidState(format!(
+                "{name:?} is not a valid remote name."
+            )));
+        }
+        if url.is_empty() || url.starts_with('-') {
+            return Err(GitError::InvalidState(format!(
+                "{url:?} is not a URL or a path git can use."
+            )));
+        }
+        self.run_git(&["remote", "add", name, url]).map(drop)
     }
 
     /// `git remote rename`: its remote branches, the upstreams naming it and its own

@@ -345,6 +345,7 @@ export const commands = {
 	 */
 	cancelNetwork: (operation: number) => typedError<boolean, GitError>(__TAURI_INVOKE("cancel_network", { operation })),
 	remoteInfo: (repo: RepoId, name: string) => typedError<RemoteInfo, GitError>(__TAURI_INVOKE("remote_info", { repo, name })),
+	addRemote: (repo: RepoId, name: string, url: string) => typedError<null, GitError>(__TAURI_INVOKE("add_remote", { repo, name, url })),
 	renameRemote: (repo: RepoId, from: string, to: string) => typedError<null, GitError>(__TAURI_INVOKE("rename_remote", { repo, from, to })),
 	removeRemote: (repo: RepoId, name: string) => typedError<null, GitError>(__TAURI_INVOKE("remove_remote", { repo, name })),
 	setRemoteProperties: (repo: RepoId, name: string, url: string, backgroundFetch: boolean) => typedError<null, GitError>(__TAURI_INVOKE("set_remote_properties", { repo, name, url, backgroundFetch })),

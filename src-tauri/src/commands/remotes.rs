@@ -1,4 +1,4 @@
-//! A remote's own menu in Branches: Properties, Rename, Delete, Fetch More, Set Depth (M5).
+//! A remote's own menu in Branches: Properties, Add, Rename, Delete, Fetch More, Set Depth (M5).
 
 use super::{blocking, mutating_titled};
 use app_state::{OperationKind, RepoId};
@@ -13,6 +13,26 @@ pub async fn remote_info(
 ) -> Result<RemoteInfo, GitError> {
     let app_state = state.state.clone();
     blocking("remote_info", move || app_state.remote_info(repo, &name)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn add_remote(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    name: String,
+    url: String,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    mutating_titled(
+        &state.state,
+        repo,
+        OperationKind::Other,
+        "Adding the remote",
+        "add_remote",
+        move || app_state.add_remote(repo, &name, &url),
+    )
+    .await
 }
 
 #[tauri::command]

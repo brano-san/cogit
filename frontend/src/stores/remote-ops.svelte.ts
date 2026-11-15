@@ -45,6 +45,7 @@ export interface RemoteHost {
   /** The refresh every change to the repository ends with. */
   changed: () => Promise<void>;
   synchronize: () => void;
+  addRemote: () => void;
   repoSettings: () => void;
 }
 
@@ -110,6 +111,7 @@ class RemoteOpsStore {
   actions(host: RemoteHost): RemoteMenuActions {
     return {
       synchronize: host.synchronize,
+      addRemote: host.addRemote,
       repoSettings: host.repoSettings,
       submodule: (action) => void this.#submodule(action, host),
       subtree: (action) => void this.#subtree(action, host),

@@ -68,4 +68,13 @@ describe("leaving a repository", () => {
 
     expect(remoteDialogs.properties).toBeNull();
   });
+
+  // F-941: a remote typed for A must not be added to B.
+  it("closes Add Remote", () => {
+    remoteDialogs.adding = true;
+
+    leaveRepositoryDialogs();
+
+    expect(remoteDialogs.adding).toBe(false);
+  });
 });

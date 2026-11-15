@@ -97,6 +97,7 @@
   import RepoSettingsDialog from "$components/remote/RepoSettingsDialog.svelte";
   import { remoteCommands, submoduleScope } from "$lib/remote-menu";
   import { remoteOps } from "$stores/remote-ops.svelte";
+  import { remoteDialogs } from "$stores/remote-dialogs.svelte";
   import RemoveFilesDialog from "$components/file-list/RemoveFilesDialog.svelte";
   import IndexEditorDialog from "$components/file-list/IndexEditorDialog.svelte";
   import { openInvestigate } from "$lib/investigate/open";
@@ -776,6 +777,7 @@
     files: () => pickedFiles,
     changed: afterRefChange,
     synchronize: () => void networkActions?.syncNow(),
+    addRemote: () => (remoteDialogs.adding = true),
     repoSettings: () => (repoSettingsOpen = true),
   });
 

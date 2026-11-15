@@ -100,6 +100,44 @@ fn a_rename_moves_the_remote_branches_and_the_upstreams() {
 }
 
 #[test]
+fn an_added_remote_is_listed_with_its_url_and_fetches() {
+    let f = test_fixtures::with_remote().unwrap();
+    let url = origin_url(&f);
+
+    open(&f)
+        .add_remote(" mirror ", &format!(" {url} "))
+        .unwrap();
+
+    let info = open(&f).remote_info("mirror").unwrap();
+    assert_eq!(info.url.as_deref(), Some(url.as_str()));
+    open(&f).fetch_more("mirror", no_token, |_| {}).unwrap();
+    assert!(refs_under(&f, "refs/remotes/mirror").contains(&"refs/remotes/mirror/main".to_owned()));
+}
+
+#[test]
+fn a_remote_is_not_added_under_a_name_taken_or_git_cannot_use() {
+    let f = test_fixtures::with_remote().unwrap();
+    let url = origin_url(&f);
+    let handle = open(&f);
+
+    for (name, said) in [
+        ("", "Enter a name"),
+        ("origin", "already"),
+        ("two words", "not a valid remote name"),
+        ("a..b", "not a valid remote name"),
+        ("-x", "not a valid remote name"),
+        ("ends.lock", "not a valid remote name"),
+    ] {
+        let err = handle.add_remote(name, &url).unwrap_err();
+        assert!(err.to_string().contains(said), "{name:?}: {err}");
+    }
+    for url in ["", "  ", "--upload-pack=evil"] {
+        assert!(handle.add_remote("mirror", url).is_err(), "{url:?}");
+    }
+    assert_eq!(open(&f).remotes().unwrap(), vec!["origin".to_owned()]);
+}
+
+#[test]
 fn a_deleted_remote_takes_its_remote_branches_with_it() {
     let f = test_fixtures::with_remote().unwrap();
 

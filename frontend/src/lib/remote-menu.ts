@@ -2,7 +2,7 @@ import type { PaletteCommand } from "./palette";
 import type { Submodule } from "./ipc";
 import { moduleKey } from "./module-tree";
 
-/** Remote ▸ Synchronise, Submodule, Subtree and LFS, and Repository ▸ Settings (#42, #45,
+/** Remote ▸ Synchronise, Add Remote, Submodule, Subtree and LFS, and Repository ▸ Settings (#42, #45,
     #46): what each is called, when it is offered and why not. Ids are the native menu's. */
 
 export type SubmoduleAction =
@@ -32,6 +32,7 @@ export interface RemoteMenuContext {
 
 export interface RemoteMenuActions {
   synchronize: () => void;
+  addRemote: () => void;
   submodule: (action: SubmoduleAction) => void;
   subtree: (action: SubtreeAction) => void;
   lfs: (action: LfsAction) => void;
@@ -109,6 +110,13 @@ export function remoteCommands(
           ? context.syncBlocked
           : "This repository has no remote",
       run: actions.synchronize,
+    },
+    {
+      id: "add-remote",
+      title: "Add Remote…",
+      synonyms: ["git remote add", "new remote", "origin", "upstream", "url"],
+      unavailable: context.repository ? undefined : NO_REPOSITORY,
+      run: actions.addRemote,
     },
     ...SUBMODULE_ITEMS.map(([id, action, label]) => ({
       id,

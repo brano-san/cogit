@@ -26,6 +26,7 @@ const OPEN: RemoteMenuContext = {
 function actions(): RemoteMenuActions {
   return {
     synchronize: vi.fn(),
+    addRemote: vi.fn(),
     submodule: vi.fn(),
     subtree: vi.fn(),
     lfs: vi.fn(),
@@ -39,6 +40,7 @@ function reasons(context: RemoteMenuContext): Record<string, string | undefined>
 
 const MENU_IDS = [
   "synchronize",
+  "add-remote",
   "submodule-init",
   "submodule-sync",
   "submodule-reset",

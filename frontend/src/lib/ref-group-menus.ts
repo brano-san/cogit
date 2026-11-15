@@ -67,6 +67,7 @@ export function remoteMenu(facts: RemoteFacts): ContextItem[] {
     offer(id("fetch"), "Fetch", gone),
     offer(id("fetch-more"), "Fetch More", gone),
     SEPARATOR,
+    offer(id("add-remote"), "Add Remote…", null),
     offer(id("rename"), "Rename…", gone),
     offer(id("delete"), "Delete", gone),
     SEPARATOR,
@@ -99,4 +100,13 @@ export function depthProblem(value: string): string | null {
   const depth = Number(text);
   if (!/^\d+$/.test(text) || depth < 1 || depth > MAX_DEPTH) return "Enter a number of commits, 1 or more.";
   return null;
+}
+
+/** Add Remote… (F-941): the name as Rename checks it, and a URL git will not read as an option. */
+export function addRemoteProblem(name: string, url: string, taken: readonly string[]): string | null {
+  const named = remoteNameProblem(name, taken, "");
+  if (named !== null) return named;
+  const where = url.trim();
+  if (where === "") return "Enter the URL or path of the remote.";
+  return where.startsWith("-") ? "Git will refuse that URL." : null;
 }

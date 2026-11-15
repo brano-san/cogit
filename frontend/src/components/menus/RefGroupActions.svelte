@@ -1,7 +1,9 @@
 <script lang="ts">
+  import AddRemoteDialog from "./AddRemoteDialog.svelte";
   import RemotePropertiesDialog from "./RemotePropertiesDialog.svelte";
   import { createBranch, popupContextMenu, type ContextItem, type RepoId } from "$lib/ipc";
   import {
+    addRemote,
     fetchDepth,
     fetchMore,
     remoteInfo,
@@ -173,6 +175,9 @@
         return deleteFolder(id, at.node);
       case "add-tag":
         return addTag();
+      case "add-remote":
+        remoteDialogs.adding = true;
+        return;
     }
     if (!facts) return;
     const remote = facts.remote;
@@ -289,6 +294,19 @@
     await afterFetch(id);
   }
 
+  /** The remote is there even when its fetch fails: the failure is reported on its own. */
+  async function add(name: string, url: string, andFetch: boolean) {
+    const id = repository.current?.repo;
+    remoteDialogs.adding = false;
+    if (!id) return;
+    const added = await attempt("Could not add the remote", () => addRemote(id, name, url));
+    void refs.loadUrls(id);
+    await afterRefChange(id);
+    if (!added || !andFetch) return;
+    await attempt(`Could not fetch ${name}`, () => network.fetch(id, name));
+    await afterFetch(id);
+  }
+
   async function rename(id: RepoId, remote: string) {
     const to = await prompt.ask({
       title: `Rename ${remote}`,
@@ -338,6 +356,14 @@
     await afterRefChange(id);
   }
 </script>
+
+{#if remoteDialogs.adding}
+  <AddRemoteDialog
+    taken={network.remotes}
+    onadd={(name, url, andFetch) => void add(name, url, andFetch)}
+    onclose={() => (remoteDialogs.adding = false)}
+  />
+{/if}
 
 {#if remoteDialogs.properties}
   <RemotePropertiesDialog

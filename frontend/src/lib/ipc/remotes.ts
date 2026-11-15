@@ -9,6 +9,10 @@ export async function remoteInfo(repo: RepoId, name: string): Promise<RemoteInfo
   return unwrap(await commands.remoteInfo(repo, name));
 }
 
+export async function addRemote(repo: RepoId, name: string, url: string) {
+  return unwrap(await commands.addRemote(repo, name, url));
+}
+
 export async function renameRemote(repo: RepoId, from: string, to: string) {
   return unwrap(await commands.renameRemote(repo, from, to));
 }

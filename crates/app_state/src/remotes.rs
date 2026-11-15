@@ -1,4 +1,4 @@
-//! A remote's own menu in Branches: Properties, Rename, Delete (#19 of 25.09).
+//! A remote's own menu in Branches: Properties, Rename, Delete (#19 of 25.09), Add (F-941).
 
 use crate::{AppState, RepoId};
 use git_engine::{GitError, RemoteInfo};
@@ -10,6 +10,16 @@ impl AppState {
         name: &str,
     ) -> Result<RemoteInfo, GitError> {
         self.handle(repo)?.remote_info(name)
+    }
+
+    pub(crate) fn local_add_remote(
+        &self,
+        repo: RepoId,
+        name: &str,
+        url: &str,
+    ) -> Result<(), GitError> {
+        let _quiet = self.quiet(repo);
+        self.handle(repo)?.add_remote(name, url)
     }
 
     pub(crate) fn local_rename_remote(

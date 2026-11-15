@@ -228,6 +228,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::network::save_network_defaults,
             commands::network::cancel_network,
             commands::remotes::remote_info,
+            commands::remotes::add_remote,
             commands::remotes::rename_remote,
             commands::remotes::remove_remote,
             commands::remotes::set_remote_properties,

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ContextItem } from "./ipc";
 import type { RefNode } from "./ref-nodes";
 import {
+  addRemoteProblem,
   claimsNode,
   depthProblem,
   groupMenu,
@@ -75,6 +76,7 @@ describe("remoteMenu", () => {
       "Fetch",
       "Fetch More",
       "—",
+      "Add Remote…",
       "Rename…",
       "Delete",
       "—",
@@ -151,6 +153,24 @@ describe("remoteNameProblem", () => {
     expect(remoteNameProblem("fork", taken, "origin")).toBeNull();
     expect(remoteNameProblem("team/mirror", taken, "origin")).toBeNull();
     expect(remoteNameProblem("origin", taken, "origin")).toBeNull();
+  });
+});
+
+describe("addRemoteProblem", () => {
+  const taken = ["origin"];
+
+  it("checks the name as Rename does, then wants a URL git will not read as an option", () => {
+    expect(addRemoteProblem("", "https://example.com/x.git", taken)).toMatch(/Enter a name/);
+    expect(addRemoteProblem("origin", "https://example.com/x.git", taken)).toBe("There is a remote origin already.");
+    expect(addRemoteProblem("a..b", "https://example.com/x.git", taken)).toBe("Git will refuse that name.");
+    expect(addRemoteProblem("fork", "  ", taken)).toMatch(/Enter the URL/);
+    expect(addRemoteProblem("fork", "--upload-pack=x", taken)).toBe("Git will refuse that URL.");
+    expect(addRemoteProblem(" fork ", " ../mirror.git ", taken)).toBeNull();
+  });
+
+  it("is offered on every remote heading, even one no longer configured", () => {
+    expect(labels(remoteMenu(facts({ configured: false })))).toContain("Add Remote…");
+    expect(off(remoteMenu(facts({ configured: false }))).join()).not.toContain("Add Remote");
   });
 });
 

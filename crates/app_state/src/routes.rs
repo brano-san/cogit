@@ -314,6 +314,7 @@ fn bisect_start(bad: &str, good: Option<&str>) -> Result<(), GitError> = local_b
     fn submodules_under(parent: &str) -> Result<Vec<git_engine::Submodule>, git_engine::GitError> = local_submodules_under;
     fn update_submodule(path: &str, init: bool) -> Result<(), git_engine::GitError> = local_update_submodule;
     fn remote_info(name: &str) -> Result<RemoteInfo, GitError> = local_remote_info;
+    fn add_remote(name: &str, url: &str) -> Result<(), GitError> = local_add_remote;
     fn rename_remote(from: &str, to: &str) -> Result<(), GitError> = local_rename_remote;
     fn remove_remote(name: &str) -> Result<(), GitError> = local_remove_remote;
     fn set_remote_properties(name: &str, url: &str, background_fetch: bool) -> Result<(), GitError> = local_set_remote_properties;
