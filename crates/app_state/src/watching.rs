@@ -124,6 +124,7 @@ fn contradicts(row: &RepoOverview, pulse: &git_engine::RepoPulse) -> bool {
         || row.branch != pulse.branch
         || (row.ahead, row.behind) != (pulse.ahead, pulse.behind)
         || pulse.dirty != row.dirty
+        || pulse.sparse != row.sparse
 }
 
 pub(crate) struct Quiet<'a> {

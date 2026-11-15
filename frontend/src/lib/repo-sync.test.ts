@@ -24,6 +24,7 @@ const overview = (over: Partial<RepoOverview> = {}): RepoOverview => ({
   dirty: true,
   missing: false,
   state: { kind: "clean" } as never,
+  sparse: null,
   ...over,
 });
 
@@ -36,6 +37,7 @@ const pulse = (over: Partial<RepoPulse> = {}): RepoPulse => ({
   behind: 3,
   dirty: false,
   conflicted: false,
+  sparse: null,
   ...over,
 });
 
@@ -43,6 +45,12 @@ describe("the marks of a repository row", () => {
   it("reads the repository on screen from its full status", () => {
     const sync = rowSync({ overview: overview(), owned: true, pulse: pulse(), fetchFailed: false });
     expect(sync).toMatchObject({ dirty: true, ahead: 1, behind: 0 });
+  });
+
+  it("carries the size of a sparse checkout's set, from the list or the pulse", () => {
+    expect(rowSync({ overview: overview({ sparse: 2 }), owned: true, pulse: pulse(), fetchFailed: false }).sparse).toBe(2);
+    expect(rowSync({ overview: null, owned: false, pulse: pulse({ sparse: 0 }), fetchFailed: false }).sparse).toBe(0);
+    expect(rowSync({ overview: null, owned: false, pulse: pulse(), fetchFailed: false }).sparse).toBeNull();
   });
 
   it("reads any other from its pulse, which is fresher than the list", () => {
@@ -61,6 +69,7 @@ describe("the marks of a repository row", () => {
       branch: null,
       branchAt: null,
       conflicted: false,
+      sparse: null,
     });
   });
 
@@ -291,7 +300,7 @@ describe("the marks the panels hand to a row they let go of", () => {
       indexLock: null,
       tagGroupSeparator: "/",
     } as unknown as RepoSummary;
-    expect(summaryPulse(now)).toEqual({ missing: false, branch: "dev", branchAt: null, tracked: true, ahead: 0, behind: 2, dirty: true, conflicted: false });
+    expect(summaryPulse(now)).toEqual({ missing: false, branch: "dev", branchAt: null, tracked: true, ahead: 0, behind: 2, dirty: true, conflicted: false, sparse: null });
   });
 });
 

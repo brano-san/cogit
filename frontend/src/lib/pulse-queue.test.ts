@@ -11,6 +11,7 @@ const PULSE: RepoPulse = {
   behind: 1,
   conflicted: false,
   dirty: false,
+  sparse: null,
 };
 
 /** Every read waits for the test to answer it, so what runs when is visible. */

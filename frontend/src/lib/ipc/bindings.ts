@@ -420,6 +420,12 @@ export const commands = {
 	/**  `None` when git has no `lfs` command: only Install stays available then. */
 	lfsVersion: () => typedError<string | null, GitError>(__TAURI_INVOKE("lfs_version")),
 	lfsOp: (repo: RepoId, op: LfsOp) => typedError<null, GitError>(__TAURI_INVOKE("lfs_op", { repo, op })),
+	sparseState: (repo: RepoId) => typedError<SparseState, GitError>(__TAURI_INVOKE("sparse_state", { repo })),
+	/**  The folders right inside `dir` in HEAD, read when the dialog opens a folder. */
+	sparseFolders: (repo: RepoId, dir: string) => typedError<SparseFolder[], GitError>(__TAURI_INVOKE("sparse_folders", { repo, dir })),
+	sparsePreview: (repo: RepoId, change: SparseChange) => typedError<SparsePreview, GitError>(__TAURI_INVOKE("sparse_preview", { repo, change })),
+	/**  A turn of the lane like a checkout, which the footer can cancel. */
+	sparseApply: (repo: RepoId, change: SparseChange) => typedError<null, GitError>(__TAURI_INVOKE("sparse_apply", { repo, change })),
 	repoSettings: (repo: RepoId) => typedError<RepoSetting[], GitError>(__TAURI_INVOKE("repo_settings", { repo })),
 	/**  Where issue ids in commit messages link to (F-953). */
 	issueTrackers: (repo: RepoId) => typedError<IssueTracker[], GitError>(__TAURI_INVOKE("issue_trackers", { repo })),
@@ -2751,6 +2757,8 @@ export type RepoOverview = {
 	missing: boolean,
 	/**  An operation stopped half way, or a detached HEAD: the row labels it (#22). */
 	state: RepoState,
+	/**  Sparse checkout is on: the size of its set (F-955). */
+	sparse: number | null,
 };
 
 export type RepoPulse = {
@@ -2766,6 +2774,8 @@ export type RepoPulse = {
 	dirty: boolean,
 	/**  An unmerged path sits in the index: read from the index alone, no worktree scan. */
 	conflicted: boolean,
+	/**  Sparse checkout is on: the size of its set (F-955). */
+	sparse: number | null,
 };
 
 /**  What a commit moves besides the counters: the refs and the operation state (R-316). */
@@ -3034,6 +3044,35 @@ export type SolverRegion = {
 
 /**  The part of its row a segment covers: the upper half, the lower half or all of it. */
 export type Span = "top" | "bottom" | "through";
+
+export type SparseChange = 
+/**  `git sparse-checkout set`; also turns sparse checkout on. */
+{ kind: "set"; cone: boolean; set: string[] } | { kind: "disable" };
+
+export type SparseFolder = {
+	path: string,
+	folders: boolean,
+};
+
+/**  What a change does to the working tree, counted over the index (`git ls-files`). */
+export type SparsePreview = {
+	tracked: number,
+	present: number,
+	appearing: number,
+	removed: number,
+	/**  Files that would leave the working tree with local changes: the change is refused. */
+	blocked: string[],
+};
+
+export type SparseState = {
+	enabled: boolean,
+	/**
+	 *  Cone mode: `set` lists folders. Otherwise it holds gitignore-style patterns. While
+	 *  sparse checkout is off it says what Enable starts with: cone.
+	 */
+	cone: boolean,
+	set: string[],
+};
 
 export type SpellLanguage = "en_US" | "ru_RU";
 

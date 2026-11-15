@@ -7,6 +7,7 @@
   import { MISSING_REPOSITORY } from "$lib/repo-labels";
   import { canPull, freshOverview, moduleSync, rowSync, syncTooltip, type RowSync } from "$lib/repo-sync";
   import { repoPulse } from "$stores/repo-pulse.svelte";
+  import { sparseTooltip } from "$lib/sparse";
   import { repoMenuRow } from "$stores/menu-row.svelte";
   import {
     conflictedTree,
@@ -439,6 +440,7 @@
         {#if sync.missing}
           <span class="gone" title={MISSING_REPOSITORY}>missing</span>
         {/if}
+        {#if sync.sparse !== null}<span class="sparse" title={sparseTooltip(sync.sparse)}>sparse</span>{/if}
         {#if sync.branch ?? sync.branchAt}<span class="branch truncate shrink-first">({sync.branch ?? sync.branchAt})</span>{/if}
       </div>
 
@@ -468,6 +470,7 @@
             <span class="name truncate shrink-last">{listed.name}</span>
             {#if listed.pinned}<span class="pin" title="Pinned to the top of its group">⊤</span>{/if}
             {#if sync.missing}<span class="gone" title={MISSING_REPOSITORY}>missing</span>{/if}
+            {#if sync.sparse !== null}<span class="sparse" title={sparseTooltip(sync.sparse)}>sparse</span>{/if}
             {#if sync.branch ?? sync.branchAt}<span class="branch truncate shrink-first">({sync.branch ?? sync.branchAt})</span>{/if}
           </div>
           {@render moduleTree(listed.root, false, row.depth, (starts[at] ?? 0) + 1, false)}
@@ -640,6 +643,12 @@
   .op {
     flex: 0 0 auto;
     color: var(--status-modify);
+    font-size: var(--fs-small);
+  }
+
+  .sparse {
+    flex: 0 0 auto;
+    color: var(--text-secondary);
     font-size: var(--fs-small);
   }
 

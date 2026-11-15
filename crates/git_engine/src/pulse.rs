@@ -19,6 +19,8 @@ pub struct RepoPulse {
     pub dirty: bool,
     /// An unmerged path sits in the index: read from the index alone, no worktree scan.
     pub conflicted: bool,
+    /// Sparse checkout is on: the size of its set (F-955).
+    pub sparse: Option<u32>,
 }
 
 /// Never fails: a read that fails leaves its field at the answer that claims nothing.
@@ -48,6 +50,7 @@ pub fn pulse(root: &Path) -> RepoPulse {
         tracing::error!(error = ?err, context = "pulse: conflicts");
         false
     });
+    found.sparse = handle.sparse_size();
     tracing::debug!(
         root = %root.display(),
         elapsed_ms = crate::runner::elapsed_ms(started),

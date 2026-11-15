@@ -20,12 +20,15 @@ export interface RowSync {
   branchAt: string | null;
   /** An unmerged file in it or in a submodule below it; outranks `dirty` (item 3 of 14). */
   conflicted: boolean;
+  /** Sparse checkout is on: the size of its set (F-955). */
+  sparse: number | null;
 }
 
 /** What a row's marks are read from: a list row, a pulse or what the panels show. */
 type Marks = Pick<RepoOverview, "dirty" | "ahead" | "behind" | "missing" | "branch"> & {
   conflicted?: boolean;
   branchAt?: string | null;
+  sparse?: number | null;
 };
 
 export interface RowSyncInput {
@@ -56,6 +59,7 @@ export function rowSync(input: RowSyncInput): RowSync {
     branch: null,
     branchAt: null,
     conflicted: below,
+    sparse: null,
   };
   if (!source) return { ...none, unknown: fetchFailed };
   if (source.missing) return { ...none, remoteAhead: false, missing: true };
@@ -69,6 +73,7 @@ export function rowSync(input: RowSyncInput): RowSync {
     branch: source.branch,
     branchAt: source.branchAt ?? null,
     conflicted: source.conflicted === true || below,
+    sparse: source.sparse ?? null,
   };
 }
 
@@ -122,7 +127,7 @@ export function freshOverview(
 export function summaryPulse(current: RepoSummary): RepoPulse {
   const head = current.head.kind === "branch" ? current.head.name : null;
   const upstream = current.branches.find((b) => b.kind === "local" && b.name === head)?.upstream;
-  return { ...summaryMarks(current), tracked: upstream !== null && upstream !== undefined };
+  return { ...summaryMarks(current), tracked: upstream !== null && upstream !== undefined, sparse: null };
 }
 
 export interface ModuleSyncInput {

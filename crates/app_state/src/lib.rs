@@ -41,6 +41,7 @@ mod routes;
 mod safety;
 pub mod settings;
 mod solver;
+mod sparse;
 mod stashing;
 mod streams;
 pub mod taskbar;

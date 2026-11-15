@@ -1766,3 +1766,64 @@ fn discarding_a_moved_submodule_checks_out_the_commit_the_parent_records() {
 
     assert_eq!(head(&module), recorded);
 }
+
+/// `top.txt`, `a/x.txt`, `b/y.txt`.
+fn two_folders() -> test_fixtures::Fixture {
+    let f = test_fixtures::empty().unwrap();
+    for name in ["top.txt", "a/x.txt", "b/y.txt"] {
+        f.write_file(name, "x\n").unwrap();
+    }
+    f.git(&["add", "--all"]).unwrap();
+    f.commit_staged(1, "folders").unwrap();
+    f
+}
+
+fn cone(set: &[&str]) -> git_engine::SparseChange {
+    git_engine::SparseChange::Set {
+        cone: true,
+        set: set.iter().map(|each| (*each).to_owned()).collect(),
+    }
+}
+
+#[test]
+fn undoing_a_sparse_change_sets_the_previous_set_back() {
+    let f = two_folders();
+    let (state, repo) = open(&f);
+    let stop = NetworkStop::default();
+    state.sparse_apply(repo, &cone(&["a"]), &stop).unwrap();
+    state.sparse_apply(repo, &cone(&["b"]), &stop).unwrap();
+    assert!(!f.path().join("a/x.txt").exists());
+
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(state.sparse_state(repo).unwrap().set, vec!["a".to_owned()]);
+    assert!(f.path().join("a/x.txt").exists());
+    assert!(!f.path().join("b/y.txt").exists());
+
+    state.undo_last(repo).unwrap();
+
+    assert!(!state.sparse_state(repo).unwrap().enabled);
+    assert!(f.path().join("b/y.txt").exists());
+}
+
+#[test]
+fn undoing_a_sparse_change_refuses_while_a_leaving_file_has_local_changes() {
+    let f = two_folders();
+    let (state, repo) = open(&f);
+    let stop = NetworkStop::default();
+    state.sparse_apply(repo, &cone(&["a"]), &stop).unwrap();
+    state.sparse_apply(repo, &cone(&["a", "b"]), &stop).unwrap();
+    std::fs::write(f.path().join("b/y.txt"), "edited\n").unwrap();
+
+    let err = state.undo_last(repo).unwrap_err();
+
+    assert!(err.to_string().contains("b/y.txt"), "{err}");
+    assert_eq!(
+        state.sparse_state(repo).unwrap().set,
+        vec!["a".to_owned(), "b".to_owned()]
+    );
+    assert_eq!(
+        std::fs::read_to_string(f.path().join("b/y.txt")).unwrap(),
+        "edited\n"
+    );
+}

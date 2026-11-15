@@ -305,7 +305,7 @@ impl Parser {
 }
 
 /// Undoes git's C-style quoting of a path that holds `"`, `\` or control characters.
-fn unquote_path(raw: &str) -> String {
+pub(crate) fn unquote_path(raw: &str) -> String {
     let Some(inner) = raw
         .strip_prefix('"')
         .and_then(|rest| rest.strip_suffix('"'))

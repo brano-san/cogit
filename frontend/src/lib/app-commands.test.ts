@@ -116,6 +116,7 @@ describe("app commands", () => {
       ["worktree-add", "Add Worktree…"],
       ["worktree-remove", "Remove Worktree…"],
       ["worktree-prune", "Prune Obsolete Worktrees…"],
+      ["sparse-checkout", "Sparse Checkout…"],
       ["apply-patch", "Apply Patch…"],
       ["resolve-conflicts", "Resolve Conflicts…"],
       ["undo-rewrite", "Undo Last Merge / Rebase / Reset…"],

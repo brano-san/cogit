@@ -187,6 +187,36 @@ impl RepoHandle {
         self.spawn_fed(args, false, &[], Some(input))
     }
 
+    /// `run_git_fed` that this handle's `stop` can end, for work as long as a checkout.
+    pub(crate) fn run_git_stoppable(
+        &self,
+        args: &[&str],
+        input: Option<&[u8]>,
+    ) -> Result<GitOutput> {
+        let command = redact_command(args);
+        let started = std::time::Instant::now();
+        tracing::info!(command = %command, "running git");
+        let mut process = base_command(self.root(), false);
+        process.args(args);
+        let stop = self.stop.as_ref();
+        let output =
+            crate::children::output_stoppable(&mut process, input, stop).map_err(not_started)?;
+        let mut result = GitOutput::from_process(self.root(), command.clone(), &output, started);
+        let stopped = !output.status.success() && stop.is_some_and(crate::NetworkStop::is_stopped);
+        if stopped {
+            result.summary = "Canceled by the user".to_owned();
+            result.severity = crate::Severity::Warning;
+        }
+        self.journal_entry(result.clone());
+        if output.status.success() {
+            Ok(result)
+        } else if stopped {
+            Err(GitError::Cancelled(command))
+        } else {
+            Err(result.into())
+        }
+    }
+
     pub(crate) fn base_git(&self, args: &[&str]) -> Command {
         let mut command = base_command(self.root(), false);
         command.args(args);

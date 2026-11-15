@@ -982,6 +982,7 @@ impl AppState {
                     dirty: false,
                     missing: true,
                     state: git_engine::RepoState::Clean,
+                    sparse: None,
                 }
             }
         }

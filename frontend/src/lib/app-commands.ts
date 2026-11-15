@@ -73,6 +73,7 @@ export type AppCommandId =
   | "worktree-add"
   | "worktree-remove"
   | "worktree-prune"
+  | "sparse-checkout"
   | "apply-patch"
   | "resolve-conflicts"
   | "undo-rewrite"
@@ -286,6 +287,13 @@ export function appCommands(facts: AppCommandFacts, run: AppCommandActions): Pal
       synonyms: ["worktree prune", "missing worktree"],
       unavailable: noRepo ?? (facts.worktrees.stale ? undefined : "Nothing to prune"),
       run: run["worktree-prune"],
+    },
+    {
+      id: "sparse-checkout",
+      title: "Sparse Checkout…",
+      synonyms: ["sparse", "cone", "partial checkout", "skip-worktree", "git sparse-checkout"],
+      unavailable: noRepo,
+      run: run["sparse-checkout"],
     },
     {
       id: "apply-patch",

@@ -23,6 +23,8 @@ pub struct RepoOverview {
     pub missing: bool,
     /// An operation stopped half way, or a detached HEAD: the row labels it (#22).
     pub state: git_engine::RepoState,
+    /// Sparse checkout is on: the size of its set (F-955).
+    pub sparse: Option<u32>,
 }
 
 /// Tree rows by repository. A row read while its repository changed is not kept: the read
@@ -101,6 +103,7 @@ impl AppState {
             dirty: false,
             missing: false,
             state: git_engine::RepoState::Clean,
+            sparse: None,
         };
 
         let Ok(handle) = git_engine::RepoHandle::open_root(&open.root) else {
@@ -138,6 +141,7 @@ impl AppState {
         if let Ok(state) = handle.state().inspect_err(logged("repository row: state")) {
             row.state = state;
         }
+        row.sparse = handle.sparse_size();
         row
     }
 
@@ -169,6 +173,7 @@ mod tests {
             dirty: false,
             missing: false,
             state: git_engine::RepoState::Clean,
+            sparse: None,
         }
     }
 

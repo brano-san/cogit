@@ -25,6 +25,7 @@ function overview(root: string, name = folderName(root)): RepoOverview {
     dirty: false,
     missing: false,
     state: { kind: "clean" },
+    sparse: null,
   };
 }
 

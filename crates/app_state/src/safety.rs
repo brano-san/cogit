@@ -102,6 +102,11 @@ pub enum Recovery {
         checkout: String,
         stash: String,
     },
+    /// The sparse checkout before a change: undo sets it back, or turns it off, and refuses
+    /// while a file that would leave the working tree has local changes.
+    Sparse {
+        before: git_engine::SparseState,
+    },
     /// Recorded for the journal, refused by undo: honesty beats a half-working restore.
     None,
 }
@@ -421,6 +426,9 @@ impl AppState {
                 handle.add_worktree(path, checkout, false)?;
                 git_engine::RepoHandle::open_exact(std::path::Path::new(path))?
                     .stash_apply(stash)?;
+            }
+            Recovery::Sparse { before } => {
+                handle.sparse_apply(&git_engine::SparseChange::restoring(before))?;
             }
             Recovery::None => {
                 return Err(git_engine::GitError::InvalidState(

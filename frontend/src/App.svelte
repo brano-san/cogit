@@ -96,6 +96,8 @@
   import { gitReasonOf } from "$lib/git-missing";
   import RemoteOpsDialog from "$components/remote/RemoteOpsDialog.svelte";
   import RepoSettingsDialog from "$components/remote/RepoSettingsDialog.svelte";
+  import SparseCheckoutDialog from "$components/repo-tree/SparseCheckoutDialog.svelte";
+  import { sparseApply, type SparseChange } from "$lib/ipc/sparse";
   import ApplyPatchDialog from "$components/menus/ApplyPatchDialog.svelte";
   import { applyPatch } from "$lib/ipc/patches";
   import { patches } from "$stores/patches.svelte";
@@ -375,6 +377,7 @@
   let paletteOpen = $state(false);
   let settingsOpen = $state(false);
   let repoSettingsOpen = $state(false);
+  let sparseOpen = $state(false);
   let ignoreEdit = $state<{ repo: import("$lib/ipc").RepoId; dir: string } | null>(null);
   let finderOpen = $state(false);
   let recentCommands = $state<string[]>([]);
@@ -874,6 +877,7 @@
       if (removable(entry)) worktreeActions?.remove(entry);
     },
     "worktree-prune": () => void worktreeActions?.pruneAll(),
+    "sparse-checkout": () => (sparseOpen = repository.current !== null),
     "resolve-conflicts": () => openSolverAt(conflicts.path ?? conflicts.paths[0]),
     "undo-rewrite": () => void undoLastRewrite(),
     "range-diff": () => void showRangeDiff(),
@@ -1382,6 +1386,19 @@ ${event.error}`,
 
   /** `worked` is the repository the change was made in; once the panels show another,
       reloading them would clear that one's selection and diff for nothing. */
+  /** Repository ▸ Sparse Checkout (F-955): the working tree changes as on a checkout. */
+  async function applySparse(id: RepoId, change: SparseChange) {
+    sparseOpen = false;
+    try {
+      await sparseApply(id, change);
+    } catch (err) {
+      errors.report(err, "Could not change the sparse checkout");
+    }
+    await afterRefChange(id);
+    // The row's "sparse" mark is read with the list.
+    void repository.refreshList().catch((err) => errors.report(err, "Could not read the repository list"));
+  }
+
   async function afterRefChange(worked?: RepoId) {
     const id = repository.current?.repo;
     if (!id || (worked !== undefined && worked !== id)) return;
@@ -1663,7 +1680,7 @@ ${event.error}`,
       errors.report(err, "Could not update the submodule");
     }
     moduleForest.forget(top);
-    void repository.refreshList();
+    void repository.refreshList().catch((err) => errors.report(err, "Could not read the repository list"));
   }
 
   /** From the Diff panel, where a submodule that was never checked out says so. */
@@ -2767,6 +2784,7 @@ ${event.error}`,
       removingFiles = null;
       dropMenu = null;
       repoSettingsOpen = false;
+      sparseOpen = false;
       rebaseOpen = false;
       split = null;
       finderOpen = false;
@@ -4725,6 +4743,14 @@ ${event.error}`,
         void mutate((id) => applyPatch(id, text, mode));
       }}
       onclose={() => patches.close()}
+    />
+  {/if}
+
+  {#if sparseOpen && repo}
+    <SparseCheckoutDialog
+      repo={repo.repo}
+      onapply={(change) => void applySparse(repo.repo, change)}
+      onclose={() => (sparseOpen = false)}
     />
   {/if}
 

@@ -27,6 +27,7 @@ const REPOSITORY: &[Entry] = &[
     Entry::Item("worktree-add", "Add Worktree…", None),
     Entry::Item("worktree-remove", "Remove Worktree…", None),
     Entry::Item("worktree-prune", "Prune Obsolete Worktrees…", None),
+    Entry::Item("sparse-checkout", "Sparse Checkout…", None),
     Entry::Separator,
     Entry::Item("apply-patch", "Apply Patch…", None),
     Entry::Separator,

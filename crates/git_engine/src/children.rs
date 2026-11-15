@@ -105,6 +105,15 @@ pub(crate) fn output_fed(command: &mut Command, input: &[u8]) -> std::io::Result
     output_within(command, Some(input), None)
 }
 
+/// `output`, `input` on stdin if any, that `stop` can end.
+pub(crate) fn output_stoppable(
+    command: &mut Command,
+    input: Option<&[u8]>,
+    stop: Option<&NetworkStop>,
+) -> std::io::Result<Output> {
+    output_within(command, input, stop)
+}
+
 fn output_within(
     command: &mut Command,
     input: Option<&[u8]>,
