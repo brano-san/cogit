@@ -182,6 +182,9 @@ export type {
   RevealCommit,
   RepoWritten,
   NotificationClicked,
+  LaunchRequest,
+  LaunchPath,
+  LaunchShow,
   Overlap,
   OverlapRow,
   PresetStatus,
@@ -1259,6 +1262,17 @@ export async function onRevealCommit(handler: (event: RevealCommit) => void) {
 /** The user clicked a system notification this window showed. */
 export async function onNotificationClicked(handler: (event: NotificationClicked) => void) {
   return await counted(events.notificationClicked.listen((event) => handler(event.payload)));
+}
+
+/** What `cogit <path>` asked for since the last call: this
+    process's command line first, then each one another `cogit` handed over. */
+export async function takeLaunchRequests() {
+  return await commands.takeLaunchRequests();
+}
+
+/** Another `cogit` handed its command line over; `takeLaunchRequests` has it. */
+export async function onLaunchRequested(handler: () => void) {
+  return await counted(events.launchRequested.listen(() => handler()));
 }
 
 /** The three sides already merged into regions, for the four-panel merge view. */

@@ -82,7 +82,9 @@
       },
       "wix": {
         "bannerPath": "./windows/wix-banner.bmp",
-        "dialogImagePath": "./windows/wix-dialog.bmp"
+        "dialogImagePath": "./windows/wix-dialog.bmp",
+        "fragmentPaths": ["./windows/wix-integration.wxs"],
+        "componentRefs": ["CogitShellIntegration"]
       }
     }
   },

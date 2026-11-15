@@ -39,6 +39,7 @@ tauri-plugin-clipboard-manager.workspace = true
 tauri-plugin-window-state.workspace = true
 tauri-plugin-updater.workspace = true
 tauri-plugin-process.workspace = true
+tauri-plugin-single-instance.workspace = true
 
 specta.workspace = true
 specta-typescript.workspace = true

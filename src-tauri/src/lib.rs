@@ -10,6 +10,7 @@ mod events;
 mod fatal;
 mod investigate_window;
 mod key_capture;
+mod launch;
 #[cfg(target_os = "linux")]
 mod linux_report;
 mod logging;
@@ -137,9 +138,11 @@ fn specta_builder() -> Builder<tauri::Wry> {
             OpenModule,
             TreeChanged,
             PushHead,
-            notify::NotificationClicked
+            notify::NotificationClicked,
+            launch::LaunchRequested
         ])
         .commands(collect_commands![
+            launch::take_launch_requests,
             commands::app_info,
             commands::probe_git,
             commands::find_git_candidates,
@@ -476,8 +479,18 @@ pub fn run() -> anyhow::Result<()> {
     };
 
     let specta_builder = specta_builder();
+    let cwd = std::env::current_dir().unwrap_or_default();
+    let first_request = launch::request(std::env::args_os().skip(1), &cwd);
 
-    let mut builder = tauri::Builder::default()
+    let mut builder = tauri::Builder::default().manage(launch::Pending::new(first_request));
+    // First, before any window: a second `cogit` hands its command line over and exits. The
+    // plugin knows the app by `identifier` alone, so the portable build (its own data, never
+    // another copy's window) and a debug build (an installed Cogit would swallow `tauri dev`)
+    // stay out of it (doc/12-risks.md).
+    if portable.is_none() && !cfg!(debug_assertions) {
+        builder = builder.plugin(tauri_plugin_single_instance::init(launch::second_instance));
+    }
+    builder = builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init());

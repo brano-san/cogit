@@ -243,6 +243,7 @@
     openErrorsWindow,
     modalOpen,
     openEditorWindow,
+    takeLaunchRequests,
   } from "$lib/ipc";
   import { openBlame } from "$lib/blame-window";
   import { ShownRepository } from "$lib/shown-repository";
@@ -286,6 +287,7 @@
   import { session } from "$stores/session.svelte";
   import { flow } from "$stores/flow.svelte";
   import { droppedRepositories, openDropped } from "$lib/drop-open";
+  import { runLaunch } from "$lib/launch";
   import { connect } from "$lib/wiring";
   import { commitFailureTitle } from "$lib/commit-draft";
   import { EVERYTHING } from "$lib/disk-change";
@@ -503,9 +505,12 @@
       repository.markReady();
       void settingsRead
         .catch(() => {})
-        .then(() => {
-          if (settings.current.firstRunDone) welcomeAtStart();
-          else firstRun = true;
+        .then(async () => {
+          allowLaunches();
+          await runLaunches();
+          // What the command line asked for is on screen: Welcome would only cover it.
+          if (!settings.current.firstRunDone) firstRun = true;
+          else if (!launched) welcomeAtStart();
         });
     });
   });
@@ -3616,6 +3621,34 @@ ${event.error}`,
     if (event.failed) await openErrorsWindow().catch((err) => errors.report(err, "Could not open the Errors window"));
   }
 
+  /** `cogit <path>`: this process's command line and each one
+      another `cogit` hands over, once startup has read the settings, one at a time. */
+  let allowLaunches = () => {};
+  const launchesAllowed = new Promise<void>((resolve) => (allowLaunches = resolve));
+  let launchQueue: Promise<void> = Promise.resolve();
+  let launched = false;
+  function runLaunches(): Promise<void> {
+    launchQueue = launchQueue.then(async () => {
+      await launchesAllowed;
+      const requests = await takeLaunchRequests().catch((err) => {
+        errors.report(err, "Could not read the command line");
+        return [];
+      });
+      if (requests.length === 0) return;
+      launched = true;
+      if (welcome.open) welcome.close();
+      for (const request of requests) {
+        await runLaunch(request, {
+          openInList: openRepository,
+          activate,
+          refreshList: () => repository.refreshList(),
+          report: (err, title) => errors.report(err, title),
+        });
+      }
+    }).catch((err) => errors.report(err, "Could not open what the command line asked for"));
+    return launchQueue;
+  }
+
   function onDragDrop(event: import("@tauri-apps/api/webview").DragDropEvent) {
     if (event.type === "enter") dropping = true;
     else if (event.type === "leave") dropping = false;
@@ -3708,6 +3741,7 @@ ${event.error}`,
       sessionEnding: () => void onSessionEnding(),
       dragDrop: onDragDrop,
       notificationClicked: (event) => void onNotificationClicked(event),
+      launchRequested: () => void runLaunches(),
     }),
   );
 

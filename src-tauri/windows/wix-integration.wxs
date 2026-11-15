@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- F-946: "Open in Cogit" on a folder and on a folder's background, and the install folder
+     on the system PATH. The MSI installs per machine, so both go under HKLM; the NSIS
+     installer writes the same per user (installer-hooks.nsh). Windows Installer edits PATH
+     as one part of the value (Part="last"), removes only that part on uninstall and
+     broadcasts WM_SETTINGCHANGE itself. Linked through bundle.windows.wix.fragmentPaths and
+     componentRefs; [!Path] is the full path of the main binary (File Id="Path" in Tauri's
+     main.wxs). -->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <?if $(sys.BUILDARCH)="x86"?>
+    <?define Win64 = "no" ?>
+  <?else?>
+    <?define Win64 = "yes" ?>
+  <?endif?>
+  <Fragment>
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="CogitShellIntegration" Guid="42DBA0B4-0D48-47E9-B1FC-CF5EB06D4A16" Win64="$(var.Win64)">
+        <RegistryKey Root="HKLM" Key="Software\Classes\Directory\shell\Cogit" ForceDeleteOnUninstall="yes">
+          <RegistryValue Type="string" Value="Open in Cogit" KeyPath="yes" />
+          <RegistryValue Type="string" Name="Icon" Value="&quot;[!Path]&quot;,0" />
+          <RegistryKey Key="command">
+            <RegistryValue Type="string" Value="&quot;[!Path]&quot; &quot;%V&quot;" />
+          </RegistryKey>
+        </RegistryKey>
+        <RegistryKey Root="HKLM" Key="Software\Classes\Directory\Background\shell\Cogit" ForceDeleteOnUninstall="yes">
+          <RegistryValue Type="string" Value="Open in Cogit" />
+          <RegistryValue Type="string" Name="Icon" Value="&quot;[!Path]&quot;,0" />
+          <RegistryKey Key="command">
+            <RegistryValue Type="string" Value="&quot;[!Path]&quot; &quot;%V&quot;" />
+          </RegistryKey>
+        </RegistryKey>
+        <Environment Id="CogitPath" Name="PATH" Value="[INSTALLDIR]" Part="last" Action="set" System="yes" Permanent="no" />
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+</Wix>

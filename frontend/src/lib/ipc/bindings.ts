@@ -5,6 +5,8 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 
 /** Commands */
 export const commands = {
+	/**  Everything asked for since the last call, oldest first. */
+	takeLaunchRequests: () => __TAURI_INVOKE<LaunchRequest[]>("take_launch_requests"),
 	/**
 	 *  Async: it spawns `git --version` and reads the registry, neither of which belongs on
 	 *  the main thread that a plain command runs on.
@@ -873,6 +875,7 @@ export const events = {
 	errorQueue: makeEvent<ErrorQueue>("error-queue"),
 	errorReported: makeEvent<ErrorReported>("error-reported"),
 	errorsAction: makeEvent<ErrorsAction>("errors-action"),
+	launchRequested: makeEvent<LaunchRequested>("launch-requested"),
 	menuCommand: makeEvent<MenuCommand>("menu-command"),
 	mergeResolved: makeEvent<MergeResolved>("merge-resolved"),
 	mergeToolFinished: makeEvent<MergeToolFinished>("merge-tool-finished"),
@@ -2091,6 +2094,27 @@ export type KnownCredential = {
 	/**  An ssh key's path: the sign-in is for the host's ssh remotes. */
 	keyPath: string | null,
 };
+
+/**
+ *  `folder` is `path` itself for a folder (or a path that does not exist), else its parent:
+ *  what is handed to `open_repository`.
+ */
+export type LaunchPath = {
+	path: string,
+	folder: string,
+};
+
+export type LaunchRequest = {
+	show: LaunchShow,
+	paths: LaunchPath[],
+};
+
+/**  Another `cogit` handed its command line over; `take_launch_requests` has it. */
+export type LaunchRequested = {
+	queued: number,
+};
+
+export type LaunchShow = "repository";
 
 /**  A file `.gitattributes` puts in Git LFS; `lock` is the owner from the local lock cache. */
 export type LfsFileState = {

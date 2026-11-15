@@ -1,5 +1,9 @@
-//! `cogit --install-desktop-entry`: what a portable Linux binary needs so that the shell
-//! (WSLg included) finds a launcher entry and an icon for its window.
+//! The command line before any window: `cogit --install-desktop-entry` (what a portable
+//! Linux binary needs so that the shell, WSLg included, finds a launcher entry and an icon),
+//! `--add-to-path` for the Windows installer, and the paths the window is asked to open.
+
+pub mod launch;
+pub mod path_env;
 
 use std::ffi::OsString;
 use std::io::{self, Write};
@@ -48,6 +52,8 @@ pub enum Action {
     Uninstall,
     Help,
     Version,
+    AddToPath,
+    RemoveFromPath,
 }
 
 pub fn parse_args<I: IntoIterator<Item = OsString>>(args: I) -> Action {
@@ -57,6 +63,8 @@ pub fn parse_args<I: IntoIterator<Item = OsString>>(args: I) -> Action {
             Some("--uninstall-desktop-entry") => return Action::Uninstall,
             Some("--help" | "-h") => return Action::Help,
             Some("--version" | "-V") => return Action::Version,
+            Some("--add-to-path") => return Action::AddToPath,
+            Some("--remove-from-path") => return Action::RemoveFromPath,
             _ => {}
         }
     }
@@ -87,9 +95,10 @@ pub fn exec_arg(arg: &str) -> String {
 pub fn desktop_file(exe: &Path, comment: &str) -> String {
     let exec = exec_arg(&exe.to_string_lossy());
     format!(
-        "[Desktop Entry]\nType=Application\nName=Cogit\nComment={comment}\nExec={exec} %U\n\
+        "[Desktop Entry]\nType=Application\nName=Cogit\nComment={comment}\nExec={exec} %F\n\
          Icon={APP_NAME}\nTerminal=false\nStartupWMClass={APP_NAME}\n\
-         Categories=Development;RevisionControl;\nStartupNotify=true\n"
+         Categories=Development;RevisionControl;\nMimeType=inode/directory;\n\
+         StartupNotify=true\n"
     )
 }
 
@@ -180,10 +189,15 @@ fn refresh_caches(data_home: &Path) {
         .status();
 }
 
-const HELP: &str = "Usage: cogit [OPTIONS] [PATH]\n\n\
+const HELP: &str = "Usage: cogit [OPTIONS] [PATH]...\n\n\
+    Arguments:\n  \
+    PATH...      Open the repository at or above each path; a running Cogit takes it over\n  \
+    -- PATH...   Open folders named like an option\n\n\
     Options:\n  \
     --install-desktop-entry    Add the launcher entry and icons to the user's data directory, or /usr/local/share as root (Linux)\n  \
     --uninstall-desktop-entry  Remove them again (Linux)\n  \
+    --add-to-path              Add this binary's folder to the user's PATH (Windows)\n  \
+    --remove-from-path         Remove it from the user's PATH again (Windows)\n  \
     -V, --version              Print the version and exit\n  \
     -h, --help                 Print this help and exit\n";
 
@@ -195,10 +209,15 @@ pub fn handle<I: IntoIterator<Item = OsString>>(
     out: &mut dyn Write,
     err: &mut dyn Write,
 ) -> Option<i32> {
-    let code = match parse_args(args) {
-        Action::Run => return None,
+    let args: Vec<OsString> = args.into_iter().collect();
+    let code = match parse_args(args.clone()) {
+        Action::Run => match launch::parse(args) {
+            Ok(_) => return None,
+            Err(message) => writeln!(err, "{message}\n\n{HELP}").map_or(1, |()| 2),
+        },
         Action::Version => writeln!(out, "cogit {version}").map_or(1, |()| 0),
         Action::Help => write!(out, "{HELP}").map_or(1, |()| 0),
+        action @ (Action::AddToPath | Action::RemoveFromPath) => manage_path(&action, out, err),
         action => manage(&action, comment, out, err),
     };
     Some(code)
@@ -210,6 +229,41 @@ fn launcher_path() -> io::Result<PathBuf> {
         Some(image) if image.is_absolute() => Ok(image),
         _ => std::env::current_exe().and_then(|exe| exe.canonicalize()),
     }
+}
+
+#[cfg(windows)]
+fn manage_path(action: &Action, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+    let add = *action == Action::AddToPath;
+    let changed = std::env::current_exe().and_then(|exe| {
+        let dir = exe
+            .parent()
+            .ok_or_else(|| io::Error::other("the binary has no folder"))?
+            .to_string_lossy()
+            .into_owned();
+        path_env::change_user_path(&dir, add).map(|changed| (dir, changed))
+    });
+    match changed {
+        Ok((dir, changed)) => {
+            let verb = match (add, changed) {
+                (true, true) => "Added to",
+                (false, true) => "Removed from",
+                (true, false) => "Already on",
+                (false, false) => "Not on",
+            };
+            let _ = writeln!(out, "{verb} the user's PATH: {dir}");
+            0
+        }
+        Err(e) => {
+            let _ = writeln!(err, "cogit: {e}");
+            1
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn manage_path(_: &Action, _: &mut dyn Write, err: &mut dyn Write) -> i32 {
+    let _ = writeln!(err, "cogit: outside Windows the package puts cogit on PATH");
+    1
 }
 
 fn manage(action: &Action, comment: &str, out: &mut dyn Write, err: &mut dyn Write) -> i32 {

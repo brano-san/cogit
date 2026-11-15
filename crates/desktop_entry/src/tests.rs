@@ -35,8 +35,9 @@ fn desktop_text_is_exact() {
     assert_eq!(
         text,
         "[Desktop Entry]\nType=Application\nName=Cogit\nComment=Git GUI\n\
-         Exec=\"/opt/my apps/cogit\" %U\nIcon=cogit\nTerminal=false\nStartupWMClass=cogit\n\
-         Categories=Development;RevisionControl;\nStartupNotify=true\n"
+         Exec=\"/opt/my apps/cogit\" %F\nIcon=cogit\nTerminal=false\nStartupWMClass=cogit\n\
+         Categories=Development;RevisionControl;\nMimeType=inode/directory;\n\
+         StartupNotify=true\n"
     );
 }
 
@@ -83,7 +84,7 @@ fn install_is_idempotent_and_uninstall_removes_exactly_ours() {
     assert_eq!(first.len(), 9);
     assert_eq!(install(home, exe, "c").unwrap(), first);
     let desktop = std::fs::read_to_string(home.join("applications/cogit.desktop")).unwrap();
-    assert!(desktop.contains("Exec=/opt/cogit %U"));
+    assert!(desktop.contains("Exec=/opt/cogit %F"));
     let svg = std::fs::read_to_string(home.join("icons/hicolor/scalable/apps/cogit.svg")).unwrap();
     assert!(svg.starts_with("<svg"));
     let png = std::fs::read(home.join("icons/hicolor/256x256/apps/cogit.png")).unwrap();
@@ -127,4 +128,32 @@ fn version_and_help_print_and_run_returns_none() {
             .contains("--install-desktop-entry")
     );
     assert!(err.is_empty());
+}
+
+// F-946: file managers offer "Open with Cogit" on folders and pass the folder's path.
+#[test]
+fn the_packaged_entry_is_the_one_install_writes() {
+    let packaged = include_str!("../../../src-tauri/linux/cogit.desktop").replace("\r\n", "\n");
+    let comment = "Blazing-fast Git GUI client for power users";
+    assert_eq!(packaged, desktop_file(Path::new("cogit"), comment));
+    assert!(packaged.contains("\nMimeType=inode/directory;\n"));
+    assert!(packaged.contains("\nExec=cogit %F\n"));
+}
+
+#[test]
+fn paths_are_left_to_the_window() {
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    for args in [&["a", "b"][..], &["--", "-dir"], &["."]] {
+        assert_eq!(handle(os(args), "1", "c", &mut out, &mut err), None);
+    }
+    assert!(out.is_empty() && err.is_empty());
+}
+
+#[test]
+fn path_flags_are_recognized() {
+    assert_eq!(parse_args(os(&["--add-to-path"])), Action::AddToPath);
+    assert_eq!(
+        parse_args(os(&["--remove-from-path"])),
+        Action::RemoveFromPath
+    );
 }

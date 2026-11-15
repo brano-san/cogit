@@ -57,6 +57,8 @@ tauri-plugin-window-state = "2.5"
 # (installers are signed as they are), and zip 4 carries RUSTSEC-2026 advisories.
 tauri-plugin-updater = { version = "2.13", default-features = false, features = ["rustls-tls", "system-proxy"] }
 tauri-plugin-process = "2.4"
+# `cogit <path>` while Cogit runs: the running window takes the path (F-946).
+tauri-plugin-single-instance = "2.5"
 
 # --- logging ---
 tracing = "0.1"

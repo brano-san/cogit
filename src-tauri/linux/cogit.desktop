@@ -2,9 +2,10 @@
 Type=Application
 Name=Cogit
 Comment=Blazing-fast Git GUI client for power users
-Exec=cogit %U
+Exec=cogit %F
 Icon=cogit
 Terminal=false
 StartupWMClass=cogit
 Categories=Development;RevisionControl;
+MimeType=inode/directory;
 StartupNotify=true

@@ -13,6 +13,7 @@ import {
   onRepoWritten,
   onSessionEnding,
   onNotificationClicked,
+  onLaunchRequested,
   type CommandNotice,
   type NotificationClicked,
   type MergeResolved,
@@ -46,6 +47,8 @@ export interface Handlers {
   sessionEnding: () => void;
   dragDrop: (event: DragDropEvent) => void;
   notificationClicked: (event: NotificationClicked) => void;
+  /** Another `cogit <path>` handed its command line to this window. */
+  launchRequested: () => void;
 }
 
 type Stop = () => void;
@@ -69,6 +72,7 @@ export function connect(handlers: Handlers): Stop {
     onCommandRecorded(handlers.commandRecorded),
     onSessionEnding(handlers.sessionEnding),
     onNotificationClicked(handlers.notificationClicked),
+    onLaunchRequested(handlers.launchRequested),
     counted(
       getCurrentWindow().onCloseRequested(async (event) => {
         if (!(await handlers.closeRequested())) event.preventDefault();
