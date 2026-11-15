@@ -202,6 +202,7 @@ routed! {
     fn graph_row_of(generation: u32, oid: &str) -> Option<u32> = local_graph_row_of, quiet;
     fn graph_overlay(generation: u32, start: u32, count: u32, request: &GraphPaintRequest) -> Option<GraphOverlay> = local_graph_overlay, quiet;
     fn graph_texts_read() -> usize = local_graph_texts_read, quiet;
+    fn graph_texts_filling() -> bool = local_graph_texts_filling, quiet;
     fn graph_footprint() -> usize = local_graph_footprint, quiet;
     fn watcher_is_quiet() -> bool = local_watcher_is_quiet, quiet;
     fn repo_status() -> Result<git_engine::RepoStatus, GitError> = local_repo_status;

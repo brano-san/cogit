@@ -278,7 +278,8 @@ fn texts_reach(state: &AppState, repo: RepoId, rows: usize) -> bool {
     let until =
         std::time::Instant::now() + test_fixtures::scaled(std::time::Duration::from_secs(20));
     while std::time::Instant::now() < until {
-        if state.graph_texts_read(repo) >= rows {
+        // Done reading means the trim after it ran too: a budget set next meets no late trim.
+        if state.graph_texts_read(repo) >= rows && !state.graph_texts_filling(repo) {
             return true;
         }
         std::thread::sleep(std::time::Duration::from_millis(20));

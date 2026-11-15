@@ -446,13 +446,15 @@ impl Prefill {
     fn run(self, root: &std::path::Path) {
         let started = std::time::Instant::now();
         let read = self.read(root);
-        if let Some(texts) = self.texts.upgrade() {
-            texts.lock().filling = false;
-        }
-        // The texts came after the walk that last trimmed the cache.
+        // The texts came after the walk that last trimmed the cache. Trimmed before the
+        // reader says it is done, so that done means the cache is settled too: a budget
+        // changed in between was met by this trim, which keeps the newest graph.
         if let Some(cache) = self.cache.upgrade() {
             let evicted = cache.write().trim_newest();
             drop(evicted);
+        }
+        if let Some(texts) = self.texts.upgrade() {
+            texts.lock().filling = false;
         }
         match read {
             Ok(rows) => tracing::info!(
@@ -1098,6 +1100,18 @@ impl AppState {
             .get(&repo)
             .and_then(|graph| graph.shown.texts.as_ref())
             .map_or(0, |texts| texts.lock().by_oid.len())
+    }
+
+    /// Whether the texts of `repo`'s graph are still being read ahead, the trim after
+    /// them included. For tests.
+    #[must_use]
+    pub(crate) fn local_graph_texts_filling(&self, repo: RepoId) -> bool {
+        let cache = self.graph.read();
+        cache
+            .graphs
+            .get(&repo)
+            .and_then(|graph| graph.shown.texts.as_ref())
+            .is_some_and(|texts| texts.lock().filling)
     }
 
     /// What the cache's budget counts for the graph of `repo`; 0 without one. For tests.
