@@ -102,7 +102,8 @@ fn log_alone_is_the_working_directory() {
 
 #[test]
 fn parent_of_a_root_is_the_root() {
-    let root: PathBuf = std::env::temp_dir().components().take(2).collect();
+    let temp = std::env::temp_dir();
+    let root = temp.ancestors().last().unwrap();
     assert_eq!(normalize(&root.join("..").join("a")), root.join("a"));
 }
 
