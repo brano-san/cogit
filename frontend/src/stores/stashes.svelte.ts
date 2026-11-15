@@ -1,6 +1,7 @@
 import {
   listStashes,
   stashApply,
+  stashApplyPaths,
   stashDrop,
   stashKeepingWorktree,
   stashPush,
@@ -38,6 +39,11 @@ class StashStore {
 
   async apply(repo: RepoId, oid: string, pop: boolean, restoreIndex = false): Promise<void> {
     await this.#then(repo, () => stashApply(repo, oid, pop, restoreIndex));
+  }
+
+  /** Some files of the stash (F-945): never dropped, it keeps the rest. */
+  async applyPaths(repo: RepoId, oid: string, paths: string[], restoreIndex: boolean): Promise<void> {
+    await this.#then(repo, () => stashApplyPaths(repo, oid, paths, restoreIndex));
   }
 
   async drop(repo: RepoId, oid: string): Promise<void> {

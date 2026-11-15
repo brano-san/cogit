@@ -363,6 +363,7 @@ fn bisect_start(bad: &str, good: Option<&str>) -> Result<(), GitError> = local_b
     fn stash_push(options: &git_engine::StashOptions) -> Result<(), git_engine::GitError> = local_stash_push;
     fn stash_keeping_worktree(message: &str) -> Result<(), git_engine::GitError> = local_stash_keeping_worktree;
     fn stash_apply(oid: &str, pop: bool, restore_index: bool) -> Result<(), git_engine::GitError> = local_stash_apply;
+    fn stash_apply_paths(oid: &str, paths: &[String], restore_index: bool) -> Result<(), git_engine::GitError> = local_stash_apply_paths;
     fn switch_with_autostash(target: &git_engine::CheckoutTarget, message: &str, drop_after_clean: bool) -> Result<git_engine::AutostashOutcome, git_engine::GitError> = local_switch_with_autostash;
     fn stash_drop(oid: &str) -> Result<(), git_engine::GitError> = local_stash_drop;
     fn worktrees() -> Result<Vec<git_engine::WorktreeEntry>, git_engine::GitError> = local_worktrees;

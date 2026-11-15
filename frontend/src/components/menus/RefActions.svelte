@@ -698,11 +698,19 @@
     openApplyStash(Number(node.id.slice("stash:".length)), node.oid);
   }
 
-  async function applyPickedStash(drop: boolean, restoreIndex: boolean) {
+  /** `paths` is `null` with every file ticked: a plain apply or pop. Otherwise only those
+      files, and the stash stays (F-945). */
+  async function applyPickedStash(drop: boolean, restoreIndex: boolean, paths: string[] | null) {
     const id = repoId();
     const stash = refDialogs.applyStash;
     refDialogs.applyStash = null;
     if (!id || !stash) return;
+    if (paths) {
+      await attempt("Could not apply the chosen files of the stash", () =>
+        stashes.applyPaths(id, stash.oid, paths, restoreIndex),
+      );
+      return;
+    }
     // A conflicted apply still changed the working tree: `attempt` reads back either way.
     await attempt(drop ? "Could not apply and drop the stash" : "Could not apply the stash", () =>
       stashes.apply(id, stash.oid, drop, restoreIndex),
@@ -1155,12 +1163,17 @@
 {/if}
 
 {#if refDialogs.applyStash}
-  <ApplyStashDialog
-    index={refDialogs.applyStash.index}
-    message={refDialogs.applyStash.message}
-    onapply={(drop, restoreIndex) => void applyPickedStash(drop, restoreIndex)}
-    onclose={() => (refDialogs.applyStash = null)}
-  />
+  {@const applyRepo = repoId()}
+  {#if applyRepo}
+    <ApplyStashDialog
+      repo={applyRepo}
+      index={refDialogs.applyStash.index}
+      oid={refDialogs.applyStash.oid}
+      message={refDialogs.applyStash.message}
+      onapply={(drop, restoreIndex, paths) => void applyPickedStash(drop, restoreIndex, paths)}
+      onclose={() => (refDialogs.applyStash = null)}
+    />
+  {/if}
 {/if}
 
 {#if refDialogs.push}

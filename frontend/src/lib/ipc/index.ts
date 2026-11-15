@@ -954,6 +954,11 @@ export async function stashApply(repo: RepoId, oid: string, pop: boolean, restor
   return unwrap(await commands.stashApply(repo, oid, pop, restoreIndex));
 }
 
+/** Only `paths` of the stash; the stash stays listed (F-945). */
+export async function stashApplyPaths(repo: RepoId, oid: string, paths: string[], restoreIndex: boolean) {
+  return unwrap(await commands.stashApplyPaths(repo, oid, paths, restoreIndex));
+}
+
 export async function stashDrop(repo: RepoId, oid: string) {
   return unwrap(await commands.stashDrop(repo, oid));
 }

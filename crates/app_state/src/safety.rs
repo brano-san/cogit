@@ -47,6 +47,13 @@ pub enum Recovery {
         kept: Vec<(String, String)>,
         left: Vec<(String, Option<String>)>,
     },
+    /// Files of a stash applied over clean paths: undo writes each one back as it was, or
+    /// removes it where there was none, and puts the index of the paths back at `head`.
+    StashPaths {
+        head: String,
+        kept: Vec<(String, Option<String>)>,
+        left: Vec<(String, Option<String>)>,
+    },
     /// The branch was deleted: undo creates it again, tracking what it tracked.
     Branch {
         name: String,
@@ -302,6 +309,9 @@ impl AppState {
             Recovery::Resolution { path, kept } => handle.unresolve(path, kept.as_deref())?,
             Recovery::Files { kept } => handle.write_back(kept)?,
             Recovery::Discarded { kept, left } => handle.write_back_over(kept, left)?,
+            Recovery::StashPaths { head, kept, left } => {
+                handle.undo_stash_pick(head, kept, left)?
+            }
             Recovery::Branch {
                 name,
                 oid,

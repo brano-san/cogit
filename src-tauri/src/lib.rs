@@ -196,6 +196,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::stash::stash_push,
             commands::toolbar::stash_keeping_worktree,
             commands::stash::stash_apply,
+            commands::stash::stash_apply_paths,
             commands::stash::stash_drop,
             commands::branches::create_tag,
             commands::branches::delete_tag,

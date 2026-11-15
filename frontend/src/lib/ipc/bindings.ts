@@ -185,6 +185,8 @@ export const commands = {
 	/**  Stash ▸ + Keep Working Tree: the stash is made, the files stay as they are (#29). */
 	stashKeepingWorktree: (repo: RepoId, message: string) => typedError<null, GitError>(__TAURI_INVOKE("stash_keeping_worktree", { repo, message })),
 	stashApply: (repo: RepoId, oid: string, pop: boolean, restoreIndex: boolean) => typedError<null, GitError>(__TAURI_INVOKE("stash_apply", { repo, oid, pop, restoreIndex })),
+	/**  Only the chosen files of a stash; the stash stays listed (F-945). */
+	stashApplyPaths: (repo: RepoId, oid: string, paths: string[], restoreIndex: boolean) => typedError<null, GitError>(__TAURI_INVOKE("stash_apply_paths", { repo, oid, paths, restoreIndex })),
 	stashDrop: (repo: RepoId, oid: string) => typedError<null, GitError>(__TAURI_INVOKE("stash_drop", { repo, oid })),
 	createTag: (repo: RepoId, request: TagRequest) => typedError<null, GitError>(__TAURI_INVOKE("create_tag", { repo, request })),
 	deleteTag: (repo: RepoId, name: string) => typedError<null, GitError>(__TAURI_INVOKE("delete_tag", { repo, name })),

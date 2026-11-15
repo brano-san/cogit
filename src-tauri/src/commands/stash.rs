@@ -86,6 +86,27 @@ pub async fn stash_apply(
     .await
 }
 
+/// Only the chosen files of a stash; the stash stays listed (F-945).
+#[tauri::command]
+#[specta::specta]
+pub async fn stash_apply_paths(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    oid: String,
+    paths: Vec<String>,
+    restore_index: bool,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Stash,
+        "stash_apply_paths",
+        move || app_state.stash_apply_paths(repo, &oid, &paths, restore_index),
+    )
+    .await
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn stash_drop(

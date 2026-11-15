@@ -71,6 +71,7 @@ mod side_modes;
 mod solver;
 mod staging;
 mod stash;
+mod stash_paths;
 mod stash_rename;
 mod state;
 mod status;
@@ -184,6 +185,7 @@ pub use solver::{
     merge_tool_from_listing,
 };
 pub use stash::{AutostashOutcome, StashContents, StashEntry, StashOptions};
+pub use stash_paths::StashPick;
 pub use state::RepoState;
 pub use status::{RepoStatus, WorkingState};
 pub use submodules::{Submodule, SubmodulePointer, SubmoduleState, resolve_relative_url};

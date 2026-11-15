@@ -92,6 +92,46 @@ impl AppState {
         applied
     }
 
+    /// Only `paths` of the stash, which stays listed (F-945). Refused before anything is
+    /// written when a path has local changes; what each path held is kept for Undo.
+    pub(crate) fn local_stash_apply_paths(
+        &self,
+        repo: RepoId,
+        oid: &str,
+        paths: &[String],
+        restore_index: bool,
+    ) -> Result<(), git_engine::GitError> {
+        let _quiet = self.quiet(repo);
+        let handle = self.handle(repo)?;
+        let pick = handle.stash_pick(oid, paths)?;
+        let kept = handle
+            .keep_present(pick.paths())
+            .map_err(|err| crate::backup_failed("applying the stash over", &err))?;
+        let applied = handle.apply_stash_pick(&pick, restore_index);
+        // Recorded whatever came of it: a write that stopped halfway still changed files.
+        let recovery = match handle.file_hashes(pick.paths()) {
+            Ok(left) => Recovery::StashPaths {
+                head: pick.head.clone(),
+                kept,
+                left: pick.paths().iter().cloned().zip(left).collect(),
+            },
+            Err(err) => {
+                tracing::error!(error = ?err, context = "partial stash apply: cannot read what it left; not undoable");
+                Recovery::None
+            }
+        };
+        self.record(
+            repo,
+            format!(
+                "Apply {} from stash@{{{}}}",
+                crate::named(pick.paths()),
+                pick.index
+            ),
+            recovery,
+        );
+        applied
+    }
+
     /// Stash, check out, apply: one call, which the command runs as one operation (R-521,
     /// R-563).
     pub(crate) fn local_switch_with_autostash(

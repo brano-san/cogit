@@ -214,7 +214,7 @@ impl RepoHandle {
         self.write_kept(kept)
     }
 
-    fn write_kept(&self, kept: &[(String, String)]) -> Result<()> {
+    pub(crate) fn write_kept(&self, kept: &[(String, String)]) -> Result<()> {
         for (path, oid) in kept {
             let id = gix::ObjectId::from_hex(oid.as_bytes())
                 .map_err(|err| GitError::Internal(format!("bad kept object {oid}: {err}")))?;
