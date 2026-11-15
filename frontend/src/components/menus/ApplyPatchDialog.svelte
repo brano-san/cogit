@@ -196,8 +196,8 @@
   .list {
     max-height: 200px;
     overflow: auto;
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
+    border: 1px solid var(--divider);
+    border-radius: var(--r-sm);
   }
 
   .row {
