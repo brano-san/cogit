@@ -35,45 +35,61 @@ fn stream(state: &AppState, repo: RepoId, chunk_size: usize) -> Vec<Laid> {
     laid_out(state, repo, &git_engine::CommitQuery::default(), chunk_size).0
 }
 
+/// Opens `f`, reads its status and draws its graph, as opening it in the window does.
+fn opens_reads_and_draws(
+    f: &test_fixtures::Fixture,
+    state_is: &git_engine::RepoState,
+    conflicted: u32,
+    locked: bool,
+) {
+    let head = f.oid("HEAD").unwrap();
+    let state = AppState::new();
+    let opened = state.open_repository(f.path()).unwrap();
+    assert_eq!(&opened.state, state_is);
+    assert_eq!(opened.index_lock.is_some(), locked);
+    assert_eq!(
+        state.repo_status(opened.repo).unwrap().conflicted,
+        conflicted
+    );
+    let chunks = stream(&state, opened.repo, 100);
+    assert!(
+        chunks
+            .iter()
+            .any(|c| c.commits.iter().any(|row| row.oid == head)),
+        "HEAD is in the graph"
+    );
+    assert!(chunks.iter().any(|c| !c.rows.is_empty()));
+}
+
 #[test]
-fn special_states_open_read_status_and_build_graph() {
-    for name in ["detached", "merge", "rebase", "locked"] {
-        let f = match name {
-            "detached" => test_fixtures::detached_head().unwrap(),
-            "merge" | "rebase" => test_fixtures::conflicted().unwrap(),
-            _ => test_fixtures::linear(3).unwrap(),
-        };
-        if name == "rebase" {
-            f.git(&["merge", "--abort"]).unwrap();
-            assert!(f.git(&["rebase", "dev"]).is_err());
-        }
-        if name == "locked" {
-            std::fs::write(f.git_dir().join("index.lock"), "held").unwrap();
-        }
-        let head = f.oid("HEAD").unwrap();
-        let expected = match name {
-            "detached" => git_engine::RepoState::DetachedHead { oid: head.clone() },
-            "merge" => git_engine::RepoState::Merging,
-            "rebase" => git_engine::RepoState::Rebasing,
-            _ => git_engine::RepoState::Clean,
-        };
-        let state = AppState::new();
-        let opened = state.open_repository(f.path()).unwrap();
-        assert_eq!(opened.state, expected, "{name}");
-        assert_eq!(opened.index_lock.is_some(), name == "locked", "{name}");
-        let status = state.repo_status(opened.repo).unwrap();
-        assert_eq!(
-            status.conflicted,
-            u32::from(matches!(name, "merge" | "rebase"))
-        );
-        let chunks = stream(&state, opened.repo, 100);
-        assert!(
-            chunks
-                .iter()
-                .any(|c| c.commits.iter().any(|row| row.oid == head))
-        );
-        assert!(chunks.iter().any(|c| !c.rows.is_empty()), "{name}");
-    }
+fn a_detached_head_opens_reads_and_draws() {
+    let f = test_fixtures::detached_head().unwrap();
+    let oid = f.oid("HEAD").unwrap();
+    opens_reads_and_draws(&f, &git_engine::RepoState::DetachedHead { oid }, 0, false);
+}
+
+#[test]
+fn a_merge_in_progress_opens_reads_and_draws() {
+    let f = test_fixtures::conflicted().unwrap();
+    opens_reads_and_draws(&f, &git_engine::RepoState::Merging, 1, false);
+}
+
+#[test]
+fn a_rebase_in_progress_opens_reads_and_draws() {
+    let f = test_fixtures::conflicted().unwrap();
+    f.git(&["merge", "--abort"]).unwrap();
+    assert!(
+        f.git(&["rebase", "dev"]).is_err(),
+        "the rebase stops on its conflict"
+    );
+    opens_reads_and_draws(&f, &git_engine::RepoState::Rebasing, 1, false);
+}
+
+#[test]
+fn a_locked_index_opens_reads_and_draws() {
+    let f = test_fixtures::linear(3).unwrap();
+    std::fs::write(f.git_dir().join("index.lock"), "held").unwrap();
+    opens_reads_and_draws(&f, &git_engine::RepoState::Clean, 0, true);
 }
 
 #[test]
