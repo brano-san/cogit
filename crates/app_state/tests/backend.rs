@@ -518,3 +518,56 @@ fn a_repository_in_wsl_opens_through_its_agent() {
     wsl(r#"rm -rf "$1" "$1-clone" "$1-init""#);
     assert!(state.close_repository(summary.repo));
 }
+
+/// M15 acceptance: a file changed in the distribution's own terminal shows in the panels
+/// without Refresh. The loopback test covers the watcher in the agent; this one, inotify
+/// on ext4 inside WSL, which is what a user of a WSL repository has.
+#[test]
+#[ignore = "needs WSL with git and a musl cogit-agent in COGIT_AGENT_BIN; distro in COGIT_TEST_DISTRO"]
+fn a_change_made_inside_wsl_reaches_the_window_without_a_refresh() {
+    let agent = std::fs::read(std::env::var("COGIT_AGENT_BIN").unwrap()).unwrap();
+    app_state::provide_agent_binary(Box::leak(agent.into_boxed_slice()));
+    let distro = std::env::var("COGIT_TEST_DISTRO").unwrap_or_else(|_| "Ubuntu-22.04".to_owned());
+    let folder = format!("/tmp/cogit-wsl-watch-{}", std::process::id());
+    let wsl = |script: &str| {
+        let out = std::process::Command::new("wsl.exe")
+            .args(["-d", &distro, "-e", "sh", "-c", script, "sh", &folder])
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "{out:?}");
+    };
+    wsl(
+        r#"set -e; rm -rf "$1"; mkdir -p "$1"; cd "$1"; git init -q; git config user.name Cogit; git config user.email cogit@example.com; echo a > a.txt; git add a.txt; git commit -qm first"#,
+    );
+
+    let state = AppState::new();
+    let path = format!(r"\\wsl.localhost\{distro}{}", folder.replace('/', r"\"));
+    let repo = state
+        .open_repository(std::path::Path::new(&path))
+        .unwrap()
+        .repo;
+    assert!(state.is_remote(repo));
+    state.show_repository(Some(repo));
+    let mut events = state.subscribe();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while state.watcher_is_quiet(repo) && std::time::Instant::now() < deadline {
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+
+    wsl(r#"echo later > "$1/later.txt""#);
+    let mut changed = false;
+    while !changed && std::time::Instant::now() < deadline {
+        match events.try_recv() {
+            Ok(app_state::AppEvent::RepoChanged {
+                repo: changed_repo, ..
+            }) => changed = changed_repo == repo,
+            Ok(_) => {}
+            Err(_) => std::thread::sleep(std::time::Duration::from_millis(20)),
+        }
+    }
+    assert!(changed, "the change inside WSL never reached the window");
+    assert_eq!(state.repo_status(repo).unwrap().untracked, 1);
+
+    wsl(r#"rm -rf "$1""#);
+    assert!(state.close_repository(repo));
+}
