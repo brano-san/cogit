@@ -48,6 +48,7 @@
   import {
     anchoredTop,
     fontEstimate,
+    pairCounts,
     rowCounts,
     uniformRows,
     visibleRows,
@@ -156,12 +157,8 @@
   const dirty = $derived(editor !== null && diffEdit.dirty);
   const SAVE_FIRST = "Save the file first (Ctrl+S): staging takes the lines on disk";
   /** Long lines wrap at their pane's width (F-950). Wrapped rows are the HTML rows, so the
-      editor gives way to them, except while it holds edits not saved yet. Aligned side by
-      side is not wrapped yet: its pairs need one height for both sides. */
-  const wrap = $derived(
-    settings.current.diffWrap && diff.kind === "text" && !dirty &&
-      !(diffStore.layout === "split" && settings.current.diffLayout === "aligned"),
-  );
+      editor gives way to them, except while it holds edits not saved yet. */
+  const wrap = $derived(settings.current.diffWrap && diff.kind === "text" && !dirty);
   const wrapTool = $derived(
     wrapButton(settings.current.diffWrap, { editable: edit !== null && edit.blocked === null, dirty }),
   );
@@ -389,7 +386,7 @@
   let measuredVersion = $state(0);
 
   /** Where every row of each list is. Unwrapped, `index · ROW_HEIGHT`; wrapped, a line is as
-      many rows as its text takes. */
+      many rows as its text takes, and Aligned a pair is as tall as its taller side. */
   const geo = $derived.by(() => {
     void measuredVersion;
     const plain = {
@@ -417,6 +414,10 @@
     const left = rowCounts(model.left, codeWidth, est, measured.left);
     const right = rowCounts(model.right, rightCode, est, measured.right);
     counted = { unified: null, left, right };
+    if (sideLayout === "aligned") {
+      const both = wrappedRows(pairCounts(left, right), ROW_HEIGHT);
+      return { ...plain, left: both, right: both };
+    }
     return { ...plain, left: wrappedRows(left, ROW_HEIGHT), right: wrappedRows(right, ROW_HEIGHT) };
   });
   const panes = $derived<PaneGeometry>({ left: geo.left, right: geo.right });
@@ -1068,8 +1069,9 @@
   >
 {/snippet}
 
-<!-- Wrapped (F-950), a row is as tall as its geometry says: the cells take their text's height,
-     the number on its first visual row. `data-wrap` is what `measureRows` reads. -->
+<!-- Wrapped (F-950), a row is as tall as its geometry says: the cells take their text's height
+     (the number on its first visual row), and Aligned the filler under them makes up the
+     taller line opposite. `data-wrap` is what `measureRows` reads. -->
 {#snippet pane(side: PaneSide, rows: PaneRow[], range: { start: number; end: number }, at: RowGeometry)}
   {#each rows.slice(range.start, range.end) as row, k (range.start + k)}
     {@const index = range.start + k}
@@ -1093,6 +1095,7 @@
       >
         {#if wrap}
           <div class="cells" data-wrap={index}>{@render paneCells(side, row, index, tone)}</div>
+          {#if sideLayout === "aligned"}<span class="filler under"></span>{/if}
         {:else}
           {@render paneCells(side, row, index, tone)}
         {/if}
@@ -1615,9 +1618,9 @@
     white-space: pre;
   }
 
-  /* Wrapped (F-950): the row's height is set inline from its geometry, the cells are as tall
-     as their text. Any character may end a visual row, spaces included, as `diff-wrap`
-     counts them. */
+  /* Wrapped (F-950): the row's height is set inline from its geometry. The cells are as tall
+     as their text, the filler under them (Aligned) as tall as the line opposite is taller.
+     Any character may end a visual row, spaces included, as `diff-wrap` counts them. */
   .line.wrapped {
     flex-direction: column;
   }

@@ -160,6 +160,34 @@ describe("row geometry", () => {
   });
 });
 
+describe("aligned rows of different wrapped heights", () => {
+  // Left line wraps to 3 rows, its pair on the right to 1: the pair is 3 rows on both sides.
+  const model = alignModel(
+    buildBlocks([ctx(1), del(2, "a".repeat(25)), ins(2, "b"), ctx(3, "c".repeat(15)), ctx(4)]),
+  );
+
+  it("makes a pair as tall as its taller side on both sides", () => {
+    const rows = geometry(model, [100, 100], true);
+    expect(rows.left).toBe(rows.right);
+    expect([0, 1, 2, 3, 4].map((i) => rows.left.top(i) / RH)).toEqual([0, 1, 4, 6, 7]);
+  });
+
+  it("joins the panes by a straight band of the pair's real height", () => {
+    const rows = geometry(model, [100, 60], true);
+    const [band] = blockConnectors(model, view(), view(), rows);
+    expect(band!.left).toEqual([RH, 4 * RH]);
+    expect(band!.right).toEqual(band!.left);
+  });
+
+  it("scrolls both panes as one", () => {
+    const rows = geometry(model, [100, 60], true);
+    for (const y of [0, 20, 50, 70]) {
+      expect(mapLeftScrollToRight(model, view(y, 40), view(0, 40), rows)).toBe(y);
+      expect(mapRightScrollToLeft(model, view(0, 40), view(y, 40), rows)).toBe(y);
+    }
+  });
+});
+
 describe("compact panes of different wrapped heights", () => {
   // Left: c1 [a×25 = 3 rows] c3; right: c1 [b, b] c3. The changed block is 54 px left, 36 right.
   const model = buildBlocks([ctx(1), del(2, "a".repeat(25)), ins(2, "b"), ins(3, "b"), ctx(3), ctx(4), ctx(5), ctx(6)]);
@@ -205,28 +233,26 @@ describe("wrapping a 10 000-line diff", () => {
     entries.push(i % 10 === 0 ? del(i, text) : ctx(i, text));
     if (i % 10 === 0) entries.push(ins(i, `${text} changed`));
   }
-  const model = buildBlocks(entries);
+  const model = alignModel(buildBlocks(entries));
 
   it("builds the geometry of every row within a frame's budget, and a width change too", () => {
     const est = estimate();
     let t0 = performance.now();
-    const counts = (width: number) => [
-      wrappedRows(rowCounts(model.left, width, est, new Map()), RH),
-      wrappedRows(rowCounts(model.right, width, est, new Map()), RH),
-    ];
-    const [rows] = counts(400);
+    const counts = (width: number) =>
+      wrappedRows(pairCounts(rowCounts(model.left, width, est, new Map()), rowCounts(model.right, width, est, new Map())), RH);
+    const rows = counts(400);
     const cold = performance.now() - t0;
     t0 = performance.now();
     counts(380);
     const rewrap = performance.now() - t0;
-    expect(rows!.count).toBe(model.left.length);
-    expect(rows!.total).toBeGreaterThan(model.left.length * RH);
+    expect(rows.count).toBe(model.left.length);
+    expect(rows.total).toBeGreaterThan(model.left.length * RH);
     expect(cold).toBeLessThan(budget(60));
     expect(rewrap).toBeLessThan(budget(40));
   });
 
   it("finds the visible window, its connectors and the other pane's scroll in well under a frame", () => {
-    const rows = geometry(model, [400, 400], false);
+    const rows = geometry(model, [400, 400], true);
     const t0 = performance.now();
     for (let frame = 0; frame < 100; frame++) {
       const y = (rows.left.total * frame) / 100;
