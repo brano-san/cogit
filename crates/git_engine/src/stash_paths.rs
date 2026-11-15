@@ -9,13 +9,12 @@ pub struct StashPick {
     pub index: u32,
     /// HEAD when it was checked: Undo puts the index of the paths back to it.
     pub head: String,
-    stash: String,
-    staged_rev: String,
-    untracked_rev: Option<String>,
-    written: Vec<String>,
-    /// Of those, the ones HEAD lacks: `stash apply` keeps them added without `--index`.
-    added: Vec<String>,
-    deleted: Vec<String>,
+    stash: gix::ObjectId,
+    base: gix::ObjectId,
+    staged: gix::ObjectId,
+    untracked_rev: Option<gix::ObjectId>,
+    /// Changed or deleted in the stash: merged as `stash apply` merges them.
+    tracked: Vec<String>,
     untracked: Vec<String>,
     paths: Vec<String>,
 }
@@ -75,20 +74,15 @@ impl RepoHandle {
         let base_tree = self.tree_of(base)?;
         let staged_tree = self.tree_of(staged)?;
         let untracked_tree = untracked_rev.map(|id| self.tree_of(id)).transpose()?;
-        let head_tree = self
-            .find_commit(&head)?
-            .tree()
-            .map_err(|err| GitError::Internal(format!("cannot read the tree of HEAD: {err}")))?;
 
         let mut pick = StashPick {
             index,
             head,
-            stash: oid.to_owned(),
-            staged_rev: staged.to_string(),
-            untracked_rev: untracked_rev.map(|id| id.to_string()),
-            written: Vec::new(),
-            added: Vec::new(),
-            deleted: Vec::new(),
+            stash: commit.id,
+            base,
+            staged,
+            untracked_rev,
+            tracked: Vec::new(),
             untracked: Vec::new(),
             paths: paths.clone(),
         };
@@ -98,13 +92,11 @@ impl RepoHandle {
                 && holds(tree, &path)?
             {
                 pick.untracked.push(path);
-            } else if holds(&stash_tree, &path)? {
-                if !holds(&head_tree, &path)? {
-                    pick.added.push(path.clone());
-                }
-                pick.written.push(path);
-            } else if holds(&base_tree, &path)? || holds(&staged_tree, &path)? {
-                pick.deleted.push(path);
+            } else if holds(&stash_tree, &path)?
+                || holds(&base_tree, &path)?
+                || holds(&staged_tree, &path)?
+            {
+                pick.tracked.push(path);
             } else {
                 missing.push(path);
             }
@@ -165,35 +157,76 @@ impl RepoHandle {
             .collect())
     }
 
-    /// Writes what `stash_pick` sorted. Without `restore_index` the index ends as `stash
-    /// apply` leaves it: at HEAD, files new to it added.
+    /// `git stash apply` of a stash made of the chosen files only: their changes merge into
+    /// what HEAD has now, conflicts and `--index` included, exactly as the whole stash would.
     pub fn apply_stash_pick(&self, pick: &StashPick, restore_index: bool) -> Result<()> {
-        if !pick.written.is_empty() {
-            self.run_git_paths(&["checkout", &pick.stash], &pick.written)?;
+        let made = self.stash_of_pick(pick)?;
+        let mut args = vec!["stash", "apply"];
+        if restore_index {
+            args.push("--index");
         }
-        if !pick.deleted.is_empty() {
-            self.run_git_paths(&["rm", "-q", "--ignore-unmatch"], &pick.deleted)?;
-        }
-        if let Some(rev) = &pick.untracked_rev
+        args.push(&made);
+        self.run_git(&args).map(drop)
+    }
+
+    /// The stash's base with only the picked paths taken from each of its sides.
+    fn stash_of_pick(&self, pick: &StashPick) -> Result<String> {
+        let base = pick.base.to_string();
+        let tracked = crate::commit_write::Scratch::beside_index(self, "stash-pick");
+        self.run_git_indexed(&tracked.0, &["read-tree", &base], None)?;
+        let worktree = self.picked_tree(&tracked.0, pick.stash, &pick.tracked)?;
+        let staged = self.picked_tree(&tracked.0, pick.staged, &pick.tracked)?;
+        let staged = self.commit_tree(&staged, &[&base], "index of the chosen files")?;
+        let mut parents = vec![base.as_str(), staged.as_str()];
+        let untracked;
+        if let Some(rev) = pick.untracked_rev
             && !pick.untracked.is_empty()
         {
-            let source = format!("--source={rev}");
-            self.run_git_paths(&["restore", &source, "--worktree"], &pick.untracked)?;
+            let empty = crate::commit_write::Scratch::beside_index(self, "stash-pick-untracked");
+            let tree = self.picked_tree(&empty.0, rev, &pick.untracked)?;
+            untracked = self.commit_tree(&tree, &[], "untracked of the chosen files")?;
+            parents.push(&untracked);
         }
-        let tracked: Vec<String> = pick.written.iter().chain(&pick.deleted).cloned().collect();
-        if tracked.is_empty() {
-            return Ok(());
+        let message = format!("cogit: chosen files of stash@{{{}}}", pick.index);
+        self.commit_tree(&worktree, &parents, &message)
+    }
+
+    /// `paths` set in the scratch `index` as `rev` has them, absent where it has none.
+    fn picked_tree(
+        &self,
+        index: &std::path::Path,
+        rev: gix::ObjectId,
+        paths: &[String],
+    ) -> Result<String> {
+        let tree = self.tree_of(rev)?;
+        let none = gix::ObjectId::null(self.repo.object_hash());
+        let mut info = Vec::new();
+        for path in paths {
+            let entry = tree
+                .lookup_entry_by_path(path.as_str())
+                .map_err(|err| GitError::Internal(format!("cannot look up {path}: {err}")))?
+                .filter(|entry| !entry.mode().is_tree());
+            let line = match entry {
+                Some(entry) => format!(
+                    "{} {}\t{path}\0",
+                    entry.mode().kind().as_octal_str(),
+                    entry.object_id()
+                ),
+                None => format!("0 {none}\t{path}\0"),
+            };
+            info.extend_from_slice(line.as_bytes());
         }
-        let to = if restore_index {
-            &pick.staged_rev
-        } else {
-            &pick.head
-        };
-        self.run_git_paths(&["reset", "-q", to], &tracked)?;
-        if !restore_index && !pick.added.is_empty() {
-            self.run_git_paths(&["add"], &pick.added)?;
+        self.run_git_indexed(index, &["update-index", "-z", "--index-info"], Some(&info))?;
+        let written = self.run_git_indexed(index, &["write-tree"], None)?;
+        Ok(written.stdout.trim().to_owned())
+    }
+
+    fn commit_tree(&self, tree: &str, parents: &[&str], message: &str) -> Result<String> {
+        let mut args = vec!["commit-tree", "--no-gpg-sign", tree, "-m", message];
+        for parent in parents {
+            args.extend(["-p", parent]);
         }
-        Ok(())
+        Ok(self.run_git(&args)?.stdout.trim().to_owned())
     }
 
     /// Refused if any path changed since (`left`); the index of the paths goes back to `head`.

@@ -108,8 +108,12 @@ impl AppState {
             .keep_present(pick.paths())
             .map_err(|err| crate::backup_failed("applying the stash over", &err))?;
         let applied = handle.apply_stash_pick(&pick, restore_index);
-        // Recorded whatever came of it: a write that stopped halfway still changed files.
+        // Recorded whatever came of it: a stop on conflicts has written its markers. Only a
+        // refusal that left every file as it was has nothing to undo.
         let recovery = match handle.file_hashes(pick.paths()) {
+            Ok(left) if applied.is_err() && kept.iter().map(|(_, oid)| oid).eq(left.iter()) => {
+                return applied;
+            }
             Ok(left) => Recovery::StashPaths {
                 head: pick.head.clone(),
                 kept,
