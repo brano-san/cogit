@@ -619,13 +619,6 @@
         return;
       case "pop-stash":
         if (at.stash) {
-          const go = await confirmation.ask({
-            title: "Pop Stash",
-            message: `Apply stash@{${at.stash.index}} (${at.stash.message}) and drop it if it applies cleanly? Undo cannot bring the stash back.`,
-            confirm: "Pop",
-            warning: true,
-          });
-          if (!go) return;
           const oid = at.stash.oid;
           await attempt("Could not pop the stash", () => stashes.apply(id, oid, true));
         }

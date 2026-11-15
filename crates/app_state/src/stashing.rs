@@ -61,8 +61,35 @@ impl AppState {
         restore_index: bool,
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
-        self.handle(repo)?
-            .stash_apply_index(oid, pop, restore_index)
+        let handle = self.handle(repo)?;
+        if !pop {
+            return handle.stash_apply_index(oid, false, restore_index);
+        }
+        // A pop drops the stash once it applies: undone like Drop, which lists it again and
+        // leaves the applied work where it is. Git keeps it when the apply conflicts.
+        let entry = handle
+            .stashes()?
+            .into_iter()
+            .find(|entry| entry.oid == oid)
+            .ok_or_else(|| git_engine::GitError::InvalidState("the stash is gone".to_owned()))?;
+        handle
+            .pin_for_undo(oid)
+            .map_err(|err| crate::backup_failed("popping a stash", &err))?;
+        let applied = handle.stash_apply_index(oid, true, restore_index);
+        let dropped = handle
+            .stashes()
+            .map(|left| left.iter().all(|each| each.oid != oid))
+            .unwrap_or(false);
+        if dropped {
+            self.record(
+                repo,
+                format!("Pop stash@{{{}}} ({})", entry.index, entry.message),
+                Recovery::DroppedStash { entry },
+            );
+        } else {
+            self.unpin(&handle, repo, oid, None);
+        }
+        applied
     }
 
     /// Stash, check out, apply: one call, which the command runs as one operation (R-521,
