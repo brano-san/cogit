@@ -76,13 +76,14 @@ export function splitPath(path: string): { name: string; directory: string } {
 
 export type SortKey = "name" | "directory";
 
+const fileOrder = new Intl.Collator(undefined, { sensitivity: "base" });
+
 export function sortedFiles(files: readonly FileEntry[], key: SortKey, descending: boolean): FileEntry[] {
-  const part = (file: FileEntry) => splitPath(file.path)[key];
   const sign = descending ? -1 : 1;
-  return [...files].sort(
+  return files.map((file) => ({ file, part: splitPath(file.path)[key] })).sort(
     (a, b) =>
-      sign * part(a).localeCompare(part(b), undefined, { sensitivity: "base" }) || a.path.localeCompare(b.path),
-  );
+      sign * fileOrder.compare(a.part, b.part) || a.file.path.localeCompare(b.file.path),
+  ).map(({ file }) => file);
 }
 
 /** `2 files (+1 ~1)`: how many are selected, then how they changed: `+` new, `~` modified,

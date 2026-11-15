@@ -1,4 +1,4 @@
-import { matchesMask } from "$lib/files";
+import { compileMask } from "$lib/files";
 import type { FileEntry } from "$lib/ipc";
 
 export interface CommitScope {
@@ -20,7 +20,8 @@ export function commitScope(
   // A set, not `includes`: staging two thousand files made this 4 million comparisons,
   // run on every read-back of the list (doc/12-risks.md, R-310).
   const seen = visible === null ? null : new Set(visible);
-  const shown = staged.filter((file) => (seen === null ? matchesMask(file.path, mask) : seen.has(file.path)));
+  const matches = seen === null ? compileMask(mask) : (path: string) => seen.has(path);
+  const shown = staged.filter((file) => matches(file.path));
   const hidden = staged.length - shown.length;
 
   if (hidden === 0) {

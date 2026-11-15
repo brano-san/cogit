@@ -61,6 +61,17 @@ describe("haystack", () => {
 });
 
 describe("matches", () => {
+  it("agrees with testing each displayed field for literal, glob and anchored queries", () => {
+    for (const row of [file(), file({ path: "src/İstanbul.ts", oldPath: "old/rename.ts" }), file({ path: "module/", status: "deleted" })]) {
+      for (const text of ["", "lib/", "modified", "missing", "rename", "*.ts", "^graph", "ts$", "İ", "("]) {
+        for (const regex of [true, false]) {
+          const pattern = compile(text, regex);
+          const expected = pattern.test === null || haystack(row).some(pattern.test);
+          expect(matches(row, pattern), `${row.path}: ${text}, regex=${regex}`).toBe(expected);
+        }
+      }
+    }
+  });
   it("finds a file by its bare name", () => {
     expect(matches(file(), compile("graph.ts", false))).toBe(true);
   });

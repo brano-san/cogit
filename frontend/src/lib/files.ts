@@ -12,14 +12,20 @@ export function fileName(path: string): string {
 }
 
 export function matchesMask(path: string, mask: string): boolean {
+  return compileMask(mask)(path);
+}
+
+/** One matcher per filter change, shared by every file in a commit scope. */
+export function compileMask(mask: string): (path: string) => boolean {
   const pattern = mask.trim().toLowerCase();
-  if (pattern === "") return true;
+  if (pattern === "") return () => true;
 
   if (!pattern.includes("*") && !pattern.includes("?")) {
-    return path.toLowerCase().includes(pattern);
+    return (path) => path.toLowerCase().includes(pattern);
   }
-  const subject = pattern.includes("/") ? path : fileName(path);
-  return globToRegExp(pattern).test(subject.toLowerCase());
+  const expression = globToRegExp(pattern);
+  const fullPath = pattern.includes("/");
+  return (path) => expression.test((fullPath ? path : fileName(path)).toLowerCase());
 }
 
 export function globToRegExp(pattern: string): RegExp {

@@ -12,6 +12,9 @@ export interface Pattern {
   test: ((subject: string) => boolean) | null;
   /** True when regex mode is on and the text does not compile. */
   broken: boolean;
+  /** A literal substring in the basename is also in the full path. Anchored regexes
+      and globs must still test the two separately. */
+  pathIncludesName?: boolean;
 }
 
 export function compile(text: string, regex: boolean): Pattern {
@@ -34,7 +37,7 @@ export function compile(text: string, regex: boolean): Pattern {
     const glob = globToRegExp(lower);
     return { test: (subject) => glob.test(subject.toLowerCase()), broken: false };
   }
-  return { test: (subject) => subject.toLowerCase().includes(lower), broken: false };
+  return { test: (subject) => subject.toLowerCase().includes(lower), broken: false, pathIncludesName: true };
 }
 
 /** Everything the row shows, so the filter sees what the eye sees. Each part is tested on
@@ -48,5 +51,7 @@ export function haystack(file: ListFile, side: StateSide = "worktree"): string[]
 export function matches(file: ListFile, pattern: Pattern, side: StateSide = "worktree"): boolean {
   const test = pattern.test;
   if (test === null) return true;
-  return haystack(file, side).some((part) => test(part));
+  return (!pattern.pathIncludesName && test(fileName(file.path))) || test(file.path) ||
+    test(fileState(file, sideOfRow(file.indexState, side)).text) ||
+    (file.oldPath != null && file.oldPath !== "" && test(file.oldPath));
 }

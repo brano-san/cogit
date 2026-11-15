@@ -73,7 +73,7 @@ export function sortRows<F extends FileEntry>(
   lfs: (path: string) => LfsState | undefined = () => undefined,
 ): F[] {
   const keyed = files.map((file) => {
-    const name = fileName(file.path);
+    const name = sort.key === "path" ? "" : fileName(file.path);
     let rank = 0;
     let text = "";
     if (sort.key === "extension") text = extensionOf(file.path);
@@ -85,9 +85,12 @@ export function sortRows<F extends FileEntry>(
   });
   const sign = sort.descending ? -1 : 1;
   keyed.sort((a, b) => {
-    const folder = collator.compare(a.folder, b.folder);
-    if (folder !== 0) return folder;
-    let order = a.rank - b.rank || collator.compare(a.text, b.text);
+    if (directories) {
+      const folder = collator.compare(a.folder, b.folder);
+      if (folder !== 0) return folder;
+    }
+    let order = a.rank - b.rank;
+    if (order === 0 && (sort.key === "extension" || sort.key === "lfs")) order = collator.compare(a.text, b.text);
     if (order === 0 && sort.key !== "path") order = collator.compare(a.name, b.name);
     if (order === 0) order = collator.compare(a.file.path, b.file.path);
     return sign * order;

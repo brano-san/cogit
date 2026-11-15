@@ -34,7 +34,10 @@ export interface EditorSide {
 
 export function editorSide(raw: string | null): EditorSide {
   if (raw === null) return { text: "", endings: [], present: false };
-  const endings = [...raw.matchAll(/\r?\n/g)].map((match) => match[0]);
+  const endings: string[] = [];
+  for (let at = raw.indexOf("\n"); at !== -1; at = raw.indexOf("\n", at + 1)) {
+    endings.push(at > 0 && raw[at - 1] === "\r" ? "\r\n" : "\n");
+  }
   return { text: raw.replaceAll("\r\n", "\n"), endings, present: true };
 }
 
@@ -50,7 +53,8 @@ export function forDisk(side: EditorSide, text: string): string {
   let tail = 0;
   while (tail < room && lines[lines.length - 1 - tail] === before[before.length - 1 - tail]) tail += 1;
 
-  const crlf = ends.filter((ending) => ending === "\r\n").length;
+  let crlf = 0;
+  for (const ending of ends) if (ending === "\r\n") crlf += 1;
   let previous = crlf > ends.length - crlf ? "\r\n" : "\n";
   let out = lines[0] ?? "";
   for (let at = 0; at < lines.length - 1; at += 1) {
