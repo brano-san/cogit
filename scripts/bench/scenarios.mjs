@@ -6,6 +6,10 @@
 // (whose text contains `text`, or the `index`-th), inside a Files pane headed `section`,
 // and optionally its descendant `child`.
 
+import { PORT } from "./app.mjs";
+import { connect } from "./cdp.mjs";
+import { PAGE } from "./page.mjs";
+
 const GRAPH_ROWS = `document.querySelectorAll('[role="listitem"]').length > 0`;
 const REF_ROWS = `document.querySelectorAll('[role="treeitem"]').length > 0`;
 const FILE_ROWS = `document.querySelectorAll('.pane button.row').length > 0`;
@@ -106,6 +110,65 @@ async function wheel(ctx, selector, steps, delta) {
 }
 
 export const SCENARIOS = [
+  {
+    id: "commit.sort-files",
+    group: "Commit window",
+    title: "сортировка 2 003 изменённых файлов по имени",
+    sets: ["dirty"],
+    async prep(ctx) {
+      await ctx.prep.run(`(async () => {
+        const I = window.__TAURI_INTERNALS__;
+        const norm = p => p.replaceAll('\\\\', '/').toLowerCase();
+        const root = ${JSON.stringify(ctx.repo)};
+        const repo = (await I.invoke('repositories')).find(r => norm(r.root) === norm(root))?.repo;
+        if (repo === undefined) throw new Error('benchmark repository not open');
+        await I.invoke('open_commit_window', {repo, root, paths: []});
+      })()`);
+      const deadline = Date.now() + 30000;
+      while (Date.now() < deadline) {
+        const targets = await fetch(`http://127.0.0.1:${PORT}/json`).then((r) => r.json());
+        const target = targets.find((t) => t.type === "page" && t.url.includes("commit.html"));
+        if (target) {
+          ctx.commitPage = await connect(target.webSocketDebuggerUrl);
+          await ctx.commitPage.eval(PAGE);
+          await ctx.commitPage.eval(`window.__bench.run(async () => {
+            const deadline = performance.now() + 20000;
+            while (!document.querySelector('.table .row')) {
+              if (performance.now() > deadline) throw new Error('commit rows not loaded');
+              await new Promise(ok => setTimeout(ok, 50));
+            }
+            [...document.querySelectorAll('label.radio')].find(el => el.textContent.includes('Local Changes')).click();
+          })`);
+          const count = await ctx.commitPage.eval("document.querySelector('.count')?.textContent");
+          if (!count?.startsWith("2003 files")) throw new Error(`unexpected commit workload: ${count}`);
+          return;
+        }
+        await pause(50);
+      }
+      throw new Error("commit window did not appear");
+    },
+    async measure(ctx) {
+      const cdp = ctx.commitPage;
+      const before = await cdp.eval(`document.querySelector('.table .row')?.textContent`);
+      // WebView2 may not deliver CDP mouse input on a hidden desktop.
+      // Time the actual button handler and rendering; OS input dispatch is excluded.
+      const sample = await cdp.eval(`window.__bench.run(() => {
+        const button = window.__bench.locate({sel: '.thead button.head-button', text: 'Name'});
+        if (!button) throw new Error('commit sort header missing');
+        button.click();
+      }, 150, 30000)`);
+      const after = await cdp.eval(`document.querySelector('.table .row')?.textContent`);
+      if (!before || !after || before === after) throw new Error("commit sort did not change the first rendered row");
+      return sample;
+    },
+    async reset(ctx) {
+      if (ctx.commitPage) {
+        await ctx.commitPage.eval(`window.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}))`).catch(() => {});
+        ctx.commitPage.close();
+        ctx.commitPage = null;
+      }
+    },
+  },
   {
     id: "repo.open",
     group: "Репозиторий",
