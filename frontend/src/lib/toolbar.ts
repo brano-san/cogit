@@ -3,6 +3,7 @@
  * Kept out of the component so the rules can be tested; the component only draws them.
  */
 
+import { GLYPHS } from "$lib/icons";
 import type { PullOutcome, Pushed } from "$lib/ipc";
 import type { Pulled } from "$lib/ipc/network-dialogs";
 import { prettyKeys, shortcutOf, type Keymap } from "$lib/keymap";
@@ -29,29 +30,11 @@ export interface ToolbarAction {
   split?: boolean;
 }
 
-export const ICONS = {
-  pull: "M12 3v12m0 0 4-4m-4 4-4-4M5 21h14",
-  push: "M12 21V9m0 0 4 4m-4-4-4 4M5 3h14",
-  sync: "M21 12a9 9 0 0 1-9 9 9 9 0 0 1-8.5-6M3 12a9 9 0 0 1 9-9 9 9 0 0 1 8.5 6M21 4v5h-5M3 20v-5h5",
-  stage: "M12 5v14m-7-7h14",
-  unstage: "M5 12h14",
-  discard: "M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5",
-  stash: "M3 8h18M3 8l2-4h14l2 4M3 8v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8m-11 5h4",
-  applyStash: "M3 8h18M3 8l2-4h14l2 4M3 8v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8M12 17v-6m-3 3 3-3 3 3",
-  merge:
-    "M7 18V9a4 4 0 0 1 4-4h5M7 6.5a2.5 2.5 0 1 0 0-.1M18.5 7.5a2.5 2.5 0 1 0 0-.1M7 20.5a2.5 2.5 0 1 0 0-.1",
-  rebase:
-    "M7 6.5a2.5 2.5 0 1 0 0-.1M7 20.5a2.5 2.5 0 1 0 0-.1M7 9v6M17 6.5a2.5 2.5 0 1 0 0-.1M17 9v4a4 4 0 0 1-4 4H9",
-  tag: "M3 11V5a2 2 0 0 1 2-2h6l10 10-8 8L3 11Zm4-4.5a.5.5 0 1 0 0-.1",
-  undo: "M3 12a9 9 0 1 1 3 6.7L3 16m0 5v-5h5",
-  more: "M5 12h.01M12 12h.01M19 12h.01",
-} as const;
-
 export const ACTIONS: readonly ToolbarAction[] = [
   {
     id: "pull",
     label: "Pull",
-    icon: ICONS.pull,
+    icon: GLYPHS.pull.d,
     hint: "Bring the remote's commits down",
     command: "pull",
     split: true,
@@ -59,7 +42,7 @@ export const ACTIONS: readonly ToolbarAction[] = [
   {
     id: "push",
     label: "Push",
-    icon: ICONS.push,
+    icon: GLYPHS.push.d,
     hint: "Send your commits to the remote",
     command: "push",
     split: true,
@@ -67,7 +50,7 @@ export const ACTIONS: readonly ToolbarAction[] = [
   {
     id: "sync",
     label: "Sync",
-    icon: ICONS.sync,
+    icon: GLYPHS.sync.d,
     hint: "Pull, then push",
     command: "synchronize",
     split: true,
@@ -75,28 +58,28 @@ export const ACTIONS: readonly ToolbarAction[] = [
   {
     id: "stage",
     label: "Stage",
-    icon: ICONS.stage,
+    icon: GLYPHS.stage.d,
     hint: "Stage the selected files, or every change when none is selected",
     command: "stage",
   },
   {
     id: "unstage",
     label: "Unstage",
-    icon: ICONS.unstage,
+    icon: GLYPHS.unstage.d,
     hint: "Unstage the selected files, or the whole index when none is selected",
     command: "unstage",
   },
   {
     id: "discard",
     label: "Discard",
-    icon: ICONS.discard,
+    icon: GLYPHS.discard.d,
     hint: "Throw away the changes in the selected files",
     keys: "CmdOrCtrl+Z",
   },
   {
     id: "stash",
     label: "Stash",
-    icon: ICONS.stash,
+    icon: GLYPHS.stash.d,
     hint: "Put the working tree aside",
     command: "stash",
     split: true,
@@ -104,24 +87,24 @@ export const ACTIONS: readonly ToolbarAction[] = [
   {
     id: "apply-stash",
     label: "Apply Stash",
-    icon: ICONS.applyStash,
+    icon: GLYPHS.applyStash.d,
     hint: "Apply the newest stash (stash@{0}) and keep it in the list",
   },
   {
     id: "merge",
     label: "Merge",
-    icon: ICONS.merge,
+    icon: GLYPHS.merge.d,
     hint: "Merge the selected commit into HEAD",
   },
   {
     id: "rebase",
     label: "Rebase",
-    icon: ICONS.rebase,
+    icon: GLYPHS.rebase.d,
     hint: "Replay HEAD on the selected commit",
     split: true,
   },
-  { id: "tag", label: "Tag", icon: ICONS.tag, hint: "Tag the current commit", command: "tag" },
-  { id: "undo", label: "Undo", icon: ICONS.undo, hint: "Reverse the last operation" },
+  { id: "tag", label: "Tag", icon: GLYPHS.tag.d, hint: "Tag the current commit", command: "tag" },
+  { id: "undo", label: "Undo", icon: GLYPHS.undo.d, hint: "Reverse the last operation" },
 ];
 
 export const SEPARATOR = "|";

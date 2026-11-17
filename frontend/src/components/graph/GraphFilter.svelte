@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import { untrack } from "svelte";
   import { formatQuery, parseQuery, sameQuery } from "$lib/query";
   import type { CommitQuery } from "$lib/ipc";
@@ -99,9 +100,7 @@
         title="Clear filter (Esc)"
         aria-label="Clear filter"
       >
-        <svg viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" />
-        </svg>
+        <Icon name="close" />
       </button>
     {/if}
   </div>
@@ -172,9 +171,9 @@
     color: var(--text-primary);
   }
 
-  .clear svg {
+  .clear :global(svg) {
     width: 14px;
     height: 14px;
-    fill: none;
+    stroke-width: 1.75;
   }
 </style>

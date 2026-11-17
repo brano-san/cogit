@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import { tick } from "svelte";
   import Checkbox from "$components/common/Checkbox.svelte";
   import Dialog from "$components/common/Dialog.svelte";
@@ -83,15 +84,11 @@
   <div class="welcome">
     <div class="actions">
       <button type="button" class="btn action" data-autofocus={rows.length === 0 ? "" : undefined} onclick={() => onrun({ kind: "folder" })}>
-        <svg viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M1.5 4A1.5 1.5 0 0 1 3 2.5h3l1.5 1.5H13A1.5 1.5 0 0 1 14.5 5.5V12A1.5 1.5 0 0 1 13 13.5H3A1.5 1.5 0 0 1 1.5 12Z" />
-        </svg>
+        <Icon name="folder" />
         Open or Create…
       </button>
       <button type="button" class="btn action" onclick={() => onrun({ kind: "clone" })}>
-        <svg viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 11v1.5A1 1 0 0 0 3.5 13.5h9a1 1 0 0 0 1-1V11" />
-        </svg>
+        <Icon name="clone" />
         Clone…
       </button>
     </div>
@@ -152,10 +149,7 @@
             }}
           >
             {#if gone}
-              <svg class="warn" viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M8 2 14.5 13.5h-13Z" />
-                <path d="M8 6.5v3.5M8 11.8v.2" />
-              </svg>
+              <Icon name="warning" class="warn" />
             {/if}
             <span class="name">{row.name}</span>
             <span class="path truncate">{row.path}</span>
@@ -200,8 +194,8 @@
     gap: var(--sp-3);
   }
 
-  .action svg,
-  .warn {
+  .action :global(svg),
+  .welcome :global(.warn) {
     flex: none;
     width: 16px;
     height: 16px;
@@ -297,7 +291,7 @@
     color: var(--text-disabled);
   }
 
-  .warn {
+  .welcome :global(.warn) {
     color: var(--status-modify);
   }
 

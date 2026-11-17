@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import Dialog from "$components/common/Dialog.svelte";
   import { aboutGroups, diagnosticsText, type AboutRow, type Context } from "$lib/diagnostics";
   import { fitPath } from "$lib/truncate";
@@ -113,12 +114,7 @@
                   aria-label={folderHint(row)}
                   onclick={() => onreveal(target(row))}
                 >
-                  <svg viewBox="0 0 16 16" aria-hidden="true"
-                    ><path
-                      fill="currentColor"
-                      d="M1.5 3.5c0-.69.56-1.25 1.25-1.25h3.04c.4 0 .78.19 1.01.51l.79 1.09h5.66c.69 0 1.25.56 1.25 1.25v7.15c0 .69-.56 1.25-1.25 1.25H2.75c-.69 0-1.25-.56-1.25-1.25V3.5Z"
-                    /></svg
-                  >
+                  <Icon name="folder" />
                 </button>
               {:else}
                 <span class="value" title={row.title}>
@@ -142,7 +138,7 @@
 
   {#snippet footer()}
     <button type="button" class="btn" onclick={copy}>
-      {copied ? "Copied ✓" : "Copy Diagnostics"}
+      {copied ? "Copied" : "Copy Diagnostics"}{#if copied} <Icon name="check" />{/if}
     </button>
     <button type="button" class="btn primary" bind:this={closer} onclick={onclose}>Close</button>
   {/snippet}
@@ -271,7 +267,7 @@
     color: var(--text-primary);
   }
 
-  .folder svg {
+  .folder :global(svg) {
     width: 14px;
     height: 14px;
   }

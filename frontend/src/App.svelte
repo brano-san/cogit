@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import { tick, untrack } from "svelte";
   import { open as openFolderDialog } from "@tauri-apps/plugin-dialog";
   import { checkForUpdates, message, noSelfUpdateNote, oneCheckAtATime, type UpdateOutcome } from "$lib/updates";
@@ -4145,7 +4146,7 @@ ${event.error}`,
                 class:shown={worktreesFolded}
                 title="Worktree actions"
                 aria-label="Worktree actions"
-                onclick={(event) => void worktreeActions?.headerMenu(event.currentTarget)}>⋯</button
+                onclick={(event) => void worktreeActions?.headerMenu(event.currentTarget)}><Icon name="more" /></button
               >
               <span
                 class="worktrees-wide"
@@ -4857,7 +4858,7 @@ ${event.error}`,
       <span class="what">{output.warning.operation}</span>
       <span class="said truncate">{output.warning.summary}</span>
       <button type="button" onclick={() => void output.showWarning()}>Details</button>
-      <button type="button" onclick={() => output.dismissWarning()} title="Dismiss">✕</button>
+      <button type="button" onclick={() => output.dismissWarning()} title="Dismiss"><Icon name="close" /></button>
     </div>
   {/if}
 
@@ -5063,6 +5064,11 @@ ${event.error}`,
   /* Two classes: `.btn` sets a display of its own and would win the tie. */
   .btn.worktrees-more:not(.shown) {
     display: none;
+  }
+
+  .worktrees-more :global(svg) {
+    --icon-size: 16px;
+    stroke-width: 3;
   }
 
   .worktrees-wide {

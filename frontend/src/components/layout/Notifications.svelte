@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import QueueNav from "$components/common/QueueNav.svelte";
   import type { HealthAction } from "$lib/health";
   import CopyButton from "$components/common/CopyButton.svelte";
@@ -32,47 +33,12 @@
   >
     <header>
       <span class="icon" aria-hidden="true">
-        {#if notice.severity === "error"}
-          <svg viewBox="0 0 16 16"
-            ><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5" /><path
-              d="M8 4.5v4.5M8 11v.5"
-              stroke="currentColor"
-              stroke-width="1.6"
-              stroke-linecap="round"
-            /></svg
-          >
-        {:else if notice.severity === "info"}
-          <svg viewBox="0 0 16 16"
-            ><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5" /><path
-              d="M5.2 8.2 7.2 10.2 10.8 6"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.6"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            /></svg
-          >
-        {:else}
-          <svg viewBox="0 0 16 16"
-            ><path
-              d="M8 1.8 15 14.2H1Z"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.4"
-              stroke-linejoin="round"
-            /><path
-              d="M8 6.2v3.8M8 11.8v.4"
-              stroke="currentColor"
-              stroke-width="1.6"
-              stroke-linecap="round"
-            /></svg
-          >
-        {/if}
+        <Icon name={notice.severity === "error" ? "error" : notice.severity === "info" ? "info" : "warning"} />
       </span>
       <span class="title">
         {notice.title}
         {#if notice.repeats > 1}
-          <span class="repeats" title="The same failure, this many times">×{notice.repeats}</span>
+          <span class="repeats" title="The same failure, this many times">{notice.repeats} times</span>
         {/if}
       </span>
       <span class="side">
@@ -87,7 +53,7 @@
           class="close"
           title={notice.warning ? "Remind me later" : "Close"}
           aria-label="Close"
-          onclick={() => notices.dismiss()}>✕</button
+          onclick={() => notices.dismiss()}><Icon name="close" /></button
         >
       </span>
     </header>
@@ -211,7 +177,7 @@
     color: var(--notice-accent);
   }
 
-  .icon svg {
+  .icon :global(svg) {
     width: 16px;
     height: 16px;
   }

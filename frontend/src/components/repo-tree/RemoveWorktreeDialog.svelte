@@ -93,7 +93,7 @@
         {#each list.slice(0, SHOWN) as file (file.path)}
           {@const state = fileState(file, "worktree")}
           <li>
-            <FileStateIcon base={file.mode === "submodule" ? "repository" : "page"} state={state.icon} />
+            <FileStateIcon base={file.mode === "submodule" ? "submodule" : "file"} state={state.icon} />
             <span class="mono truncate">{file.path}</span>
             <span class="state truncate" title={state.tooltip}>{state.text}</span>
           </li>

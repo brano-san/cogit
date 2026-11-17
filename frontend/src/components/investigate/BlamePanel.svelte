@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import EmptyState from "$components/common/EmptyState.svelte";
   import { shortOid } from "$lib/format";
   import Avatar from "$components/common/Avatar.svelte";
@@ -122,7 +123,7 @@
         title="Previous change in this version (Shift+F6)"
         aria-label="Previous change"
         onclick={() => session.moveToChange(-1)}
-        ><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 10 5-5 5 5" /></svg></button
+        ><Icon name="prev" /></button
       >
       <button
         type="button"
@@ -130,7 +131,7 @@
         title="Next change in this version (F6)"
         aria-label="Next change"
         onclick={() => session.moveToChange(1)}
-        ><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 6 5 5 5-5" /></svg></button
+        ><Icon name="next" /></button
       >
     </div>
   </header>
@@ -260,7 +261,7 @@
     opacity: 0.4;
   }
 
-  .arrows svg {
+  .arrows :global(svg) {
     width: 12px;
     height: 12px;
     fill: none;

@@ -1,4 +1,8 @@
 <script lang="ts">
+  import FileStateIcon from "$components/common/FileStateIcon.svelte";
+  import Icon from "$components/common/Icon.svelte";
+  import MenuMark from "$components/common/MenuMark.svelte";
+  import { GLYPHS } from "$lib/icons";
   import { columnItems, toggleColumn } from "$lib/file-columns";
   import type { FileView } from "$lib/file-view";
   import { layoutToggle, RENAME_SOURCES_TITLE, stateSwitches, toolReason, type ListContext } from "$lib/file-switches";
@@ -55,21 +59,7 @@
 
   const set = (key: keyof FileView, value: boolean) => onview({ ...view, [key]: value });
 
-  /** Lucide paths, the family the main toolbar uses. */
-  const I = {
-    split: "M4 4h10v10H4zM10 10h10v10H10m2-2 2 2 4-4",
-    tree: "M3 6.5A1.5 1.5 0 0 1 4.5 5h3l1.5 2h10a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 19 19H4.5A1.5 1.5 0 0 1 3 17.5ZM9 11v5m0-5h4m-4 5h4",
-    flat: "M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01",
-    unchanged: "M6 3h8l5 5v13H6zM14 3v5h5",
-    untracked: "M6 3h8l5 5v13H6zM14 3v5h5M9 12h6m-3-3v6",
-    ignored: "M6 3h8l5 5v13H6zM14 3v5h5M9 11l6 6m0-6-6 6",
-    modified: "M6 3h8l5 5v13H6zM14 3v5h5M9 15l6-6",
-    skipped: "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12ZM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM3 3l18 18",
-    missing: "M6 3h8l5 5v13H6zM14 3v5h5M9 14h6",
-    columns: "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM9 3v18M15 3v18",
-    expandAll: "m7 15 5 5 5-5M7 9l5-5 5 5",
-    collapseAll: "m7 20 5-5 5 5M7 4l5 5 5-5",
-  } as const;
+  const LAYOUT_GLYPH = { tree: "directories", flat: "flatList" } as const;
 
   /** Shown only beside Show directories turned on; Expand All while anything is folded. */
   const foldAll = $derived(view.directories && !disabled);
@@ -139,7 +129,7 @@
     {disabled}
     onclick={() => splitReason === null && set("separateIndex", !view.separateIndex)}
   >
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d={I.split} /></svg>
+    <Icon name="splitIndex" />
   </button>
 
   <span class="rule" aria-hidden="true"></span>
@@ -152,7 +142,7 @@
     {disabled}
     onclick={() => set("directories", layout.next)}
   >
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d={I[layout.icon]} /></svg>
+    <Icon name={LAYOUT_GLYPH[layout.icon]} />
   </button>
   <!-- Slides in beside Show directories and out again; the buttons after it move with it. -->
   <span class="fold-all" class:shown={foldAll} aria-hidden={!foldAll}>
@@ -164,7 +154,7 @@
       title={foldAllTitle}
       onclick={() => filesView.toggleAll()}
     >
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d={filesView.anyCollapsed ? I.expandAll : I.collapseAll} /></svg>
+      <Icon name={filesView.anyCollapsed ? "expandAll" : "collapseAll"} />
     </button>
   </span>
 
@@ -182,7 +172,13 @@
       {disabled}
       onclick={() => item.reason === null && set(item.key, !view[item.key])}
     >
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d={I[item.slot]} /></svg>
+      {#if item.slot === "skipped"}
+        <svg class="skipped" viewBox="0 0 16 16" aria-hidden="true" shape-rendering="crispEdges"
+          ><path class="page" d={GLYPHS.skipped.d} /><path class="mark" d={GLYPHS.skipped.line} /></svg
+        >
+      {:else}
+        <FileStateIcon state={item.slot} />
+      {/if}
     </button>
   {/each}
 
@@ -199,7 +195,7 @@
       {disabled}
       onclick={toggleMenu}
     >
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d={I.columns} /></svg>
+      <Icon name="columns" />
     </button>
     {#if columnsOpen}
       <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
@@ -216,7 +212,7 @@
             title={column.reason ?? `Show the ${column.label} column`}
             onclick={() => column.reason === null && filesView.setColumns(toggleColumn(filesView.columns, column.key))}
           >
-            <span class="tick">{column.checked ? "✓" : ""}</span>
+            <span class="tick"><MenuMark checked={column.checked} /></span>
             {column.label}
           </button>
         {/each}
@@ -229,7 +225,7 @@
             title={RENAME_SOURCES_TITLE}
             onclick={() => set("renameSources", !view.renameSources)}
           >
-            <span class="tick">{view.renameSources ? "✓" : ""}</span>
+            <span class="tick"><MenuMark checked={view.renameSources} /></span>
             Rename Sources
           </button>
         {/if}
@@ -363,7 +359,11 @@
     opacity: 1;
   }
 
-  .tool svg {
+  .tool {
+    --file-icon: var(--panel-icon);
+  }
+
+  .tool :global(svg.icon) {
     width: var(--panel-icon);
     height: var(--panel-icon);
     fill: none;
@@ -371,6 +371,26 @@
     stroke-width: 1.6;
     stroke-linecap: round;
     stroke-linejoin: round;
+  }
+
+  .skipped {
+    flex: none;
+    width: var(--panel-icon);
+    height: var(--panel-icon);
+    fill: none;
+  }
+
+  .tool .skipped .page {
+    fill: var(--file-icon-page);
+    stroke: var(--file-icon-stroke);
+    stroke-width: 1;
+    stroke-linejoin: miter;
+  }
+
+  .tool .skipped .mark {
+    stroke: var(--file-icon-stroke);
+    stroke-width: 1;
+    shape-rendering: geometricPrecision;
   }
 
   /* A switch that means nothing here neither lights up nor presses (#3). */
@@ -451,8 +471,8 @@
   }
 
   .tick {
-    display: inline-block;
-    width: 10px;
+    display: inline-flex;
+    width: 12px;
     color: var(--status-ref);
   }
 

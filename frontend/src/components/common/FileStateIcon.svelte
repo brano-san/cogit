@@ -1,18 +1,21 @@
 <script lang="ts">
   import type { IconState } from "$lib/file-state";
+  import { GLYPHS, type Glyph } from "$lib/icons";
 
-  /** The 16x16 icon of a file or a repository in a state: the base on the 1 px grid (strokes on
+  /** The 16x16 icon of a file or a submodule in a state: the base on the 1 px grid (strokes on
       half pixels, so they stay one sharp pixel at 100 and 200 % scale) and an 8x8 overlay in the
       bottom-right corner. Every color is a `--file-icon-*` token. `overlayOnly` draws just the
       overlay, to lay it over another icon. */
   interface Props {
     state: IconState;
-    base?: "page" | "repository";
+    base?: "file" | "submodule";
     overlayOnly?: boolean;
     label?: string;
   }
 
-  let { state, base = "page", overlayOnly = false, label }: Props = $props();
+  let { state, base = "file", overlayOnly = false, label }: Props = $props();
+
+  const shape: Glyph = $derived(GLYPHS[base]);
 </script>
 
 <svg
@@ -26,13 +29,8 @@
 >
   {#if !overlayOnly}
     <g class="base">
-      {#if base === "repository"}
-        <path d="M3.5 1.5H12.5V14.5H3.5Z" />
-        <path class="line" d="M3.5 11.5H12.5M6.5 4.5H9.5" />
-      {:else}
-        <path d="M3.5 1.5H9.5L12.5 4.5V14.5H3.5Z" />
-        <path class="line" d="M9.5 1.5V4.5H12.5" />
-      {/if}
+      <path d={shape.d} />
+      {#if shape.line}<path class="line" d={shape.line} />{/if}
     </g>
   {/if}
   <g transform="translate(8 8)" class="over">

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import { tokenColor } from "$lib/theme-colors";
   import { shortOid } from "$lib/format";
   import { foreign, ON_MAC, primary } from "$lib/platform";
@@ -103,9 +104,7 @@
       {#snippet row(item: NavItem, index: number)}
         {#if item.kind === "header"}
           <div class="row header" style:top="{index * ROW}px" title={item.path}>
-            <svg viewBox="0 0 16 16" aria-hidden="true"
-              ><path d="M4 1.5h5l3 3v10H4z M9 1.5v3h3" /></svg
-            >
+            <Icon name="file" />
             <span class="truncate">{item.path}</span>
           </div>
         {:else}
@@ -215,7 +214,7 @@
     font-weight: 600;
   }
 
-  .header svg {
+  .header :global(svg) {
     flex: none;
     width: 14px;
     height: 14px;

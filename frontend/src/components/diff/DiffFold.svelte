@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import type { Gap } from "$lib/diff-fold";
 
   /** A fold of the diff (#16): one row of the same height as a line of code (R-626), so the
@@ -29,7 +30,7 @@
         type="button"
         class="arrow"
         title="Show 20 more lines above the change below (Ctrl+click: every hidden line)"
-        onclick={(event) => onopen("up", event)}>▲</button
+        onclick={(event) => onopen("up", event)}><Icon name="unfoldUp" /></button
       >
     {/if}
     {#if gap.hidden > 0}
@@ -45,7 +46,7 @@
         type="button"
         class="arrow"
         title="Show 20 more lines below the change above (Ctrl+click: every hidden line)"
-        onclick={(event) => onopen("down", event)}>▼</button
+        onclick={(event) => onopen("down", event)}><Icon name="unfoldDown" /></button
       >
     {/if}
     {#if gap.context}<span class="where truncate">{gap.context}</span>{/if}

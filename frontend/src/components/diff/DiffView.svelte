@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import EmptyState from "$components/common/EmptyState.svelte";
   import FileContentView from "$components/diff/FileContentView.svelte";
   import { errors } from "$stores/errors.svelte";
@@ -1151,9 +1152,9 @@
       {#if diff.lossyEncoding}<span class="warn">not valid UTF-8</span>{/if}
       {#if diff.converted}<span class="warn" title="Shown converted; stage or discard the file whole">{diff.converted}</span>{/if}
       <button type="button" class="btn sm" disabled={!nav.prev} onclick={() => jump(-1)} title="Previous change (Shift+F6)"
-        >▲</button
+        ><Icon name="prev" /></button
       >
-      <button type="button" class="btn sm" disabled={!nav.next} onclick={() => jump(1)} title="Next change (F6)">▼</button>
+      <button type="button" class="btn sm" disabled={!nav.next} onclick={() => jump(1)} title="Next change (F6)"><Icon name="next" /></button>
       <button
         type="button"
         class="btn sm"

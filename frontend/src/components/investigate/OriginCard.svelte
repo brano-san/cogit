@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import { deeperHint, describeCandidate, likelihoodLabel } from "$lib/investigate/origin";
   import type { InvestigateSession } from "$lib/investigate/session.svelte";
 
@@ -60,7 +61,7 @@
     onclick={(event) => {
       event.stopPropagation();
       session.closeCard();
-    }}>✕</button
+    }}><Icon name="close" /></button
   >
 </div>
 

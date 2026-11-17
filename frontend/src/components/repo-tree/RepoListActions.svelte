@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import { showsFilter } from "$lib/repo-groups";
   import { repoList } from "$stores/repo-list.svelte";
   import { repository } from "$stores/repository.svelte";
@@ -33,11 +34,7 @@
   title={opening ? "Opening…" : "Open Repository…"}
   aria-label="Open Repository"
 >
-  <svg viewBox="0 0 24 24" aria-hidden="true"
-    ><path
-      d="M4 5.5A1.5 1.5 0 0 1 5.5 4h3.2a1.5 1.5 0 0 1 1.2.6l1 1.4h7.6A1.5 1.5 0 0 1 20 7.5v11A1.5 1.5 0 0 1 18.5 20h-13A1.5 1.5 0 0 1 4 18.5Z"
-    /></svg
-  >
+  <Icon name="folder" />
 </button>
 <button
   type="button"
@@ -48,20 +45,10 @@
   aria-label="Search for repositories"
 >
   <!-- A magnifier over a repository: a bare one read as the panel's own filter. -->
-  <svg viewBox="0 0 24 24" aria-hidden="true"
-    ><clipPath id="scan-repo-cut"
-      ><path clip-rule="evenodd" d="M0 0h24v24H0ZM15.5 9.7a5.8 5.8 0 1 0 0 11.6 5.8 5.8 0 1 0 0-11.6Z" /></clipPath
-    ><g clip-path="url(#scan-repo-cut)"
-      ><rect x="3.5" y="3" width="11" height="13" rx="1.8" /><path d="M3.5 7.3h11M3.5 11.7h11" /></g
-    ><circle cx="15.5" cy="15.5" r="4" /><path d="m18.4 18.4 2.6 2.6" /></svg
-  >
+  <Icon name="scanRepositories" />
 </button>
 <button type="button" class="tool" onclick={onaddgroup} title="New Group" aria-label="New group">
-  <svg viewBox="0 0 24 24" aria-hidden="true"
-    ><path
-      d="M4 6.5A1.5 1.5 0 0 1 5.5 5h3.2a1.5 1.5 0 0 1 1.2.6l.9 1.4h7.7A1.5 1.5 0 0 1 20 8.5v9A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5Z"
-    /><path d="M12 10.5v5M9.5 13h5" /></svg
-  >
+  <Icon name="folderPlus" />
 </button>
 
 <style>
@@ -80,12 +67,12 @@
     cursor: default;
   }
 
-  .tool svg {
+  .tool :global(svg) {
     width: var(--panel-icon);
     height: var(--panel-icon);
     fill: none;
     stroke: currentColor;
-    stroke-width: 1.7;
+    stroke-width: 1.2;
     stroke-linecap: round;
     stroke-linejoin: round;
   }

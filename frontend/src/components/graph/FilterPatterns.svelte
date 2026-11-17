@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import { tick } from "svelte";
   import { forgetBlocked, rememberBlocked } from "$lib/filter-patterns";
   import { menuKey } from "$lib/menu-keys";
@@ -94,10 +95,7 @@
     aria-label="Remembered filters"
     onclick={toggle}
   >
-    <!-- Lucide history: a magnifier read as decoration, not as a button with a menu. -->
-    <svg viewBox="0 0 24 24" aria-hidden="true"
-      ><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5M12 7v5l4 2" /></svg
-    >
+    <Icon name="bookmark" />
   </button>
   {#if open}
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
@@ -137,7 +135,7 @@
               tabindex="-1"
               title="Forget this pattern"
               aria-label="Forget {pattern}"
-              onclick={() => graphFilter.forget(pattern)}>✕</button
+              onclick={() => graphFilter.forget(pattern)}><Icon name="close" /></button
             >
           </div>
         {/each}
@@ -173,7 +171,7 @@
     color: var(--text-primary);
   }
 
-  svg {
+  .lens :global(svg) {
     width: var(--panel-icon);
     height: var(--panel-icon);
     fill: none;

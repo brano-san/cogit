@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import Disclosure from "$components/common/Disclosure.svelte";
   import KindIcon from "$components/common/KindIcon.svelte";
   import {
@@ -306,8 +307,8 @@
 
       {#if node.branch && node.kind === "local" && (node.branch.ahead > 0 || node.branch.behind > 0) && !node.detail}
         <span class="track">
-          {#if node.branch.ahead > 0}<span class="up">↑{node.branch.ahead}</span>{/if}
-          {#if node.branch.behind > 0}<span class="down">↓{node.branch.behind}</span>{/if}
+          {#if node.branch.ahead > 0}<span class="up"><Icon name="ahead" />{node.branch.ahead}</span>{/if}
+          {#if node.branch.behind > 0}<span class="down"><Icon name="behind" />{node.branch.behind}</span>{/if}
         </span>
       {/if}
 

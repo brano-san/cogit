@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import Dialog from "$components/common/Dialog.svelte";
   import Checkbox from "$components/common/Checkbox.svelte";
   import Select from "$components/common/Select.svelte";
@@ -56,10 +57,7 @@
   {/if}
   {#if note}
     <p class="note">
-      <svg viewBox="0 0 16 16" aria-hidden="true">
-        <path d="M8 2 14.5 13.5h-13Z" />
-        <path d="M8 6.5v3.5M8 11.8v.2" />
-      </svg>
+      <Icon name="warning" />
       <span>{note}</span>
     </p>
   {/if}
@@ -131,7 +129,7 @@
     font-size: var(--fs-dense);
     line-height: 1.5;
   }
-  .note svg {
+  .note :global(svg) {
     flex: none;
     width: 14px;
     height: 14px;

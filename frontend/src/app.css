@@ -77,6 +77,7 @@
   --sync-arrow: 10px;
   /* Icon buttons in panel bars: read at a glance, a size below the main toolbar's 22px. */
   --panel-icon: 16px;
+  --icon-size: 1em;
   /* The box of Checkbox and Radio; Branches draws it smaller. */
   --checkbox-size: 14px;
   /* The light box of long lists (`tick-box`); a list sets its own on its element. */

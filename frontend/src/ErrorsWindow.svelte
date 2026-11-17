@@ -126,7 +126,7 @@
             <span class="name truncate">{entry.title}</span>
             <span class="where truncate">{repoNameOf(entry.repo)}</span>
           </span>
-          {#if entry.repeats > 1}<span class="repeats tabular">×{entry.repeats}</span>{/if}
+          {#if entry.repeats > 1}<span class="repeats tabular">{entry.repeats} times</span>{/if}
         </button>
       {/each}
     </nav>

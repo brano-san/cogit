@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import EmptyState from "$components/common/EmptyState.svelte";
   import { untrack } from "svelte";
   import BlameView from "$components/diff/BlameView.svelte";
@@ -141,7 +142,7 @@
           <Button
             title="Hide (View ▸ History of Current Line)"
             aria-label="Hide history"
-            onclick={() => blame.toggleHistory()}>✕</Button
+            onclick={() => blame.toggleHistory()}><Icon name="close" /></Button
           >
         </div>
         {#if blame.historyError}

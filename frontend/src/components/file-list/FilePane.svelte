@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import { tick } from "svelte";
   import Disclosure from "$components/common/Disclosure.svelte";
   import FileStateIcon from "$components/common/FileStateIcon.svelte";
@@ -199,7 +200,7 @@
           >
             <span class="cell name">
               <FileStateIcon
-                base={file.mode === "submodule" ? "repository" : "page"}
+                base={file.mode === "submodule" ? "submodule" : "file"}
                 state={fileState(file, sideOfRow(file.indexState, side)).icon}
               />
               <span class="truncate shrink-last" title={absolutePath(file.path)}>{fileName(file.path)}</span>
@@ -222,7 +223,7 @@
                 >
                 {#if remoteOps.lockOwner(file.path) !== undefined}
                   <span class="mode" title="Locked in Git LFS by {remoteOps.lockOwner(file.path)}: read-only for everyone else"
-                    >🔒</span
+                    ><Icon name="lock" label="Locked" /></span
                   >
                 {/if}
                 {#if file.modeChange}

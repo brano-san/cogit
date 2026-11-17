@@ -1,6 +1,6 @@
 const RESET_MS = 1500;
 
-/** Clipboard write with visible outcome: a button shows `label("Copy")` and gets "Copied ✓" or
+/** Clipboard write with visible outcome: a button shows `label("Copy")` and gets "Copied" or
     "Copy failed" for a moment, then reverts. One instance per button. */
 export class CopyFeedback {
   state = $state<"idle" | "copied" | "failed">("idle");
@@ -22,6 +22,6 @@ export class CopyFeedback {
   }
 
   label(idle: string): string {
-    return this.state === "copied" ? "Copied ✓" : this.state === "failed" ? "Copy failed" : idle;
+    return this.state === "copied" ? "Copied" : this.state === "failed" ? "Copy failed" : idle;
   }
 }

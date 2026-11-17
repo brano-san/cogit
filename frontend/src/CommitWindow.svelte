@@ -436,7 +436,7 @@
                   /></span
                 >
                 <span class="cell name" title={file.path}>
-                  <FileStateIcon base={file.mode === "submodule" ? "repository" : "page"} state={state.icon} />
+                  <FileStateIcon base={file.mode === "submodule" ? "submodule" : "file"} state={state.icon} />
                   <span class="truncate">{parts.name}</span>
                 </span>
                 <span class="cell state truncate" class:danger={state.tone === "danger"} title={state.tooltip}

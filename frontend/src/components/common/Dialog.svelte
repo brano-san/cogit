@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import { onMount, tick, type Snippet } from "svelte";
   import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
   import { confirmsDialog } from "$lib/dialog-template";
@@ -148,7 +149,7 @@
   <header>
     <h2 {title}>{title}</h2>
     <button type="button" class="close" onclick={() => requestClose("button")} aria-label="Close" title="Close (Esc)">
-      <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1 9 9M9 1 1 9" /></svg>
+      <Icon name="close" />
     </button>
   </header>
 
@@ -251,13 +252,10 @@
     background: var(--state-selected);
   }
 
-  .close svg {
-    width: 10px;
-    height: 10px;
-    fill: none;
-    stroke: currentColor;
+  .close :global(svg) {
+    width: 16px;
+    height: 16px;
     stroke-width: 1.4;
-    stroke-linecap: round;
   }
 
   .body {

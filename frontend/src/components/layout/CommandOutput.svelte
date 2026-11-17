@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import { NO_PROMPT_ADVICE } from "$lib/credentials";
   import VirtualList from "$components/common/VirtualList.svelte";
   import { CopyFeedback } from "$lib/copy-feedback.svelte";
@@ -218,9 +219,7 @@
       <span class="grow"></span>
       <!-- Docked, it fills the Errors window, whose title bar has the close button already. -->
       {#if !docked}
-        <button bind:this={closer} type="button" class="btn sm" onclick={close} title="Close (Esc)">
-          ✕
-        </button>
+        <button bind:this={closer} type="button" class="btn sm" onclick={close} title="Close (Esc)"><Icon name="close" /></button>
       {/if}
     </header>
 
@@ -258,9 +257,9 @@
           <span class="count tabular">
             {hits.length === 0 ? (needle === "" ? "" : "no matches") : `${(at % hits.length) + 1} of ${hits.length}`}
           </span>
-          <button type="button" class="btn sm" onclick={() => step(-1)} title="Previous (Shift+Enter)">↑</button>
-          <button type="button" class="btn sm" onclick={() => step(1)} title="Next (Enter)">↓</button>
-          <button type="button" class="btn sm" onclick={() => ((finding = false), (needle = ""))}>✕</button>
+          <button type="button" class="btn sm" onclick={() => step(-1)} title="Previous (Shift+Enter)"><Icon name="prev" /></button>
+          <button type="button" class="btn sm" onclick={() => step(1)} title="Next (Enter)"><Icon name="next" /></button>
+          <button type="button" class="btn sm" onclick={() => ((finding = false), (needle = ""))} title="Close find" aria-label="Close find"><Icon name="close" /></button>
         </div>
       {/if}
 
@@ -319,7 +318,7 @@
       {#if onretry}
         <button type="button" class="btn sm" onclick={onretry}>Retry</button>
       {/if}
-      <button type="button" class="btn sm" onclick={copy}>{feedback.label("Copy output")}</button>
+      <button type="button" class="btn sm" onclick={copy}>{feedback.label("Copy output")}{#if feedback.state === "copied"} <Icon name="check" />{/if}</button>
       <button type="button" class="btn sm primary" onclick={close}>Close</button>
     </footer>
 

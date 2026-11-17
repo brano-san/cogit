@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import Disclosure from "$components/common/Disclosure.svelte";
   import FileStateIcon from "$components/common/FileStateIcon.svelte";
   import KindIcon from "$components/common/KindIcon.svelte";
@@ -232,18 +233,14 @@
     <KindIcon {kind} title={tip || undefined} changed={sync.dirty === true} />
     {#if sync.conflicted}<FileStateIcon state="conflicted" overlayOnly label="Unresolved merge conflicts" />{/if}
     {#if sync.ahead > 0}
-      <svg class="arrow push" viewBox="0 0 8 8" role="img" aria-label="Commits to push"
-        ><path d="M4 7V1.5M1.5 4 4 1.5 6.5 4" /></svg
-      >
+      <Icon name="ahead" class="arrow push" label="Commits to push" />
     {/if}
     {#if sync.unknown}
       <span class="arrow unknown" role="img" aria-label="Unknown whether there is anything to pull"
         >?</span
       >
     {:else if canPull(sync)}
-      <svg class="arrow pull" viewBox="0 0 8 8" role="img" aria-label="Commits to pull"
-        ><path d="M4 1v5.5M1.5 4 4 6.5 6.5 4" /></svg
-      >
+      <Icon name="behind" class="arrow pull" label="Commits to pull" />
     {/if}
   </span>
 {/snippet}
@@ -692,7 +689,7 @@
     --mark-halo: var(--state-selected);
   }
 
-  .arrow {
+  .repo-icon :global(.arrow) {
     position: absolute;
     width: var(--sync-arrow);
     height: var(--sync-arrow);
@@ -704,19 +701,19 @@
     filter: drop-shadow(0 0 1px var(--mark-halo, var(--surface-panel))) drop-shadow(0 0 1px var(--mark-halo, var(--surface-panel)));
   }
 
-  .arrow.push {
+  .repo-icon :global(.arrow.push) {
     top: -3px;
     right: -5px;
     color: var(--indicator-push);
   }
 
-  .arrow.pull {
+  .repo-icon :global(.arrow.pull) {
     top: -3px;
     left: -5px;
     color: var(--indicator-pull);
   }
 
-  .arrow.unknown {
+  .repo-icon :global(.arrow.unknown) {
     top: -4px;
     left: -4px;
     width: auto;

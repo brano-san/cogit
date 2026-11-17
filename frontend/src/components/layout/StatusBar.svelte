@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import type { Activity } from "$lib/operations";
 
   /** The one activity indicator in the app (doc/05-ui-layout.md section 3.7). */
@@ -54,13 +55,7 @@
     aria-label="Show Output"
   >
     {#if problems > 0}
-      <svg class="warn" viewBox="0 0 16 16" aria-hidden="true"
-        ><path
-          fill="currentColor"
-          fill-rule="evenodd"
-          d="M6.92 2.4a1.25 1.25 0 0 1 2.16 0l5.77 10a1.25 1.25 0 0 1-1.08 1.87H2.23a1.25 1.25 0 0 1-1.08-1.87ZM7.25 5.75v4.5h1.5v-4.5ZM8 11.1a.9.9 0 1 0 0 1.8.9.9 0 1 0 0-1.8Z"
-        /></svg
-      >
+      <Icon name="warning" class="warn" />
       <span class="tabular">{problems}</span>
     {:else}
       <svg class="log" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"
@@ -79,12 +74,7 @@
 
   {#if repository}
     <span class="item shrink-last">
-      <svg class="folder" viewBox="0 0 16 16" aria-hidden="true"
-        ><path
-          fill="currentColor"
-          d="M1.5 3.5c0-.69.56-1.25 1.25-1.25h3.04c.4 0 .78.19 1.01.51l.79 1.09h5.66c.69 0 1.25.56 1.25 1.25v7.15c0 .69-.56 1.25-1.25 1.25H2.75c-.69 0-1.25-.56-1.25-1.25V3.5Z"
-        /></svg
-      >
+      <Icon name="repository" class="repo" />
       <span class="truncate">{repository}</span>
     </span>
     {#if branch || summary}<span class="divider" aria-hidden="true"></span>{/if}
@@ -100,7 +90,7 @@
       {#if upstream}<span class="muted truncate shrink-first">({upstream})</span>{/if}
     </span>
     <span class="divider" aria-hidden="true"></span>
-    <span class="item tabular" title="{ahead} ahead, {behind} behind">↑{ahead} ↓{behind}</span>
+    <span class="item tabular" title="{ahead} ahead, {behind} behind"><Icon name="ahead" />{ahead} <Icon name="behind" />{behind}</span>
     <span class="divider" aria-hidden="true"></span>
   {/if}
 
@@ -167,7 +157,7 @@
     color: var(--status-modify);
   }
 
-  .warn {
+  .foot-button :global(.warn) {
     width: 12px;
     height: 12px;
   }
@@ -205,7 +195,7 @@
   }
 
   .divider,
-  .folder,
+  .item :global(.repo),
   .glyph {
     flex: none;
   }
@@ -214,10 +204,11 @@
     color: var(--status-ref);
   }
 
-  .folder {
+  .item :global(.repo) {
     width: 12px;
     height: 12px;
     color: var(--status-ref);
+    stroke-width: 1;
   }
 
   .divider {

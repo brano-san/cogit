@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import Button from "$components/common/Button.svelte";
   import Callout from "$components/common/template/Callout.svelte";
   import TemplateDialog from "$components/common/template/TemplateDialog.svelte";
@@ -54,9 +55,9 @@
     {#if store.picked}
       <div class="verdict {store.picked.state}" role="status">
         {#if store.picked.state === "ok"}
-          <span aria-hidden="true">✓</span> git {store.picked.version} — {store.picked.path}
+          <Icon name="check" /> git {store.picked.version} — {store.picked.path}
         {:else if store.picked.state === "bad"}
-          <span aria-hidden="true">✗</span> {store.picked.path}: {store.picked.reason}
+          <Icon name="error" /> {store.picked.path}: {store.picked.reason}
         {:else}
           Checking {store.picked.path}…
         {/if}

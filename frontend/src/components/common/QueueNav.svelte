@@ -1,5 +1,6 @@
 <script lang="ts">
-  /** `‹ 2 of 5 ›` for any queue the user steps through: failures, repository warnings. */
+  import Icon from "$components/common/Icon.svelte";
+  /** `2 of 5` between previous and next for any queue the user steps through: failures, repository warnings. */
   interface Props {
     at: number;
     total: number;
@@ -17,7 +18,7 @@
     class="step"
     disabled={at === 0}
     title="Previous {noun}"
-    onclick={() => onstep(-1)}>‹</button
+    onclick={() => onstep(-1)}><Icon name="prev" /></button
   >
   <span class="count tabular">{at + 1} of {total}</span>
   <button
@@ -25,7 +26,7 @@
     class="step"
     disabled={at === total - 1}
     title="Next {noun}"
-    onclick={() => onstep(1)}>›</button
+    onclick={() => onstep(1)}><Icon name="next" /></button
   >
 {/if}
 

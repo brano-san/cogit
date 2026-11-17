@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import Caret from "$components/common/Caret.svelte";
   import { backList, locationLabel } from "$lib/investigate/history";
   import { PERSPECTIVES } from "$lib/investigate/perspectives";
@@ -42,7 +43,7 @@
       title="Back (Alt+Left)"
       onclick={() => void session.back()}
     >
-      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5" /></svg>
+      <Icon name="back" />
       Back
     </button>
     <button
@@ -71,7 +72,7 @@
     onclick={() => void session.forward()}
   >
     Forward
-    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5" /></svg>
+    <Icon name="forward" />
   </button>
 
   <span class="separator" aria-hidden="true"></span>
@@ -151,7 +152,7 @@
     opacity: 0.55;
   }
 
-  svg {
+  button > :global(svg.icon) {
     width: 14px;
     height: 14px;
     fill: none;

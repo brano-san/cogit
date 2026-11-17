@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import Dialog from "$components/common/Dialog.svelte";
   import type { Bypass, Hook, HookOverview, HookRun, PresetStatus } from "$lib/ipc";
   import { presetProblems } from "$lib/preset-tool";
@@ -126,16 +127,11 @@
           <span class="reqs" role="cell">
             {#each problems as problem (problem.text)}
               <span class="badge problem" title={problem.tip}>
-                <svg viewBox="0 0 16 16" aria-hidden="true">
-                  <path d="M8 2 14.5 13.5h-13Z" />
-                  <path d="M8 6.5v3.5M8 11.8v.2" />
-                </svg>
+                <Icon name="warning" />
                 {problem.text}
               </span>
             {:else}
-              <svg class="ok" viewBox="0 0 16 16" role="img" aria-label="Ready">
-                <path d="M3.5 8.5 6.5 11.5 12.5 4.5" />
-              </svg>
+              <Icon name="check" class="ok" label="Ready" />
             {/each}
           </span>
           <span class="acts" role="cell">
@@ -403,7 +399,7 @@
     border-color: transparent;
   }
 
-  .reqs svg {
+  .reqs :global(svg) {
     flex: none;
     width: 12px;
     height: 12px;
@@ -414,7 +410,7 @@
     stroke-linejoin: round;
   }
 
-  .reqs .ok {
+  .reqs :global(.ok) {
     width: 14px;
     height: 14px;
     color: var(--text-secondary);

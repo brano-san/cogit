@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import Checkbox from "$components/common/Checkbox.svelte";
   import Radio from "$components/common/Radio.svelte";
   import {
@@ -115,14 +116,14 @@
             class="nudge"
             aria-label="Move {COLUMN_LABELS[row.id]} up"
             disabled={index === 0}
-            onclick={() => nudge(index, -1)}>↑</button
+            onclick={() => nudge(index, -1)}><Icon name="moveUp" /></button
           >
           <button
             type="button"
             class="nudge"
             aria-label="Move {COLUMN_LABELS[row.id]} down"
             disabled={index === rows.length - 1}
-            onclick={() => nudge(index, 1)}>↓</button
+            onclick={() => nudge(index, 1)}><Icon name="moveDown" /></button
           >
         </div>
       {/each}
@@ -209,7 +210,7 @@
               class="forget"
               title="Forget this filter"
               aria-label="Forget {pattern}"
-              onclick={() => onset("graphFilterPatterns", forget(value.graphFilterPatterns, pattern))}>✕</button
+              onclick={() => onset("graphFilterPatterns", forget(value.graphFilterPatterns, pattern))}><Icon name="close" /></button
             >
           </li>
         {/each}

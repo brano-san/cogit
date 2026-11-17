@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import Checkbox from "$components/common/Checkbox.svelte";
   import Radio from "$components/common/Radio.svelte";
   import { ON_WINDOWS } from "$lib/platform";
@@ -196,7 +197,7 @@
           </div>
         </div>
         {#if problem}
-          <p class="verdict" role="alert"><span aria-hidden="true">✗</span> {problem}</p>
+          <p class="verdict" role="alert"><Icon name="error" /> {problem}</p>
         {/if}
       </div>
     {/key}

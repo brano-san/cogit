@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import EmptyState from "$components/common/EmptyState.svelte";
   import { CopyFeedback } from "$lib/copy-feedback.svelte";
   import { commandLogText, type CommandRow } from "$lib/ipc";
@@ -57,10 +58,10 @@
       class="btn sm"
       onclick={() => void feedback.copy(commandLogText(output.shownEntries.map((entry) => entry.id)))}
     >
-      {feedback.label("Copy log")}
+      {feedback.label("Copy log")}{#if feedback.state === "copied"} <Icon name="check" />{/if}
     </button>
     <button type="button" class="btn sm" onclick={() => void output.clear()}>Clear</button>
-    <button type="button" class="btn sm" onclick={() => (output.open = false)} title="Close (Esc)">✕</button>
+    <button type="button" class="btn sm" onclick={() => (output.open = false)} title="Close (Esc)"><Icon name="close" /></button>
   </header>
 
   {#if output.entries.length === 0}

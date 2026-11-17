@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import EmptyState from "$components/common/EmptyState.svelte";
   import { untrack } from "svelte";
   import Dialog from "$components/common/Dialog.svelte";
@@ -467,10 +468,10 @@
                   <button type="button" class="btn browse" title="Browse…" aria-label="Browse for the Git executable" onclick={browseGit}>...</button>
                 </div>
                 {#if gitCheck.state === "ok"}
-                  <span class="verdict ok"><span aria-hidden="true">✓</span> {describeCheck(gitCheck)}</span>
+                  <span class="verdict ok"><Icon name="check" /> {describeCheck(gitCheck)}</span>
                 {:else if gitCheck.state === "bad"}
                   <!-- The probe's own words; the git in use stays until one works. -->
-                  <span class="verdict bad" role="alert"><span aria-hidden="true">✗</span> {gitCheck.reason}</span>
+                  <span class="verdict bad" role="alert"><Icon name="error" /> {gitCheck.reason}</span>
                 {:else if gitCheck.state === "checking"}
                   <span class="verdict">{describeCheck(gitCheck)}</span>
                 {/if}
@@ -542,7 +543,7 @@
                   oninput={(e) => set("commitPrefixPattern", e.currentTarget.value)}
                 />
                 {#if prefixProblem}
-                  <span class="verdict bad" role="alert"><span aria-hidden="true">✗</span> {prefixProblem}</span>
+                  <span class="verdict bad" role="alert"><Icon name="error" /> {prefixProblem}</span>
                 {/if}
               </div>
             {:else if field.key === "algorithm"}

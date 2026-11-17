@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import { modals } from "$lib/modal-stack";
   import { ON_MAC, primary } from "$lib/platform";
   import VirtualList from "$components/common/VirtualList.svelte";
@@ -109,9 +110,9 @@
     {/if}
     <span class="grow"></span>
     <span class="nav">
-      <button type="button" class="btn sm" onclick={() => step(-1)} disabled={conflicts.length === 0} title="Previous conflict (F6 / Shift+F6)">↑</button>
+      <button type="button" class="btn sm" onclick={() => step(-1)} disabled={conflicts.length === 0} title="Previous conflict (F6 / Shift+F6)"><Icon name="prevConflict" /></button>
       <span class="tabular">{current}/{conflicts.length}</span>
-      <button type="button" class="btn sm" onclick={() => step(1)} disabled={conflicts.length === 0} title="Next conflict">↓</button>
+      <button type="button" class="btn sm" onclick={() => step(1)} disabled={conflicts.length === 0} title="Next conflict"><Icon name="nextConflict" /></button>
     </span>
     <button type="button" class="btn sm" onclick={() => onresolve("ours")} title="Take the whole file as Ours has it">Take ours</button>
     <button type="button" class="btn sm" onclick={() => onresolve("theirs")} title="Take the whole file as Theirs has it">Take theirs</button>

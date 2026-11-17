@@ -1,12 +1,13 @@
 <script lang="ts">
   import { tick } from "svelte";
   import Caret from "$components/common/Caret.svelte";
+  import MenuMark from "$components/common/MenuMark.svelte";
+  import { GLYPHS } from "$lib/icons";
   import { effective } from "$lib/keymap";
   import { ON_MAC } from "$lib/platform";
   import { menuKey } from "$lib/menu-keys";
   import {
     DEFAULT_LAYOUT,
-    ICONS,
     groupsOf,
     hintOf,
     menuOf,
@@ -275,7 +276,7 @@
         title="More actions"
         onclick={toggleOverflow}
       >
-        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.more} /></svg>
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d={GLYPHS.more.d} /></svg>
       </button>
       {#if open === "overflow"}
         <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
@@ -322,7 +323,7 @@
             title={why(entry.id) ?? entry.hint}
             onclick={() => run(entry.id, open ?? entry.id)}
           >
-            <span class="mark {entry.kind}" class:checked={entry.checked} aria-hidden="true"></span>
+            <MenuMark kind={entry.kind} checked={entry.checked} />
             {entry.label}
           </button>
         {/if}
@@ -592,21 +593,5 @@
     align-items: center;
     gap: var(--sp-3);
     padding-left: var(--sp-4);
-  }
-
-  .mark {
-    flex: none;
-    width: 12px;
-    height: 12px;
-  }
-
-  .mark.radio.checked {
-    background: radial-gradient(circle, currentColor 0 3px, transparent 3.5px);
-  }
-
-  .mark.check.checked {
-    background: currentColor;
-    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 6.5 5 9l5-6' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
-      center / contain no-repeat;
   }
 </style>

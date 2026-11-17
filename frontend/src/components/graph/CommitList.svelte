@@ -897,7 +897,7 @@
             style:top="{(wtAt + HEADER_ROWS + index - range.start) * rowHeight}px"
             style:padding-left="{headerX}px"
           >
-            <span class="node" aria-hidden="true">{#if row.kind === "onto"}▶{:else}<span class="ring"></span>{/if}</span>
+            <span class="node" aria-hidden="true"><span class="ring"></span></span>
             <span class="summary truncate">{row.label}</span>
             <span class="date">{row.detail}</span>
           </div>
@@ -1110,6 +1110,10 @@
 
   .row.virtual.onto .node {
     color: var(--status-ref);
+  }
+
+  .row.virtual.onto .ring {
+    background: currentColor;
   }
 
   .row.virtual.todo:hover {

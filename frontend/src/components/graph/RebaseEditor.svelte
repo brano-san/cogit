@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import { untrack } from "svelte";
   import { shortOid, shortRev } from "$lib/format";
   import { moveEntry, planChanged, planProblem, previewCount } from "$lib/rebase-plan";
@@ -112,14 +113,14 @@
           class="nudge"
           aria-label="Move up"
           disabled={index === 0}
-          onclick={() => nudge(index, -1)}>↑</button
+          onclick={() => nudge(index, -1)}><Icon name="moveUp" /></button
         >
         <button
           type="button"
           class="nudge"
           aria-label="Move down"
           disabled={index === plan.length - 1}
-          onclick={() => nudge(index, 1)}>↓</button
+          onclick={() => nudge(index, 1)}><Icon name="moveDown" /></button
         >
       </div>
     {/each}

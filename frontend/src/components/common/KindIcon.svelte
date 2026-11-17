@@ -20,6 +20,8 @@
 </script>
 
 <script lang="ts">
+  import { GLYPHS, type Glyph, type GlyphName } from "$lib/icons";
+
   /** What a row is, drawn the same in every panel: Files, Repositories, Worktrees (R-180). */
   interface Props {
     kind: Kind;
@@ -30,6 +32,19 @@
   }
 
   let { kind, title, changed = false }: Props = $props();
+
+  const GLYPH_OF: Record<Kind, GlyphName> = {
+    repository: "repository",
+    submodule: "submodule",
+    worktree: "worktree",
+    group: "folder",
+    file: "file",
+    symlink: "symlink",
+    directory: "folder",
+  };
+
+  const shape: Glyph = $derived(GLYPHS[GLYPH_OF[kind]]);
+  const disks = $derived(kind === "repository" || kind === "submodule");
 </script>
 
 <span
@@ -40,28 +55,8 @@
   aria-label={changed ? `${KIND_LABELS[kind]} with uncommitted changes` : KIND_LABELS[kind]}
 >
   <svg viewBox="0 0 16 16" aria-hidden="true">
-    {#if kind === "repository" || kind === "submodule"}
-      <!-- A stack of three disks with a pixel between them, as SmartGit draws a repository;
-           a submodule is one too. 1 px outlines on half-pixel lines: crisp at 16 px. -->
-      <rect class="disk" x="1.5" y="1.5" width="13" height="3" rx="1" />
-      <rect class="disk" x="1.5" y="6.5" width="13" height="3" rx="1" />
-      <rect class="disk" x="1.5" y="11.5" width="13" height="3" rx="1" />
-    {:else if kind === "worktree"}
-      <circle cx="4.5" cy="3.5" r="1.5" />
-      <circle cx="4.5" cy="12.5" r="1.5" />
-      <circle cx="11.5" cy="5.5" r="1.5" />
-      <path d="M4.5 5v6M11.5 7c0 2.5-3 3-7 4" />
-    {:else if kind === "group"}
-      <path d="M1.5 4A1.5 1.5 0 0 1 3 2.5h3l1.5 1.5H13A1.5 1.5 0 0 1 14.5 5.5V12A1.5 1.5 0 0 1 13 13.5H3A1.5 1.5 0 0 1 1.5 12Z" />
-    {:else if kind === "directory"}
-      <path class="solid" d="M1.5 4A1.5 1.5 0 0 1 3 2.5h3l1.5 1.5H13A1.5 1.5 0 0 1 14.5 5.5V12A1.5 1.5 0 0 1 13 13.5H3A1.5 1.5 0 0 1 1.5 12Z" />
-    {:else if kind === "symlink"}
-      <path d="M4 1.5h5l3.5 3.5v9.5H4Z" />
-      <path d="M6 12V9.5A1.5 1.5 0 0 1 7.5 8H10M8.5 6.5 10 8 8.5 9.5" />
-    {:else}
-      <path d="M4 1.5h5l3.5 3.5v9.5H4Z" />
-      <path d="M9 1.5V5h3.5" />
-    {/if}
+    <path class:disk={disks} class:solid={kind === "directory"} d={shape.d} />
+    {#if shape.line}<path d={shape.line} />{/if}
   </svg>
 </span>
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import type { DiffSearch } from "$lib/diff-search.svelte";
 
   let {
@@ -51,16 +52,16 @@
     class="btn sm"
     disabled={find.hits.length === 0}
     title="Previous match (Shift+Enter)"
-    onclick={() => find.go(-1, reveal)}>▲</button
+    onclick={() => find.go(-1, reveal)}><Icon name="prev" /></button
   >
   <button
     type="button"
     class="btn sm"
     disabled={find.hits.length === 0}
     title="Next match (Enter)"
-    onclick={() => find.go(1, reveal)}>▼</button
+    onclick={() => find.go(1, reveal)}><Icon name="next" /></button
   >
-  <button type="button" class="btn sm" title="Close (Escape)" onclick={() => find.close()}>✕</button>
+  <button type="button" class="btn sm" title="Close (Escape)" onclick={() => find.close()}><Icon name="close" /></button>
 </div>
 
 <style>

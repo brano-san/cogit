@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import { showsWorkingTree } from "$lib/graph-panel";
   import { homeTarget, type Selected } from "$lib/selection-history";
   import { settings } from "$stores/settings.svelte";
@@ -66,7 +67,7 @@
     aria-label="Back"
     onclick={back}
   >
-    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 8h-11M6.5 4 2.5 8l4 4" /></svg>
+    <Icon name="back" />
   </button>
 </div>
 
@@ -100,7 +101,7 @@
     opacity: 0.4;
   }
 
-  svg {
+  .tool :global(svg) {
     width: var(--panel-icon);
     height: var(--panel-icon);
     fill: none;

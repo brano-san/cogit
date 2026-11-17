@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import type { Snippet } from "svelte";
 
   /** Warning strip: icon + text, 3 px bar on the left. `warning` for a risk, `danger` for
@@ -12,15 +13,7 @@
 </script>
 
 <div class="callout {kind}" role="note">
-  <svg viewBox="0 0 16 16" aria-hidden="true">
-    {#if kind === "danger"}
-      <circle cx="8" cy="8" r="6.5" />
-      <path d="M8 4.5v4M8 11v.5" />
-    {:else}
-      <path d="M8 2 14.5 13.5h-13Z" />
-      <path d="M8 6.5v3.5M8 12v.5" />
-    {/if}
-  </svg>
+  <Icon name={kind === "danger" ? "error" : "warning"} />
   <div class="text">{@render children()}</div>
 </div>
 
@@ -43,7 +36,7 @@
     background: color-mix(in srgb, var(--status-danger) 16%, var(--bg-elevated));
   }
 
-  svg {
+  .callout :global(svg) {
     flex: 0 0 auto;
     width: 14px;
     height: 14px;

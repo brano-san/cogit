@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$components/common/Icon.svelte";
   import { claimable, conflicts, effective, prettyKeys, recordKeys, type Keymap } from "$lib/keymap";
   import { ON_MAC } from "$lib/platform";
   import { captureKeys, type KeyBinding } from "$lib/ipc";
@@ -109,7 +110,7 @@
           {capturing === binding.id ? "Press keys…" : prettyKeys(keys[binding.id] ?? "", onMac)}
         </button>
         <button type="button" class="act" title="Remove the key" onclick={() => clear(binding.id)}
-          >✕</button
+          ><Icon name="close" /></button
         >
         <button
           type="button"

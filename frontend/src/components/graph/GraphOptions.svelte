@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tick } from "svelte";
+  import MenuMark from "$components/common/MenuMark.svelte";
   import { graphOptions, type GraphOptionEntry } from "$lib/graph-options";
   import { menuKey } from "$lib/menu-keys";
   import { settings } from "$stores/settings.svelte";
@@ -91,7 +92,7 @@
             title={entry.hint}
             onclick={() => run(entry)}
           >
-            <span class="mark" aria-hidden="true">{entry.checked ? (entry.kind === "coloring" ? "●" : "✓") : ""}</span
+            <span class="mark"><MenuMark kind={entry.kind === "coloring" ? "radio" : "check"} checked={entry.checked} /></span
             >{entry.label}
           </button>
         {/if}
@@ -178,10 +179,11 @@
   }
 
   .mark {
+    display: inline-flex;
     flex: 0 0 auto;
+    justify-content: center;
     width: 18px;
     color: var(--status-ref);
-    text-align: center;
   }
 
   .separator {
