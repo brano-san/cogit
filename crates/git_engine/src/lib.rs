@@ -30,6 +30,7 @@ mod health;
 mod history;
 mod hook_run;
 mod hooks;
+mod host_key;
 mod housekeeping;
 mod ignore_files;
 mod init;
@@ -137,6 +138,10 @@ pub use health::{HealthFinding, HealthIssue, case_sensitive};
 pub use history::{CommitRow, CommitText, Names};
 pub use hook_run::HookRun;
 pub use hooks::{Hook, HookOverview, HookSource, HookState, is_hook_name};
+pub use host_key::{
+    HOST_KEY_ASK_LIMIT, HostKeyAsker, HostKeyQuestion, SshPrompt, ask_host_keys, host_key_summary,
+    read_prompt,
+};
 pub use housekeeping::{GcPrune, MaintenanceTask};
 pub use ignore_files::{IgnoreDraft, IgnoreFile, IgnoreHit, IgnorePreview, IgnoreScope};
 pub use init::{FolderKind, folder_kind, init_repository};

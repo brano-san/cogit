@@ -1097,10 +1097,13 @@ impl AppState {
         tell(BackendState::Starting);
         let lost = tell.clone();
         let (asked, passwords) = (host.clone(), Arc::clone(&self.passwords));
+        let host_keys = Arc::clone(&self.host_keys);
         let started = Agent::start(
             host,
             move |event| sink.take(event),
-            move |question| crate::agent_events::answer_agent(&asked, &passwords, question),
+            move |question| {
+                crate::agent_events::answer_agent(&asked, &passwords, &host_keys, question)
+            },
             move |reason| lost(BackendState::Lost { reason }),
         );
         tell(if started.is_ok() {

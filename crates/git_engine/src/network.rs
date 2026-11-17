@@ -444,8 +444,8 @@ impl RepoHandle {
         to.run(process, &args, on_line, silence)
     }
 
-    /// The command with what keeps ssh from asking where nobody can answer (GR-06): a batch
-    /// ssh of Cogit's own, or a refusing askpass for the user's. No HTTPS askpass either:
+    /// The command with what keeps ssh from asking where nobody can answer (GR-06): Cogit's
+    /// askpass, which takes only a new host key to the window (F-957). No HTTPS askpass either:
     /// one inherited from the terminal Cogit started in (VS Code's) asked there, and the
     /// command waited for it; a refusal comes back as `authRequired` instead (F-082). The arguments are returned
     /// because they are what the journal shows.
@@ -454,14 +454,14 @@ impl RepoHandle {
         args: &[&'a str],
         env: &[(String, String)],
     ) -> (Vec<&'a str>, std::process::Command) {
-        let own_ssh = self.has_own_ssh_command();
+        let (ssh, ssh_env) = crate::host_key::user_ssh(self.has_own_ssh_command());
         let mut all: Vec<&str> = Vec::new();
-        if !own_ssh {
-            all.extend(["-c", crate::pulse::BATCH_SSH]);
+        if let Some(ssh) = ssh {
+            all.extend(["-c", ssh]);
         }
         all.extend_from_slice(args);
         let mut process = self.base_git(&all);
-        process.envs(crate::pulse::askpass_refusal(own_ssh));
+        process.envs(ssh_env);
         process.env("GIT_ASKPASS", "");
         process.envs(env.iter().map(|(key, value)| (key, value)));
         (all, process)

@@ -132,6 +132,16 @@ pub struct CommandRecorded(pub app_state::CommandNotice);
 #[serde(rename_all = "camelCase")]
 pub struct OperationChanged(pub app_state::Operation);
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
+#[serde(rename_all = "camelCase")]
+pub struct HostKeyAsked(pub app_state::HostKeyAsk);
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
+#[serde(rename_all = "camelCase")]
+pub struct HostKeyWithdrawn {
+    pub id: u32,
+}
+
 /// The watcher runs on its own thread, so events cross into the webview here.
 pub(crate) fn forward_repo_changes(app: tauri::AppHandle, state: &Arc<AppState>) {
     let mut events = state.subscribe();
@@ -154,6 +164,12 @@ pub(crate) fn forward_repo_changes(app: tauri::AppHandle, state: &Arc<AppState>)
                 }
                 app_state::AppEvent::AvatarReady { email } => {
                     let _ = AvatarReady { email }.emit(&app);
+                }
+                app_state::AppEvent::HostKeyAsked(ask) => {
+                    let _ = HostKeyAsked(ask).emit(&app);
+                }
+                app_state::AppEvent::HostKeyWithdrawn { id } => {
+                    let _ = HostKeyWithdrawn { id }.emit(&app);
                 }
                 app_state::AppEvent::Operation(operation) => {
                     #[cfg(windows)]

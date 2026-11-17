@@ -55,5 +55,9 @@ mimalloc.workspace = true
 name = "sign_in"
 harness = false
 
+[[test]]
+name = "host_key"
+harness = false
+
 [lints]
 workspace = true

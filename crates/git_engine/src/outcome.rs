@@ -108,6 +108,9 @@ const MAX_LINES: usize = 2;
 /// One or two lines over the output, never instead of it: the window shows both.
 #[must_use]
 pub fn summarise(stderr: &str, stdout: &str) -> String {
+    if let Some(summary) = crate::host_key::host_key_summary(stderr) {
+        return summary;
+    }
     let source = if stderr.trim().is_empty() {
         stdout
     } else {

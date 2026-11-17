@@ -359,6 +359,8 @@ export const commands = {
 	 *  there is nothing to stop. Off the main thread: stopping waits for `taskkill`.
 	 */
 	cancelNetwork: (operation: number) => typedError<boolean, GitError>(__TAURI_INVOKE("cancel_network", { operation })),
+	answerHostKey: (id: number, accept: boolean) => __TAURI_INVOKE<void>("answer_host_key", { id, accept }),
+	hostKeyQuestions: () => __TAURI_INVOKE<HostKeyAsk[]>("host_key_questions"),
 	remoteInfo: (repo: RepoId, name: string) => typedError<RemoteInfo, GitError>(__TAURI_INVOKE("remote_info", { repo, name })),
 	addRemote: (repo: RepoId, name: string, url: string) => typedError<null, GitError>(__TAURI_INVOKE("add_remote", { repo, name, url })),
 	renameRemote: (repo: RepoId, from: string, to: string) => typedError<null, GitError>(__TAURI_INVOKE("rename_remote", { repo, from, to })),
@@ -912,6 +914,8 @@ export const events = {
 	errorQueue: makeEvent<ErrorQueue>("error-queue"),
 	errorReported: makeEvent<ErrorReported>("error-reported"),
 	errorsAction: makeEvent<ErrorsAction>("errors-action"),
+	hostKeyAsked: makeEvent<HostKeyAsked>("host-key-asked"),
+	hostKeyWithdrawn: makeEvent<HostKeyWithdrawn>("host-key-withdrawn"),
 	launchRequested: makeEvent<LaunchRequested>("launch-requested"),
 	menuCommand: makeEvent<MenuCommand>("menu-command"),
 	mergeResolved: makeEvent<MergeResolved>("merge-resolved"),
@@ -2036,6 +2040,25 @@ export type HookRun = {
 export type HookSource = "gitHooks" | "hooksPath";
 
 export type HookState = "missing" | "enabled" | "disabled";
+
+export type HostKeyAsk = {
+	id: number,
+	question: HostKeyQuestion,
+};
+
+export type HostKeyAsked = HostKeyAsk;
+
+export type HostKeyQuestion = {
+	host: string,
+	address: string | null,
+	keyType: string,
+	fingerprint: string,
+	otherTypesKnown: boolean,
+};
+
+export type HostKeyWithdrawn = {
+	id: number,
+};
 
 export type Hunk = Hunk_Serialize | Hunk_Deserialize;
 

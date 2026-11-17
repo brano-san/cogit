@@ -2,7 +2,7 @@
 //! the clone itself through the system git.
 
 use crate::network::{NetworkStop, SILENCE, Streamed};
-use crate::pulse::{BATCH_SSH, STALL_LIMITS, askpass_refusal};
+use crate::pulse::STALL_LIMITS;
 use crate::{CommandSink, Credential, GitError, GitOutput, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -83,10 +83,10 @@ pub fn remote_branches(
     journal: Option<&CommandSink>,
 ) -> Result<RemoteBranches> {
     let source = source.trim();
-    let own_ssh = own_ssh_command();
+    let (ssh, ssh_env) = crate::host_key::user_ssh(own_ssh_command());
     let mut args: Vec<&str> = STALL_LIMITS.to_vec();
-    if !own_ssh {
-        args.extend(["-c", BATCH_SSH]);
+    if let Some(ssh) = ssh {
+        args.extend(["-c", ssh]);
     }
     args.extend([
         "ls-remote",
@@ -101,7 +101,7 @@ pub fn remote_branches(
     let started = std::time::Instant::now();
     tracing::info!(%command, "running git");
     let mut process = login_command(source, credential);
-    process.envs(askpass_refusal(own_ssh));
+    process.envs(ssh_env);
     process.args(&args);
     let output = crate::children::output(&mut process).map_err(crate::runner::not_started)?;
     if output.status.success() {
@@ -169,14 +169,14 @@ pub fn clone_repository(
         )));
     }
     let before = clone_destination(&target);
-    let own_ssh = own_ssh_command();
+    let (ssh, ssh_env) = crate::host_key::user_ssh(own_ssh_command());
     let mut args = clone_args(request, source, &target.to_string_lossy());
-    if !own_ssh {
-        args.splice(0..0, ["-c".to_owned(), BATCH_SSH.to_owned()]);
+    if let Some(ssh) = ssh {
+        args.splice(0..0, ["-c".to_owned(), ssh.to_owned()]);
     }
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
     let mut process = login_command(source, credential);
-    process.envs(askpass_refusal(own_ssh));
+    process.envs(ssh_env);
     process.args(&args);
 
     let to = Streamed {

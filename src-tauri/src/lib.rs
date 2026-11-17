@@ -41,9 +41,9 @@ mod window_place;
 use app_state::AppState;
 pub use events::{
     AvatarReady, BackendChanged, CommandRecorded, ErrorQueue, ErrorReported, ErrorsAction,
-    MenuCommand, MergeResolved, MergeToolFinished, OpenModule, OperationChanged, PushHead,
-    RepoChanged, RepoWritten, RevealCommit, SessionEnding, SettingsChanged, TreeChanged,
-    WatchLimited,
+    HostKeyAsked, HostKeyWithdrawn, MenuCommand, MergeResolved, MergeToolFinished, OpenModule,
+    OperationChanged, PushHead, RepoChanged, RepoWritten, RevealCommit, SessionEnding,
+    SettingsChanged, TreeChanged, WatchLimited,
 };
 use specta_typescript::Typescript;
 use std::path::PathBuf;
@@ -138,6 +138,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             OpenModule,
             TreeChanged,
             PushHead,
+            HostKeyAsked,
+            HostKeyWithdrawn,
             notify::NotificationClicked,
             launch::LaunchRequested
         ])
@@ -239,6 +241,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::network::network_defaults,
             commands::network::save_network_defaults,
             commands::network::cancel_network,
+            commands::network::answer_host_key,
+            commands::network::host_key_questions,
             commands::remotes::remote_info,
             commands::remotes::add_remote,
             commands::remotes::rename_remote,
@@ -614,6 +618,7 @@ pub fn run() -> anyhow::Result<()> {
 
             app_state::provide_agent_binary(include_bytes!(env!("COGIT_AGENT_EMBED")));
             let state = Arc::new(AppState::new());
+            state.ask_host_keys_here();
             state.use_preset_dir(config_dir.join("presets"));
             state.use_password_store(config_dir.join("passwords.json"));
             {

@@ -90,6 +90,20 @@ pub async fn cancel_network(
     .await
 }
 
+#[tauri::command(async)]
+#[specta::specta]
+pub fn answer_host_key(state: tauri::State<'_, crate::AppContext>, id: u32, accept: bool) {
+    state.state.answer_host_key(id, accept);
+}
+
+#[tauri::command(async)]
+#[specta::specta]
+pub fn host_key_questions(
+    state: tauri::State<'_, crate::AppContext>,
+) -> Vec<app_state::HostKeyAsk> {
+    state.state.host_key_questions()
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn fetch(

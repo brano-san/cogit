@@ -10,6 +10,7 @@ import { withMenuKeys } from "$lib/context-menu";
 import { GIT_NOT_FOUND_HINT } from "$lib/git-missing";
 import type {
   SignIn,
+  HostKeyAsk,
   Author,
   ErrorAction,
   ErrorEntry,
@@ -214,6 +215,8 @@ export type {
   RepoChanged,
   WatchLimited,
   BackendChanged,
+  HostKeyAsk,
+  HostKeyQuestion,
   RepoId,
   RepoOverview,
   RepoState,
@@ -417,6 +420,22 @@ export async function searchFileContents(
     call rejects with a `cancelled` error, the lane goes on. `false` — nothing to stop. */
 export async function cancelNetwork(operation: number) {
   return unwrap(await commands.cancelNetwork(operation));
+}
+
+export async function answerHostKey(id: number, accept: boolean) {
+  await commands.answerHostKey(id, accept);
+}
+
+export async function hostKeyQuestions() {
+  return await commands.hostKeyQuestions();
+}
+
+export async function onHostKeyAsked(handler: (ask: HostKeyAsk) => void) {
+  return await counted(events.hostKeyAsked.listen((event) => handler(event.payload)));
+}
+
+export async function onHostKeyWithdrawn(handler: (id: number) => void) {
+  return await counted(events.hostKeyWithdrawn.listen((event) => handler(event.payload.id)));
 }
 
 /** `false` when the operation had already finished. */

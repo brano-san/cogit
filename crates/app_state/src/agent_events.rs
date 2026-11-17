@@ -24,8 +24,15 @@ enum AgentEvent {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) enum Question {
-    Credential { url: String },
-    Remember { sign_in: crate::SignIn },
+    Credential {
+        url: String,
+    },
+    Remember {
+        sign_in: crate::SignIn,
+    },
+    HostKey {
+        question: git_engine::HostKeyQuestion,
+    },
 }
 
 pub(crate) fn ask_window<T: serde::de::DeserializeOwned>(
@@ -41,6 +48,7 @@ pub(crate) fn ask_window<T: serde::de::DeserializeOwned>(
 pub(crate) fn answer_agent(
     host: &Host,
     passwords: &crate::credentials::Passwords,
+    host_keys: &crate::host_keys::HostKeyDesk,
     question: Value,
 ) -> Value {
     match serde_json::from_value(question) {
@@ -54,6 +62,9 @@ pub(crate) fn answer_agent(
             }
             Value::Null
         }
+        Ok(Question::HostKey { question }) => {
+            to_json(&host_keys.ask(&question, &|| false, git_engine::HOST_KEY_ASK_LIMIT))
+        }
         Err(err) => {
             tracing::error!(error = ?err, context = "a question of the agent");
             Value::Null
@@ -65,6 +76,16 @@ pub fn forward_agent_events(state: Arc<AppState>, events: agent::Events) {
     if state.window.set(events.clone()).is_err() {
         tracing::error!(context = "a second window for one agent");
     }
+    let window = events.clone();
+    git_engine::ask_host_keys(Arc::new(move |question, _| {
+        ask_window::<bool>(
+            &window,
+            &Question::HostKey {
+                question: question.clone(),
+            },
+        )
+        .unwrap_or(false)
+    }));
     let commands = events.clone();
     state.tap_commands(Box::new(move |output| {
         let mut output = output.clone();

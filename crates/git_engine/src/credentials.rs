@@ -126,17 +126,12 @@ pub(crate) fn sh_quote(word: &str) -> String {
     format!("'{}'", word.replace('\'', r"'\''"))
 }
 
-/// Only this key, not every key the agent holds; without a passphrase still never a question.
 #[must_use]
-pub fn ssh_command(key: &str, passphrase: bool) -> String {
-    let mut command = format!(
+pub fn ssh_command(key: &str) -> String {
+    format!(
         "ssh -i {} -o IdentitiesOnly=yes -o ConnectTimeout=20 -o ServerAliveInterval=15",
         sh_quote(key)
-    );
-    if !passphrase {
-        command.push_str(" -o BatchMode=yes");
-    }
-    command
+    )
 }
 
 /// Each URL's credential for git, in the environment only: argv is visible to every user
@@ -157,11 +152,11 @@ pub fn credential_env(signed: &[(String, Credential)]) -> Vec<(String, String)> 
             if wants_auth(url) || env.iter().any(|(k, _)| k == "GIT_SSH_COMMAND") {
                 continue;
             }
-            let passphrase = !credential.secret.is_empty();
-            env.push(("GIT_SSH_COMMAND".to_owned(), ssh_command(key, passphrase)));
-            if passphrase {
-                env.push(("SSH_ASKPASS".to_owned(), exe.clone()));
-                env.push(("SSH_ASKPASS_REQUIRE".to_owned(), "force".to_owned()));
+            env.push(("GIT_SSH_COMMAND".to_owned(), ssh_command(key)));
+            env.push(("SSH_ASKPASS".to_owned(), exe.clone()));
+            env.push(("SSH_ASKPASS_REQUIRE".to_owned(), "force".to_owned()));
+            env.push((crate::pulse::ASKPASS_REFUSAL_VAR.to_owned(), "1".to_owned()));
+            if !credential.secret.is_empty() {
                 env.push((SSH_PASSPHRASE_VAR.to_owned(), credential.secret.clone()));
             }
             continue;
@@ -215,13 +210,22 @@ fn credential_answer(
     Some(format!("username={username}\npassword={secret}\n"))
 }
 
-/// Only the passphrase question is answered; host keys and passwords are refused (GR-06).
-fn askpass_answer(prompt: &str, passphrase: Option<&str>) -> Option<String> {
-    let passphrase = passphrase.filter(|p| !p.is_empty())?;
-    prompt
-        .to_lowercase()
-        .contains("passphrase")
-        .then(|| format!("{passphrase}\n"))
+fn askpass_answer(
+    prompt: &str,
+    passphrase: Option<&str>,
+    ask: impl FnOnce(&crate::HostKeyQuestion) -> bool,
+) -> Option<String> {
+    match crate::host_key::read_prompt(prompt) {
+        crate::SshPrompt::UnknownHost(question) => ask(&question).then(|| "yes\n".to_owned()),
+        crate::SshPrompt::ChangedHost => None,
+        crate::SshPrompt::Other => {
+            let passphrase = passphrase.filter(|p| !p.is_empty())?;
+            prompt
+                .to_lowercase()
+                .contains("passphrase")
+                .then(|| format!("{passphrase}\n"))
+        }
+    }
 }
 
 /// `Some(exit code)` when git or ssh started Cogit as their helper.
@@ -247,7 +251,7 @@ pub fn run_as_helper() -> Option<i32> {
         return None;
     }
     let prompt = args.first().map_or("", String::as_str);
-    match askpass_answer(prompt, passphrase.as_deref()) {
+    match askpass_answer(prompt, passphrase.as_deref(), crate::host_key::ask_app) {
         Some(answer) => {
             let _ = std::io::stdout().write_all(answer.as_bytes());
             Some(0)
@@ -342,10 +346,12 @@ mod tests {
         assert_eq!(
             get(&plain, "GIT_SSH_COMMAND").as_deref(),
             Some(
-                "ssh -i '/k/id' -o IdentitiesOnly=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -o BatchMode=yes"
+                "ssh -i '/k/id' -o IdentitiesOnly=yes -o ConnectTimeout=20 -o ServerAliveInterval=15"
             )
         );
-        assert!(get(&plain, "SSH_ASKPASS").is_none());
+        assert_eq!(get(&plain, "SSH_ASKPASS_REQUIRE").as_deref(), Some("force"));
+        assert_eq!(get(&plain, "COGIT_ASKPASS_REFUSE").as_deref(), Some("1"));
+        assert!(get(&plain, "COGIT_SSH_PASSPHRASE").is_none());
 
         let locked = credential_env(&[(
             "ssh://git@h.example/o/r.git".to_owned(),
@@ -422,19 +428,34 @@ mod tests {
     }
 
     #[test]
-    fn the_askpass_answers_a_passphrase_and_nothing_else() {
+    fn the_askpass_answers_a_passphrase_and_asks_only_about_a_new_host() {
         let passphrase = Some("p");
+        let never = |_: &crate::HostKeyQuestion| -> bool { panic!("asked") };
         assert_eq!(
-            askpass_answer("Enter passphrase for key '/k/id': ", passphrase).as_deref(),
+            askpass_answer("Enter passphrase for key '/k/id': ", passphrase, never).as_deref(),
             Some("p\n")
         );
         for prompt in [
             "Are you sure you want to continue connecting (yes/no/[fingerprint])?",
             "git@h.example's password: ",
+            "Warning: the ECDSA host key for 'h' differs from the key for the IP address '192.0.2.9'\nAre you sure you want to continue connecting (yes/no)? ",
         ] {
-            assert_eq!(askpass_answer(prompt, passphrase), None, "{prompt}");
+            assert_eq!(askpass_answer(prompt, passphrase, never), None, "{prompt}");
         }
-        assert_eq!(askpass_answer("Enter passphrase for key", None), None);
+        assert_eq!(
+            askpass_answer("Enter passphrase for key", None, never),
+            None
+        );
+
+        let new_host = "The authenticity of host 'h.example (192.0.2.1)' can't be established.\nED25519 key fingerprint is SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU.\nAre you sure you want to continue connecting (yes/no/[fingerprint])? ";
+        let mut asked = None;
+        let answer = askpass_answer(new_host, None, |question| {
+            asked = Some(question.host.clone());
+            true
+        });
+        assert_eq!(answer.as_deref(), Some("yes\n"));
+        assert_eq!(asked.as_deref(), Some("h.example"));
+        assert_eq!(askpass_answer(new_host, passphrase, |_| false), None);
     }
 
     #[test]

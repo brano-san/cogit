@@ -17,6 +17,7 @@ pub mod graph_overlay;
 pub mod graph_wire;
 mod handles;
 mod hooking;
+mod host_keys;
 mod host_memory;
 pub mod investigation;
 pub mod legacy_dirs;
@@ -70,6 +71,7 @@ pub use credentials::{
 };
 pub use diffing::FileContent;
 pub use graph_cache::{GraphProgress, GraphWindow, PROGRESS_EVERY, throttled};
+pub use host_keys::HostKeyAsk;
 pub use journal::{CommandNotice, CommandRow, command_log_text, command_rows, is_warning, record};
 pub use network::NetworkRun;
 pub use password_store::{StoreError, StoreState};
@@ -185,6 +187,10 @@ pub enum AppEvent {
         host: String,
         state: BackendState,
     },
+    HostKeyAsked(HostKeyAsk),
+    HostKeyWithdrawn {
+        id: u32,
+    },
 }
 
 /// What the layout hands `build_graph` as it walks; the webview never sees it (R-193).
@@ -272,6 +278,7 @@ pub struct AppState {
     command_tap: Arc<std::sync::OnceLock<journal::CommandTap>>,
     window: std::sync::OnceLock<agent::Events>,
     remotes: Arc<RwLock<HashMap<RepoId, backend::Remote>>>,
+    host_keys: Arc<host_keys::HostKeyDesk>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -292,6 +299,7 @@ impl AppState {
     #[must_use]
     pub fn new() -> Self {
         let (events, _) = broadcast::channel(EVENT_CHANNEL_CAPACITY);
+        let host_keys = Arc::new(host_keys::HostKeyDesk::new(events.clone()));
         Self {
             repos: RwLock::new(HashMap::new()),
             next_repo_id: AtomicU32::new(1),
@@ -332,6 +340,7 @@ impl AppState {
             command_tap: Arc::default(),
             window: std::sync::OnceLock::new(),
             remotes: Arc::new(RwLock::new(HashMap::new())),
+            host_keys,
         }
     }
 

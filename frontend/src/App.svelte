@@ -90,6 +90,7 @@
   import PromptDialog from "$components/layout/PromptDialog.svelte";
   import SignInDialog from "$components/layout/SignInDialog.svelte";
   import MasterPasswordDialog from "$components/layout/MasterPasswordDialog.svelte";
+  import HostKeyDialog from "$components/layout/HostKeyDialog.svelte";
   import { signedIn } from "$stores/sign-in.svelte";
   import StashDialogs from "$components/layout/StashDialogs.svelte";
   import GitMissingDialog from "$components/layout/GitMissingDialog.svelte";
@@ -4767,6 +4768,7 @@ ${event.error}`,
 
   <SignInDialog />
   <MasterPasswordDialog />
+  <HostKeyDialog />
 
   {#if prompt.open}
     <PromptDialog
