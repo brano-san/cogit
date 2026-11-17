@@ -222,6 +222,13 @@ describe("the end of the search", () => {
     expect(resetQuestion(state({ bad: A }))?.message).toContain("main is checked out again");
     expect(resetQuestion(state({ bad: A, good: [B], firstBad: A }))).toBeNull();
   });
+
+  it("names a detached start by its short id, SHA-1 or SHA-256", () => {
+    expect(resetQuestion(state({ start: D, bad: A }))?.message).toContain("ddddddd is checked out again");
+    const long = resetQuestion(state({ start: "e".repeat(64), bad: A }))?.message;
+    expect(long).toContain(" eeeeeee is checked out again");
+    expect(long).not.toContain("e".repeat(8));
+  });
 });
 
 describe("the graph's commit menu", () => {

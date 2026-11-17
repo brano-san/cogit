@@ -162,7 +162,7 @@ export function resetQuestion(
 function startName(bisect: BisectState): string {
   const start = bisect.start.trim();
   if (start === "") return "the commit it began on";
-  return /^[0-9a-f]{40}$/i.test(start) ? shortOid(start) : start;
+  return /^([0-9a-f]{40}|[0-9a-f]{64})$/i.test(start) ? shortOid(start) : start;
 }
 
 /** The banner over the graph: what to do next, and buttons that act on HEAD. A HEAD that

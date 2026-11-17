@@ -1,4 +1,4 @@
-use crate::blame_origins::{PreviousFile, UNCOMMITTED};
+use crate::blame_origins::{PreviousFile, is_uncommitted};
 use crate::line_match::{BlockMatch, LineHunk, align, find_block, line_hunks};
 use crate::{FileStatus, GitError, RepoHandle, Result};
 use serde::{Deserialize, Serialize};
@@ -281,7 +281,7 @@ impl RepoHandle {
 
     /// The first parent, or HEAD for the working tree.
     fn parent_of(&self, commit: &str) -> Option<String> {
-        let rev = if commit == UNCOMMITTED {
+        let rev = if is_uncommitted(commit) {
             "HEAD".to_owned()
         } else {
             format!("{commit}^")
@@ -330,7 +330,7 @@ impl RepoHandle {
 
     /// `(path before, path after, deleted)` for every file the commit changed.
     fn changed_files(&self, commit: &str) -> Result<Vec<(String, String, bool)>> {
-        let entries = if commit == UNCOMMITTED {
+        let entries = if is_uncommitted(commit) {
             let files = self.worktree_files()?;
             let mut all = files.staged;
             all.extend(files.unstaged);

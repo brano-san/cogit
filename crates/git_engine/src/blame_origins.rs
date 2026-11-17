@@ -69,6 +69,14 @@ pub struct BlameReport {
 
 pub(crate) const UNCOMMITTED: &str = "0000000000000000000000000000000000000000";
 
+pub(crate) fn is_uncommitted(oid: &str) -> bool {
+    is_full_oid(oid) && oid.bytes().all(|b| b == b'0')
+}
+
+fn is_full_oid(text: &str) -> bool {
+    matches!(text.len(), 40 | 64) && text.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
 impl RepoHandle {
     /// `git blame --porcelain -M -C -C`: every line with the commit, file and line it came
     /// from. `rev` of `None` blames the working tree file.
@@ -112,7 +120,7 @@ impl RepoHandle {
 
     /// Lines as text, `\r` dropped; `None` when the file is absent there.
     pub(crate) fn text_lines(&self, rev: &str, path: &str) -> Result<Option<Vec<String>>> {
-        let bytes = if rev == UNCOMMITTED {
+        let bytes = if is_uncommitted(rev) {
             self.blob_on_disk(path)?
         } else {
             self.blob_at(rev, path)?
@@ -210,7 +218,7 @@ impl Parser {
         else {
             return false;
         };
-        if oid.len() != 40 || !oid.bytes().all(|b| b.is_ascii_hexdigit()) {
+        if !is_full_oid(oid) {
             return false;
         }
         let (Ok(orig), Ok(fin)) = (orig.parse(), fin.parse()) else {
@@ -236,7 +244,7 @@ impl Parser {
             timestamp: 0,
             merge: false,
             boundary: false,
-            uncommitted: oid == UNCOMMITTED,
+            uncommitted: is_uncommitted(oid),
         });
         self.commits.insert(oid.to_owned(), index);
         index
@@ -373,5 +381,25 @@ mod tests {
             report.sources[0].previous.as_ref().map(|p| p.path.as_str()),
             Some("old.txt")
         );
+    }
+
+    #[test]
+    fn sha256_names_are_read_and_their_zeros_are_the_working_tree() {
+        let oid = "c".repeat(64);
+        let zeros = "0".repeat(64);
+        let text = format!(
+            "{oid} 1 1 1\nauthor A\nsummary s\nfilename a.txt\n\tone\n\
+             {zeros} 2 2 1\nauthor Not Committed Yet\nsummary s\nfilename a.txt\n\ttwo\n"
+        );
+
+        let report = parse_porcelain(&text);
+
+        assert_eq!(report.lines.len(), 2);
+        assert_eq!(report.commits[0].oid, oid);
+        assert!(!report.commits[0].uncommitted);
+        assert!(report.commits[1].uncommitted);
+        assert!(is_uncommitted(&zeros));
+        assert!(is_uncommitted(UNCOMMITTED));
+        assert!(!is_uncommitted(&oid));
     }
 }
