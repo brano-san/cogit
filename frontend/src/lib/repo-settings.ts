@@ -1,5 +1,6 @@
 import { PATTERN_KEY, TEMPLATE_KEY, patternProblem } from "./commit-prefix";
 import { ISSUE_PATTERN_KEY, ISSUE_URL_KEY, issueUrlProblem } from "./issue-links";
+import { HOSTING_KEY } from "./pull-request";
 import type { RepoSetting, RepoSettingChange } from "./ipc/remote-ops";
 
 /** Repository ▸ Settings (#42): the tabs, the options and where each one is kept. Every
@@ -148,6 +149,24 @@ export const FIELDS: readonly SettingField[] = [
     label: "Push annotated tags that point at pushed commits",
     control: BOOL,
     fallback: "false",
+  },
+  {
+    key: HOSTING_KEY,
+    tab: "push",
+    label: "Hosting service for pull requests",
+    control: {
+      kind: "choice",
+      options: [
+        ["auto", "Detect from the remote URL"],
+        ["github", "GitHub or GitHub Enterprise"],
+        ["gitlab", "GitLab"],
+        ["bitbucket", "Bitbucket Cloud"],
+        ["bitbucket-server", "Bitbucket Data Center or Server"],
+        ["azure-devops", "Azure DevOps or Azure DevOps Server"],
+      ],
+    },
+    fallback: "auto",
+    hint: "Where Create Pull Request opens its form. Detect knows github.com, gitlab.com, bitbucket.org and Azure DevOps, and Bitbucket Data Center by a /scm/ path or SSH port 7999. Pick the service for a self-hosted server its URL does not name.",
   },
   { key: "commit.gpgSign", tab: "signing", label: "Sign commits", control: BOOL, fallback: "false" },
   { key: "tag.gpgSign", tab: "signing", label: "Sign annotated tags", control: BOOL, fallback: "false" },

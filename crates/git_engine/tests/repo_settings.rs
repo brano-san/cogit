@@ -277,3 +277,17 @@ fn cogit_s_own_rule_comes_before_git_config_and_tortoisegit() {
     assert_eq!(found[0].message, None);
     assert_eq!(found[1].log_regex.as_deref(), Some(r"#(\d+)"));
 }
+
+#[test]
+fn the_hosting_provider_is_kept_in_the_repository() {
+    let f = test_fixtures::linear(1).unwrap();
+
+    open(&f)
+        .write_repo_settings(&[change("cogit.hostingProvider", Some("bitbucket-server"))])
+        .unwrap();
+
+    assert_eq!(
+        setting(&f, "cogit.hostingProvider").local.as_deref(),
+        Some("bitbucket-server")
+    );
+}

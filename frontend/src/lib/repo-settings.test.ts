@@ -32,6 +32,7 @@ const BACKEND_KEYS = [
   "push.default",
   "push.autoSetupRemote",
   "push.followTags",
+  "cogit.hostingProvider",
   "commit.gpgSign",
   "tag.gpgSign",
   "user.signingKey",

@@ -120,7 +120,7 @@
   import { stashDialog } from "$stores/stash-dialog.svelte";
   import { settle, step } from "$lib/panel-focus";
   import { installSelectAll, selectAllFromMenu } from "$lib/select-all";
-  import { needsPush, pullRequestFor } from "$lib/pull-request";
+  import { forgeSetting, needsPush, pullRequestFor, type Forge } from "$lib/pull-request";
   import { commitScope } from "$lib/commit-scope";
   import { activity, applyOperation, cancellable, trackCancellable, trackStarting, restartsLost } from "$lib/operations";
   import { measurer } from "$lib/timing";
@@ -402,6 +402,7 @@
   let template = $state<string | null>(null);
   /** Repository ▸ Settings' own commit prefix rule, over Preferences' (F-943). */
   let prefixOverride = $state.raw<ReturnType<typeof repoRule>>({ pattern: null, template: null });
+  let hostingOverride = $state<Forge | null>(null);
   const commitPrefix = $derived(
     branchPrefix(
       effectiveRule(
@@ -623,7 +624,9 @@
     const at = graph.loadedIndexOf(oid);
     return at === null ? null : (graph.rowAt(at)?.commit.summary ?? null);
   });
-  const prPlan = $derived(pullRequestFor({ remoteUrl: network.url, branch: tracked, title: headSummary }));
+  const prPlan = $derived(
+    pullRequestFor({ remoteUrl: network.url, branch: tracked, title: headSummary, host: hostingOverride }),
+  );
   const prUrl = $derived("url" in prPlan ? prPlan.url : null);
   const prReason = $derived("reason" in prPlan ? prPlan.reason : undefined);
 
@@ -2781,6 +2784,7 @@ ${event.error}`,
       // The Commit box seeds an empty draft from it, under the next repository's key.
       template = null;
       prefixOverride = { pattern: null, template: null };
+      hostingOverride = null;
       issueLinks.clear();
       if (configEdit?.scope === "repository") configEdit = null;
       indexEditing = null;
@@ -3598,7 +3602,10 @@ ${event.error}`,
     if (!id) return;
     const epoch = repository.epoch;
     const read = await repoSettings(id).catch(() => null);
-    if (repository.epoch === epoch) prefixOverride = repoRule(read ?? []);
+    if (repository.epoch === epoch) {
+      prefixOverride = repoRule(read ?? []);
+      hostingOverride = forgeSetting(read ?? []);
+    }
     await issueLinks.load(id);
   }
 

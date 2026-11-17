@@ -13,6 +13,7 @@ pub const REPO_SETTING_KEYS: &[&str] = &[
     "push.default",
     "push.autoSetupRemote",
     "push.followTags",
+    "cogit.hostingProvider",
     "commit.gpgSign",
     "tag.gpgSign",
     "user.signingKey",

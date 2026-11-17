@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { needsPush, parseRemote, pullRequestFor, pullRequestUrl } from "./pull-request";
+import { forgeOverride, forgeSetting, needsPush, parseRemote, pullRequestFor, pullRequestUrl } from "./pull-request";
 
 describe("parseRemote", () => {
   it("reads an ssh GitHub remote", () => {
@@ -117,10 +117,10 @@ describe("pullRequestFor", () => {
       reason: "HEAD is not on a branch",
     });
     expect(pullRequestFor({ remoteUrl: "git@internal:a/b.git", branch: feature, title: null })).toEqual({
-      reason: "No GitHub, GitLab or Bitbucket remote",
+      reason: "No GitHub, GitLab, Bitbucket or Azure DevOps remote",
     });
     expect(pullRequestFor({ remoteUrl: null, branch: feature, title: null })).toEqual({
-      reason: "No GitHub, GitLab or Bitbucket remote",
+      reason: "No GitHub, GitLab, Bitbucket or Azure DevOps remote",
     });
   });
 });
@@ -140,5 +140,162 @@ describe("needsPush", () => {
   it("asks the fork a push goes to, not the upstream", () => {
     expect(needsPush({ name: "topic", upstream: "origin/topic", ahead: 3, pushAhead: 0 })).toBe(false);
     expect(needsPush({ name: "topic", upstream: "origin/topic", ahead: 0, pushAhead: 1 })).toBe(true);
+  });
+});
+
+describe("parseRemote on Azure DevOps and Bitbucket Data Center", () => {
+  const azure = "https://dev.azure.com/fabrikam/Fiber/_git/Web";
+  const stash = "https://git.example.com/projects/PROJ/repos/web";
+
+  it.each([
+    ["https://dev.azure.com/fabrikam/Fiber/_git/Web", azure],
+    ["https://fabrikam@dev.azure.com/fabrikam/Fiber/_git/Web", azure],
+    ["https://dev.azure.com/fabrikam/Fiber/_git/Web/", azure],
+    ["git@ssh.dev.azure.com:v3/fabrikam/Fiber/Web", azure],
+    ["ssh://git@ssh.dev.azure.com/v3/fabrikam/Fiber/Web", azure],
+    ["ssh://git@ssh.dev.azure.com:22/v3/fabrikam/Fiber/Web", azure],
+    ["https://dev.azure.com/fabrikam/_git/Fiber", "https://dev.azure.com/fabrikam/_git/Fiber"],
+    [
+      "https://dev.azure.com/fabrikam/My%20Project/_git/My%20Repo",
+      "https://dev.azure.com/fabrikam/My%20Project/_git/My%20Repo",
+    ],
+    [
+      "git@ssh.dev.azure.com:v3/fabrikam/My%20Project/My%20Repo",
+      "https://dev.azure.com/fabrikam/My%20Project/_git/My%20Repo",
+    ],
+    ["git@ssh.dev.azure.com:v3/fabrikam/My Project/Web", "https://dev.azure.com/fabrikam/My%20Project/_git/Web"],
+    ["https://fabrikam.visualstudio.com/Fiber/_git/Web", "https://fabrikam.visualstudio.com/Fiber/_git/Web"],
+    [
+      "https://fabrikam.visualstudio.com/DefaultCollection/Fiber/_git/Web",
+      "https://fabrikam.visualstudio.com/DefaultCollection/Fiber/_git/Web",
+    ],
+    ["https://fabrikam.visualstudio.com/_git/Fiber", "https://fabrikam.visualstudio.com/_git/Fiber"],
+    ["fabrikam@vs-ssh.visualstudio.com:v3/fabrikam/Fiber/Web", "https://fabrikam.visualstudio.com/Fiber/_git/Web"],
+    [
+      "https://tfs.example.com:8080/tfs/DefaultCollection/Fiber/_git/Web",
+      "https://tfs.example.com:8080/tfs/DefaultCollection/Fiber/_git/Web",
+    ],
+    [
+      "ssh://tfs.example.com:22/tfs/DefaultCollection/Fiber/_git/Web",
+      "https://tfs.example.com/tfs/DefaultCollection/Fiber/_git/Web",
+    ],
+  ])("reads %s as Azure DevOps", (url, base) => {
+    expect(parseRemote(url)).toEqual({ host: "azure-devops", base });
+  });
+
+  it.each([
+    ["https://git.example.com/scm/proj/web.git", stash],
+    ["https://git.example.com/scm/proj/web", stash],
+    ["https://jane@git.example.com/scm/proj/web.git", stash],
+    ["https://git.example.com:8443/scm/proj/web.git", "https://git.example.com:8443/projects/PROJ/repos/web"],
+    ["http://git.example.com:7990/scm/proj/web.git", "http://git.example.com:7990/projects/PROJ/repos/web"],
+    ["https://git.example.com/bitbucket/scm/proj/web.git", "https://git.example.com/bitbucket/projects/PROJ/repos/web"],
+    ["ssh://git@git.example.com:7999/proj/web.git", stash],
+    ["ssh://git@git.example.com:7999/PROJ/web", stash],
+    ["https://git.example.com/scm/~jane/notes.git", "https://git.example.com/users/jane/repos/notes"],
+    ["ssh://git@git.example.com:7999/~jane/notes.git", "https://git.example.com/users/jane/repos/notes"],
+    ["https://git.example.com/scm/proj/my%20repo.git", "https://git.example.com/projects/PROJ/repos/my%20repo"],
+  ])("reads %s as Bitbucket Data Center", (url, base) => {
+    expect(parseRemote(url)).toEqual({ host: "bitbucket-server", base });
+  });
+
+  it.each([
+    "ssh://git@git.example.com:2222/proj/web.git",
+    "ssh://git@git.example.com:7999/group/sub/web.git",
+    "https://git.example.com/proj/web.git",
+    "https://dev.azure.com/fabrikam/Fiber/Web",
+    "git@ssh.dev.azure.com:v3/fabrikam/Fiber",
+  ])("does not guess a service for %s", (url) => {
+    expect(parseRemote(url)).toBeNull();
+  });
+
+  it("takes the service from the repository's setting for a server its URL does not tell", () => {
+    expect(parseRemote("ssh://git@git.example.com:2222/proj/web.git", "bitbucket-server")).toEqual({
+      host: "bitbucket-server",
+      base: stash,
+    });
+    expect(parseRemote("https://git.example.com:8443/team/web.git", "gitlab")).toEqual({
+      host: "gitlab",
+      base: "https://git.example.com:8443/team/web",
+    });
+    expect(parseRemote("git@ghe.example.com:team/web.git", "github")).toEqual({
+      host: "github",
+      base: "https://ghe.example.com/team/web",
+    });
+    expect(parseRemote("https://git.example.com/scm/proj/web.git", "gitlab")?.host).toBe("gitlab");
+  });
+
+  it("returns nothing when the setting names a service whose URLs look otherwise", () => {
+    expect(parseRemote("https://git.example.com/team/web.git", "azure-devops")).toBeNull();
+    expect(parseRemote("https://git.example.com/team/sub/web.git", "bitbucket-server")).toBeNull();
+  });
+});
+
+describe("forgeOverride", () => {
+  it.each([
+    [null, null],
+    ["", null],
+    ["auto", null],
+    ["nonsense", null],
+    ["azure-devops", "azure-devops"],
+    [" Bitbucket-Server ", "bitbucket-server"],
+  ])("reads %s as %s", (value, forge) => {
+    expect(forgeOverride(value)).toBe(forge);
+  });
+});
+
+describe("forgeSetting", () => {
+  const entry = (local: string | null, inherited: string | null) => [
+    { key: "cogit.hostingProvider", local, inherited },
+  ];
+
+  it("reads the repository's value over the inherited one", () => {
+    expect(forgeSetting(entry("azure-devops", "gitlab"))).toBe("azure-devops");
+    expect(forgeSetting(entry(null, "gitlab"))).toBe("gitlab");
+    expect(forgeSetting(entry("auto", "gitlab"))).toBeNull();
+    expect(forgeSetting([])).toBeNull();
+  });
+});
+
+describe("pullRequestUrl on Azure DevOps and Bitbucket Data Center", () => {
+  it.each([
+    [
+      "https://dev.azure.com/fabrikam/Fiber/_git/Web",
+      "main",
+      "feature/auth",
+      "https://dev.azure.com/fabrikam/Fiber/_git/Web/pullrequestcreate?sourceRef=feature%2Fauth&targetRef=main",
+    ],
+    [
+      "git@ssh.dev.azure.com:v3/fabrikam/My%20Project/Web",
+      null,
+      "topic",
+      "https://dev.azure.com/fabrikam/My%20Project/_git/Web/pullrequestcreate?sourceRef=topic",
+    ],
+    [
+      "https://git.example.com/scm/proj/web.git",
+      "main",
+      "feature/auth",
+      "https://git.example.com/projects/PROJ/repos/web/pull-requests?create&sourceBranch=refs%2Fheads%2Ffeature%2Fauth&targetBranch=refs%2Fheads%2Fmain",
+    ],
+    [
+      "ssh://git@git.example.com:7999/proj/web.git",
+      null,
+      "topic",
+      "https://git.example.com/projects/PROJ/repos/web/pull-requests?create&sourceBranch=refs%2Fheads%2Ftopic",
+    ],
+  ])("builds the form for %s into %s from %s", (remote, base, head, url) => {
+    expect(pullRequestUrl(remote, base, head, "Add the thing")).toBe(url);
+  });
+
+  it("opens the form for a server the setting names", () => {
+    const plan = pullRequestFor({
+      remoteUrl: "ssh://git@git.example.com:2222/proj/web.git",
+      branch: { name: "topic", upstream: "origin/topic", ahead: 0 },
+      title: "x",
+      host: "bitbucket-server",
+    });
+    expect(plan).toEqual({
+      url: "https://git.example.com/projects/PROJ/repos/web/pull-requests?create&sourceBranch=refs%2Fheads%2Ftopic",
+    });
   });
 });
