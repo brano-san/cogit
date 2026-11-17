@@ -23,11 +23,13 @@ import {
   EditorView,
   GutterMarker,
   WidgetType,
+  BlockType,
   gutter,
   keymap,
   lineNumbers,
   type DecorationSet,
 } from "@codemirror/view";
+import { fontEstimate, type WrapEstimate } from "./diff-wrap";
 import { classHighlighter } from "@lezer/highlight";
 import {
   LINE_HEIGHT,
@@ -71,7 +73,7 @@ export type PaneName = "ours" | "result" | "theirs";
 
 export class Pad extends WidgetType {
   constructor(
-    readonly lines: number,
+    readonly height: number,
     readonly kind: "plain" | "del" | "add",
     readonly unresolved: boolean,
   ) {
@@ -80,7 +82,7 @@ export class Pad extends WidgetType {
 
   override eq(other: Pad): boolean {
     return (
-      other.lines === this.lines &&
+      other.height === this.height &&
       other.kind === this.kind &&
       other.unresolved === this.unresolved
     );
@@ -89,13 +91,13 @@ export class Pad extends WidgetType {
   override toDOM(): HTMLElement {
     const pad = document.createElement("div");
     pad.className = `sv-pad sv-pad-${this.kind}`;
-    pad.style.height = `${this.lines * LINE_HEIGHT}px`;
+    pad.style.height = `${this.height}px`;
     pad.setAttribute("aria-hidden", "true");
     return pad;
   }
 
   override get estimatedHeight(): number {
-    return this.lines * LINE_HEIGHT;
+    return this.height;
   }
 
   override ignoreEvent(): boolean {
@@ -255,6 +257,26 @@ export const themeSpec = {
 
 const theme = EditorView.theme(themeSpec);
 
+const BREAK_ANYWHERE = {
+  whiteSpace: "break-spaces",
+  wordBreak: "break-all",
+  overflowWrap: "anywhere",
+  lineBreak: "anywhere",
+};
+
+const LINE_PADDING = 12;
+
+const wrapping: Extension = [
+  EditorView.lineWrapping,
+  EditorView.editorAttributes.of({ class: "sv-wrap" }),
+  EditorView.theme({
+    "&.sv-wrap .cm-content": BREAK_ANYWHERE,
+    "&.sv-wrap .cm-line": { height: "auto", minHeight: `${LINE_HEIGHT}px` },
+  }),
+];
+
+const wrap = new Compartment();
+
 const hunksFacet = Facet.define<readonly Hunk[], readonly Hunk[]>({
   combine: (all) => all[0] ?? [],
 });
@@ -296,12 +318,11 @@ const currentField = StateField.define<number | null>({
 
 /** How tall the other panes shown are, per hunk, so the Result pads itself to them. */
 export interface Others {
-  rows: number[];
-  aligned: boolean;
+  pads: number[];
 }
 export const setOthers = StateEffect.define<Others>();
 const othersField = StateField.define<Others>({
-  create: () => ({ rows: [], aligned: false }),
+  create: () => ({ pads: [] }),
   update(value, tr) {
     for (const effect of tr.effects)
       if (effect.is(setOthers)) return effect.value as Others;
@@ -352,9 +373,7 @@ function resultDecorations(state: EditorState): DecorationSet {
         ),
       );
     }
-    const pad = others.aligned
-      ? Math.max((others.rows[at] ?? 0) - count, 0)
-      : 0;
+    const pad = others.pads[at] ?? 0;
     if (pad > 0) {
       const at =
         start + count < state.doc.lines
@@ -524,6 +543,7 @@ export interface EditorOptions {
   resultBelow: boolean;
   /** Unchanged lines kept around each hunk; the rest is folded (Preferences ▸ Context lines). */
   context: number;
+  wrap?: boolean;
 }
 
 export interface Snapshot {
@@ -577,6 +597,12 @@ export class SolverEditors {
   #saved: Text | null = null;
   /** Gaps the user unfolded; the same gap number in every pane. */
   #opened = new Set<number>();
+  #seen: Record<PaneName, { width: number; heights: Map<string, number> }> = {
+    ours: { width: 0, heights: new Map() },
+    result: { width: 0, heights: new Map() },
+    theirs: { width: 0, heights: new Map() },
+  };
+  #estimate: WrapEstimate | null = null;
 
   constructor(
     hosts: Hosts,
@@ -618,6 +644,7 @@ export class SolverEditors {
             common,
             folding,
             language.of([]),
+            wrap.of(options.wrap ? wrapping : []),
             extensions,
             watch(name),
           ],
@@ -702,6 +729,97 @@ export class SolverEditors {
     });
   }
 
+  #textWidth(name: PaneName): number {
+    return Math.max(this.views[name].contentDOM.clientWidth - LINE_PADDING, 0);
+  }
+
+  #collect(name: PaneName): void {
+    const view = this.views[name];
+    const seen = this.#seen[name];
+    const width = this.#textWidth(name);
+    if (width !== seen.width) {
+      seen.width = width;
+      seen.heights.clear();
+    }
+    const doc = view.state.doc;
+    for (const block of view.viewportLineBlocks) {
+      const parts = typeof block.type === "number" ? [block] : block.type;
+      for (const part of parts) {
+        if (part.type !== BlockType.Text) continue;
+        seen.heights.set(doc.lineAt(part.from).text, part.height);
+      }
+    }
+  }
+
+  #lineHeight(name: PaneName): (text: string) => number {
+    const seen = this.#seen[name];
+    const width = seen.width;
+    if (!this.#estimate) {
+      const style = getComputedStyle(this.views[name].contentDOM);
+      this.#estimate = fontEstimate(
+        `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`,
+        this.views[name].defaultCharacterWidth,
+      );
+    }
+    const estimate = this.#estimate;
+    return (text) => seen.heights.get(text) ?? estimate.rows(text, width) * LINE_HEIGHT;
+  }
+
+  #heights(): PaneRows[] {
+    if (!this.#options.wrap) {
+      return this.#rows().map((row) => ({
+        ours: row.ours * LINE_HEIGHT,
+        result: row.result * LINE_HEIGHT,
+        theirs: row.theirs * LINE_HEIGHT,
+      }));
+    }
+    const of = (name: PaneName, rows: readonly BlockRows[]) => {
+      this.#collect(name);
+      const doc = this.views[name].state.doc;
+      const height = this.#lineHeight(name);
+      return rows.map((row) => {
+        let sum = 0;
+        for (let line = row.start; line < row.start + row.count; line++) {
+          sum += line < doc.lines ? height(doc.line(line + 1).text) : LINE_HEIGHT;
+        }
+        return sum;
+      });
+    };
+    const ours = of("ours", this.#docs.oursRows);
+    const result = of("result", blockRows(this.views.result.state));
+    const theirs = of("theirs", this.#docs.theirsRows);
+    return this.#docs.hunks.map((_, at) => ({
+      ours: ours[at] ?? 0,
+      result: result[at] ?? 0,
+      theirs: theirs[at] ?? 0,
+    }));
+  }
+
+  #viewEdges(name: PaneName, rows: readonly BlockRows[], pads: readonly number[]): Edge[] {
+    const view = this.views[name];
+    const doc = view.state.doc;
+    const textTop = (line: number): number => {
+      if (line >= doc.lines) return view.contentHeight;
+      const pos = doc.line(line + 1).from;
+      const block = view.lineBlockAt(pos);
+      if (typeof block.type === "number") return block.top;
+      for (const part of block.type) {
+        if (part.type === BlockType.Text && part.from <= pos && pos <= part.to) return part.top;
+      }
+      return block.top;
+    };
+    const edges: Edge[] = new Array<Edge>(rows.length);
+    for (let at = rows.length - 1; at >= 0; at--) {
+      const row = rows[at]!;
+      const end = row.start + row.count;
+      const after = rows[at + 1];
+      const bottom = after && after.count === 0 && after.start === end ? edges[at + 1]!.top : textTop(end);
+      const top = row.count > 0 ? textTop(row.start) : bottom - (pads[at] ?? 0);
+      edges[at] = { top, bottom };
+    }
+    return edges;
+  }
+
   #rows(): PaneRows[] {
     const result = blockRows(this.views.result.state);
     return this.#docs.hunks.map((_, at) => ({
@@ -753,26 +871,20 @@ export class SolverEditors {
   /** Padding and tones, from the Result as it is now. */
   #relayout(): void {
     const { aligned, baseChanges, shown, resultBelow } = this.#options;
-    const rows = this.#rows();
+    const rows = this.#heights();
     const pads = alignedPads(
       rows,
       aligned
         ? { ours: shown.ours, result: !resultBelow, theirs: shown.theirs }
         : { ours: false, result: false, theirs: false },
     );
-    const others = rows.map((row) =>
-      Math.max(shown.ours ? row.ours : 0, shown.theirs ? row.theirs : 0),
-    );
     this.#paint("ours", pads.ours, baseChanges);
     this.#paint("theirs", pads.theirs, baseChanges);
     this.#fold();
     const result = this.views.result;
-    const wanted: Others = { rows: others, aligned: aligned && !resultBelow };
+    const wanted: Others = { pads: aligned && !resultBelow ? pads.result : [] };
     const have = result.state.field(othersField);
-    if (
-      have.aligned !== wanted.aligned ||
-      have.rows.join() !== wanted.rows.join()
-    ) {
+    if (have.pads.join() !== wanted.pads.join()) {
       result.dispatch({ effects: setOthers.of(wanted), annotations: [] });
     }
   }
@@ -844,7 +956,14 @@ export class SolverEditors {
   }
 
   setOptions(options: EditorOptions): void {
+    const rewrap = !!options.wrap !== !!this.#options.wrap;
     this.#options = options;
+    if (rewrap) {
+      for (const name of ["ours", "result", "theirs"] as const) {
+        this.#seen[name].heights.clear();
+        this.views[name].dispatch({ effects: wrap.reconfigure(options.wrap ? wrapping : []) });
+      }
+    }
     this.#relayout();
     this.#snapshot = this.#compute();
     for (const view of Object.values(this.views)) view.requestMeasure();
@@ -901,10 +1020,7 @@ export class SolverEditors {
 
   #resultPads(): number[] {
     const others = this.views.result.state.field(othersField);
-    const rows = blockRows(this.views.result.state);
-    return rows.map((row, at) =>
-      others.aligned ? Math.max((others.rows[at] ?? 0) - row.count, 0) : 0,
-    );
+    return blockRows(this.views.result.state).map((_, at) => others.pads[at] ?? 0);
   }
 
   geometry(): Geometry {
@@ -915,25 +1031,42 @@ export class SolverEditors {
     const scroller = (name: PaneName) => this.views[name].scrollDOM;
     const lines = (name: PaneName) => this.views[name].state.doc.lines;
     const folds = (name: PaneName) => this.views[name].state.field(foldsField);
+    const scroll = {
+      ours: scroller("ours").scrollTop,
+      result: scroller("result").scrollTop,
+      theirs: scroller("theirs").scrollTop,
+    };
+    const viewport = {
+      ours: scroller("ours").clientHeight,
+      result: scroller("result").clientHeight,
+      theirs: scroller("theirs").clientHeight,
+    };
+    if (this.#options.wrap) {
+      return {
+        ours: this.#viewEdges("ours", this.#docs.oursRows, oursPads),
+        theirs: this.#viewEdges("theirs", this.#docs.theirsRows, theirsPads),
+        result: this.#viewEdges("result", resultRows, resultPads),
+        content: {
+          ours: this.views.ours.contentHeight,
+          theirs: this.views.theirs.contentHeight,
+          result: this.views.result.contentHeight,
+        },
+        scroll,
+        viewport,
+      };
+    }
+    const rowsOf = (pads: readonly number[]) => pads.map((pad) => pad / LINE_HEIGHT);
     return {
-      ours: foldedEdges(this.#docs.oursRows, oursPads, folds("ours")),
-      theirs: foldedEdges(this.#docs.theirsRows, theirsPads, folds("theirs")),
-      result: foldedEdges(resultRows, resultPads, folds("result")),
+      ours: foldedEdges(this.#docs.oursRows, rowsOf(oursPads), folds("ours")),
+      theirs: foldedEdges(this.#docs.theirsRows, rowsOf(theirsPads), folds("theirs")),
+      result: foldedEdges(resultRows, rowsOf(resultPads), folds("result")),
       content: {
-        ours: foldedHeight(lines("ours"), oursPads, folds("ours")),
-        theirs: foldedHeight(lines("theirs"), theirsPads, folds("theirs")),
-        result: foldedHeight(lines("result"), resultPads, folds("result")),
+        ours: foldedHeight(lines("ours"), rowsOf(oursPads), folds("ours")),
+        theirs: foldedHeight(lines("theirs"), rowsOf(theirsPads), folds("theirs")),
+        result: foldedHeight(lines("result"), rowsOf(resultPads), folds("result")),
       },
-      scroll: {
-        ours: scroller("ours").scrollTop,
-        result: scroller("result").scrollTop,
-        theirs: scroller("theirs").scrollTop,
-      },
-      viewport: {
-        ours: scroller("ours").clientHeight,
-        result: scroller("result").clientHeight,
-        theirs: scroller("theirs").clientHeight,
-      },
+      scroll,
+      viewport,
     };
   }
 

@@ -16,6 +16,12 @@ describe("the keys of the Conflict Solver", () => {
     expect(solverKey(press("s", { ctrl: true, shift: true, code: "KeyS" }))).toBeNull();
   });
 
+  it("Alt+Z wraps long lines, on any layout", () => {
+    expect(solverKey(press("z", { alt: true, code: "KeyZ" }))).toBe("wrap");
+    expect(solverKey(press("я", { alt: true, code: "KeyZ" }))).toBe("wrap");
+    expect(solverKey(press("z", { alt: true, shift: true, code: "KeyZ" }))).toBeNull();
+  });
+
   it("F6 steps through the changes and F7 through the conflicts, Shift going back", () => {
     expect(solverKey(press("F6"))).toEqual({ step: "change", by: 1 });
     expect(solverKey(press("F6", { shift: true }))).toEqual({ step: "change", by: -1 });

@@ -60,6 +60,7 @@ describe("the menu bar of the Conflict Solver", () => {
     layout: "all" as const,
     baseChanges: true,
     whole: false,
+    wrap: true,
   };
   const rows = (menu: Parameters<typeof solverBarMenu>[1]) =>
     solverBarMenu("w", menu, STATE).filter((entry) => !entry.separator);
@@ -81,7 +82,8 @@ describe("the menu bar of the Conflict Solver", () => {
   it("ticks the toggles and the layout shown", () => {
     const view = rows("View");
     const ticked = view.filter((entry) => entry.checked).map((entry) => actionOf(entry.id));
-    expect(ticked).toEqual(["solver-base-changes", "solver-layout-all"]);
+    expect(ticked).toEqual(["solver-base-changes", "solver-layout-all", "solver-wrap"]);
+    expect(view.find((entry) => actionOf(entry.id) === "solver-wrap")?.accelerator).toBe("Alt+Z");
     expect(view.every((entry) => entry.checked !== undefined)).toBe(true);
   });
 

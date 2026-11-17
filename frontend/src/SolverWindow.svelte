@@ -188,6 +188,7 @@
       shown: { ours: panes.ours, theirs: panes.theirs },
       resultBelow: panes.below,
       context: contextLines(),
+      wrap: settings.current.diffWrap,
     };
   }
 
@@ -198,6 +199,7 @@
       shown: { ours: panes.ours, theirs: panes.theirs },
       resultBelow: panes.below,
       context: contextLines(),
+      wrap: settings.current.diffWrap,
     };
     const made = editors;
     // The editors report back by writing `tick`, which this effect must not then depend on.
@@ -554,6 +556,7 @@
       else if (action === "solver-redo") editors?.history("redo");
       else if (action === "solver-base-changes") setBaseChanges(!prefs.baseChanges);
       else if (action === "solver-whole-file") void settings.set("diffWholeFile", !settings.current.diffWholeFile);
+      else if (action === "solver-wrap") toggleWrap();
       else if (action === "solver-close") void win.close();
       else {
         const layout = LAYOUTS.find((entry) => action === `solver-layout-${entry.id}`);
@@ -573,7 +576,12 @@
     layout: prefs.layout,
     baseChanges: prefs.baseChanges,
     whole: settings.current.diffWholeFile,
+    wrap: settings.current.diffWrap,
   });
+
+  function toggleWrap() {
+    void settings.set("diffWrap", !settings.current.diffWrap);
+  }
 
   async function oncontext(event: MouseEvent, pane: PaneName) {
     event.preventDefault();
@@ -604,6 +612,7 @@
     if ((action === "undo" || action === "redo") && inEditor) return;
     event.preventDefault();
     if (action === "undo" || action === "redo") editors?.history(action);
+    else if (action === "wrap") toggleWrap();
     else if (action === "save") void save();
     else if ("step" in action) step(action.step, action.by);
     else take(action.take);

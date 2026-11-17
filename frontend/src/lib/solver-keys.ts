@@ -1,9 +1,11 @@
+import { keyLetter } from "./key-letter";
 import type { TakeAction } from "./solver-model";
 
 export type SolverKey =
   | "save"
   | "undo"
   | "redo"
+  | "wrap"
   | { step: "change" | "conflict"; by: 1 | -1 }
   | { take: TakeAction };
 
@@ -31,6 +33,7 @@ export function solverKey(press: Press): SolverKey | null {
     if (press.key === "F7") return { step: "conflict", by: press.shift ? -1 : 1 };
     return null;
   }
+  if (press.alt && !press.ctrl && !press.shift && keyLetter(press) === "z") return "wrap";
   if (!press.ctrl || press.alt) return null;
   // Undo and Redo of the Result wherever the focus is: a Take button keeps it otherwise.
   if (press.code === "KeyZ") return press.shift ? "redo" : "undo";

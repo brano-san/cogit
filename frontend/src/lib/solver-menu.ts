@@ -47,6 +47,7 @@ export interface SolverBarState extends SolverMenuState {
   layout: SolverLayout;
   baseChanges: boolean;
   whole: boolean;
+  wrap: boolean;
 }
 
 export const BAR_MENUS = ["File", "Edit", "View", "Go To", "Window"] as const;
@@ -56,8 +57,8 @@ export type BarMenu = (typeof BAR_MENUS)[number];
 export function solverBarMenu(label: string, menu: BarMenu, state: SolverBarState): ContextItem[] {
   const row = (action: string, text: string, enabled: boolean, keys?: string) =>
     item(`${MENU_PREFIX}${label}:${action}`, text, enabled, keys);
-  const check = (action: string, text: string, checked: boolean, enabled: boolean) => ({
-    ...row(action, text, enabled),
+  const check = (action: string, text: string, checked: boolean, enabled: boolean, keys?: string) => ({
+    ...row(action, text, enabled, keys),
     checked,
   });
   switch (menu) {
@@ -86,6 +87,7 @@ export function solverBarMenu(label: string, menu: BarMenu, state: SolverBarStat
         ...LAYOUTS.map((entry) => check(`solver-layout-${entry.id}`, entry.label, state.layout === entry.id, state.ready)),
         SEPARATOR,
         check("solver-whole-file", "Whole File", state.whole, true),
+        check("solver-wrap", "Wrap Long Lines", state.wrap, true, "Alt+Z"),
       ]);
     case "Go To":
       return solverMenu(label, state).filter((entry) => /change|conflict/.test(entry.id));
