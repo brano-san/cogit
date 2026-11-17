@@ -196,7 +196,7 @@ impl RepoHandle {
         let command = redact_command(args);
         let started = std::time::Instant::now();
         tracing::info!(command = %command, "running git");
-        let mut process = base_command(self.root(), false);
+        let mut process = self.git_process(false);
         process.args(args);
         let stop = self.stop.as_ref();
         let output =
@@ -218,7 +218,7 @@ impl RepoHandle {
     }
 
     pub(crate) fn base_git(&self, args: &[&str]) -> Command {
-        let mut command = base_command(self.root(), false);
+        let mut command = self.git_process(false);
         command.args(args);
         command
     }
@@ -258,7 +258,7 @@ impl RepoHandle {
     ) -> Result<Vec<u8>> {
         let command = redact_command(args);
         let started = std::time::Instant::now();
-        let mut process = base_command(self.root(), true);
+        let mut process = self.git_process(true);
         for (key, value) in env {
             process.env(key, value);
         }
@@ -401,7 +401,7 @@ impl RepoHandle {
         tracing::info!(command = %command, "running git");
         let conflicted_before =
             crate::outcome::may_stop_on_conflicts(&command) && self.has_unmerged_paths();
-        let mut process = base_command(self.root(), reading);
+        let mut process = self.git_process(reading);
         for (key, value) in env {
             process.env(key, value);
         }
@@ -576,7 +576,17 @@ pub(crate) fn clear_inherited_git_vars(command: &mut Command) {
     portable::restore_child_env(command);
 }
 
-pub(crate) fn base_command(root: &Path, reading: bool) -> Command {
+impl RepoHandle {
+    pub(crate) fn git_process(&self, reading: bool) -> Command {
+        let mut command = base_command(self.root(), reading);
+        if self.repo.workdir().is_none() {
+            command.env("GIT_DIR", self.repo.git_dir());
+        }
+        command
+    }
+}
+
+fn base_command(root: &Path, reading: bool) -> Command {
     let mut command = git_command();
     command.current_dir(root);
     // `--continue` opens an editor, and with no terminal it hangs forever (R-26).

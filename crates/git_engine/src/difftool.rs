@@ -1,6 +1,6 @@
 //! `git difftool` on one file, started and left running (F-944).
 
-use crate::runner::{base_command, not_started, redact_command};
+use crate::runner::{not_started, redact_command};
 use crate::{DiffSpec, GitError, RepoHandle, Result};
 use std::process::Stdio;
 use std::sync::mpsc;
@@ -126,7 +126,7 @@ impl RepoHandle {
         let args: Vec<&str> = args.iter().map(String::as_str).collect();
         let command = redact_command(&args);
         let started = Instant::now();
-        let mut process = base_command(self.root(), true);
+        let mut process = self.git_process(true);
         process
             .env("GIT_LITERAL_PATHSPECS", "1")
             .args(&args)

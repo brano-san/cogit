@@ -73,7 +73,7 @@ impl RepoHandle {
         if name.starts_with('-') {
             return Ok(Some(format!("'{name}' is not a valid branch name")));
         }
-        let mut process = crate::runner::base_command(self.root(), true);
+        let mut process = self.git_process(true);
         process.args(["check-ref-format", "--branch", name]);
         let output = crate::children::output(&mut process).map_err(crate::runner::not_started)?;
         if output.status.success() {
@@ -89,7 +89,7 @@ impl RepoHandle {
 
     /// Stdout when git succeeds, `None` when it exits non-zero.
     fn probe(&self, args: &[&str]) -> Result<Option<String>> {
-        let mut process = crate::runner::base_command(self.root(), true);
+        let mut process = self.git_process(true);
         process.args(args);
         let output = crate::children::output(&mut process).map_err(crate::runner::not_started)?;
         Ok(output
