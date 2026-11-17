@@ -58,7 +58,7 @@ async function fresh(dir) {
 
 async function init(dir) {
   await fresh(dir);
-  await git(["init", "--initial-branch=main", "--quiet"], dir);
+  await git(["init", "--initial-branch=main", "--object-format=sha1", "--ref-format=files", "--quiet"], dir);
   await git(["config", "user.name", "Cogit Bench"], dir);
   await git(["config", "user.email", "bench@cogit.test"], dir);
   await git(["config", "core.autocrlf", "false"], dir);
@@ -248,7 +248,7 @@ const SETS = {
       }
       if (modules.length) await git(["commit", "--quiet", "-m", "add submodules"], work);
       const bare = join(upstream, `${name}.git`);
-      await git(["clone", "--quiet", "--bare", work, bare], upstream);
+      await git(["clone", "--quiet", "--ref-format=files", "--bare", work, bare], upstream);
       return bare.replaceAll("\\", "/");
     };
     const proto = await make("proto", 40);
@@ -290,13 +290,13 @@ const SETS = {
     await build(seed, { commits: 2000, files: tree(200, 20), fileLines: 30, mergeEvery: 200, sideLength: 5, branches: 4, tags: 4 });
     const remote = join(root, "network-remote.git");
     await fresh(remote);
-    await git(["clone", "--quiet", "--bare", seed, remote], root);
+    await git(["clone", "--quiet", "--ref-format=files", "--bare", seed, remote], root);
     await rm(seed, { recursive: true, force: true });
     for (const name of ["network", "network-pusher"]) {
       const dir = join(root, name);
       if (existsSync(dir)) await rm(dir, { recursive: true, force: true });
       // `-c`, not a config afterwards: it is in place before the checkout.
-      await git(["clone", "--quiet", "-c", "core.autocrlf=false", remote, dir], root);
+      await git(["clone", "--quiet", "--ref-format=files", "-c", "core.autocrlf=false", remote, dir], root);
       await git(["config", "user.name", "Cogit Bench"], dir);
       await git(["config", "user.email", "bench@cogit.test"], dir);
     }

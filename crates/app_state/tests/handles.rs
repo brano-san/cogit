@@ -92,7 +92,12 @@ fn nested() -> (test_fixtures::Fixture, std::path::PathBuf) {
     let outer = test_fixtures::linear(1).unwrap();
     let inner = outer.path().join("inner");
     std::fs::create_dir_all(&inner).unwrap();
-    outer.git_in(&inner, &["init", "-q"]).unwrap();
+    outer
+        .git_in(
+            &inner,
+            &["init", "--object-format=sha1", "--ref-format=files", "-q"],
+        )
+        .unwrap();
     std::fs::write(inner.join("i.txt"), "inner\n").unwrap();
     outer.git_in(&inner, &["add", "i.txt"]).unwrap();
     outer

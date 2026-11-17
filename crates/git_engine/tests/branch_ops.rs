@@ -245,7 +245,15 @@ fn a_remote_branch_is_deleted_where_pushes_go() {
     let fork = tempfile::tempdir().unwrap();
     let fork_path = fork.path().join("fork.git");
     let fork_url = fork_path.to_string_lossy().replace('\\', "/");
-    f.git(&["init", "-q", "--bare", &fork_url]).unwrap();
+    f.git(&[
+        "init",
+        "--object-format=sha1",
+        "--ref-format=files",
+        "-q",
+        "--bare",
+        &fork_url,
+    ])
+    .unwrap();
     f.git(&["remote", "set-url", "--push", "origin", &fork_url])
         .unwrap();
     f.git(&["push", "origin", "HEAD:refs/heads/topic"]).unwrap();

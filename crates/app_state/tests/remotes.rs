@@ -105,8 +105,15 @@ fn with_two_remotes(f: &test_fixtures::Fixture) -> tempfile::TempDir {
     let dir = tempfile::TempDir::new().unwrap();
     let bare = dir.path().join("upstream.git");
     let bare = bare.to_string_lossy().replace('\\', "/");
-    f.git(&["init", "--bare", "--initial-branch=main", &bare])
-        .unwrap();
+    f.git(&[
+        "init",
+        "--object-format=sha1",
+        "--ref-format=files",
+        "--bare",
+        "--initial-branch=main",
+        &bare,
+    ])
+    .unwrap();
     f.git(&["remote", "add", "upstream", &bare]).unwrap();
     f.git(&["push", "upstream", "HEAD:refs/heads/release"])
         .unwrap();

@@ -16,7 +16,15 @@ struct Setup {
 fn bare(remotes: &tempfile::TempDir, f: &Fixture, name: &str) -> String {
     let path = remotes.path().join(format!("{name}.git"));
     let path = path.to_string_lossy().replace('\\', "/");
-    f.git(&["init", "-q", "--bare", &path]).unwrap();
+    f.git(&[
+        "init",
+        "--object-format=sha1",
+        "--ref-format=files",
+        "-q",
+        "--bare",
+        &path,
+    ])
+    .unwrap();
     f.git(&["remote", "add", name, &path]).unwrap();
     path
 }

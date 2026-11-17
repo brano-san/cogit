@@ -320,7 +320,7 @@ fn a_repository_recreated_in_its_folder_is_watched_again_after_a_reread() {
     std::thread::sleep(SETTLE);
     std::fs::create_dir(&root).unwrap();
     let init = test_fixtures::git_command_in(&root)
-        .args(["init", "-q"])
+        .args(["init", "--object-format=sha1", "--ref-format=files", "-q"])
         .status()
         .unwrap();
     assert!(init.success());
@@ -366,7 +366,14 @@ fn a_pulse_does_not_count_a_dead_watcher_as_watching() {
     std::thread::sleep(SETTLE);
     std::fs::create_dir(&root).unwrap();
     let init = test_fixtures::git_command_in(&root)
-        .args(["init", "-q", "-b", "other"])
+        .args([
+            "init",
+            "--object-format=sha1",
+            "--ref-format=files",
+            "-q",
+            "-b",
+            "other",
+        ])
         .status()
         .unwrap();
     assert!(init.success());

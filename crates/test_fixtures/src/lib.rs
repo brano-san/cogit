@@ -340,6 +340,8 @@ pub fn with_remote() -> Result<Fixture> {
             "init",
             "--bare",
             "--initial-branch=main",
+            "--ref-format=files",
+            "--object-format=sha1",
             &remote.to_string_lossy(),
         ],
         None,

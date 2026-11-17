@@ -515,7 +515,15 @@ fn a_repository_nested_without_a_gitlink_is_not_listed() {
 ",
     )
     .unwrap();
-    f.git(&["-C", "nested", "init", "-q"]).unwrap();
+    f.git(&[
+        "-C",
+        "nested",
+        "init",
+        "--object-format=sha1",
+        "--ref-format=files",
+        "-q",
+    ])
+    .unwrap();
     f.write_file(
         "other.txt",
         "x

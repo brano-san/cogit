@@ -83,7 +83,14 @@ fn push_leaves_out_a_branch_diverged_from_its_push_target() {
     let (f, state, repo) = detached_with(|f| {
         // In `.git`, where it is no untracked file of the work tree.
         let fork = f.path().join(".git").join("fork.git");
-        f.git(&["init", "--bare", &fork.to_string_lossy()]).unwrap();
+        f.git(&[
+            "init",
+            "--object-format=sha1",
+            "--ref-format=files",
+            "--bare",
+            &fork.to_string_lossy(),
+        ])
+        .unwrap();
         f.git(&["remote", "add", "fork", &fork.to_string_lossy()])
             .unwrap();
         f.git(&["config", "branch.topic.pushRemote", "fork"])

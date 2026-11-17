@@ -67,7 +67,7 @@ async function main() {
   }
   await mkdir(target, { recursive: true });
 
-  await git(["init", "--initial-branch=main", "--quiet"], target);
+  await git(["init", "--initial-branch=main", "--object-format=sha1", "--ref-format=files", "--quiet"], target);
   await git(["config", "user.name", AUTHOR_NAME], target);
   await git(["config", "user.email", AUTHOR_EMAIL], target);
 
