@@ -11,7 +11,7 @@ import {
   toCogitError,
 } from "$lib/ipc";
 import { readKey, writeKey } from "$lib/settings-file";
-import { discardSelection, stageSelection, type PatchRequest } from "$lib/ipc";
+import { discardSelection, stageSelection, stashHunks, type PatchRequest } from "$lib/ipc";
 import { WHOLE_FILE, expandedContext } from "$lib/diff-rows";
 import { splitSelection } from "$lib/selection";
 import { runMutation, type MutationContext } from "$lib/mutation";
@@ -210,6 +210,21 @@ class DiffStore {
       return;
     }
     await discardSelection(lines.repo, lines.request);
+    await this.reload();
+  }
+
+  async stashLines(selected: ReadonlySet<string>, from?: FileDiff): Promise<void> {
+    if (from !== undefined && from !== this.diff) return;
+    if (!this.lineActions.discard) return;
+    const lines = this.#lines(selected);
+    if (!lines) return;
+    const step = () => stashHunks(lines.repo, [lines.request], `Lines of ${lines.request.path}`);
+    const context = this.#mutation;
+    if (context) {
+      await runMutation(context, step, [lines.request.path], false);
+      return;
+    }
+    await step();
     await this.reload();
   }
 

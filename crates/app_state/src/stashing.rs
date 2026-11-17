@@ -136,6 +136,42 @@ impl AppState {
         applied
     }
 
+    pub(crate) fn local_stash_hunks(
+        &self,
+        repo: RepoId,
+        requests: &[diff_engine::PatchRequest],
+        message: &str,
+    ) -> Result<(), git_engine::GitError> {
+        if requests.is_empty() {
+            return Err(git_engine::GitError::InvalidState(
+                "no lines selected".to_owned(),
+            ));
+        }
+        let spec = git_engine::DiffSpec::WorkTreeVsIndex;
+        let mut stage = String::new();
+        let mut discard = String::new();
+        for request in requests {
+            stage.push_str(&patch_line_ended(
+                self.selection_patch(repo, request, &spec, false)?,
+            ));
+            discard.push_str(&patch_line_ended(
+                self.selection_patch(repo, request, &spec, true)?,
+            ));
+        }
+        let _quiet = self.quiet(repo);
+        let stash = self.handle(repo)?.stash_hunks(&stage, &discard, message)?;
+        let paths: Vec<String> = requests.iter().map(|each| each.path.clone()).collect();
+        self.record(
+            repo,
+            format!("Stash lines of {}", crate::named(&paths)),
+            Recovery::StashedHunks {
+                stash,
+                patch: discard,
+            },
+        );
+        Ok(())
+    }
+
     /// Stash, check out, apply: one call, which the command runs as one operation (R-521,
     /// R-563).
     pub(crate) fn local_switch_with_autostash(
@@ -177,4 +213,11 @@ impl AppState {
         );
         Ok(())
     }
+}
+
+fn patch_line_ended(mut patch: String) -> String {
+    if !patch.ends_with('\n') {
+        patch.push('\n');
+    }
+    patch
 }

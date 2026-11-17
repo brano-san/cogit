@@ -7,6 +7,7 @@ const commands = {
   imageSides: vi.fn(),
   discardSelection: vi.fn(),
   stageSelection: vi.fn(),
+  stashHunks: vi.fn(),
 };
 
 /** Stands in for the on-disk store: the branch keeps its view preferences there. */
@@ -631,5 +632,45 @@ describe("the working file open in the diff", () => {
 
     expect(diffEdit.opened?.text).toBe("discarded");
     expect(commands.diffEdited).toHaveBeenCalled();
+  });
+});
+
+describe("stashing lines", () => {
+  beforeEach(() => {
+    diff.clear();
+    commands.diffFile.mockReset();
+    commands.stashHunks.mockReset();
+    commands.stashHunks.mockResolvedValue({ status: "ok", data: null });
+    commands.diffFile.mockImplementation(async () => textDiff());
+  });
+
+  it("stashes the lines of the file they were chosen in", async () => {
+    await diff.load(REPO, SPEC, "a.txt");
+    const chosen = diff.diff!;
+    commands.diffFile.mockReturnValueOnce(new Promise(() => {}));
+    void diff.load(REPO, SPEC, "b.txt");
+
+    await diff.stashLines(new Set(["d:1"]), chosen);
+
+    expect(commands.stashHunks).toHaveBeenCalledOnce();
+    expect(commands.stashHunks.mock.calls[0]?.[1].map((request: { path: string }) => request.path)).toEqual(["a.txt"]);
+  });
+
+  it("does nothing once another diff has replaced the one they were chosen in", async () => {
+    await diff.load(REPO, SPEC, "a.txt");
+    const chosen = diff.diff!;
+    await diff.load(REPO, SPEC, "b.txt");
+
+    await diff.stashLines(new Set(["d:1"]), chosen);
+
+    expect(commands.stashHunks).not.toHaveBeenCalled();
+  });
+
+  it("stashes nothing from a staged diff", async () => {
+    await diff.load(REPO, { kind: "indexVsHead" }, "a.txt");
+
+    await diff.stashLines(new Set(["d:1"]), diff.diff!);
+
+    expect(commands.stashHunks).not.toHaveBeenCalled();
   });
 });

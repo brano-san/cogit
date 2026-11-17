@@ -124,3 +124,22 @@ pub async fn stash_drop(
     )
     .await
 }
+
+#[tauri::command]
+#[specta::specta]
+pub async fn stash_hunks(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    requests: Vec<diff_engine::PatchRequest>,
+    message: String,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Stash,
+        "stash_hunks",
+        move || app_state.stash_hunks(repo, &requests, &message),
+    )
+    .await
+}

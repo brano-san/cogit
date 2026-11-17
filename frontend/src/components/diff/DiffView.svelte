@@ -729,6 +729,16 @@
     }
   }
 
+  async function stashBlock(hunk: number) {
+    const keys = hunkKeys(model, hunk);
+    if (keys.size === 0) return;
+    try {
+      await diffStore.stashLines(keys, diff);
+    } catch (err) {
+      errors.report(err, "Could not stash the lines", path);
+    }
+  }
+
   function settle() {
     const rows = mode === "unified" ? geo.unified : geo.left;
     const top = rows.rowAt(navTop);
@@ -1081,6 +1091,7 @@
       onopen: (how: "up" | "down" | "all", event: MouseEvent) => openGap(gap, how, event),
       onstage: (reverse: boolean) => hunk !== null && applyHunk(hunk, reverse),
       ondiscard: () => hunk !== null && askDiscard(hunkKeys(model, hunk), "this block"),
+      onstash: () => hunk !== null && void stashBlock(hunk),
     };
   }
 

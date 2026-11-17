@@ -221,7 +221,12 @@ impl RepoHandle {
         Ok(written.stdout.trim().to_owned())
     }
 
-    fn commit_tree(&self, tree: &str, parents: &[&str], message: &str) -> Result<String> {
+    pub(crate) fn commit_tree(
+        &self,
+        tree: &str,
+        parents: &[&str],
+        message: &str,
+    ) -> Result<String> {
         let mut args = vec!["commit-tree", "--no-gpg-sign", tree, "-m", message];
         for parent in parents {
             args.extend(["-p", parent]);

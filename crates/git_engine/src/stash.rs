@@ -337,7 +337,7 @@ impl RepoHandle {
     }
 
     /// Through `gix`: a spawned `rev-parse` costs tens of milliseconds (R-24).
-    fn stash_top(&self) -> Option<String> {
+    pub(crate) fn stash_top(&self) -> Option<String> {
         self.repo
             .find_reference("refs/stash")
             .ok()?

@@ -199,6 +199,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::toolbar::stash_keeping_worktree,
             commands::stash::stash_apply,
             commands::stash::stash_apply_paths,
+            commands::stash::stash_hunks,
             commands::patches::save_commit_patches,
             commands::patches::commit_patch_text,
             commands::patches::save_worktree_patch,

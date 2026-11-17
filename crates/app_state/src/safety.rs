@@ -95,6 +95,10 @@ pub enum Recovery {
         reverse: bool,
         index: bool,
     },
+    StashedHunks {
+        stash: String,
+        patch: String,
+    },
     /// A worktree removed by force: undo adds it back where it was, on its branch or its
     /// commit, and applies the stash of its changes there, not in the owner's tree.
     Worktree {
@@ -418,6 +422,7 @@ impl AppState {
                 index,
                 ..
             } => handle.unapply_user_patch(patch, *index)?,
+            Recovery::StashedHunks { stash, patch } => handle.unstash_hunks(stash, patch)?,
             Recovery::Worktree {
                 path,
                 checkout,

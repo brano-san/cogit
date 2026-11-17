@@ -317,7 +317,7 @@ impl AppState {
 
     /// Whether the file is there on each side decides `/dev/null` in the envelope; the
     /// hunks cannot tell a new file from lines added to the top of an empty-context diff.
-    fn selection_patch(
+    pub(crate) fn selection_patch(
         &self,
         repo: RepoId,
         request: &diff_engine::PatchRequest,

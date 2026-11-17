@@ -76,6 +76,7 @@ mod solver;
 mod sparse;
 mod staging;
 mod stash;
+mod stash_hunks;
 mod stash_paths;
 mod stash_rename;
 mod state;

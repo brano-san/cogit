@@ -989,6 +989,10 @@ export async function stashApplyPaths(repo: RepoId, oid: string, paths: string[]
   return unwrap(await commands.stashApplyPaths(repo, oid, paths, restoreIndex));
 }
 
+export async function stashHunks(repo: RepoId, requests: PatchRequest[], message: string) {
+  return unwrap(await commands.stashHunks(repo, requests, message));
+}
+
 export async function stashDrop(repo: RepoId, oid: string) {
   return unwrap(await commands.stashDrop(repo, oid));
 }

@@ -371,6 +371,7 @@ fn bisect_start(bad: &str, good: Option<&str>) -> Result<(), GitError> = local_b
     fn stash_keeping_worktree(message: &str) -> Result<(), git_engine::GitError> = local_stash_keeping_worktree;
     fn stash_apply(oid: &str, pop: bool, restore_index: bool) -> Result<(), git_engine::GitError> = local_stash_apply;
     fn stash_apply_paths(oid: &str, paths: &[String], restore_index: bool) -> Result<(), git_engine::GitError> = local_stash_apply_paths;
+    fn stash_hunks(requests: &[diff_engine::PatchRequest], message: &str) -> Result<(), git_engine::GitError> = local_stash_hunks;
     fn format_patches(commits: &[String]) -> Result<Vec<git_engine::PatchFile>, GitError> = local_format_patches;
     fn worktree_patch(paths: &[String], staged: bool) -> Result<Vec<u8>, GitError> = local_worktree_patch;
     fn patch_preview(text: &str, mode: git_engine::PatchMode) -> Result<git_engine::PatchPreview, GitError> = local_patch_preview;

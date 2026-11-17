@@ -18,9 +18,10 @@
     onopen: (how: "up" | "down" | "all", event: MouseEvent) => void;
     onstage: (reverse: boolean) => void;
     ondiscard: () => void;
+    onstash: () => void;
   }
 
-  let { gap, hunk, role, stageable, actions, frozen = null, onopen, onstage, ondiscard }: Props = $props();
+  let { gap, hunk, role, stageable, actions, frozen = null, onopen, onstage, ondiscard, onstash }: Props = $props();
 </script>
 
 <div class="fold" role="group" aria-label={gap.hidden > 0 ? `${gap.hidden} lines hidden` : "Block actions"}>
@@ -66,6 +67,12 @@
         onclick={() => onstage(true)}>Unstage</button
       >
       {#if actions.discard}
+        <button
+          type="button"
+          title={frozen ?? "Put this block into a stash of its own (Undo puts it back)"}
+          disabled={frozen !== null}
+          onclick={onstash}>Stash</button
+        >
         <button
           type="button"
           class="danger"

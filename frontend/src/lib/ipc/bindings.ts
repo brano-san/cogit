@@ -187,6 +187,7 @@ export const commands = {
 	stashApply: (repo: RepoId, oid: string, pop: boolean, restoreIndex: boolean) => typedError<null, GitError>(__TAURI_INVOKE("stash_apply", { repo, oid, pop, restoreIndex })),
 	/**  Only the chosen files of a stash; the stash stays listed (F-945). */
 	stashApplyPaths: (repo: RepoId, oid: string, paths: string[], restoreIndex: boolean) => typedError<null, GitError>(__TAURI_INVOKE("stash_apply_paths", { repo, oid, paths, restoreIndex })),
+	stashHunks: (repo: RepoId, requests: PatchRequest_Deserialize[], message: string) => typedError<null, GitError>(__TAURI_INVOKE("stash_hunks", { repo, requests, message })),
 	/**  `target`: a folder for one file per commit, or the one file when `one_file`. */
 	saveCommitPatches: (repo: RepoId, commits: string[], target: string, oneFile: boolean) => typedError<string[], GitError>(__TAURI_INVOKE("save_commit_patches", { repo, commits, target, oneFile })),
 	commitPatchText: (repo: RepoId, commits: string[]) => typedError<string, GitError>(__TAURI_INVOKE("commit_patch_text", { repo, commits })),
