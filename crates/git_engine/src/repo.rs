@@ -76,6 +76,49 @@ pub(crate) fn rooted_at(found: &Path, root: &Path) -> Result<()> {
     }
 }
 
+pub(crate) fn readable_refs(repo: &gix::Repository, path: &Path) -> Result<()> {
+    let config = repo.config_snapshot();
+    match config.string("extensions.refStorage") {
+        Some(format) if !format.eq_ignore_ascii_case(b"files") => {
+            Err(GitError::Unavailable(format!(
+                "{} keeps its references in the {format} format, which Cogit cannot read yet. \
+                 To open it here, convert it in a terminal: git refs migrate --ref-format=files",
+                path.display()
+            )))
+        }
+        _ => Ok(()),
+    }
+}
+
+pub(crate) fn not_opened(path: &Path, err: &dyn std::fmt::Display) -> GitError {
+    if object_format(path).as_deref() == Some("sha256") {
+        return GitError::Unavailable(format!(
+            "{} names its objects with SHA-256, which Cogit cannot read yet",
+            path.display()
+        ));
+    }
+    GitError::RepoNotFound(format!("{}: {err}", path.display()))
+}
+
+fn object_format(path: &Path) -> Option<String> {
+    let (found, _) = gix::discover::upwards(path).ok()?;
+    let (git_dir, _) = found.into_repository_and_work_tree_directories();
+    let mut process = crate::runner::git_command();
+    process
+        .current_dir(path)
+        .env("GIT_DIR", &git_dir)
+        .args(["rev-parse", "--show-object-format"]);
+    let output = crate::children::output(&mut process)
+        .inspect_err(
+            |err| tracing::error!(error = ?err, context = "asking a repository's object format"),
+        )
+        .ok()?;
+    output
+        .status
+        .success()
+        .then(|| String::from_utf8_lossy(&output.stdout).trim().to_owned())
+}
+
 /// gix asks `git config --show-origin --show-scope` where the installation config is, once
 /// per process, and every open waits for that answer: five repositories restored at startup
 /// all took its 60-190 ms (R-731). Asked here on a thread of its own, while the window loads.
@@ -127,7 +170,8 @@ impl RepoHandle {
             return Err(GitError::RepoMissing(path.display().to_string()));
         }
         let repo = gix::discover_opts(path, gix::discover::upwards::Options::default(), env_free())
-            .map_err(|err| GitError::RepoNotFound(format!("{}: {err}", path.display())))?;
+            .map_err(|err| not_opened(path, &err))?;
+        readable_refs(&repo, path)?;
         Ok(Self::from_repo(repo))
     }
 

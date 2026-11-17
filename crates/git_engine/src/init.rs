@@ -19,8 +19,10 @@ pub enum FolderKind {
 pub fn folder_kind(path: &Path) -> FolderKind {
     match std::fs::metadata(path) {
         Ok(meta) if meta.is_file() => FolderKind::File,
-        Ok(_) if RepoHandle::open(path).is_ok() => FolderKind::Repository,
-        Ok(_) => FolderKind::Plain,
+        Ok(_) => match RepoHandle::open(path) {
+            Ok(_) | Err(crate::GitError::Unavailable(_)) => FolderKind::Repository,
+            Err(_) => FolderKind::Plain,
+        },
         Err(err) => {
             if err.kind() != std::io::ErrorKind::NotFound {
                 tracing::error!(error = ?err, path = %path.display(), context = "reading a folder's kind");

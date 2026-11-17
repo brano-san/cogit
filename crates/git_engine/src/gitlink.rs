@@ -88,12 +88,17 @@ impl RepoHandle {
             }));
         }
 
-        let repo = gix::open_opts(path, env_free()).map_err(|err| {
-            GitError::ModuleUnavailable(ModuleProblem::NotARepository {
-                path: shown.clone(),
-                detail: err.to_string(),
-            })
-        })?;
+        let repo =
+            gix::open_opts(path, env_free()).map_err(|err| {
+                match crate::repo::not_opened(path, &err) {
+                    unreadable @ GitError::Unavailable(_) => unreadable,
+                    _ => GitError::ModuleUnavailable(ModuleProblem::NotARepository {
+                        path: shown.clone(),
+                        detail: err.to_string(),
+                    }),
+                }
+            })?;
+        crate::repo::readable_refs(&repo, path)?;
         Ok(Self::from_repo(repo))
     }
 }

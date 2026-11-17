@@ -55,11 +55,12 @@ impl SharedRepo {
                 reduced: options,
             },
         )
-        .map_err(|err| GitError::RepoNotFound(format!("{}: {err}", root.display())))?;
+        .map_err(|err| crate::repo::not_opened(root, &err))?;
         crate::repo::rooted_at(
             template.work_dir().unwrap_or_else(|| template.git_dir()),
             root,
         )?;
+        crate::repo::readable_refs(&template.to_thread_local(), root)?;
         template.refs.set_packed_buffer_mmap_threshold(u64::MAX);
         let stamps = config_sources(&template.to_thread_local())
             .into_iter()
