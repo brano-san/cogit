@@ -6,6 +6,10 @@
   import SidewaysScrollbar from "$components/common/SidewaysScrollbar.svelte";
   import ScrollMarks from "$components/common/ScrollMarks.svelte";
   import { rowMarks } from "$lib/scroll-marks";
+  import { diffKey } from "$lib/diff-keys";
+  import { fontEstimate, wrappedRows, type RowGeometry } from "$lib/diff-wrap";
+  import { settings } from "$stores/settings.svelte";
+  import { untrack } from "svelte";
   import { TRAILING_COLUMNS, clampOffset, maxOffset, textColumns, wheelSideways } from "$lib/code-scroll";
   import {
     autoResolvedCount,
@@ -60,7 +64,8 @@
     }
     return most + TRAILING_COLUMNS;
   });
-  const sidewaysMax = $derived(maxOffset(widest, probeWidth / PROBE.length, cellWidth));
+  const wrap = $derived(settings.current.diffWrap);
+  const sidewaysMax = $derived(wrap ? 0 : maxOffset(widest, probeWidth / PROBE.length, cellWidth));
   const shift = $derived(clampOffset(sideways, sidewaysMax));
 
   function onwheel(event: WheelEvent) {
@@ -70,11 +75,66 @@
     sideways = clampOffset(shift + delta, sidewaysMax);
   }
 
+  const ROW = 22;
+  let probeEl: HTMLSpanElement | undefined = $state();
+  let roomWidth = $state(0);
+  let panesEl: HTMLDivElement | undefined = $state();
+  const estimate = $derived.by(() => {
+    void probeWidth;
+    if (!wrap || !probeEl) return null;
+    const style = getComputedStyle(probeEl);
+    return fontEstimate(`${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`, probeWidth / PROBE.length);
+  });
+  const measured = new Map<number, number>();
+  let measuredFor: readonly unknown[] = [];
+  let counted: Uint32Array | null = null;
+  let measuredVersion = $state(0);
+
+  const geometry = $derived.by((): RowGeometry | null => {
+    void measuredVersion;
+    counted = null;
+    const est = estimate;
+    if (!wrap || !est || roomWidth <= 0) return null;
+    const key = [rows, roomWidth, est];
+    if (key.some((part, i) => part !== measuredFor[i])) {
+      measuredFor = key;
+      measured.clear();
+    }
+    const counts = new Uint32Array(rows.length);
+    rows.forEach((row, i) => {
+      counts[i] =
+        measured.get(i) ??
+        Math.max(
+          row.ours ? est.rows(row.ours, roomWidth) : 1,
+          row.result ? est.rows(row.result, roomWidth) : 1,
+          row.theirs ? est.rows(row.theirs, roomWidth) : 1,
+        );
+    });
+    counted = counts;
+    return wrappedRows(counts, ROW);
+  });
+
+  function measureRows() {
+    const counts = counted;
+    if (!counts || !panesEl) return;
+    let changed = false;
+    for (const line of panesEl.querySelectorAll<HTMLElement>("[data-wrap]")) {
+      const index = Number(line.dataset.wrap);
+      if (measured.has(index)) continue;
+      let tallest = ROW;
+      for (const text of line.querySelectorAll<HTMLElement>(".text")) tallest = Math.max(tallest, text.offsetHeight);
+      const visual = Math.max(1, Math.round(tallest / ROW));
+      measured.set(index, visual);
+      if (counts[index] !== visual) changed = true;
+    }
+    if (changed) measuredVersion += 1;
+  }
+
   let panesHeight = $state(0);
   const marks = $derived(
     rowMarks(
       rows.map((row) => (row.conflict ? "changed" : row.origin !== null && row.origin !== "unchanged" ? "auto" : "")),
-      22,
+      geometry ?? ROW,
       panesHeight,
     ),
   );
@@ -86,11 +146,13 @@
   /** In the capture phase, ahead of the main window's panel walk, as the diff's F6 is. */
   function onpanelkey(event: KeyboardEvent) {
     if (!active || modals.any) return;
-    const by = panelConflictStep(
-      { key: event.key, ctrl: primary(event, ON_MAC), shift: event.shiftKey, alt: event.altKey },
-      conflicts,
-      at,
-    );
+    const press = { key: event.key, code: event.code, ctrl: primary(event, ON_MAC), shift: event.shiftKey, alt: event.altKey };
+    if (diffKey(press, { active, findShowing: false, prev: false, next: false })?.kind === "wrap") {
+      event.preventDefault();
+      void settings.set("diffWrap", !settings.current.diffWrap);
+      return;
+    }
+    const by = panelConflictStep(press, conflicts, at);
     if (by === null) return;
     event.preventDefault();
     step(by);
@@ -127,21 +189,27 @@
   </div>
 
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="panes" style:--shift="{shift}px" bind:clientHeight={panesHeight} {onwheel}>
+  <div class="panes" style:--shift="{shift}px" bind:this={panesEl} bind:clientHeight={panesHeight} {onwheel}>
     <ScrollMarks {marks} onpick={(row) => (at = row)} />
     <div class="line ruler" aria-hidden="true">
       <span class="cell mono" bind:clientWidth={cellWidth}
-        ><span class="probe" bind:offsetWidth={probeWidth}>{PROBE}</span></span
+        ><span class="probe" bind:this={probeEl} bind:offsetWidth={probeWidth}>{PROBE}</span><span
+          class="room"
+          bind:clientWidth={roomWidth}
+        ></span></span
       >
     </div>
-    <VirtualList items={rows} reveal={at} label="Merge preview">
+    <VirtualList items={rows} reveal={at} label="Merge preview" rowHeight={ROW} {geometry} ondrawn={() => untrack(measureRows)}>
       {#snippet row(entry, index)}
         <div
           class="line"
+          class:wrapped={geometry !== null}
           class:conflict={entry.conflict}
           class:auto={entry.origin !== null && entry.origin !== "unchanged"}
           class:here={at !== null && entry.region === rows[at]?.region}
-          style:top="{index * 22}px"
+          data-wrap={geometry !== null ? index : undefined}
+          style:top="{geometry ? geometry.top(index) : index * ROW}px"
+          style:height={geometry ? `${geometry.height(index)}px` : undefined}
         >
           <span class="cell mono"><span class="text">{entry.ours ?? ""}</span></span>
           <span class="cell mono"><span class="text">{entry.result ?? ""}</span></span>
@@ -279,5 +347,24 @@
 
   .probe {
     display: inline-block;
+  }
+
+  .room {
+    display: block;
+    margin-left: var(--sp-3);
+  }
+
+  .line.wrapped .cell {
+    white-space: break-spaces;
+    word-break: break-all;
+    overflow-wrap: anywhere;
+    line-break: anywhere;
+  }
+
+  .line.wrapped .text {
+    display: block;
+    padding-left: 0;
+    margin-left: var(--sp-3);
+    transform: none;
   }
 </style>
