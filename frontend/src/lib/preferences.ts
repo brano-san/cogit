@@ -543,7 +543,7 @@ export const CATEGORIES: Category[] = [
           {
             key: "diffWrap",
             label: "Wrap long lines",
-            hint: "Long lines wrap at the width of their pane instead of scrolling sideways. The Wrap button of the diff and Alt+Z switch it too; while on, the working file is not edited in place.",
+            hint: "Long lines wrap at the width of their pane instead of scrolling sideways. In the diff, the 3-way preview and the Conflict Solver. The Wrap button of the diff and Alt+Z switch it too.",
             keywords: ["wrap", "word wrap", "soft wrap", "long lines", "sideways", "horizontal"],
           },
         ],

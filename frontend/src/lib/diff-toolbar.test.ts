@@ -108,21 +108,17 @@ describe("alignedButton", () => {
 
 describe("wrapButton (F-950)", () => {
   it("says which way lines go now, what a click does, and the key", () => {
-    const on = wrapButton(true, { editable: false, dirty: false });
+    const on = wrapButton(true);
     expect(on).toMatchObject({ pressed: true, disabled: false });
     expect(on.title).toBe("ON: long lines wrap at the width of their pane (Alt+Z).\nClick for: one row per line, long lines scroll sideways.");
-    const off = wrapButton(false, { editable: false, dirty: false });
+    const off = wrapButton(false);
     expect(off).toMatchObject({ pressed: false, disabled: false });
     expect(off.title.startsWith("OFF: one row per line")).toBe(true);
   });
 
-  it("tells an editable diff that wrapped lines are not edited in place", () => {
-    expect(wrapButton(false, { editable: true, dirty: false }).title).toContain("edited in place only while lines are not wrapped");
-  });
-
-  // The edits live in the editor wrapping would close.
-  it("waits for unsaved edits to be saved", () => {
-    expect(wrapButton(false, { editable: true, dirty: true })).toMatchObject({ disabled: true, title: expect.stringContaining("Save the file first") });
+  it("never mentions editing: the working file stays editable wrapped", () => {
+    expect(wrapButton(true).title).not.toContain("edit");
+    expect(wrapButton(false).title).not.toContain("edit");
   });
 });
 

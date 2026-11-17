@@ -1,7 +1,7 @@
 import { EditorState, type Text } from "@codemirror/state";
 import type { DecorationSet } from "@codemirror/view";
 import { describe, expect, it } from "vitest";
-import { buildPane, lineChange, replacement, type CodeRow, type DeletedRow, type EditRow } from "./diff-pane-editor";
+import { buildPane, lineChange, padPane, replacement, type CodeRow, type DeletedRow, type EditRow } from "./diff-pane-editor";
 
 function file(lines: number): Text {
   return EditorState.create({ doc: Array.from({ length: lines }, (_, i) => `line ${i + 1}`).join("\n") }).doc;
@@ -42,22 +42,26 @@ describe("the editable pane on the diff's row grid", () => {
     expect(placed(pane.blocks)).toEqual([{ from: doc.line(3).from, to: doc.line(7).to, height: 18, side: expect.any(Number) }]);
   });
 
-  it("puts filler before the line after it, as tall as the rows it stands for", () => {
+  it("puts filler before the line after it, a row each", () => {
     const doc = file(3);
     const pane = buildPane(doc, { rows: [code(1), { kind: "filler" }, { kind: "filler" }, code(2), code(3)] });
 
-    const [filler] = placed(pane.blocks);
-    expect(filler).toMatchObject({ from: doc.line(2).from, to: doc.line(2).from, height: 36 });
-    expect(filler!.side).toBeLessThan(0);
+    const fillers = placed(pane.blocks);
+    expect(fillers).toHaveLength(2);
+    for (const filler of fillers) {
+      expect(filler).toMatchObject({ from: doc.line(2).from, to: doc.line(2).from, height: 18 });
+      expect(filler.side).toBeLessThan(0);
+    }
   });
 
-  it("draws a run of deleted lines as one widget, and those after the last line at the end", () => {
+  it("draws each deleted line as its own widget, and those after the last line at the end", () => {
     const doc = file(2);
     const rows = [code(1), deleted(2), deleted(3), code(2), deleted(5)];
-    const pane = buildPane(doc, { rows});
+    const pane = buildPane(doc, { rows });
 
-    const [between, after] = placed(pane.blocks);
-    expect(between).toMatchObject({ from: doc.line(2).from, height: 36 });
+    const [first, second, after] = placed(pane.blocks);
+    expect(first).toMatchObject({ from: doc.line(2).from, height: 18 });
+    expect(second).toMatchObject({ from: doc.line(2).from, height: 18 });
     expect(after).toMatchObject({ from: doc.length, height: 18 });
     expect(after!.side).toBeGreaterThan(0);
   });
@@ -95,6 +99,33 @@ describe("the editable pane on the diff's row grid", () => {
     const words: [number, number][] = [];
     pane.words.between(0, doc.length, (from, to) => void words.push([from, to]));
     expect(words).toEqual([[doc.line(2).from + 2, doc.line(2).to]]);
+  });
+});
+
+describe("padPane: wrapped Aligned (F-950)", () => {
+  it("puts filler under a line shorter than the one opposite, and sizes the filler rows", () => {
+    const doc = file(3);
+    const rows: EditRow[] = [code(1), { kind: "filler" }, { kind: "filler" }, code(2), code(3)];
+    const pads = Float64Array.from([36, 54, 18, 0, 0]);
+    const pane = padPane(doc, buildPane(doc, { rows }), pads);
+
+    expect(placed(pane.blocks)).toMatchObject([
+      { from: doc.line(2).from, height: 54 },
+      { from: doc.line(2).from, height: 18 },
+    ]);
+    const [under] = placed(pane.under);
+    expect(under).toMatchObject({ from: doc.line(1).to, height: 36 });
+    expect(under!.side).toBeGreaterThan(0);
+  });
+
+  it("goes back to one row per filler without pads", () => {
+    const doc = file(2);
+    const rows: EditRow[] = [code(1), { kind: "filler" }, code(2)];
+    const padded = padPane(doc, buildPane(doc, { rows }), Float64Array.from([18, 90, 0]));
+    const plain = padPane(doc, padded, null);
+
+    expect(placed(plain.blocks)).toMatchObject([{ height: 18 }]);
+    expect(plain.under.size).toBe(0);
   });
 });
 

@@ -9,6 +9,7 @@ import {
   advanceTable,
   anchoredTop,
   pairCounts,
+  pixelRows,
   rowCounts,
   uniformRows,
   visibleRows,
@@ -157,6 +158,15 @@ describe("row geometry", () => {
     expect(anchoredTop(before, after, 0)).toBe(0);
     // Past the rows there is nothing to keep.
     expect(anchoredTop(before, after, 500)).toBe(500);
+  });
+});
+
+describe("rows of the editor's own heights", () => {
+  it("takes pixel heights as they are, fractions of an estimate included", () => {
+    const rows = pixelRows([18, 54.5, 0, 35.5], RH);
+    expect([0, 1, 2, 3, 4].map((i) => rows.top(i))).toEqual([0, 18, 72.5, 72.5, 108]);
+    expect(rows.rowAt(72.5)).toBe(3);
+    expect(rows.rowAt(130)).toBe(5);
   });
 });
 

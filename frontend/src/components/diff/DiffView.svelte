@@ -9,7 +9,7 @@
   import { mount, unmount, untrack } from "svelte";
   import DiffFold from "./DiffFold.svelte";
   import EditBanners from "./EditBanners.svelte";
-  import { DiffPaneEditor } from "$lib/diff-pane-editor";
+  import { DiffPaneEditor, type RowExtents } from "$lib/diff-pane-editor";
   import { splitRows, toneOf, unifiedRows, type RowLook } from "$lib/diff-edit-rows";
   import { diffEdit } from "$stores/diff-edit.svelte";
   import type { SearchRow } from "$lib/diff-rows";
@@ -54,6 +54,7 @@
     uniformRows,
     visibleRows,
     wrappedRows,
+    pixelRows,
     type PaneGeometry,
     type RowGeometry,
   } from "$lib/diff-wrap";
@@ -157,19 +158,15 @@
   /** Edits not saved yet: Stage, Unstage and Discard wait, their patch is cut from the disk. */
   const dirty = $derived(editor !== null && diffEdit.dirty);
   const SAVE_FIRST = "Save the file first (Ctrl+S): staging takes the lines on disk";
-  /** Long lines wrap at their pane's width (F-950). Wrapped rows are the HTML rows, so the
-      editor gives way to them, except while it holds edits not saved yet. */
-  const wrap = $derived(settings.current.diffWrap && diff.kind === "text" && !dirty);
-  const wrapTool = $derived(
-    wrapButton(settings.current.diffWrap, { editable: edit !== null && edit.blocked === null, dirty }),
-  );
+  const wrap = $derived(settings.current.diffWrap && diff.kind === "text");
+  const wrapTool = $derived(wrapButton(settings.current.diffWrap));
   /** One editor per file: it lives on through new diffs of it, a layout switch and a save. */
   const editorFor = $derived(
-    opened && diff.kind === "text" && !wrap ? `${opened.repo}:${opened.spec.kind}:${opened.path}` : null,
+    opened && diff.kind === "text" ? `${opened.repo}:${opened.spec.kind}:${opened.path}` : null,
   );
 
   function toggleWrap() {
-    if (!wrapTool.disabled) void settings.set("diffWrap", !settings.current.diffWrap);
+    void settings.set("diffWrap", !settings.current.diffWrap);
   }
 
   const ROW_HEIGHT = 18;
@@ -385,6 +382,40 @@
     right: null,
   };
   let measuredVersion = $state(0);
+  let editorExtents = $state.raw<RowExtents | null>(null);
+  let extentsPending = false;
+
+  const sameExtents = (a: Float64Array, b: Float64Array) => a.length === b.length && a.every((value, i) => Math.abs(value - b[i]!) < 0.5);
+
+  function readEditorExtents() {
+    if (extentsPending) return;
+    extentsPending = true;
+    queueMicrotask(() => {
+      extentsPending = false;
+      const made = editor;
+      if (!made || !wrap) {
+        if (editorExtents) editorExtents = null;
+        return;
+      }
+      const next = made.rowExtents(mode === "unified" ? model.unified.length : model.right.length);
+      if (mode === "split") {
+        const seen = measured.right;
+        let changed = false;
+        next.shown.forEach((on, i) => {
+          if (!on || model.right[i]?.kind !== "line") return;
+          const rows = Math.max(1, Math.round(next.natural[i]! / ROW_HEIGHT));
+          if (seen.get(i) !== rows) {
+            seen.set(i, rows);
+            changed = true;
+          }
+        });
+        if (changed) measuredVersion += 1;
+      }
+      const have = editorExtents;
+      if (have && sameExtents(have.extent, next.extent) && sameExtents(have.natural, next.natural)) return;
+      editorExtents = next;
+    });
+  }
 
   /** Where every row of each list is. Unwrapped, `index · ROW_HEIGHT`; wrapped, a line is as
       many rows as its text takes, and Aligned a pair is as tall as its taller side. */
@@ -395,10 +426,16 @@
       unified: uniformRows(model.unified.length, ROW_HEIGHT),
       left: uniformRows(model.left.length, ROW_HEIGHT),
       right: uniformRows(model.right.length, ROW_HEIGHT),
+      leftCounts: null as Uint32Array | null,
+      rightCounts: null as Uint32Array | null,
     };
     // Unwrapped, nothing else is read: a resize or a divider drag does not rebuild the marks.
     counted = { unified: null, left: null, right: null };
     if (!wrap) return plain;
+    const drawn = editor !== null ? editorExtents : null;
+    const typed =
+      drawn && drawn.extent.length === (mode === "unified" ? model.unified.length : model.right.length) ? drawn : null;
+    if (mode === "unified" && typed) return { ...plain, unified: pixelRows(typed.extent, ROW_HEIGHT) };
     const est = estimate;
     const rightCode = mode === "split" ? rightWidth : codeWidth;
     if (!est || codeWidth <= 0 || rightCode <= 0) return plain;
@@ -409,15 +446,26 @@
     }
     if (mode === "unified") {
       const unified = rowCounts(model.unified, codeWidth, est, measured.unified);
-      counted = { unified, left: null, right: null };
+      counted = { unified: editor ? null : unified, left: null, right: null };
       return { ...plain, unified: wrappedRows(unified, ROW_HEIGHT) };
     }
     const left = rowCounts(model.left, codeWidth, est, measured.left);
     const right = rowCounts(model.right, rightCode, est, measured.right);
-    counted = { unified: null, left, right };
+    if (typed) {
+      counted = { unified: null, left, right: null };
+      const drawnRows = pixelRows(typed.extent, ROW_HEIGHT);
+      return {
+        ...plain,
+        left: sideLayout === "aligned" ? drawnRows : wrappedRows(left, ROW_HEIGHT),
+        right: drawnRows,
+        leftCounts: left,
+        rightCounts: right,
+      };
+    }
+    counted = { unified: null, left, right: editor ? null : right };
     if (sideLayout === "aligned") {
       const both = wrappedRows(pairCounts(left, right), ROW_HEIGHT);
-      return { ...plain, left: both, right: both };
+      return { ...plain, left: both, right: both, leftCounts: left, rightCounts: right };
     }
     return { ...plain, left: wrappedRows(left, ROW_HEIGHT), right: wrappedRows(right, ROW_HEIGHT) };
   });
@@ -524,7 +572,7 @@
       ? Math.max(maxOffset(widest.old, charWidth, codeWidth), maxOffset(widest.new, charWidth, rightWidth))
       : maxOffset(Math.max(widest.old, widest.new), charWidth, codeWidth),
   );
-  const sidewaysMax = $derived(Math.max(linesMax, editor ? editorOverflow : 0));
+  const sidewaysMax = $derived(wrap ? 0 : Math.max(linesMax, editor ? editorOverflow : 0));
   const shift = $derived(clampOffset(sideways, sidewaysMax));
 
   const paneEl = (side: PaneSide) => (side === "left" ? leftEl : rightEl);
@@ -896,17 +944,9 @@
   $effect(() => {
     const repo = diffStore.repo;
     const spec = diffStore.shownSpec;
-    if (repo === null || !spec || diff.kind !== "text" || edit?.blocked !== null || wrap) return;
+    if (repo === null || !spec || diff.kind !== "text" || edit?.blocked !== null) return;
     untrack(() => {
       if (!diffEdit.isFor(path)) void diffEdit.start(repo, spec, path);
-    });
-  });
-
-  // Wrapped, the file is not open: unwrapped again, it is read as it is then, not as it was.
-  $effect(() => {
-    if (!wrap || editor !== null) return;
-    untrack(() => {
-      if (diffEdit.isFor(path) && !diffEdit.dirty) diffEdit.stop();
     });
   });
 
@@ -926,6 +966,7 @@
             editorOverflow = overflow;
             if (left !== shift) sideways = left;
           },
+          heights: readEditorExtents,
         },
         diffEdit.opened?.text,
       );
@@ -995,6 +1036,36 @@
   $effect(() => {
     const rows = editorRows;
     if (editor && rows) editor.setRows({ rows });
+  });
+
+  $effect(() => {
+    const made = editor;
+    const on = wrap;
+    void editorRows;
+    if (!made) return;
+    made.setWrap(on);
+    untrack(readEditorExtents);
+  });
+
+  $effect(() => {
+    const made = editor;
+    if (!made) return;
+    const left = geo.leftCounts;
+    const right = geo.rightCounts;
+    const aligned = wrap && mode === "split" && sideLayout === "aligned";
+    untrack(() => {
+      const rows = model.right;
+      if (!aligned || !left || !right || right.length !== rows.length) {
+        made.setPads(null);
+        return;
+      }
+      const pads = new Float64Array(rows.length);
+      rows.forEach((row, i) => {
+        if (row.kind === "gap") return;
+        pads[i] = Math.max((left[i] ?? 0) - right[i]!, row.kind === "filler" ? 1 : 0) * ROW_HEIGHT;
+      });
+      made.setPads(pads);
+    });
   });
 
   type FoldRole = "both" | "left" | "right";

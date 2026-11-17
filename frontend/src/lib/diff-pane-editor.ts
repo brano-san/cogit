@@ -1,10 +1,10 @@
 import { syntaxHighlighting } from "@codemirror/language";
 import { Compartment, EditorState, StateEffect, StateField, type Extension, type Range, type Text } from "@codemirror/state";
-import { Decoration, EditorView, GutterMarker, WidgetType, gutter, type DecorationSet } from "@codemirror/view";
+import { Decoration, EditorView, GutterMarker, WidgetType, gutter, type BlockInfo, type DecorationSet } from "@codemirror/view";
 import { classHighlighter } from "@lezer/highlight";
 import { TAB_SIZE } from "$lib/code-scroll";
 import { editing, type EditEvents } from "$lib/diff-editor";
-import { Pad, styleNonce } from "$lib/solver-editor";
+import { styleNonce } from "$lib/solver-editor";
 import { LINE_HEIGHT as ROW } from "$lib/solver-geometry";
 
 /**
@@ -72,6 +72,7 @@ export interface PaneEvents extends EditEvents {
   /** Where the text is scrolled sideways and how far it can go: told when the caret scrolls
       it past an edge, and when a line typed longer or shorter changes the reach. */
   sideways: (left: number, overflow: number) => void;
+  heights?: () => void;
 }
 
 // --- the rows as decorations ---
@@ -79,12 +80,15 @@ export interface PaneEvents extends EditEvents {
 const unmounts = new WeakMap<HTMLElement, () => void>();
 
 class Fold extends WidgetType {
-  constructor(readonly row: FoldRow) {
+  constructor(
+    readonly row: FoldRow,
+    readonly index: number,
+  ) {
     super();
   }
 
   override eq(other: Fold): boolean {
-    return other.row.id === this.row.id;
+    return other.row.id === this.row.id && other.index === this.index;
   }
 
   override toDOM(): HTMLElement {
@@ -111,9 +115,12 @@ class Fold extends WidgetType {
 class Deleted extends WidgetType {
   readonly #sig: string;
 
-  constructor(readonly rows: readonly DeletedRow[]) {
+  constructor(
+    readonly rows: readonly DeletedRow[],
+    readonly index: number,
+  ) {
     super();
-    this.#sig = JSON.stringify(rows.map((row) => [row.old, row.tone, row.flash, row.pieces]));
+    this.#sig = JSON.stringify([index, rows.map((row) => [row.old, row.tone, row.flash, row.pieces])]);
   }
 
   override eq(other: Deleted): boolean {
@@ -146,16 +153,48 @@ class Deleted extends WidgetType {
   }
 }
 
+export class Room extends WidgetType {
+  constructor(
+    readonly height: number,
+    readonly index: number,
+    readonly under: boolean,
+  ) {
+    super();
+  }
+
+  override eq(other: Room): boolean {
+    return other.height === this.height && other.index === this.index && other.under === this.under;
+  }
+
+  override toDOM(): HTMLElement {
+    const pad = document.createElement("div");
+    pad.className = "sv-pad";
+    pad.style.height = `${this.height}px`;
+    pad.setAttribute("aria-hidden", "true");
+    return pad;
+  }
+
+  override get estimatedHeight(): number {
+    return this.height;
+  }
+
+  override ignoreEvent(): boolean {
+    return true;
+  }
+}
+
 interface Pane {
   /** Line decorations; each carries its `CodeRow` for the gutters. */
   lines: DecorationSet;
   blocks: DecorationSet;
   words: DecorationSet;
+  under: DecorationSet;
 }
 
-const EMPTY: Pane = { lines: Decoration.none, blocks: Decoration.none, words: Decoration.none };
+const EMPTY: Pane = { lines: Decoration.none, blocks: Decoration.none, words: Decoration.none, under: Decoration.none };
 
 export const setRows = StateEffect.define<PaneRows>();
+export const setPads = StateEffect.define<Float64Array | null>();
 
 /** Class names are the diff view's own (`num`, `sign`, `del`, `word`…): one stylesheet draws
     its HTML rows and these. */
@@ -169,77 +208,194 @@ export function buildPane(doc: Text, { rows }: PaneRows): Pane {
   const lines: Range<Decoration>[] = [];
   const blocks: Range<Decoration>[] = [];
   const words: Range<Decoration>[] = [];
-  let deleted: DeletedRow[] = [];
-  let fillers = 0;
+  let deleted: { row: DeletedRow; index: number }[] = [];
+  let fillers: number[] = [];
 
   /** Deleted lines and filler go before the line that follows them, or after the last one. */
   const place = (before: number | null) => {
-    if (deleted.length === 0 && fillers === 0) return;
-    const widget = deleted.length > 0 ? new Deleted(deleted) : new Pad(fillers, "plain", false);
+    if (deleted.length === 0 && fillers.length === 0) return;
+    const widgets =
+      deleted.length > 0
+        ? deleted.map(({ row, index }) => new Deleted([row], index))
+        : fillers.map((index) => new Room(ROW, index, false));
     const inside = before !== null && before >= 1 && before <= doc.lines;
-    blocks.push(
-      Decoration.widget({ widget, block: true, side: inside ? -1 : 1 }).range(inside ? doc.line(before).from : doc.length),
-    );
+    for (const widget of widgets) {
+      blocks.push(
+        Decoration.widget({ widget, block: true, side: inside ? -1 : 1 }).range(inside ? doc.line(before).from : doc.length),
+      );
+    }
     deleted = [];
-    fillers = 0;
+    fillers = [];
   };
 
-  for (const row of rows) {
+  rows.forEach((row, index) => {
     if (row.kind === "deleted") {
-      if (fillers > 0) place(null);
-      deleted.push(row);
+      if (fillers.length > 0) place(null);
+      deleted.push({ row, index });
     } else if (row.kind === "filler") {
       if (deleted.length > 0) place(null);
-      fillers += 1;
+      fillers.push(index);
     } else if (row.kind === "fold" && row.hidden === 0) {
       // The strip of a block's actions where nothing is folded: between two lines.
       place(row.from);
       const inside = row.from >= 1 && row.from <= doc.lines;
-      const widget = Decoration.widget({ widget: new Fold(row), block: true, side: inside ? -1 : 1 });
+      const widget = Decoration.widget({ widget: new Fold(row, index), block: true, side: inside ? -1 : 1 });
       blocks.push(widget.range(inside ? doc.line(row.from).from : doc.length));
     } else if (row.kind === "fold") {
       const last = row.from + row.hidden - 1;
-      if (row.from < 1 || last > doc.lines) continue;
+      if (row.from < 1 || last > doc.lines) return;
       place(row.from);
-      const range = Decoration.replace({ widget: new Fold(row), block: true });
+      const range = Decoration.replace({ widget: new Fold(row, index), block: true });
       blocks.push(range.range(doc.line(row.from).from, doc.line(last).to));
     } else {
-      if (row.line < 1 || row.line > doc.lines) continue;
+      if (row.line < 1 || row.line > doc.lines) return;
       place(row.line);
       const line = doc.line(row.line);
-      lines.push(Decoration.line({ class: classes(row.tone, row.flash && "flash"), row }).range(line.from));
+      lines.push(Decoration.line({ class: classes(row.tone, row.flash && "flash"), row, index }).range(line.from));
       for (const mark of row.marks) {
         const from = line.from + Math.min(mark.from, line.length);
         const to = line.from + Math.min(mark.to, line.length);
         if (to > from) words.push(Decoration.mark({ class: mark.cls }).range(from, to));
       }
     }
-  }
+  });
   place(null);
   return {
     lines: Decoration.set(lines, true),
     blocks: Decoration.set(blocks, true),
     words: Decoration.set(words, true),
+    under: Decoration.none,
   };
 }
 
-const paneField = StateField.define<Pane>({
-  create: () => EMPTY,
+export function padPane(doc: Text, pane: Pane, pads: Float64Array | null): Pane {
+  const blocks: Range<Decoration>[] = [];
+  let changed = false;
+  for (let at = pane.blocks.iter(); at.value; at.next()) {
+    const deco = at.value;
+    const widget = (deco.spec as { widget?: unknown }).widget;
+    if (widget instanceof Room) {
+      const height = pads ? (pads[widget.index] ?? 0) : ROW;
+      if (height !== widget.height) {
+        changed = true;
+        const side = (deco.spec as { side?: number }).side ?? 1;
+        blocks.push(Decoration.widget({ widget: new Room(height, widget.index, false), block: true, side }).range(at.from));
+        continue;
+      }
+    }
+    blocks.push(deco.range(at.from, at.to));
+  }
+  const under: Range<Decoration>[] = [];
+  if (pads) {
+    for (let at = pane.lines.iter(); at.value; at.next()) {
+      const index = (at.value.spec as { index: number }).index;
+      const height = pads[index] ?? 0;
+      if (height <= 0) continue;
+      under.push(Decoration.widget({ widget: new Room(height, index, true), block: true, side: 1 }).range(doc.lineAt(at.from).to));
+    }
+  }
+  return { ...pane, blocks: changed ? Decoration.set(blocks, true) : pane.blocks, under: Decoration.set(under, true) };
+}
+
+interface Padded extends Pane {
+  pads: Float64Array | null;
+}
+
+const paneField = StateField.define<Padded>({
+  create: () => ({ ...EMPTY, pads: null }),
   update(pane, tr) {
-    for (const effect of tr.effects) if (effect.is(setRows)) return buildPane(tr.state.doc, effect.value);
+    for (const effect of tr.effects) {
+      if (effect.is(setRows)) {
+        const built = buildPane(tr.state.doc, effect.value);
+        return { ...(pane.pads ? padPane(tr.state.doc, built, pane.pads) : built), pads: pane.pads };
+      }
+    }
+    for (const effect of tr.effects) {
+      if (effect.is(setPads)) return { ...padPane(tr.state.doc, pane, effect.value), pads: effect.value };
+    }
     if (!tr.docChanged) return pane;
     return {
       lines: pane.lines.map(tr.changes),
       blocks: pane.blocks.map(tr.changes),
       words: pane.words.map(tr.changes),
+      under: pane.under.map(tr.changes),
+      pads: pane.pads,
     };
   },
   provide: (field) => [
     EditorView.decorations.from(field, (pane) => pane.lines),
     EditorView.decorations.from(field, (pane) => pane.blocks),
     EditorView.decorations.from(field, (pane) => pane.words),
+    EditorView.decorations.from(field, (pane) => pane.under),
   ],
 });
+
+function rowIndexAt(state: EditorState, from: number): number | null {
+  let found: number | null = null;
+  state.field(paneField).lines.between(from, from, (start, _to, deco) => {
+    if (start !== from) return;
+    found = (deco.spec as { index: number }).index;
+    return false;
+  });
+  return found;
+}
+
+export interface RowExtents {
+  extent: Float64Array;
+  natural: Float64Array;
+  shown: Uint8Array;
+}
+
+export function rowExtents(view: EditorView, count: number): RowExtents {
+  const extent = new Float64Array(count);
+  const padded = new Float64Array(count);
+  const shown = new Uint8Array(count);
+  const { from: shownFrom, to: shownTo } = view.viewport;
+  const state = view.state;
+  let open = -1;
+  let openTop = 0;
+  let openPad = false;
+  let last = -1;
+  const close = (top: number) => {
+    if (open < 0) return;
+    const height = Math.max(top - openTop, 0);
+    extent[open] = extent[open]! + height;
+    if (openPad) padded[open] = padded[open]! + height;
+  };
+  const leaf = (block: BlockInfo) => {
+    const widget = block.widget;
+    let index: number | null = null;
+    let pad = false;
+    if (widget instanceof Fold || widget instanceof Deleted) index = widget.index;
+    else if (widget instanceof Room) {
+      index = widget.index;
+      pad = true;
+    } else if (!widget) index = rowIndexAt(state, block.from);
+    if (index === null || index < 0 || index >= count) index = last >= 0 ? last : count > 0 ? 0 : -1;
+    if (index >= 0 && !pad && block.from >= shownFrom && block.to <= shownTo) shown[index] = 1;
+    close(block.top);
+    open = index;
+    openTop = block.top;
+    openPad = pad;
+    last = index;
+  };
+  const end = state.doc.length;
+  let pos = 0;
+  let bottom = 0;
+  for (;;) {
+    const block = view.lineBlockAt(pos);
+    const type = block.type;
+    if (typeof type === "number") leaf(block);
+    else for (const part of type) leaf(part);
+    bottom = block.bottom;
+    if (block.to >= end) break;
+    pos = block.to + 1;
+  }
+  close(bottom);
+  const natural = new Float64Array(count);
+  for (let i = 0; i < count; i++) natural[i] = extent[i]! - padded[i]!;
+  return { extent, natural, shown };
+}
 
 /** The row a line of the file was drawn from; none for a line typed since the last diff. */
 export function rowAt(state: EditorState, from: number): CodeRow | null {
@@ -331,7 +487,7 @@ function lineCells(state: EditorState, from: number, layout: PaneLayout): Gutter
 
 function widgetCells(widget: WidgetType, layout: PaneLayout): GutterMarker | null {
   if (widget instanceof Fold) return FOLD_STRIP;
-  if (widget instanceof Pad) return FILLER_STRIP;
+  if (widget instanceof Room) return FILLER_STRIP;
   if (!(widget instanceof Deleted) || layout !== "unified") return null;
   return new Cells(
     widget.rows.map((row) => [num(row.old, row.tone), num(null, row.tone), { cls: classes("sign", row.tone), text: "−" }]),
@@ -359,6 +515,24 @@ const grid = EditorView.theme({
   ".dv-fold-row": { display: "flex", height: `${ROW}px` },
   ".dv-del-line": { height: `${ROW}px`, lineHeight: `${ROW}px`, whiteSpace: "pre" },
 });
+
+const BREAK_ANYWHERE = {
+  whiteSpace: "break-spaces",
+  wordBreak: "break-all",
+  overflowWrap: "anywhere",
+  lineBreak: "anywhere",
+};
+
+const wrapped: Extension = [
+  EditorView.lineWrapping,
+  EditorView.editorAttributes.of({ class: "dv-wrap" }),
+  EditorView.theme({
+    "&.dv-wrap .cm-scroller": { overflowX: "hidden" },
+    "&.dv-wrap .cm-content": BREAK_ANYWHERE,
+    "&.dv-wrap .cm-line": { height: "auto", minHeight: `${ROW}px` },
+    "&.dv-wrap .dv-del-line": { ...BREAK_ANYWHERE, height: "auto", minHeight: `${ROW}px` },
+  }),
+];
 
 /** The text, from `old` to `next`, as one change of the part that differs: the caret and
     the scroll stay where they were, and Undo brings the old text back. */
@@ -398,6 +572,8 @@ export class DiffPaneEditor {
   #layout: PaneLayout;
   #gutters = new Compartment();
   #language = new Compartment();
+  #wrap = new Compartment();
+  #wrapped = false;
   #resized: ResizeObserver;
   #destroyed = false;
 
@@ -415,8 +591,12 @@ export class DiffPaneEditor {
           paneField,
           this.#gutters.of(gutters(layout)),
           this.#language.of([]),
+          this.#wrap.of([]),
           syntaxHighlighting(classHighlighter),
           editing(events),
+          EditorView.updateListener.of((update) => {
+            if (update.heightChanged || update.geometryChanged || update.viewportChanged) events.heights?.();
+          }),
         ],
       }),
     });
@@ -448,6 +628,24 @@ export class DiffPaneEditor {
 
   setRows(rows: PaneRows): void {
     this.view.dispatch({ effects: setRows.of(rows) });
+  }
+
+  setWrap(on: boolean): void {
+    if (this.#destroyed || this.#wrapped === on) return;
+    this.#wrapped = on;
+    this.view.dispatch({ effects: this.#wrap.reconfigure(on ? wrapped : []) });
+  }
+
+  setPads(pads: Float64Array | null): void {
+    if (this.#destroyed) return;
+    const have = this.view.state.field(paneField).pads;
+    if (have === pads) return;
+    if (have && pads && have.length === pads.length && have.every((value, i) => value === pads[i])) return;
+    this.view.dispatch({ effects: setPads.of(pads) });
+  }
+
+  rowExtents(count: number): RowExtents {
+    return rowExtents(this.view, count);
   }
 
   setLanguage(language: Extension | null): void {

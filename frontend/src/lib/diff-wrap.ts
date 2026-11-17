@@ -39,9 +39,15 @@ export function uniformRows(count: number, rowHeight: number): RowGeometry {
 
 /** Rows of `counts[i]` visual rows each (zero allowed: a filler opposite nothing). */
 export function wrappedRows(counts: ArrayLike<number>, rowHeight: number): RowGeometry {
-  const count = counts.length;
+  const pixels = new Float64Array(counts.length);
+  for (let i = 0; i < counts.length; i++) pixels[i] = counts[i]! * rowHeight;
+  return pixelRows(pixels, rowHeight);
+}
+
+export function pixelRows(heights: ArrayLike<number>, rowHeight: number): RowGeometry {
+  const count = heights.length;
   const tops = new Float64Array(count + 1);
-  for (let i = 0; i < count; i++) tops[i + 1] = tops[i]! + counts[i]! * rowHeight;
+  for (let i = 0; i < count; i++) tops[i + 1] = tops[i]! + heights[i]!;
   const total = tops[count]!;
   return {
     count,
