@@ -563,6 +563,8 @@ pub(crate) fn command_for(program: &Path) -> Command {
     command.env("GIT_TERMINAL_PROMPT", "0");
     command.env("LC_ALL", "C");
     clear_inherited_git_vars(&mut command);
+    command.env("GIT_DEFAULT_HASH", "sha1");
+    command.env("GIT_DEFAULT_REF_FORMAT", "files");
     command
 }
 
