@@ -7,8 +7,7 @@ import {
   visibleCenter,
 } from "./diff-band";
 
-/** Every line of the three panes is this tall, and none wraps: a pane's geometry is then
-    arithmetic on line numbers and padding, with no measuring (and so exact off screen). */
+/** Height of one unwrapped line; with wrap on, edges and heights come from CodeMirror. */
 export const LINE_HEIGHT = 18;
 /** Rows of context a jump leaves above the hunk it lands on. */
 export const LEAD = 3;

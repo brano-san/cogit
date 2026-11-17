@@ -9,10 +9,10 @@ import { LINE_HEIGHT as ROW } from "$lib/solver-geometry";
 
 /**
  * The working file as a pane of its diff (F-722): CodeMirror, laid out on the diff's own row
- * grid, so the band, the scroll sync and the left pane go on working from row arithmetic.
- * Every row is 18 px: a line of the file, a fold strip in place of the unchanged lines it
- * hides, filler opposite lines only the other side has (Aligned), or, in Unified, the
- * deleted lines between the lines of the file. The rows come from the diff of the text last
+ * grid. A row is a line of the file, a fold strip in place of the unchanged lines it hides,
+ * filler opposite lines only the other side has (Aligned), or, in Unified, a deleted line
+ * between the lines of the file. Unwrapped, every row is 18 px; wrapped, row positions come
+ * from CodeMirror's height map. The rows come from the diff of the text last
  * sent; typing carries them along with the text until the next diff arrives.
  */
 
