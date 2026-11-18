@@ -125,6 +125,8 @@ impl RepoHandle {
             tips.skipped
                 .iter()
                 .for_each(|skipped| skipped.name.hash(&mut hasher));
+        } else if let Some(stamp) = self.refs_stamp(REFS_SETTLE) {
+            stamp.hash(&mut hasher);
         } else {
             let platform = self
                 .repo
@@ -146,6 +148,56 @@ impl RepoHandle {
         self.merge_head().hash(&mut hasher);
         self.shallow_commits().hash(&mut hasher);
         Ok(hasher.finish())
+    }
+
+    pub(crate) fn refs_stamp(&self, settle: std::time::Duration) -> Option<u64> {
+        use std::hash::{Hash as _, Hasher as _};
+        let store = &self.repo.refs;
+        let common = store.common_dir_resolved();
+        if common.join("reftable").exists() {
+            return None;
+        }
+        let now = std::time::SystemTime::now();
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        let mut stamp = |path: &std::path::Path| -> Option<()> {
+            path.hash(&mut hasher);
+            match std::fs::metadata(path) {
+                Ok(meta) => {
+                    let modified = meta.modified().ok()?;
+                    if modified + settle > now {
+                        return None;
+                    }
+                    modified.hash(&mut hasher);
+                    meta.len().hash(&mut hasher);
+                    Some(())
+                }
+                Err(err) if err.kind() == std::io::ErrorKind::NotFound => Some(()),
+                Err(_) => None,
+            }
+        };
+        stamp(&store.packed_refs_path())?;
+        let mut folders = vec![common.join("refs")];
+        if store.git_dir() != common {
+            folders.push(store.git_dir().join("refs"));
+        }
+        while let Some(folder) = folders.pop() {
+            stamp(&folder)?;
+            let entries = match std::fs::read_dir(&folder) {
+                Ok(entries) => entries,
+                Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(_) => return None,
+            };
+            let mut inner = Vec::new();
+            for entry in entries {
+                let entry = entry.ok()?;
+                if entry.file_type().ok()?.is_dir() {
+                    inner.push(entry.path());
+                }
+            }
+            inner.sort_unstable_by(|a, b| b.cmp(a));
+            folders.extend(inner);
+        }
+        Some(hasher.finish())
     }
 
     /// Subject, author through `mailmap`, and the committer time's offset of `oid`.
@@ -202,6 +254,8 @@ impl RepoHandle {
     }
 }
 
+const REFS_SETTLE: std::time::Duration = std::time::Duration::from_secs(2);
+
 fn collect_tips<'a>(
     references: impl Iterator<Item = gix::Result<gix::Reference<'a>>>,
     tips: &mut Vec<gix::ObjectId>,
@@ -210,5 +264,56 @@ fn collect_tips<'a>(
         if let Some(id) = reference.try_id() {
             tips.push(id.detach());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::RepoHandle;
+    use std::time::Duration;
+
+    fn settled(f: &test_fixtures::Fixture) -> u64 {
+        std::thread::sleep(Duration::from_millis(60));
+        RepoHandle::open(f.path())
+            .unwrap()
+            .refs_stamp(Duration::ZERO)
+            .unwrap()
+    }
+
+    #[test]
+    fn the_stamp_holds_while_no_ref_moves() {
+        let f = test_fixtures::linear(3).unwrap();
+        f.git(&["update-ref", "refs/heads/topic/deep/x", "HEAD~1"])
+            .unwrap();
+        assert_eq!(settled(&f), settled(&f));
+    }
+
+    #[test]
+    fn a_moved_loose_ref_changes_the_stamp() {
+        let f = test_fixtures::linear(3).unwrap();
+        f.git(&["update-ref", "refs/heads/topic/deep/x", "HEAD~1"])
+            .unwrap();
+        let mut seen = vec![settled(&f)];
+        for args in [
+            &["update-ref", "refs/heads/topic/deep/x", "HEAD~2"][..],
+            &["update-ref", "refs/heads/main", "HEAD~1"],
+            &["tag", "v1", "HEAD"],
+            &["pack-refs", "--all"],
+            &["update-ref", "refs/heads/topic/deep/x", "HEAD"],
+            &["update-ref", "-d", "refs/tags/v1"],
+        ] {
+            f.git(args).unwrap();
+            let stamp = settled(&f);
+            assert!(!seen.contains(&stamp), "{args:?} left the stamp as it was");
+            seen.push(stamp);
+        }
+    }
+
+    #[test]
+    fn a_change_younger_than_the_settle_time_is_not_vouched_for() {
+        let f = test_fixtures::linear(1).unwrap();
+        f.git(&["update-ref", "refs/heads/x", "HEAD"]).unwrap();
+        let repo = RepoHandle::open(f.path()).unwrap();
+        assert!(repo.refs_stamp(Duration::from_secs(3600)).is_none());
     }
 }

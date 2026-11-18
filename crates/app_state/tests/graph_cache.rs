@@ -472,3 +472,28 @@ fn a_ticked_stash_shows_its_index_and_untracked_commits() {
     assert_eq!(stash.parents.len(), 3);
     assert_eq!(stash.parents[0], a.oid("HEAD").unwrap());
 }
+
+#[test]
+fn a_settled_loose_ref_moved_outside_is_noticed() {
+    let settle = std::time::Duration::from_millis(2_300);
+    let a = test_fixtures::linear(4).unwrap();
+    a.git(&["branch", "feature/deep/x", "HEAD~2"]).unwrap();
+    std::thread::sleep(settle);
+    let state = AppState::new();
+    let ra = state.open_repository(a.path()).unwrap().repo;
+    build(&state, ra);
+    assert_eq!(totals(&build(&state, ra).1), [4], "unmoved: from the cache");
+
+    a.git(&["update-ref", "refs/heads/feature/deep/x", "HEAD~3"])
+        .unwrap();
+    a.commit_file(10, "outside.txt", "outside\n").unwrap();
+    std::thread::sleep(settle);
+    let (generation, progress) = build(&state, ra);
+
+    assert_eq!(progress.last().unwrap().total, 5);
+    assert_eq!(summaries(&state, ra, generation)[0], "commit 10");
+    a.git(&["update-ref", "refs/heads/feature/deep/x", "HEAD~1"])
+        .unwrap();
+    std::thread::sleep(settle);
+    assert_ne!(totals(&build(&state, ra).1), [5], "moved: walked again");
+}
