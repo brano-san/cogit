@@ -129,6 +129,12 @@ export const CATEGORIES: Category[] = [
     groups: [{ title: "Sign-ins", fields: [] }],
   },
   {
+    id: "hosting",
+    title: "Hosting Providers",
+    parent: "commands",
+    groups: [{ title: "GitHub, GitLab and Bitbucket accounts", fields: [] }],
+  },
+  {
     id: "network",
     title: "Network",
     parent: "commands",

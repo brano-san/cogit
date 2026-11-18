@@ -184,6 +184,7 @@ diff_engine = { path = "crates/diff_engine" }
 fs_watcher = { path = "crates/fs_watcher" }
 git_engine = { path = "crates/git_engine" }
 graph_engine = { path = "crates/graph_engine" }
+hosting = { path = "crates/hosting" }
 portable = { path = "crates/portable" }
 spellcheck = { path = "crates/spellcheck" }
 test_fixtures = { path = "crates/test_fixtures" }

@@ -31,6 +31,8 @@
   import { ON_WINDOWS } from "$lib/platform";
   import { fontFamilies, probeGit } from "$lib/ipc";
   import { credentials } from "$stores/credentials.svelte";
+  import { hosting } from "$stores/hosting.svelte";
+  import { providerLabel, serverOf } from "$lib/hosting";
   import type { Keymap } from "$lib/keymap";
   import type { KeyBinding } from "$lib/ipc";
   import KeymapEditor from "$components/layout/KeymapEditor.svelte";
@@ -157,6 +159,7 @@
   // Read when the page is shown: a sign-in remembered from a refusal lands while Cogit runs.
   $effect(() => {
     if (current?.id === "auth") void untrack(() => credentials.refresh());
+    if (current?.id === "hosting") void untrack(() => hosting.refresh());
   });
   /** A page with a `*` setting explains the mark here; no page has both a note and one. */
   const note = $derived(current?.note ?? (restartFields(active).length > 0 ? "* Requires restart" : ""));
@@ -803,6 +806,91 @@
           </div>
         {/if}
 
+        {#if current.id === "hosting"}
+          <p class="lead" id="hosting-title">
+            Accounts on GitHub, GitLab (also self-hosted, and GitHub Enterprise) and Bitbucket, several per server if you
+            like. Their access tokens stay in Cogit's encrypted password store.
+          </p>
+          {#if hosting.state === "locked"}
+            <p class="hint wide">The password store is locked: unlock it to see the accounts.</p>
+          {:else if hosting.accounts.length === 0}
+            <p class="hint wide">No accounts yet.</p>
+          {:else}
+            <ul class="suppressed" aria-labelledby="hosting-title">
+              <li class="head">
+                <span class="provider">Provider</span><span class="grow">Server</span><span class="user">Login</span><span
+                  class="action"
+                ></span><span class="action"></span>
+              </li>
+              {#each hosting.accounts as account (account.id)}
+                {@const checked = hosting.checked[account.id]}
+                <li>
+                  <span class="provider">{providerLabel(account.provider)}</span>
+                  <span class="grow truncate mono" title={serverOf(account)}>{serverOf(account)}</span>
+                  <span
+                    class="user truncate"
+                    title={account.useForGit ? "The token also signs in Git over HTTPS" : "Not used for Git"}
+                    >{account.login}{account.useForGit ? "" : " (API only)"}</span
+                  >
+                  <button
+                    type="button"
+                    class="btn action"
+                    disabled={checked?.state === "checking"}
+                    aria-label={`Check the token of ${account.login}`}
+                    onclick={() => void hosting.check(account)}>Check</button
+                  >
+                  <button
+                    type="button"
+                    class="btn action"
+                    aria-label={`Remove the account ${account.login}`}
+                    onclick={() => void hosting.remove(account)}>Remove</button
+                  >
+                </li>
+                {#if checked && checked.state !== "checking"}
+                  <li class="checked" class:failed={checked.state === "failed"} role="status">
+                    {checked.state === "ok" ? `Token works: signed in as ${checked.login}` : checked.error}
+                  </li>
+                {/if}
+              {/each}
+            </ul>
+          {/if}
+          <div class="reset-all">
+            {#if hosting.state === "locked"}
+              <button type="button" class="btn" onclick={() => void hosting.unlock()}>Unlock…</button>
+            {:else}
+              <button type="button" class="btn" onclick={() => void hosting.openAdd()}>Add…</button>
+            {/if}
+          </div>
+          {#if hosting.state === "unlocked" && hosting.accounts.length > 0}
+            <label class="lookup">
+              <span>Account for a remote URL</span>
+              <input
+                type="text"
+                class="mono"
+                spellcheck="false"
+                placeholder="git@github.com:owner/repo.git"
+                onchange={(event) => void hosting.find(event.currentTarget.value)}
+              />
+            </label>
+            {#if hosting.lookup}
+              <p class="hint wide" role="status">
+                {#if hosting.lookup.error}
+                  {hosting.lookup.error}
+                {:else if hosting.lookup.found}
+                  {providerLabel(hosting.lookup.found.account.provider)} · {hosting.lookup.found.account.login} · {hosting
+                    .lookup.found.repository}
+                {:else}
+                  No account serves this URL.
+                {/if}
+              </p>
+            {/if}
+            <p class="hint wide">
+              Of several accounts on one server, a remote uses the one whose login is the user name in its URL, else
+              the one whose login owns the repository, else the first listed.
+            </p>
+          {/if}
+        {/if}
+
         {#if current.id === "advanced"}
           <p class="hint wide">
             Nothing here yet. Cache limits and the filesystem debouncer land with the
@@ -904,6 +992,28 @@
 
   .reset-all {
     gap: var(--sp-3);
+  }
+
+  .suppressed .provider {
+    flex: 0 0 80px;
+  }
+
+  .suppressed .checked {
+    color: var(--text-secondary);
+    overflow-wrap: anywhere;
+  }
+
+  .suppressed .checked.failed {
+    color: var(--status-danger);
+  }
+
+  .lookup {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    margin: var(--sp-6) 0 var(--sp-3);
+    font-size: var(--fs-dense);
+    color: var(--text-secondary);
   }
 
   .suppressed .scope {

@@ -238,21 +238,23 @@ pub fn private_keys(dir: &std::path::Path) -> Vec<String> {
 }
 
 #[derive(Serialize, Deserialize)]
-struct Stored {
-    host: String,
-    username: Option<String>,
-    secret: String,
+pub(crate) struct Stored {
+    pub(crate) host: String,
+    pub(crate) username: Option<String>,
+    pub(crate) secret: String,
     #[serde(default)]
-    key: Option<String>,
+    pub(crate) key: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) account: Option<hosting::HostingAccount>,
 }
 
 impl Stored {
     fn is(&self, host: &str, ssh: bool) -> bool {
-        self.host == host && self.key.is_some() == ssh
+        self.account.is_none() && self.host == host && self.key.is_some() == ssh
     }
 }
 
-fn parse(plain: &[u8]) -> Result<Vec<Stored>, SecretError> {
+pub(crate) fn parse(plain: &[u8]) -> Result<Vec<Stored>, SecretError> {
     serde_json::from_slice(plain).map_err(|err| StoreError::Damaged(err.to_string()).into())
 }
 
@@ -264,7 +266,7 @@ fn serialize(entries: &[Stored]) -> Result<Zeroizing<Vec<u8>>, StoreError> {
 
 pub(crate) type Passwords = Arc<RwLock<Option<PasswordStore>>>;
 
-fn with_store_in<T>(
+pub(crate) fn with_store_in<T>(
     passwords: &Passwords,
     run: impl FnOnce(&PasswordStore) -> Result<T, SecretError>,
 ) -> Result<T, SecretError> {
@@ -272,7 +274,7 @@ fn with_store_in<T>(
     run(store.as_ref().ok_or(SecretError::NoStore)?)
 }
 
-fn change_entries_in(
+pub(crate) fn change_entries_in(
     passwords: &Passwords,
     change: impl FnOnce(&mut Vec<Stored>),
 ) -> Result<(), SecretError> {
@@ -304,6 +306,7 @@ pub(crate) fn store_in(passwords: &Passwords, sign_in: &SignIn) -> Result<(), Se
             username: credential.username,
             secret: credential.secret,
             key: credential.key,
+            account: None,
         });
     })
 }
@@ -318,14 +321,17 @@ pub(crate) fn stored_in(passwords: &Passwords, url: &str) -> Option<Credential> 
             return None;
         }
     };
-    entries
-        .into_iter()
-        .find(|entry| entry.is(&host, ssh))
-        .map(|entry| Credential {
-            username: entry.username,
-            secret: entry.secret,
-            key: entry.key,
-        })
+    if let Some(entry) = entries.iter().find(|entry| entry.is(&host, ssh)) {
+        return Some(Credential {
+            username: entry.username.clone(),
+            secret: entry.secret.clone(),
+            key: entry.key.clone(),
+        });
+    }
+    if ssh {
+        return None;
+    }
+    crate::hosting_accounts::git_credential(&entries, url)
 }
 
 impl AppState {
@@ -350,6 +356,7 @@ impl AppState {
             let known = if state == StoreState::Unlocked {
                 let mut known: Vec<KnownCredential> = parse(&store.read()?)?
                     .into_iter()
+                    .filter(|entry| entry.account.is_none())
                     .map(|entry| KnownCredential {
                         host: entry.host,
                         username: entry.username,
@@ -410,7 +417,7 @@ impl AppState {
     }
 
     pub fn forget_all_credentials(&self) -> Result<(), SecretError> {
-        self.change_entries(Vec::clear)
+        self.change_entries(|entries| entries.retain(|entry| entry.account.is_some()))
     }
 
     /// What Cogit holds for the host of `url`, of `url`'s kind. A locked store holds nothing
@@ -502,6 +509,7 @@ mod keychain {
             username: old.username,
             secret: old.secret,
             key: None,
+            account: None,
         })
     }
 

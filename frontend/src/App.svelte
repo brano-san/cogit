@@ -89,6 +89,7 @@
   import { branchPrefix, effectiveRule, headBranch, repoRule } from "$lib/commit-prefix";
   import PromptDialog from "$components/layout/PromptDialog.svelte";
   import SignInDialog from "$components/layout/SignInDialog.svelte";
+  import HostingAccountDialog from "$components/layout/HostingAccountDialog.svelte";
   import MasterPasswordDialog from "$components/layout/MasterPasswordDialog.svelte";
   import HostKeyDialog from "$components/layout/HostKeyDialog.svelte";
   import { signedIn } from "$stores/sign-in.svelte";
@@ -4767,6 +4768,7 @@ ${event.error}`,
   {/if}
 
   <SignInDialog />
+  <HostingAccountDialog />
   <MasterPasswordDialog />
   <HostKeyDialog />
 

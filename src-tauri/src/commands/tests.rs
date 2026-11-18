@@ -278,6 +278,11 @@ fn the_keyring_is_reached_off_the_async_workers() {
         "store_credential",
         "forget_credential",
         "forget_all_credentials",
+        "hosting_accounts",
+        "add_hosting_account",
+        "check_hosting_account",
+        "remove_hosting_account",
+        "hosting_account_for",
     ]
     .into_iter()
     .filter(|name| {

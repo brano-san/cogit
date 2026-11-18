@@ -12,6 +12,7 @@ pub mod desktop;
 pub mod file_ops;
 pub mod flow;
 pub mod hooks;
+pub mod hosting;
 pub mod investigate;
 pub mod network;
 pub mod patches;

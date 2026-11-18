@@ -19,6 +19,7 @@ mod handles;
 mod hooking;
 mod host_keys;
 mod host_memory;
+mod hosting_accounts;
 pub mod investigation;
 pub mod legacy_dirs;
 pub mod licences;
@@ -72,6 +73,8 @@ pub use credentials::{
 pub use diffing::FileContent;
 pub use graph_cache::{GraphProgress, GraphWindow, PROGRESS_EVERY, throttled};
 pub use host_keys::HostKeyAsk;
+pub use hosting::{HostingAccount, HostingMatch, HostingProvider};
+pub use hosting_accounts::{HostingAccounts, HostingError, NewHostingAccount, hosting_proxy};
 pub use journal::{CommandNotice, CommandRow, command_log_text, command_rows, is_warning, record};
 pub use network::NetworkRun;
 pub use password_store::{StoreError, StoreState};

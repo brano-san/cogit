@@ -816,6 +816,16 @@ export const commands = {
 	/**  `ssh`: the host's ssh key, else its login. */
 	forgetCredential: (host: string, ssh: boolean) => typedError<null, GitError>(__TAURI_INVOKE("forget_credential", { host, ssh })),
 	forgetAllCredentials: () => typedError<null, GitError>(__TAURI_INVOKE("forget_all_credentials")),
+	hostingAccounts: () => typedError<HostingAccounts, GitError>(__TAURI_INVOKE("hosting_accounts")),
+	addHostingAccount: (account: NewHostingAccount) => typedError<HostingAccount, GitError>(__TAURI_INVOKE("add_hosting_account", { account })),
+	checkHostingAccount: (id: string) => typedError<string, GitError>(__TAURI_INVOKE("check_hosting_account", { id })),
+	removeHostingAccount: (id: string) => typedError<null, GitError>(__TAURI_INVOKE("remove_hosting_account", { id })),
+	hostingAccountFor: (url: string) => typedError<{
+	account: HostingAccount,
+	repository: string,
+	webUrl: string,
+	apiUrl: string,
+} | null, GitError>(__TAURI_INVOKE("hosting_account_for", { url })),
 	listHooks: (repo: RepoId) => typedError<HookOverview, GitError>(__TAURI_INVOKE("list_hooks", { repo })),
 	readHook: (repo: RepoId, name: string) => typedError<string, GitError>(__TAURI_INVOKE("read_hook", { repo, name })),
 	writeHook: (repo: RepoId, name: string, body: string) => typedError<null, GitError>(__TAURI_INVOKE("write_hook", { repo, name, body })),
@@ -2061,6 +2071,29 @@ export type HostKeyWithdrawn = {
 	id: number,
 };
 
+export type HostingAccount = {
+	id: string,
+	provider: HostingProvider,
+	serverUrl: string | null,
+	login: string,
+	username?: string | null,
+	useForGit: boolean,
+};
+
+export type HostingAccounts = {
+	state: StoreState,
+	accounts: HostingAccount[],
+};
+
+export type HostingMatch = {
+	account: HostingAccount,
+	repository: string,
+	webUrl: string,
+	apiUrl: string,
+};
+
+export type HostingProvider = "github" | "gitlab" | "bitbucket";
+
 export type Hunk = Hunk_Serialize | Hunk_Deserialize;
 
 export type Hunk_Deserialize = {
@@ -2307,6 +2340,14 @@ export type NetworkDefaults = {
 	pushNotes: boolean,
 	/**  The remote the Push dialog opens on; `None`: where git would push. */
 	pushRemote: string | null,
+};
+
+export type NewHostingAccount = {
+	provider: HostingProvider,
+	serverUrl: string | null,
+	username: string | null,
+	token: string,
+	useForGit: boolean,
 };
 
 export type NodeKind = "normal" | "merge" | "root" | "workingTree";

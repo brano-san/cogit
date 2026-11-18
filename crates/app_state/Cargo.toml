@@ -20,6 +20,7 @@ agent.workspace = true
 portable.workspace = true
 avatars.workspace = true
 git_engine.workspace = true
+hosting.workspace = true
 diff_engine.workspace = true
 graph_engine.workspace = true
 fs_watcher.workspace = true

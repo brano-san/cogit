@@ -106,6 +106,7 @@ dependencies = [
  "getrandom 0.3.4",
  "git_engine",
  "graph_engine",
+ "hosting",
  "jiff",
  "keyring",
  "mimalloc",
@@ -3048,6 +3049,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6303bc9732ae41b04cb554b844a762b4115a61bfaa81e3e83050991eeb56863f"
 dependencies = [
  "digest 0.11.3",
+]
+
+[[package]]
+name = "hosting"
+version = "0.8.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "specta",
+ "thiserror 2.0.21",
+ "tracing",
+ "ureq",
 ]
 
 [[package]]

@@ -10,6 +10,7 @@ import { withMenuKeys } from "$lib/context-menu";
 import { GIT_NOT_FOUND_HINT } from "$lib/git-missing";
 import type {
   SignIn,
+  NewHostingAccount,
   HostKeyAsk,
   Author,
   ErrorAction,
@@ -63,6 +64,11 @@ import type {
 } from "./bindings";
 
 export type {
+  HostingAccount,
+  HostingAccounts,
+  HostingMatch,
+  HostingProvider,
+  NewHostingAccount,
   SpellLanguage,
   IgnoreDraft,
   IgnoreFile,
@@ -1122,6 +1128,26 @@ export async function forgetCredential(host: string, ssh: boolean) {
 
 export async function forgetAllCredentials() {
   return unwrap(await commands.forgetAllCredentials());
+}
+
+export async function hostingAccounts() {
+  return unwrap(await commands.hostingAccounts());
+}
+
+export async function addHostingAccount(account: NewHostingAccount) {
+  return unwrap(await commands.addHostingAccount(account));
+}
+
+export async function checkHostingAccount(id: string) {
+  return unwrap(await commands.checkHostingAccount(id));
+}
+
+export async function removeHostingAccount(id: string) {
+  return unwrap(await commands.removeHostingAccount(id));
+}
+
+export async function hostingAccountFor(url: string) {
+  return unwrap(await commands.hostingAccountFor(url));
 }
 
 export async function listHooks(repo: RepoId) {
