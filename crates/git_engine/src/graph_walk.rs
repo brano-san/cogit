@@ -91,6 +91,7 @@ struct Queued {
     time: i64,
     id: ObjectId,
     parents: Parents,
+    level: u32,
 }
 
 impl Ord for Queued {
@@ -115,23 +116,66 @@ impl PartialEq for Queued {
 
 impl Eq for Queued {}
 
+#[derive(Debug, Clone)]
+pub(crate) struct Horizon(std::rc::Rc<std::cell::Cell<u32>>);
+
+impl Default for Horizon {
+    fn default() -> Self {
+        Self(std::rc::Rc::new(std::cell::Cell::new(u32::MAX)))
+    }
+}
+
+impl Horizon {
+    pub(crate) fn settles(&self, level: Option<u32>) -> bool {
+        let horizon = self.0.get();
+        match level {
+            Some(level) => level >= horizon,
+            None => horizon != u32::MAX,
+        }
+    }
+}
+
+struct Levels<L> {
+    of: L,
+    queued: std::collections::BTreeMap<u32, usize>,
+    horizon: Horizon,
+}
+
 /// Newest commit time first, the smaller id first on a tie; each commit once.
-pub(crate) struct ByTime<F> {
+pub(crate) struct ByTime<F, L = fn(&ObjectId) -> Option<u32>> {
     queue: BinaryHeap<Queued>,
     seen: gix::hashtable::HashSet<ObjectId>,
     read: F,
     first_parent: bool,
     /// Sorted. Their parents are not in a shallow clone.
     shallow: Vec<ObjectId>,
+    levels: Option<Levels<L>>,
 }
 
 impl<F> ByTime<F>
 where
     F: FnMut(ObjectId) -> Option<(i64, Parents)>,
 {
+    #[cfg(test)]
     pub(crate) fn new(
         tips: impl IntoIterator<Item = ObjectId>,
         read: F,
+        first_parent: bool,
+        shallow: Vec<ObjectId>,
+    ) -> Self {
+        Self::leveled(tips, read, None, first_parent, shallow)
+    }
+}
+
+impl<F, L> ByTime<F, L>
+where
+    F: FnMut(ObjectId) -> Option<(i64, Parents)>,
+    L: FnMut(&ObjectId) -> Option<u32>,
+{
+    pub(crate) fn leveled(
+        tips: impl IntoIterator<Item = ObjectId>,
+        read: F,
+        levels: Option<(L, Horizon)>,
         first_parent: bool,
         shallow: Vec<ObjectId>,
     ) -> Self {
@@ -141,10 +185,16 @@ where
             read,
             first_parent,
             shallow,
+            levels: levels.map(|(of, horizon)| Levels {
+                of,
+                queued: std::collections::BTreeMap::new(),
+                horizon,
+            }),
         };
         for tip in tips {
             walk.push(tip);
         }
+        walk.raise_horizon();
         walk
     }
 
@@ -153,25 +203,64 @@ where
             return;
         }
         if let Some((time, parents)) = (self.read)(id) {
-            self.queue.push(Queued { time, id, parents });
+            let level = match &mut self.levels {
+                Some(levels) => {
+                    let level = (levels.of)(&id).unwrap_or(u32::MAX);
+                    *levels.queued.entry(level).or_insert(0) += 1;
+                    level
+                }
+                None => u32::MAX,
+            };
+            self.queue.push(Queued {
+                time,
+                id,
+                parents,
+                level,
+            });
+        }
+    }
+
+    fn raise_horizon(&self) {
+        if let Some(levels) = &self.levels {
+            let top = levels
+                .queued
+                .last_key_value()
+                .map_or(0, |(level, _)| *level);
+            levels.horizon.0.set(top);
         }
     }
 }
 
-impl<F> Iterator for ByTime<F>
+impl<F, L> Iterator for ByTime<F, L>
 where
     F: FnMut(ObjectId) -> Option<(i64, Parents)>,
+    L: FnMut(&ObjectId) -> Option<u32>,
 {
     type Item = (ObjectId, Parents, i64);
 
     fn next(&mut self) -> Option<Self::Item> {
-        let Queued { id, parents, time } = self.queue.pop()?;
+        let Queued {
+            id,
+            parents,
+            time,
+            level,
+        } = self.queue.pop()?;
+        if let Some(levels) = &mut self.levels
+            && let std::collections::btree_map::Entry::Occupied(mut count) =
+                levels.queued.entry(level)
+        {
+            *count.get_mut() -= 1;
+            if *count.get() == 0 {
+                count.remove();
+            }
+        }
         if self.shallow.binary_search(&id).is_err() {
             let follow = if self.first_parent { 1 } else { parents.len() };
             for parent in parents.iter().take(follow) {
                 self.push(*parent);
             }
         }
+        self.raise_horizon();
         Some((id, parents, time))
     }
 }
@@ -190,6 +279,20 @@ impl<'a> CommitReader<'a> {
             .ok()
             .flatten();
         Self { repo, graph }
+    }
+
+    pub(crate) fn level(&self, id: &ObjectId) -> Option<u32> {
+        let graph = self.graph.as_ref()?;
+        Some(graph.commit_at(graph.lookup(id)?).generation())
+    }
+
+    pub(crate) fn has_sound_levels(&self) -> bool {
+        self.graph.as_ref().is_some_and(|graph| {
+            graph.iter_commits().all(|commit| {
+                let level = commit.generation();
+                level != 0 && level < gix::commitgraph::GENERATION_NUMBER_MAX
+            })
+        })
     }
 
     pub(crate) fn read(&self, id: ObjectId) -> Option<(i64, Parents)> {
@@ -300,5 +403,183 @@ mod tests {
     fn an_unreadable_commit_is_left_out_with_its_history() {
         let broken = &MERGED[1..];
         assert_eq!(walk(broken, &[5], false, &[]), [5, 2, 4, 3]);
+    }
+}
+
+#[cfg(test)]
+mod streamed_graph_order {
+    use super::{ByTime, Horizon, Parents};
+    use crate::topo::{in_graph_order, in_graph_order_streamed};
+    use gix::ObjectId;
+    use std::collections::HashMap;
+
+    fn id(n: usize) -> ObjectId {
+        let mut bytes = [0_u8; 20];
+        bytes[..8].copy_from_slice(&(n as u64).to_be_bytes());
+        bytes[8] = 0x5a;
+        ObjectId::from_bytes_or_panic(&bytes)
+    }
+
+    fn number(oid: &ObjectId) -> usize {
+        usize::try_from(u64::from_be_bytes(oid.as_bytes()[..8].try_into().unwrap())).unwrap()
+    }
+
+    struct Rng(u64);
+
+    impl Rng {
+        fn below(&mut self, n: usize) -> usize {
+            self.0 = self
+                .0
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            usize::try_from(self.0 >> 33).unwrap() % n.max(1)
+        }
+    }
+
+    struct History {
+        commits: HashMap<ObjectId, (i64, Parents)>,
+        levels: HashMap<ObjectId, u32>,
+        tips: Vec<ObjectId>,
+        head: ObjectId,
+    }
+
+    fn history(seed: u64, size: usize) -> History {
+        let mut rng = Rng(seed);
+        let mut commits = HashMap::new();
+        let mut every_level: HashMap<ObjectId, u32> = HashMap::new();
+        let mut childless: Vec<bool> = Vec::new();
+        let roots = 1 + rng.below(3);
+        for n in 0..size {
+            let mut parents = Parents::new();
+            if n >= roots {
+                let count = match rng.below(10) {
+                    0..=5 => 1,
+                    6..=8 => 2,
+                    _ => 3,
+                };
+                for _ in 0..count {
+                    let far = rng.below(4) == 0;
+                    let reach = 1 + rng.below(if far { n } else { 6.min(n) });
+                    let parent = id(n - reach);
+                    if !parents.contains(&parent) {
+                        parents.push(parent);
+                    }
+                }
+            }
+            let skew = if rng.below(8) == 0 {
+                -i64::try_from(rng.below(40)).unwrap()
+            } else {
+                0
+            };
+            let time = i64::try_from(n * 3 / 2 + rng.below(2)).unwrap() + skew;
+            let level = 1 + parents
+                .iter()
+                .map(|parent| every_level[parent])
+                .max()
+                .unwrap_or(0);
+            for parent in &parents {
+                childless[number(parent)] = false;
+            }
+            childless.push(true);
+            every_level.insert(id(n), level);
+            commits.insert(id(n), (time, parents));
+        }
+        let in_graph = match rng.below(3) {
+            0 => size,
+            1 => 0,
+            _ => rng.below(size),
+        };
+        let levels = (0..in_graph)
+            .map(|n| (id(n), every_level[&id(n)]))
+            .collect();
+        let mut tips: Vec<ObjectId> = (0..size).filter(|n| childless[*n]).map(id).collect();
+        for _ in 0..rng.below(4) {
+            tips.push(id(rng.below(size)));
+        }
+        let head = tips[rng.below(tips.len())];
+        History {
+            commits,
+            levels,
+            tips,
+            head,
+        }
+    }
+
+    fn order(history: &History, first_parent: bool, streamed: bool) -> Vec<ObjectId> {
+        let read = |oid: ObjectId| history.commits.get(&oid).cloned();
+        let horizon = Horizon::default();
+        let level = |oid: &ObjectId| history.levels.get(oid).copied();
+        let walk = ByTime::leveled(
+            history.tips.clone(),
+            read,
+            streamed.then(|| (level, horizon.clone())),
+            first_parent,
+            Vec::new(),
+        );
+        if streamed {
+            in_graph_order_streamed(walk, Some(history.head), first_parent, |oid| {
+                horizon.settles(history.levels.get(oid).copied())
+            })
+            .map(|(oid, ..)| oid)
+            .collect()
+        } else {
+            in_graph_order(walk, Some(history.head), first_parent)
+                .map(|(oid, ..)| oid)
+                .collect()
+        }
+    }
+
+    #[test]
+    fn the_streamed_order_is_the_order_of_the_whole_walk() {
+        for seed in 0..600 {
+            let history = history(seed, 3 + usize::try_from(seed % 70).unwrap());
+            for first_parent in [false, true] {
+                assert_eq!(
+                    order(&history, first_parent, true),
+                    order(&history, first_parent, false),
+                    "seed {seed}, first parent {first_parent}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_long_line_streams_with_levels() {
+        let size = 5_000;
+        let commits: HashMap<ObjectId, (i64, Parents)> = (0..size)
+            .map(|n| {
+                let parents = if n == 0 {
+                    Parents::new()
+                } else {
+                    Parents::from_slice(&[id(n - 1)])
+                };
+                (id(n), (i64::try_from(n).unwrap(), parents))
+            })
+            .collect();
+        let levels: HashMap<ObjectId, u32> = (0..size)
+            .map(|n| (id(n), u32::try_from(n).unwrap() + 1))
+            .collect();
+        let reads = std::cell::Cell::new(0_usize);
+        let read = |oid: ObjectId| {
+            reads.set(reads.get() + 1);
+            commits.get(&oid).cloned()
+        };
+        let horizon = Horizon::default();
+        let walk = ByTime::leveled(
+            [id(size - 1)],
+            read,
+            Some((|oid: &ObjectId| levels.get(oid).copied(), horizon.clone())),
+            false,
+            Vec::new(),
+        );
+        let first: Vec<ObjectId> =
+            in_graph_order_streamed(walk, Some(id(size - 1)), false, |oid| {
+                horizon.settles(levels.get(oid).copied())
+            })
+            .take(10)
+            .map(|(oid, ..)| oid)
+            .collect();
+        assert_eq!(first, (size - 10..size).rev().map(id).collect::<Vec<_>>());
+        assert!(reads.get() < 20, "read {}", reads.get());
     }
 }

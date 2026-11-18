@@ -252,3 +252,77 @@ fn with_a_stale_commit_graph_the_graph_is_what_git_log_lists() {
     f.merge(15, &["feat"], "merge feat back").unwrap();
     check(&f, true);
 }
+
+fn laid_out(f: &test_fixtures::Fixture, query: &CommitQuery) -> Vec<String> {
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let generation = state.begin_graph();
+    state
+        .build_graph(repo, query, generation, 3, |_| true)
+        .unwrap();
+    let window = state.graph_window(repo, generation, 0, 10_000).unwrap();
+    let mut out: Vec<String> = window
+        .commits
+        .iter()
+        .zip(&window.rows)
+        .map(|(commit, row)| format!("{} {:?} {row:?}", commit.oid, commit.parents))
+        .collect();
+    out.push(format!("{:?}", state.graph_working_tree(repo, generation)));
+    out
+}
+
+fn graph_order_queries() -> Vec<CommitQuery> {
+    let first_parent = CommitQuery {
+        view: git_engine::GraphView {
+            first_parent: true,
+            ..git_engine::GraphView::default()
+        },
+        ..CommitQuery::default()
+    };
+    vec![CommitQuery::default(), first_parent]
+}
+
+fn assert_streamed_as_whole(f: &test_fixtures::Fixture) {
+    let graph = f.git_dir().join("objects/info/commit-graph");
+    let _ = std::fs::remove_file(&graph);
+    let whole: Vec<Vec<String>> = graph_order_queries()
+        .iter()
+        .map(|query| laid_out(f, query))
+        .collect();
+    f.git(&["commit-graph", "write", "--reachable"]).unwrap();
+    assert!(graph.exists());
+    let streamed: Vec<Vec<String>> = graph_order_queries()
+        .iter()
+        .map(|query| laid_out(f, query))
+        .collect();
+    assert_eq!(streamed, whole);
+}
+
+#[test]
+fn with_a_commit_graph_the_graph_is_laid_out_as_without_one() {
+    for ties in [false, true] {
+        let f = history(ties);
+        f.write_file("dirty.txt", "dirty\n").unwrap();
+        assert_streamed_as_whole(&f);
+    }
+}
+
+#[test]
+fn with_a_commit_graph_a_skewed_clock_is_laid_out_as_without_one() {
+    let f = history(false);
+    f.git(&["switch", "-c", "skewed", "main~3"]).unwrap();
+    f.commit_file(40, "late.txt", "late\n").unwrap();
+    f.commit_file(2, "early.txt", "early\n").unwrap();
+    f.git(&["switch", "main"]).unwrap();
+    f.merge(41, &["skewed"], "merge skewed").unwrap();
+    assert_streamed_as_whole(&f);
+}
+
+#[test]
+fn with_a_commit_graph_a_merge_in_progress_is_laid_out_as_without_one() {
+    let f = test_fixtures::conflicted().unwrap();
+    assert!(f.git_dir().join("MERGE_HEAD").exists());
+    assert_streamed_as_whole(&f);
+    let f = test_fixtures::two_roots().unwrap();
+    assert_streamed_as_whole(&f);
+}

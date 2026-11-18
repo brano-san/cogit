@@ -2,7 +2,7 @@
 //! child (R-162), streamed through a window; and `--topo-order`, the default (R-766).
 
 use std::cmp::Reverse;
-use std::collections::{BinaryHeap, HashMap};
+use std::collections::{BinaryHeap, HashMap, VecDeque};
 use std::hash::Hash;
 
 /// Read ahead: a clock skewed by fewer commits than this is put right.
@@ -279,6 +279,249 @@ where
     out.into_iter()
 }
 
+pub(crate) fn in_graph_order_streamed<Id, T, I, S>(
+    source: I,
+    first: Option<Id>,
+    first_parent: bool,
+    settled: S,
+) -> GraphOrdered<Id, T, I, S>
+where
+    Id: Copy + Eq + Hash,
+    T: Walked<Id>,
+    I: Iterator<Item = T>,
+    S: FnMut(&Id) -> bool,
+{
+    GraphOrdered {
+        source,
+        settled,
+        drained: false,
+        follow: if first_parent { 1 } else { usize::MAX },
+        arrived: 0,
+        nodes: HashMap::new(),
+        tips: VecDeque::new(),
+        stack: Vec::new(),
+        first,
+        first_decided: false,
+        left: 0,
+        stranded: None,
+    }
+}
+
+struct Node<T> {
+    seq: u64,
+    item: Option<T>,
+    children: usize,
+    waiting: usize,
+}
+
+impl<T> Default for Node<T> {
+    fn default() -> Self {
+        Self {
+            seq: 0,
+            item: None,
+            children: 0,
+            waiting: 0,
+        }
+    }
+}
+
+pub(crate) struct GraphOrdered<Id, T, I, S> {
+    source: I,
+    settled: S,
+    drained: bool,
+    follow: usize,
+    arrived: u64,
+    nodes: HashMap<Id, Node<T>>,
+    tips: VecDeque<Id>,
+    stack: Vec<Id>,
+    first: Option<Id>,
+    first_decided: bool,
+    left: usize,
+    stranded: Option<std::vec::IntoIter<T>>,
+}
+
+impl<Id, T, I, S> GraphOrdered<Id, T, I, S>
+where
+    Id: Copy + Eq + Hash,
+    T: Walked<Id>,
+    I: Iterator<Item = T>,
+    S: FnMut(&Id) -> bool,
+{
+    fn pull(&mut self) {
+        let Some(item) = self.source.next() else {
+            self.drained = true;
+            return;
+        };
+        for parent in item.parents().iter().take(self.follow) {
+            let node = self.nodes.entry(*parent).or_default();
+            node.children += 1;
+            node.waiting += 1;
+        }
+        let id = item.id();
+        let seq = self.arrived;
+        self.arrived += 1;
+        let node = self.nodes.entry(id).or_default();
+        node.seq = seq;
+        node.item = Some(item);
+        if node.children == 0 {
+            self.tips.push_back(id);
+        }
+        self.left += 1;
+    }
+
+    fn known(&mut self, id: &Id) -> bool {
+        self.drained || (self.settled)(id)
+    }
+
+    fn has_arrived(&self, id: &Id) -> bool {
+        self.nodes.get(id).is_some_and(|node| node.item.is_some())
+    }
+
+    fn decide_first(&mut self) -> bool {
+        let Some(first) = self.first else {
+            return true;
+        };
+        if !self.has_arrived(&first) {
+            return self.drained;
+        }
+        let childless = self
+            .nodes
+            .get(&first)
+            .is_some_and(|node| node.children == 0);
+        if childless {
+            if !self.known(&first) {
+                return false;
+            }
+            self.stack.push(first);
+        }
+        true
+    }
+
+    fn next_tip(&mut self) -> Option<Option<Id>> {
+        while let Some(id) = self.tips.front() {
+            if self
+                .nodes
+                .get(id)
+                .is_some_and(|node| node.item.is_some() && node.children == 0)
+            {
+                break;
+            }
+            self.tips.pop_front();
+        }
+        let &id = self.tips.front()?;
+        if !self.known(&id) {
+            return Some(None);
+        }
+        self.tips.pop_front();
+        Some(Some(id))
+    }
+
+    fn frees_only_settled(&mut self, top: &Id) -> bool {
+        let Some(item) = self.nodes.get(top).and_then(|node| node.item.as_ref()) else {
+            return false;
+        };
+        let parents: smallvec::SmallVec<[Id; 4]> =
+            item.parents().iter().take(self.follow).copied().collect();
+        for (at, parent) in parents.iter().enumerate() {
+            if parents[..at].contains(parent) {
+                continue;
+            }
+            let times = parents.iter().filter(|other| *other == parent).count();
+            let waiting = self.nodes.get(parent).map_or(0, |node| node.waiting);
+            if waiting <= times && !self.known(parent) {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn emit(&mut self, top: Id) -> Option<T> {
+        let item = self.nodes.remove(&top)?.item?;
+        self.left -= 1;
+        for parent in item.parents().iter().take(self.follow) {
+            if let Some(node) = self.nodes.get_mut(parent) {
+                node.waiting = node.waiting.saturating_sub(1);
+                if node.waiting == 0 {
+                    self.stack.push(*parent);
+                }
+            }
+        }
+        Some(item)
+    }
+
+    fn strand(&mut self) {
+        tracing::error!(
+            stranded = self.left,
+            "commit order stalled; the rest goes out in walk order"
+        );
+        let mut rest: Vec<(u64, T)> = self
+            .nodes
+            .drain()
+            .filter_map(|(_, node)| node.item.map(|item| (node.seq, item)))
+            .collect();
+        rest.sort_by_key(|(seq, _)| *seq);
+        self.left = 0;
+        self.stranded = Some(
+            rest.into_iter()
+                .map(|(_, item)| item)
+                .collect::<Vec<_>>()
+                .into_iter(),
+        );
+    }
+}
+
+impl<Id, T, I, S> Iterator for GraphOrdered<Id, T, I, S>
+where
+    Id: Copy + Eq + Hash,
+    T: Walked<Id>,
+    I: Iterator<Item = T>,
+    S: FnMut(&Id) -> bool,
+{
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(rest) = &mut self.stranded {
+                return rest.next();
+            }
+            if !self.first_decided {
+                if self.decide_first() {
+                    self.first_decided = true;
+                } else {
+                    self.pull();
+                }
+                continue;
+            }
+            let Some(&top) = self.stack.last() else {
+                match self.next_tip() {
+                    Some(Some(tip)) => self.stack.push(tip),
+                    Some(None) => self.pull(),
+                    None if !self.drained => self.pull(),
+                    None if self.left == 0 => return None,
+                    None => self.strand(),
+                }
+                continue;
+            };
+            if !self.has_arrived(&top) {
+                if self.drained {
+                    self.stack.pop();
+                } else {
+                    self.pull();
+                }
+                continue;
+            }
+            if !self.frees_only_settled(&top) {
+                self.pull();
+                continue;
+            }
+            self.stack.pop();
+            if let Some(item) = self.emit(top) {
+                return Some(item);
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::in_date_order as order;
@@ -437,7 +680,21 @@ mod tests {
 
 #[cfg(test)]
 mod graph_order_tests {
-    use super::in_graph_order;
+    use super::in_graph_order_streamed;
+
+    fn in_graph_order(
+        source: impl Iterator<Item = (u32, Vec<u32>)>,
+        first: Option<u32>,
+        first_parent: bool,
+    ) -> std::vec::IntoIter<(u32, Vec<u32>)> {
+        let source: Vec<_> = source.collect();
+        let whole: Vec<_> =
+            super::in_graph_order(source.clone().into_iter(), first, first_parent).collect();
+        let streamed: Vec<_> =
+            in_graph_order_streamed(source.into_iter(), first, first_parent, |_| false).collect();
+        assert_eq!(streamed, whole);
+        whole.into_iter()
+    }
 
     /// `(id, parents)` newest first by date, as the walk hands them over; the id is the date.
     fn run(commits: &[(u32, &[u32])], first: Option<u32>) -> Vec<u32> {
