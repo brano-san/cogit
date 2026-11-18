@@ -27,7 +27,7 @@ pub fn start_label() -> String {
     // The pid: two instances started in one second must not share a name.
     format!(
         "{}_{}",
-        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S"),
+        jiff::Zoned::now().strftime("%Y-%m-%d_%H-%M-%S"),
         std::process::id()
     )
 }
