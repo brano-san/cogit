@@ -77,9 +77,9 @@ fn text(value: &Value, key: &str) -> Option<String> {
 }
 
 fn duration(started: Option<String>, finished: Option<String>) -> Option<u32> {
-    let started = chrono::DateTime::parse_from_rfc3339(&started?).ok()?;
-    let finished = chrono::DateTime::parse_from_rfc3339(&finished?).ok()?;
-    u32::try_from((finished - started).num_seconds()).ok()
+    let started: jiff::Timestamp = started?.parse().ok()?;
+    let finished: jiff::Timestamp = finished?.parse().ok()?;
+    u32::try_from(finished.as_second() - started.as_second()).ok()
 }
 
 fn sorted(mut checks: Vec<CiCheck>) -> Vec<CiCheck> {

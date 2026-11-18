@@ -3055,7 +3055,7 @@ dependencies = [
 name = "hosting"
 version = "0.8.0"
 dependencies = [
- "chrono",
+ "jiff",
  "serde",
  "serde_json",
  "specta",

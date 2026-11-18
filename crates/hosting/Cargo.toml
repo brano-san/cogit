@@ -11,7 +11,7 @@ description = "Hosting provider accounts: which account serves a remote, and its
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
-chrono.workspace = true
+jiff.workspace = true
 specta.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
