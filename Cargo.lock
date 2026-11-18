@@ -37,7 +37,7 @@ dependencies = [
 
 [[package]]
 name = "agent"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "git_engine",
  "parking_lot",
@@ -94,7 +94,7 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
 name = "app_state"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "agent",
  "argon2",
@@ -353,7 +353,7 @@ checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
 name = "avatars"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "md-5",
  "parking_lot",
@@ -522,7 +522,7 @@ dependencies = [
 
 [[package]]
 name = "build_info"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "serde_json",
  "test_fixtures",
@@ -764,7 +764,7 @@ checksum = "0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a"
 
 [[package]]
 name = "cogit"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "app_state",
@@ -1204,7 +1204,7 @@ dependencies = [
 
 [[package]]
 name = "desktop_entry"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "tempfile",
  "windows-registry",
@@ -1212,7 +1212,7 @@ dependencies = [
 
 [[package]]
 name = "diff_engine"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "imara-diff",
  "insta",
@@ -1634,7 +1634,7 @@ dependencies = [
 
 [[package]]
 name = "fs_watcher"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "notify",
  "serde",
@@ -1925,7 +1925,7 @@ dependencies = [
 
 [[package]]
 name = "git_engine"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "encoding_rs",
  "getrandom 0.3.4",
@@ -2877,7 +2877,7 @@ dependencies = [
 
 [[package]]
 name = "graph_engine"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "serde",
  "smallvec",
@@ -3053,7 +3053,7 @@ dependencies = [
 
 [[package]]
 name = "hosting"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "jiff",
  "serde",
@@ -4675,7 +4675,7 @@ dependencies = [
 
 [[package]]
 name = "portable"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "tempfile",
  "thiserror 2.0.21",
@@ -5666,7 +5666,7 @@ dependencies = [
 
 [[package]]
 name = "spellcheck"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "serde",
  "specta",
@@ -6345,7 +6345,7 @@ dependencies = [
 
 [[package]]
 name = "test_fixtures"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "tempfile",
  "thiserror 2.0.21",
