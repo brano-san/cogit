@@ -20,6 +20,9 @@
   import { signatures } from "$stores/signatures.svelte";
   import { signatureBadge, signatureLabel } from "$lib/signature";
   import { rowTip } from "$lib/ref-tip";
+  import CiBadge from "$components/common/CiBadge.svelte";
+  import { shown } from "$lib/ci-status";
+  import { ciStatus } from "$stores/ci-status.svelte";
 
   /** What a commit's row in the graph shows, inside the row the list positions. */
   interface Props {
@@ -74,6 +77,7 @@
   const hashColumn = $derived(timeColumnStore.hashWidth());
   const signature = $derived(signatures.statuses.get(entry.commit.oid));
   const badge = $derived(signatureBadge(signature?.status));
+  const ci = $derived(ciStatus.statuses.get(entry.commit.oid));
 </script>
 
 {#if folds}
@@ -126,6 +130,7 @@
     </svg>
   </span>
 {/if}
+{#if settings.current.graphCiStatus && shown(ci)}<CiBadge status={ci} />{/if}
 {#if detachedHere}<HereMark />{/if}<span class="summary truncate" class:head>{entry.commit.summary}</span>
 </span>
 {#each cells as cell, at (cell)}

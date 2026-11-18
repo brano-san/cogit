@@ -69,6 +69,8 @@
   import { compareView } from "$stores/compare-view.svelte";
   import { graph } from "$stores/graph.svelte";
   import { unpushed } from "$stores/unpushed.svelte";
+  import { ciStatus } from "$stores/ci-status.svelte";
+  import { graphTargets } from "$lib/ci-status";
   import { network } from "$stores/network.svelte";
   import {
     GRAPH_MODE_DEFAULTS,
@@ -411,6 +413,14 @@
       id,
       visible.map((item) => item.entry.commit.oid),
     );
+  });
+
+  $effect(() => {
+    const id = repository.current?.repo;
+    if (!id || !settings.current.graphCiStatus) return untrack(() => ciStatus.clear());
+    const oids = visible.map((item) => item.entry.commit.oid);
+    const targets = graphTargets(oids, (oid) => unpushed.has(oid));
+    untrack(() => ciStatus.setWindow(id, "graph", targets));
   });
 
   $effect(() => {

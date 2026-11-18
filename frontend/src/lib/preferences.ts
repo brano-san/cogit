@@ -282,6 +282,12 @@ export const CATEGORIES: Category[] = [
             hint: "A note icon on commits that have a note; hover it to read the note.",
             keywords: ["notes", "annotation", "comment", "refs/notes", "icon"],
           },
+          {
+            key: "graphCiStatus",
+            label: "Show CI status",
+            hint: "A build status icon on pushed commits on screen and on branches in Branches, read with the account in Hosting Providers. Click it for the checks.",
+            keywords: ["ci", "build", "checks", "pipeline", "actions", "status", "github", "gitlab", "bitbucket"],
+          },
         ],
       },
       {

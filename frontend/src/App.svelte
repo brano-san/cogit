@@ -295,6 +295,7 @@
   import { graph } from "$stores/graph.svelte";
   import { hooks } from "$stores/hooks.svelte";
   import { avatars } from "$stores/avatars.svelte";
+  import { ciStatus } from "$stores/ci-status.svelte";
   import { prompt } from "$stores/prompt.svelte";
   import { session } from "$stores/session.svelte";
   import { flow } from "$stores/flow.svelte";
@@ -3927,6 +3928,7 @@ ${event.error}`,
       if (id === "toolbar-preferences") return openSettings("toolbar");
       if (id === "select-all") return selectAllFromMenu();
       if (userTools.runMenu(id)) return;
+      if (ciStatus.runMenu(id)) return;
       if (refActions?.run(id)) return;
       if (refGroupActions?.run(id)) return;
       if (selectionActions?.run(id)) return;

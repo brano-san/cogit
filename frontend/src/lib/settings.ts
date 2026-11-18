@@ -113,6 +113,8 @@ export interface Settings {
   graphStripes: boolean;
   /** A note icon on commits that have a git note; hover shows the note. */
   graphShowNotes: boolean;
+  /** A CI status icon on commits and branches, from the hosting account of the remote (F-959). */
+  graphCiStatus: boolean;
   graphAvatarsChangedOnly: boolean;
   /** Author and avatar only on the newest commit of a run by one author; wins over the above. */
   graphAuthorLastOnly: boolean;
@@ -208,6 +210,7 @@ export const DEFAULT_SETTINGS: Settings = {
   graphDensity: "normal",
   graphStripes: true,
   graphShowNotes: true,
+  graphCiStatus: true,
   graphAvatarsChangedOnly: false,
   graphAuthorLastOnly: false,
   graphOverlap: false,

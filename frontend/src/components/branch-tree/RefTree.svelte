@@ -30,6 +30,10 @@
   import { commitDetails, type CommitDetails } from "$lib/ipc";
   import { refTip } from "$lib/ref-tip";
   import { repository } from "$stores/repository.svelte";
+  import CiBadge from "$components/common/CiBadge.svelte";
+  import { branchTargets, shown } from "$lib/ci-status";
+  import { ciStatus } from "$stores/ci-status.svelte";
+  import { network } from "$stores/network.svelte";
 
   interface Props {
     input: RefTreeInput;
@@ -204,6 +208,17 @@
     else if (nodes[at]) activate(nodes[at]);
   }
 
+  const ciShown = $derived(settings.current.graphCiStatus);
+
+  $effect(() => {
+    const id = repository.current?.repo;
+    if (!id || !ciShown) return;
+    const branches = nodes.flatMap((node) => (node.branch ? [node.branch] : []));
+    const targets = branchTargets(branches, network.remotes);
+    untrack(() => ciStatus.setWindow(id, "branches", targets));
+    return () => untrack(() => ciStatus.dropWindow("branches"));
+  });
+
   let tips = $state.raw<ReadonlyMap<string, CommitDetails>>(new Map());
   let tipsFor: unknown = null;
 
@@ -295,6 +310,10 @@
         class="label truncate shrink-last"
         class:current={node.current}>{node.label}</button
       >
+
+      {#if ciShown && node.branch && shown(ciStatus.statuses.get(node.branch.oid))}
+        <CiBadge status={ciStatus.statuses.get(node.branch.oid)!} />
+      {/if}
 
       {#if node.worktree}
         <span class="wt-mark {node.worktree.state}" title={worktreeMarkTooltip(node.worktree)}
