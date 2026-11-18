@@ -1,0 +1,53 @@
+{
+  "total_count": 4,
+  "check_runs": [
+    {
+      "id": 4,
+      "head_sha": "ce587453ced02b1526dfb4cb910479d431683101",
+      "node_id": "MDg6Q2hlY2tSdW40",
+      "external_id": "",
+      "url": "https://api.github.com/repos/github/hello-world/check-runs/4",
+      "html_url": "https://github.com/github/hello-world/runs/4",
+      "details_url": "https://example.com",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2018-05-04T01:14:52Z",
+      "completed_at": "2018-05-04T01:16:03Z",
+      "output": { "title": "Mighty Readme report", "summary": "There are 0 failures.", "text": null, "annotations_count": 2 },
+      "name": "build (ubuntu-latest)",
+      "check_suite": { "id": 5 },
+      "app": { "id": 1, "slug": "github-actions" },
+      "pull_requests": []
+    },
+    {
+      "id": 5,
+      "html_url": "https://github.com/github/hello-world/runs/5",
+      "details_url": null,
+      "status": "in_progress",
+      "conclusion": null,
+      "started_at": "2018-05-04T01:14:52Z",
+      "completed_at": null,
+      "output": { "title": null, "summary": null },
+      "name": "test"
+    },
+    {
+      "id": 6,
+      "html_url": "https://github.com/github/hello-world/runs/6",
+      "status": "completed",
+      "conclusion": "skipped",
+      "started_at": "2018-05-04T01:14:52Z",
+      "completed_at": "2018-05-04T01:14:52Z",
+      "name": "deploy"
+    },
+    {
+      "id": 7,
+      "html_url": null,
+      "details_url": "https://ci.example.com/7",
+      "status": "completed",
+      "conclusion": "timed_out",
+      "started_at": "2018-05-04T01:14:52Z",
+      "completed_at": "2018-05-04T02:14:52Z",
+      "name": "e2e"
+    }
+  ]
+}

@@ -826,6 +826,7 @@ export const commands = {
 	webUrl: string,
 	apiUrl: string,
 } | null, GitError>(__TAURI_INVOKE("hosting_account_for", { url })),
+	ciStatuses: (repo: RepoId, targets: CiTarget[]) => typedError<CiBatch, GitError>(__TAURI_INVOKE("ci_statuses", { repo, targets })),
 	listHooks: (repo: RepoId) => typedError<HookOverview, GitError>(__TAURI_INVOKE("list_hooks", { repo })),
 	readHook: (repo: RepoId, name: string) => typedError<string, GitError>(__TAURI_INVOKE("read_hook", { repo, name })),
 	writeHook: (repo: RepoId, name: string, body: string) => typedError<null, GitError>(__TAURI_INVOKE("write_hook", { repo, name, body })),
@@ -1160,6 +1161,34 @@ export type CheckoutTarget = { kind: "branch"; name: string } | { kind: "commit"
  *  sideways.
  */
 { kind: "fastForward"; name: string; to: string };
+
+export type CiBatch = {
+	statuses: CiStatus[],
+	retryMs: number | null,
+};
+
+export type CiCheck = {
+	name: string,
+	state: CiState,
+	description: string | null,
+	url: string | null,
+	durationSecs: number | null,
+};
+
+export type CiState = "success" | "failure" | "pending" | "neutral" | "none";
+
+export type CiStatus = {
+	sha: string,
+	state: CiState,
+	checks: CiCheck[],
+	url: string | null,
+	note: string | null,
+};
+
+export type CiTarget = {
+	sha: string,
+	remote: string | null,
+};
 
 export type CloneDestination = "missing" | "empty" | "notEmpty" | "file" | "unreadable";
 

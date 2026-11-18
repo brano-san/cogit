@@ -426,6 +426,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::hosting::check_hosting_account,
             commands::hosting::remove_hosting_account,
             commands::hosting::hosting_account_for,
+            commands::hosting::ci_statuses,
             commands::hooks::list_hooks,
             commands::hooks::read_hook,
             commands::hooks::write_hook,

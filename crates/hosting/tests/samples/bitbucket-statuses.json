@@ -1,0 +1,37 @@
+{
+  "pagelen": 100,
+  "page": 1,
+  "size": 3,
+  "values": [
+    {
+      "type": "build",
+      "key": "BAMBOO-PROJECT-X",
+      "refname": "main",
+      "url": "https://ci.example.com/builds/1",
+      "state": "SUCCESSFUL",
+      "name": "Build #34",
+      "description": "Changes by John Doe",
+      "created_on": "2026-11-18T10:00:00.000000+00:00",
+      "updated_on": "2026-11-18T10:03:20.000000+00:00",
+      "links": { "self": { "href": "https://api.bitbucket.org/2.0/repositories/ws/repo/commit/abc/statuses/build/BAMBOO-PROJECT-X" } }
+    },
+    {
+      "type": "build",
+      "key": "pipelines",
+      "url": "https://bitbucket.org/ws/repo/addon/pipelines/home#!/results/12",
+      "state": "INPROGRESS",
+      "name": null,
+      "created_on": "2026-11-18T10:00:00.000000+00:00",
+      "updated_on": "2026-11-18T10:01:00.000000+00:00"
+    },
+    {
+      "type": "build",
+      "key": "lint",
+      "url": "https://ci.example.com/builds/2",
+      "state": "STOPPED",
+      "name": "Lint",
+      "created_on": "2026-11-18T10:00:00.000000+00:00",
+      "updated_on": "2026-11-18T10:00:30.000000+00:00"
+    }
+  ]
+}

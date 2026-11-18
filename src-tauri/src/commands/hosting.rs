@@ -70,3 +70,14 @@ pub async fn hosting_account_for(
     })
     .await
 }
+
+#[tauri::command]
+#[specta::specta]
+pub async fn ci_statuses(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: app_state::RepoId,
+    targets: Vec<app_state::CiTarget>,
+) -> Result<app_state::CiBatch, GitError> {
+    let app_state = state.state.clone();
+    blocking("ci_statuses", move || app_state.ci_statuses(repo, &targets)).await
+}

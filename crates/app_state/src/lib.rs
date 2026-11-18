@@ -3,6 +3,7 @@ mod avatars;
 mod backend;
 mod bisect;
 mod checkup;
+mod ci_status;
 mod cloning;
 mod credentials;
 pub mod desktop;
@@ -66,6 +67,7 @@ mod staging;
 pub use agent_events::forward_agent_events;
 pub use avatars::{Author, AvatarRow, Avatars};
 pub use backend::{BackendState, Host, provide_agent_binary, serve_agent};
+pub use ci_status::{CiBatch, CiTarget};
 pub use credentials::{
     CredentialStore, KnownCredential, SecretError, SignIn, SshKeys, credential_host,
     credential_target, host_input, host_of, private_keys, ssh_host, ssh_keys,
@@ -73,6 +75,7 @@ pub use credentials::{
 pub use diffing::FileContent;
 pub use graph_cache::{GraphProgress, GraphWindow, PROGRESS_EVERY, throttled};
 pub use host_keys::HostKeyAsk;
+pub use hosting::{CiCheck, CiState, CiStatus};
 pub use hosting::{HostingAccount, HostingMatch, HostingProvider};
 pub use hosting_accounts::{HostingAccounts, HostingError, NewHostingAccount, hosting_proxy};
 pub use journal::{CommandNotice, CommandRow, command_log_text, command_rows, is_warning, record};
@@ -249,6 +252,7 @@ pub struct AppState {
     next_entry_id: AtomicU32,
     passwords: credentials::Passwords,
     pictures: RwLock<Option<Avatars>>,
+    ci: parking_lot::Mutex<hosting::CiCache>,
     preset_dir: RwLock<Option<std::path::PathBuf>>,
     /// The newest diff batch asked for per repository. An older answer never displaces
     /// a newer one, so responses cannot arrive out of order.
@@ -321,6 +325,7 @@ impl AppState {
             next_entry_id: AtomicU32::new(1),
             passwords: Arc::default(),
             pictures: RwLock::new(None),
+            ci: parking_lot::Mutex::default(),
             preset_dir: RwLock::new(None),
             newest_diff: RwLock::new(HashMap::new()),
             cached_rows: Arc::new(RwLock::new(RowCache::default())),

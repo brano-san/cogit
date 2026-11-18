@@ -283,6 +283,7 @@ fn the_keyring_is_reached_off_the_async_workers() {
         "check_hosting_account",
         "remove_hosting_account",
         "hosting_account_for",
+        "ci_statuses",
     ]
     .into_iter()
     .filter(|name| {

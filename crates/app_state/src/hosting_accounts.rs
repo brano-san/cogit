@@ -58,7 +58,7 @@ pub struct HostingAccounts {
     pub accounts: Vec<HostingAccount>,
 }
 
-fn accounts_in(entries: &[Stored]) -> Vec<HostingAccount> {
+pub(crate) fn accounts_in(entries: &[Stored]) -> Vec<HostingAccount> {
     entries
         .iter()
         .filter_map(|entry| entry.account.clone())
@@ -116,7 +116,7 @@ fn same_account(a: &HostingAccount, b: &HostingAccount) -> bool {
 }
 
 impl AppState {
-    fn read_entries(&self) -> Result<Vec<Stored>, HostingError> {
+    pub(crate) fn read_entries(&self) -> Result<Vec<Stored>, HostingError> {
         Ok(with_store_in(&self.passwords, |store| {
             parse(&store.read()?)
         })?)

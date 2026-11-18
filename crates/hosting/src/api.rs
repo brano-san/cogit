@@ -15,10 +15,48 @@ pub enum ApiError {
     Network(String, String),
     #[error("the proxy {0} is not a valid proxy URL")]
     Proxy(String),
+    #[error("{0} limits how often Cogit may ask{wait}", wait = wait_text(.1))]
+    RateLimited(String, Option<u64>),
     #[error("{0} sent an answer Cogit does not understand")]
     Reply(String),
     #[error(transparent)]
     Account(#[from] AccountError),
+}
+
+fn wait_text(wait: &Option<u64>) -> String {
+    match *wait {
+        Some(secs) if secs >= 120 => format!("; it allows more in {} min", secs.div_ceil(60)),
+        Some(secs) => format!("; it allows more in {secs} s"),
+        None => String::new(),
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Limit {
+    pub remaining: Option<u64>,
+    pub reset_at: Option<u64>,
+    pub retry_after: Option<u64>,
+}
+
+impl Limit {
+    #[must_use]
+    pub fn wait_secs(&self, now_epoch: u64) -> Option<u64> {
+        self.retry_after.or_else(|| {
+            self.reset_at
+                .filter(|_| self.remaining == Some(0))
+                .map(|reset| reset.saturating_sub(now_epoch))
+        })
+    }
+
+    fn exhausted(&self) -> bool {
+        self.remaining == Some(0) || self.retry_after.is_some()
+    }
+}
+
+#[derive(Debug)]
+pub struct Reply {
+    pub body: serde_json::Value,
+    pub limit: Limit,
 }
 
 pub struct Auth(String);
@@ -115,14 +153,49 @@ pub fn get_json(
     auth: &Auth,
     proxy: Option<&str>,
 ) -> Result<serde_json::Value, ApiError> {
+    get_reply(url, auth, proxy, &[]).map(|reply| reply.body)
+}
+
+fn header_number(response: &ureq::http::Response<ureq::Body>, names: &[&str]) -> Option<u64> {
+    names.iter().find_map(|name| {
+        response
+            .headers()
+            .get(*name)?
+            .to_str()
+            .ok()?
+            .trim()
+            .parse()
+            .ok()
+    })
+}
+
+fn epoch_now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |elapsed| elapsed.as_secs())
+}
+
+pub fn get_reply(
+    url: &str,
+    auth: &Auth,
+    proxy: Option<&str>,
+    headers: &[(&str, &str)],
+) -> Result<Reply, ApiError> {
     let site = site(url);
     let started = std::time::Instant::now();
-    let reply = agent_for(url, proxy)?
+    let mut request = agent_for(url, proxy)?
         .get(url)
-        .header("Authorization", &auth.0)
-        .header("Accept", "application/json")
-        .call();
-    let mut response = match reply {
+        .header("Authorization", &auth.0);
+    if !headers
+        .iter()
+        .any(|(name, _)| name.eq_ignore_ascii_case("accept"))
+    {
+        request = request.header("Accept", "application/json");
+    }
+    for (name, value) in headers {
+        request = request.header(*name, *value);
+    }
+    let mut response = match request.call() {
         Ok(response) => response,
         Err(error) => {
             tracing::info!(%site, ?error, "hosting API request did not complete");
@@ -130,6 +203,11 @@ pub fn get_json(
         }
     };
     let status = response.status().as_u16();
+    let limit = Limit {
+        remaining: header_number(&response, &["x-ratelimit-remaining", "ratelimit-remaining"]),
+        reset_at: header_number(&response, &["x-ratelimit-reset", "ratelimit-reset"]),
+        retry_after: header_number(&response, &["retry-after"]),
+    };
     tracing::info!(%site, status, elapsed = ?started.elapsed(), "hosting API request");
     let body = response
         .body_mut()
@@ -138,7 +216,11 @@ pub fn get_json(
         .read_to_string()
         .map_err(|error| ApiError::Network(site.clone(), error.to_string()))?;
     match status {
-        200..=299 => serde_json::from_str(&body).map_err(|_| ApiError::Reply(site)),
+        200..=299 => serde_json::from_str(&body)
+            .map(|body| Reply { body, limit })
+            .map_err(|_| ApiError::Reply(site)),
+        429 => Err(ApiError::RateLimited(site, limit.wait_secs(epoch_now()))),
+        403 if limit.exhausted() => Err(ApiError::RateLimited(site, limit.wait_secs(epoch_now()))),
         401 | 403 => Err(ApiError::Refused(site, status)),
         _ => Err(ApiError::Status(
             site,
@@ -206,6 +288,28 @@ mod tests {
             "http://<redacted>@proxy:3128"
         );
         assert_eq!(redact("proxy:3128"), "proxy:3128");
+    }
+
+    #[test]
+    fn a_limit_waits_for_retry_after_first_then_the_reset() {
+        let spent = Limit {
+            remaining: Some(0),
+            reset_at: Some(1_000),
+            retry_after: None,
+        };
+        assert_eq!(spent.wait_secs(940), Some(60));
+        assert_eq!(spent.wait_secs(2_000), Some(0));
+        let told = Limit {
+            retry_after: Some(30),
+            ..spent
+        };
+        assert_eq!(told.wait_secs(940), Some(30));
+        let left = Limit {
+            remaining: Some(5),
+            ..spent
+        };
+        assert_eq!(left.wait_secs(940), None);
+        assert!(!left.exhausted());
     }
 
     #[test]

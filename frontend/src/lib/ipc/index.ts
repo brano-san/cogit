@@ -11,6 +11,7 @@ import { GIT_NOT_FOUND_HINT } from "$lib/git-missing";
 import type {
   SignIn,
   NewHostingAccount,
+  CiTarget,
   HostKeyAsk,
   Author,
   ErrorAction,
@@ -64,6 +65,11 @@ import type {
 } from "./bindings";
 
 export type {
+  CiBatch,
+  CiCheck,
+  CiState,
+  CiStatus,
+  CiTarget,
   HostingAccount,
   HostingAccounts,
   HostingMatch,
@@ -1148,6 +1154,10 @@ export async function removeHostingAccount(id: string) {
 
 export async function hostingAccountFor(url: string) {
   return unwrap(await commands.hostingAccountFor(url));
+}
+
+export async function ciStatuses(repo: RepoId, targets: CiTarget[]) {
+  return unwrap(await commands.ciStatuses(repo, targets));
 }
 
 export async function listHooks(repo: RepoId) {
