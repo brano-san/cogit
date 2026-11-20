@@ -54,6 +54,7 @@ export type AppCommandId =
   | "zoom-reset"
   | "copy-path"
   | "copy-branch"
+  | "review-branch"
   | "copy-sha"
   | "rebase-i"
   | "flow-init"
@@ -190,6 +191,13 @@ export function appCommands(facts: AppCommandFacts, run: AppCommandActions): Pal
       title: "Copy the Branch Name",
       unavailable: facts.branch ? undefined : "HEAD is not on a branch",
       run: run["copy-branch"],
+    },
+    {
+      id: "review-branch",
+      title: "Review Current Branch…",
+      synonyms: ["pull request", "merge request", "branch diff", "changes since base"],
+      unavailable: noRepo ?? (facts.branch ? undefined : "HEAD is not on a branch"),
+      run: run["review-branch"],
     },
     { id: "copy-sha", title: "Copy the Commit SHA", unavailable: noCommit, run: run["copy-sha"] },
     {

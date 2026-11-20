@@ -111,6 +111,7 @@
   import RemoveFilesDialog from "$components/file-list/RemoveFilesDialog.svelte";
   import IndexEditorDialog from "$components/file-list/IndexEditorDialog.svelte";
   import { openInvestigate } from "$lib/investigate/open";
+  import { openReview } from "$lib/review-open";
   import WorktreesPanel from "$components/panels/WorktreesPanel.svelte";
   import { hasStale, linkedCount, othersToWatch, pruneAllButton, removable } from "$lib/worktree-list";
   import { fileFormat, shortOid } from "$lib/format";
@@ -875,6 +876,12 @@
     "zoom-reset": () => void settings.set("uiZoom", zoomStep(settings.current.uiZoom, 0)),
     "copy-path": () => void copyText(diff.path ?? ""),
     "copy-branch": () => void copyText(tracked?.name ?? ""),
+    "review-branch": () => {
+      const repo = repository.current?.repo;
+      if (repo !== undefined && tracked) {
+        void openReview(repo, tracked.name).catch((err) => errors.report(err, "Could not open Review Branch"));
+      }
+    },
     "copy-sha": () => void copyText(commit.oid ?? ""),
     "rebase-i": () => void openRebase(),
     "flow-init": () => void runFlow(() => flow.init(repo!.repo)),

@@ -211,6 +211,8 @@ describe("graphRefMenu (#39)", () => {
       "Reset Advanced…",
       "Roll Back Tree",
       "—",
+      "Review Branch…",
+      "—",
       "Push",
       "Push To…",
       "Set Upstream…",
@@ -261,6 +263,7 @@ describe("branchesBranchMenu (#33)", () => {
       "Reveal in Graph",
       "Compare with HEAD",
       "Compare with Selected Commit",
+      "Review Branch…",
       "—",
       "Merge",
       "Squash Merge",
@@ -588,5 +591,14 @@ describe("Split Commit…", () => {
         label: `Split Commit… (${reason})`,
       });
     }
+  });
+});
+
+describe("Review Branch… (F-961)", () => {
+  it("reviews a local or remote branch and not a tag", () => {
+    expect(find(graphRefMenu(branch, older), "Review Branch…").enabled).toBe(true);
+    expect(find(graphRefMenu({ kind: "remote", name: "origin/topic", isHead: false }, older), "Review Branch…").enabled).toBe(true);
+    expect(find(graphRefMenu({ kind: "tag", name: "v1", isHead: false }, older), "Review Branch…").enabled).toBe(false);
+    expect(find(branchesBranchMenu({ ...branch, isHead: true }, older, rows), "Review Branch…").enabled).toBe(true);
   });
 });

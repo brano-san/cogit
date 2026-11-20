@@ -111,6 +111,7 @@
   import { settings } from "$stores/settings.svelte";
   import { stashView } from "$stores/stash-view.svelte";
   import { stashTarget } from "$lib/stash-target";
+  import { openReview } from "$lib/review-open";
   import { stashes } from "$stores/stashes.svelte";
   import { worktree } from "$stores/worktree.svelte";
   import { worktrees } from "$stores/worktrees.svelte";
@@ -616,6 +617,12 @@
       }
       case "compare-selected":
         if (oid && at.selected) await compare(id, at.selected, oid, at.node);
+        return;
+      case "review":
+        if (at.ref && (at.ref.kind === "branch" || at.ref.kind === "remote")) {
+          const branch = at.ref.name;
+          await attempt("Could not open Review Branch", () => openReview(id, branch), async () => {});
+        }
         return;
       case "toggle":
         if (at.node) await toggle(at.node);

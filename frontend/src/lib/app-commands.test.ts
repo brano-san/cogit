@@ -95,6 +95,7 @@ describe("app commands", () => {
       ["zoom-reset", "Actual Size"],
       ["copy-path", "Copy the File Path"],
       ["copy-branch", "Copy the Branch Name"],
+      ["review-branch", "Review Current Branch…"],
       ["copy-sha", "Copy the Commit SHA"],
       ["rebase-i", "Rebase Commits After This One…"],
       ["flow-init", "Git-Flow: Set Up"],
