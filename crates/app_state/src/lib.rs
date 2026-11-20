@@ -39,6 +39,7 @@ mod ref_ops;
 mod remote_ops;
 mod remotes;
 pub mod repo_rows;
+mod reviewing;
 mod rewrite;
 mod routes;
 mod safety;
@@ -92,6 +93,7 @@ pub use ref_batch::{
 };
 pub use ref_ops::UndoRewrite;
 pub use registry::{OpenRepo, RepoRefs, RepoSummary, ScanHit};
+pub use reviewing::{LineCounts, ReviewPath};
 pub use rows::RepoOverview;
 pub use safety::{Recovery, SafetyEntry};
 pub use solver::{MAX_SOLVER_BYTES, MergeToolOutcome, SolverData};

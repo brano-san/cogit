@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 mod batch;
 mod binary;
+mod counts;
 mod eol;
 mod headers;
 mod images;
@@ -15,6 +16,7 @@ mod words;
 
 pub use batch::{FileDiffEntry, FileInput, diff_many, diff_one, diff_one_as};
 pub use binary::invalid_character;
+pub use counts::line_counts;
 pub use eol::{EolInfo, LineEnding, detect_line_ending, normalize_line_endings};
 pub use headers::with_hunk_context;
 pub use images::{base64, data_url, image_mime};

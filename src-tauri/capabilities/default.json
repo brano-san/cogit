@@ -9,6 +9,7 @@
     "editor-*",
     "blame-*",
     "investigate-*",
+    "review-*",
     "commit-*",
     "errors-*",
     "spare-*"

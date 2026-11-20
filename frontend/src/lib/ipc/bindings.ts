@@ -226,6 +226,11 @@ export const commands = {
 } | null, GitError>(__TAURI_INVOKE("undo_rewrite_info", { repo })),
 	isAncestor: (repo: RepoId, ancestor: string, descendant: string) => typedError<boolean, GitError>(__TAURI_INVOKE("is_ancestor", { repo, ancestor, descendant })),
 	compareFiles: (repo: RepoId, from: string, to: string) => typedError<FileEntry_Serialize[], GitError>(__TAURI_INVOKE("compare_files", { repo, from, to })),
+	reviewBase: (repo: RepoId, branch: string) => typedError<string | null, GitError>(__TAURI_INVOKE("review_base", { repo, branch })),
+	branchReview: (repo: RepoId, base: string, branch: string) => typedError<BranchReview, GitError>(__TAURI_INVOKE("branch_review", { repo, base, branch })),
+	reviewFiles: (repo: RepoId, mergeBase: string, branch: string, worktree: boolean, onChunk: Channel<FileEntry_Deserialize[]>) => typedError<number, GitError>(__TAURI_INVOKE("review_files", { repo, mergeBase, branch, worktree, onChunk })),
+	reviewLineCounts: (repo: RepoId, spec: DiffSpec, files: ReviewPath[]) => typedError<LineCounts[], GitError>(__TAURI_INVOKE("review_line_counts", { repo, spec, files })),
+	openReviewWindow: (url: string, title: string) => typedError<null, GitError>(__TAURI_INVOKE("open_review_window", { url, title })),
 	tagNameProblem: (repo: RepoId, name: string) => typedError<string | null, GitError>(__TAURI_INVOKE("tag_name_problem", { repo, name })),
 	tagMessage: (repo: RepoId, name: string) => typedError<string | null, GitError>(__TAURI_INVOKE("tag_message", { repo, name })),
 	renameTag: (repo: RepoId, from: string, to: string) => typedError<null, GitError>(__TAURI_INVOKE("rename_tag", { repo, from, to })),
@@ -1137,6 +1142,19 @@ export type BranchMerge = {
 	/**  The tip judged, so an answer for a branch that moved since is not shown. */
 	oid: string,
 	kind: MergeKind,
+};
+
+export type BranchReview = {
+	base: string,
+	baseOid: string,
+	branch: string,
+	branchOid: string,
+	mergeBase: string,
+	mergeBases: string[],
+	ahead: number,
+	behind: number,
+	commits: ReviewCommit[],
+	isHead: boolean,
 };
 
 /**
@@ -2286,6 +2304,12 @@ export type LineChange =
 /**  The line replaced a different one at the same position. */
 "modified";
 
+export type LineCounts = {
+	path: string,
+	added: number | null,
+	removed: number | null,
+};
+
 export type LineEnding = "lf" | "crlf" | "cr" | "mixed" | "none";
 
 export type LineMatch = "same" | "changed" | "missing";
@@ -2960,6 +2984,18 @@ export type ResetMode = "soft" | "mixed" | "hard" | "keep" | "merge";
 export type RevealCommit = {
 	repo: RepoId,
 	oid: string,
+};
+
+export type ReviewCommit = {
+	oid: string,
+	summary: string,
+	author: Signature,
+	parents: number,
+};
+
+export type ReviewPath = {
+	path: string,
+	oldPath?: string | null,
 };
 
 export type RevisionCheck = {
