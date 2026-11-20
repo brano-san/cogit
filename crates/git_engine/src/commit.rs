@@ -235,14 +235,7 @@ impl RepoHandle {
             .decode()
             .map_err(|err| GitError::Internal(format!("cannot read commit: {err}")))?;
         let signed = carries_signature(&decoded);
-        let header = decoded.encoding.map(|name| name.to_string());
-        let configured = self
-            .repo
-            .config_snapshot()
-            .string("i18n.commitEncoding")
-            .map(|value| value.to_string());
-        let (text, encoding) =
-            decode_message(decoded.message, header.as_deref(), configured.as_deref());
+        let (text, encoding) = self.decoded_commit_message(decoded.message, decoded.encoding);
         let (summary, body) = split_message(&text);
         let author = commit
             .author()
@@ -373,6 +366,30 @@ impl RepoHandle {
 
     pub fn commit_files(&self, rev: &str) -> Result<Vec<FileEntry>> {
         self.commit_files_with(rev, DEFAULT_SIMILARITY)
+    }
+
+    pub fn commit_message(&self, rev: &str) -> Result<String> {
+        let commit = self.find_commit(rev)?;
+        let decoded = commit
+            .decode()
+            .map_err(|err| GitError::Internal(format!("cannot read commit: {err}")))?;
+        Ok(self
+            .decoded_commit_message(decoded.message, decoded.encoding)
+            .0)
+    }
+
+    fn decoded_commit_message(
+        &self,
+        raw: &[u8],
+        header: Option<&gix::bstr::BStr>,
+    ) -> (String, Option<String>) {
+        let header = header.map(ToString::to_string);
+        let configured = self
+            .repo
+            .config_snapshot()
+            .string("i18n.commitEncoding")
+            .map(|value| value.to_string());
+        decode_message(raw, header.as_deref(), configured.as_deref())
     }
 
     /// `similarity` is the rename threshold in percent, as `git diff -M<n>%`.

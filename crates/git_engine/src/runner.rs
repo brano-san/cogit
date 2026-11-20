@@ -317,6 +317,15 @@ impl RepoHandle {
         self.spawn_inner(redact_command(args), args, false, &[], None, Some(asked))
     }
 
+    pub(crate) fn run_git_fed_with_env(
+        &self,
+        args: &[&str],
+        env: &[(&str, &str)],
+        input: &[u8],
+    ) -> Result<GitOutput> {
+        self.spawn_fed(args, false, env, Some(input))
+    }
+
     pub(crate) fn run_git_with_env(
         &self,
         args: &[&str],

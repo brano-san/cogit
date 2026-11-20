@@ -848,6 +848,9 @@ export const commands = {
 	/**  Branches ▸ merged marks, by squash and rebase too (F-949). A read: a newer one stops it. */
 	branchMerges: (repo: RepoId) => typedError<BranchMerge[], GitError>(__TAURI_INVOKE("branch_merges", { repo })),
 	splitOff: (repo: RepoId, rev: string, paths: string[], message: string, splitFirst: boolean) => typedError<null, GitError>(__TAURI_INVOKE("split_off", { repo, rev, paths, message, splitFirst })),
+	splitPreview: (repo: RepoId, rev: string) => typedError<SplitPreview, GitError>(__TAURI_INVOKE("split_preview", { repo, rev })),
+	splitCommitBlocked: (repo: RepoId, rev: string) => typedError<string | null, GitError>(__TAURI_INVOKE("split_commit_blocked", { repo, rev })),
+	splitCommit: (repo: RepoId, rev: string, parts: SplitPart[]) => typedError<null, GitError>(__TAURI_INVOKE("split_commit", { repo, rev, parts })),
 	rebaseTodo: (repo: RepoId, base: string) => typedError<TodoEntry[], GitError>(__TAURI_INVOKE("rebase_todo", { repo, base })),
 	interactiveRebase: (repo: RepoId, base: string, plan: TodoEntry[], paused: boolean) => typedError<null, GitError>(__TAURI_INVOKE("interactive_rebase", { repo, base, plan, paused })),
 	fixupInto: (repo: RepoId, rev: string) => typedError<null, GitError>(__TAURI_INVOKE("fixup_into", { repo, rev })),
@@ -3169,6 +3172,28 @@ export type SparseState = {
 };
 
 export type SpellLanguage = "en_US" | "ru_RU";
+
+export type SplitBlock = {
+	path: string,
+	hunk: number | null,
+};
+
+export type SplitFile = {
+	path: string,
+	blocks: string[],
+	whole: boolean,
+	note: string | null,
+};
+
+export type SplitPart = {
+	message: string,
+	blocks: SplitBlock[],
+};
+
+export type SplitPreview = {
+	message: string,
+	files: SplitFile[],
+};
 
 /**  `~/.ssh` and the private keys in it, for the Sign in dialog's SSH key tab. */
 export type SshKeys = {

@@ -74,6 +74,7 @@ mod shared;
 mod side_modes;
 mod solver;
 mod sparse;
+mod split_commit;
 mod staging;
 mod stash;
 mod stash_hunks;
@@ -201,6 +202,7 @@ pub use solver::{
     merge_tool_from_listing,
 };
 pub use sparse::{SparseChange, SparseFolder, SparsePreview, SparseState};
+pub use split_commit::{SplitCut, SplitMove};
 pub use stash::{AutostashOutcome, StashContents, StashEntry, StashOptions};
 pub use stash_paths::StashPick;
 pub use state::RepoState;

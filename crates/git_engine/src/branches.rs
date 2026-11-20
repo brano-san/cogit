@@ -135,6 +135,26 @@ impl RepoHandle {
         .map(drop)
     }
 
+    pub fn undo_branch_move(&self, name: &str, from: &str, to: &str) -> Result<()> {
+        if matches!(self.head()?, crate::Head::Branch { name: current, .. } if current == name)
+            && self.tree_of(self.resolve_commit(from)?)?.id()
+                == self.tree_of(self.resolve_commit(to)?)?.id()
+        {
+            let full = format!("refs/heads/{name}");
+            return self
+                .run_git(&[
+                    "update-ref",
+                    "-m",
+                    "cogit: undo branch move",
+                    &full,
+                    to,
+                    from,
+                ])
+                .map(drop);
+        }
+        self.move_branch_back(name, to)
+    }
+
     /// Moves `name` back to a commit its reflog remembers; returns where it was.
     pub fn restore_branch(&self, name: &str, oid: &str) -> Result<String> {
         let before = self

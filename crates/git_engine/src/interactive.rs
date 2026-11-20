@@ -343,6 +343,38 @@ impl RepoHandle {
     }
 
     fn run_rebase_body(&self, base: &str, body: &str) -> Result<()> {
+        self.run_rebase_with_todo(&["rebase", "-i", base], body)
+    }
+
+    pub(crate) fn replay_split(
+        &self,
+        base: &str,
+        onto: &str,
+        descendants: &[String],
+    ) -> Result<()> {
+        let body: String = descendants
+            .iter()
+            .map(|oid| format!("pick {oid}\n"))
+            .collect();
+        self.run_rebase_with_todo(
+            &[
+                "rebase",
+                "-i",
+                "--no-rebase-merges",
+                "--no-update-refs",
+                "--no-autostash",
+                "--reapply-cherry-picks",
+                "--keep-empty",
+                "--empty=keep",
+                "--onto",
+                onto,
+                base,
+            ],
+            &body,
+        )
+    }
+
+    pub(crate) fn require_clean_for_rebase(&self) -> Result<()> {
         let status = self.status()?;
         if status.staged > 0 || status.unstaged > 0 {
             return Err(GitError::InvalidState(
@@ -350,7 +382,11 @@ impl RepoHandle {
                     .to_owned(),
             ));
         }
+        Ok(())
+    }
 
+    fn run_rebase_with_todo(&self, args: &[&str], body: &str) -> Result<()> {
+        self.require_clean_for_rebase()?;
         let todo = self.git_dir().join("cogit-rebase-todo");
         std::fs::write(&todo, body)?;
 
@@ -370,8 +406,7 @@ impl RepoHandle {
         // Git runs the sequence editor through a shell with the todo path appended, so
         // copying our file over it is all the "editing" that is needed.
         let editor = format!("cp {}", shell_quote(&crate::slash_path(&todo)));
-        let result =
-            self.run_git_with_env(&["rebase", "-i", base], &[("GIT_SEQUENCE_EDITOR", &editor)]);
+        let result = self.run_git_with_env(args, &[("GIT_SEQUENCE_EDITOR", &editor)]);
         let _ = std::fs::remove_file(&todo);
         result.map(drop)
     }
