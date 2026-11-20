@@ -1,5 +1,5 @@
 import { Channel } from "@tauri-apps/api/core";
-import { commands, type DiffSpec, type FileEntry, type RepoId, type ReviewPath } from "./bindings";
+import { commands, type DiffSpec, type FileEntry, type RepoId, type ReviewCommit, type ReviewPath } from "./bindings";
 import { unwrap } from "./index";
 
 export type { BranchReview, LineCounts, ReviewCommit, ReviewPath } from "./bindings";
@@ -9,7 +9,13 @@ export async function reviewBase(repo: RepoId, branch: string) {
 }
 
 export async function branchReview(repo: RepoId, base: string, branch: string) {
-  return unwrap(await commands.branchReview(repo, base, branch));
+  const commits: ReviewCommit[] = [];
+  const summary = await stream(
+    async (channel: Channel<ReviewCommit[]>) => unwrap(await commands.branchReview(repo, base, branch, channel)),
+    (review) => review.ahead,
+    (chunk) => commits.push(...chunk),
+  );
+  return { ...summary, commits };
 }
 
 export function reviewFiles(
@@ -19,22 +25,43 @@ export function reviewFiles(
   worktree: boolean,
   onchunk: (files: FileEntry[]) => void,
 ): Promise<number> {
+  return stream(
+    async (channel) => unwrap(await commands.reviewFiles(repo, mergeBase, branch, worktree, channel)),
+    (total) => total,
+    onchunk,
+  );
+}
+
+export async function reviewCommitFiles(repo: RepoId, oid: string): Promise<FileEntry[]> {
+  const files: FileEntry[] = [];
+  await stream(
+    async (channel: Channel<FileEntry[]>) => unwrap(await commands.reviewCommitFiles(repo, oid, channel)),
+    (total) => total,
+    (chunk) => files.push(...chunk),
+  );
+  return files;
+}
+
+function stream<T, Result>(
+  run: (channel: Channel<T[]>) => Promise<Result>,
+  count: (result: Result) => number,
+  onchunk: (chunk: T[]) => void,
+): Promise<Result> {
   return new Promise((resolve, reject) => {
     let received = 0;
-    let total: number | null = null;
+    let result: Result | undefined;
     const settle = () => {
-      if (total !== null && received >= total) resolve(total);
+      if (result !== undefined && received >= count(result)) resolve(result);
     };
-    const channel = new Channel<FileEntry[]>();
+    const channel = new Channel<T[]>();
     channel.onmessage = (chunk) => {
       received += chunk.length;
       onchunk(chunk);
       settle();
     };
-    commands
-      .reviewFiles(repo, mergeBase, branch, worktree, channel)
-      .then((result) => {
-        total = unwrap(result);
+    run(channel)
+      .then((value) => {
+        result = value;
         settle();
       })
       .catch(reject);

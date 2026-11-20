@@ -5,11 +5,11 @@ import type { BranchReview, LineCounts, ReviewPath } from "$lib/ipc/review";
 vi.mock("$lib/ipc/review", () => ({
   reviewBase: vi.fn(),
   branchReview: vi.fn(),
+  reviewCommitFiles: vi.fn(),
   reviewFiles: vi.fn(),
   reviewLineCounts: vi.fn(),
 }));
 vi.mock("$lib/ipc", () => ({
-  commitFiles: vi.fn(),
   toCogitError: (err: unknown) => ({ message: String(err) }),
 }));
 
@@ -28,6 +28,7 @@ function summary(extra: Partial<BranchReview> = {}): BranchReview {
     branch: "topic",
     branchOid: "t".repeat(40),
     mergeBase: "m".repeat(40),
+    mergeBaseSummary: "Shared work",
     mergeBases: ["m".repeat(40)],
     ahead: 2,
     behind: 1,
@@ -73,7 +74,7 @@ describe("opening a review", () => {
     expect(ipc.reviewBase).toHaveBeenCalledWith(REPO, "topic");
     expect(store.base).toBe("main");
     expect(store.files.map((each) => each.path)).toEqual(["a.txt", "b.txt", "c.txt"]);
-    expect(ipc.reviewFiles.mock.calls[0]?.slice(1, 4)).toEqual(["m".repeat(40), "topic", false]);
+    expect(ipc.reviewFiles.mock.calls[0]?.slice(1, 4)).toEqual(["m".repeat(40), "t".repeat(40), false]);
   });
 
   it("says so when no main line is found", async () => {
@@ -97,6 +98,20 @@ describe("opening a review", () => {
     expect(store.error?.message).toContain("unrelated histories");
     expect(store.summary).toBeNull();
     expect(ipc.reviewFiles).not.toHaveBeenCalled();
+  });
+
+  it("shows a deleted remote ref as an error on refresh", async () => {
+    const ipc = fakeIpc([file("a.txt")]);
+    const store = new ReviewStore(show, ipc);
+    const branch = "refs/remotes/origin/topic";
+    await store.open(REPO, branch, "main");
+    ipc.branchReview.mockRejectedValueOnce(new Error(`cannot resolve ${branch}`));
+
+    await store.reload();
+
+    expect(store.summary).toBeNull();
+    expect(store.shown).toEqual([]);
+    expect(store.error?.message).toContain(branch);
   });
 
   it("calls a branch with nothing of its own merged", async () => {
@@ -215,6 +230,27 @@ describe("the working tree", () => {
     expect(store.worktree).toBe(false);
     expect(ipc.reviewFiles).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps working-tree counts visible until the new counts arrive", async () => {
+    const entry = file("x.txt");
+    const ipc = fakeIpc([entry]);
+    const store = new ReviewStore(show, ipc);
+    await store.open(REPO, "topic", "main");
+    await store.setWorktree(true);
+    const pending = Promise.withResolvers<LineCounts[]>();
+    const started = Promise.withResolvers<void>();
+    ipc.reviewLineCounts.mockImplementationOnce(() => {
+      started.resolve();
+      return pending.promise;
+    });
+
+    const refresh = store.reload();
+    await started.promise;
+    expect(store.countsOf(entry)?.added).toBe(1);
+    pending.resolve([{ path: entry.path, added: 3, removed: 0 }]);
+    await refresh;
+    expect(store.countsOf(entry)?.added).toBe(3);
+  });
 });
 
 describe("totals", () => {
@@ -230,6 +266,86 @@ describe("totals", () => {
 });
 
 describe("the open file", () => {
+  it("refreshes a selected file against the new tip while keeping the selection", async () => {
+    const files = [file("a.txt"), file("b.txt")];
+    const ipc = fakeIpc(files);
+    const store = new ReviewStore(show, ipc);
+    await store.open(REPO, "topic", "main");
+    store.select("b.txt");
+    ipc.branchReview.mockResolvedValueOnce(summary({ branchOid: "next-tip" }));
+
+    await store.reload();
+
+    expect(store.selected).toBe("b.txt");
+    expect(ipc.reviewFiles.mock.lastCall?.[2]).toBe("next-tip");
+    expect(show).toHaveBeenLastCalledWith(REPO, { kind: "commitVsCommit", a: "m".repeat(40), b: "next-tip" }, "b.txt");
+  });
+
+  it("keeps a selected file while refreshing a commit filter", async () => {
+    const ipc = fakeIpc([file("a.txt")]);
+    const store = new ReviewStore(show, ipc);
+    await store.open(REPO, "topic", "main");
+    await store.selectCommit("c1");
+    store.select("b.txt");
+
+    await store.reload();
+
+    expect(store.selected).toBe("b.txt");
+  });
+
+  it("changes the base without keeping the previous commit filter", async () => {
+    const ipc = fakeIpc([file("b.txt")]);
+    const store = new ReviewStore(show, ipc);
+    await store.open(REPO, "topic", "main");
+    await store.selectCommit("c1");
+    store.select("b.txt");
+    ipc.branchReview.mockResolvedValueOnce(summary({ base: "release", mergeBase: "alternate" }));
+
+    await store.setBase("release");
+
+    expect(ipc.branchReview).toHaveBeenLastCalledWith(REPO, "release", "topic");
+    expect(store.commit).toBeNull();
+    expect(store.selected).toBe("b.txt");
+    expect(show).toHaveBeenLastCalledWith(REPO, { kind: "commitVsCommit", a: "alternate", b: "t".repeat(40) }, "b.txt");
+  });
+
+  it("keeps the chosen base when an older default lookup completes", async () => {
+    const ipc = fakeIpc([file("b.txt")]);
+    const pending = Promise.withResolvers<string | null>();
+    ipc.reviewBase.mockReturnValueOnce(pending.promise);
+    const store = new ReviewStore(show, ipc);
+    const opening = store.open(REPO, "topic", null);
+
+    await store.setBase("release");
+    pending.resolve("main");
+    await opening;
+
+    expect(store.base).toBe("release");
+  });
+
+  it("loads the whole list when returning from a filter selected during streaming", async () => {
+    const ipc = fakeIpc([file("a.txt"), file("b.txt")]);
+    const pending = Promise.withResolvers<void>();
+    const started = Promise.withResolvers<void>();
+    ipc.reviewFiles.mockImplementationOnce(async (_repo, _base, _branch, _worktree, onchunk) => {
+      onchunk([file("a.txt")]);
+      started.resolve();
+      await pending.promise;
+      onchunk([file("b.txt")]);
+      return 2;
+    });
+    const store = new ReviewStore(show, ipc);
+    const opening = store.open(REPO, "topic", "main");
+    await started.promise;
+    await store.selectCommit("c1");
+    pending.resolve();
+    await opening;
+
+    await store.selectCommit(null);
+
+    expect(store.shown.map((each) => each.path)).toEqual(["a.txt", "b.txt"]);
+  });
+
   it("follows the filter: the commit's own change of it is shown", async () => {
     const ipc = fakeIpc([file("a.txt"), file("b.txt")]);
     const store = new ReviewStore(show, ipc);

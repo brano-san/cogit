@@ -27,5 +27,9 @@ export function parseReview(search: string): ReviewRequest | null {
 
 export function reviewTitle(branch: string, repoName: string): string {
   const repo = repoName ? ` [${repoName}]` : "";
-  return `${branch}${repo} - Review Branch`;
+  return `${branchName(branch)}${repo} - Review Branch`;
+}
+
+export function branchName(ref: string): string {
+  return ref.replace(/^refs\/(heads|remotes)\//, "");
 }

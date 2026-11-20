@@ -879,7 +879,7 @@
     "review-branch": () => {
       const repo = repository.current?.repo;
       if (repo !== undefined && tracked) {
-        void openReview(repo, tracked.name).catch((err) => errors.report(err, "Could not open Review Branch"));
+        void openReview(repo, tracked.fullName).catch((err) => errors.report(err, "Could not open Review Branch"));
       }
     },
     "copy-sha": () => void copyText(commit.oid ?? ""),

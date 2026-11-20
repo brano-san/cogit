@@ -1,7 +1,8 @@
-import { commitFiles, type CogitError, type DiffSpec, type FileEntry, type RepoId, toCogitError } from "$lib/ipc";
+import { type CogitError, type DiffSpec, type FileEntry, type RepoId, toCogitError } from "$lib/ipc";
 import {
   branchReview,
   reviewBase,
+  reviewCommitFiles,
   reviewFiles,
   reviewLineCounts,
   type BranchReview,
@@ -24,7 +25,7 @@ export interface ReviewIpc {
   commitFiles(repo: RepoId, oid: string): Promise<FileEntry[]>;
 }
 
-const IPC: ReviewIpc = { reviewBase, branchReview, reviewFiles, reviewLineCounts, commitFiles };
+const IPC: ReviewIpc = { reviewBase, branchReview, reviewFiles, reviewLineCounts, commitFiles: reviewCommitFiles };
 
 export const COUNT_BATCH = 100;
 
@@ -68,6 +69,7 @@ export class ReviewStore {
   loading = $state(false);
   listing = $state(false);
   error = $state.raw<CogitError | null>(null);
+  countError = $state.raw<CogitError | null>(null);
   problem = $state<string | null>(null);
   selected = $state<string | null>(null);
   counts = $state.raw<ReadonlyMap<string, LineCounts>>(new Map());
@@ -88,7 +90,7 @@ export class ReviewStore {
   get note(): string | null {
     const bases = this.summary?.mergeBases ?? [];
     if (bases.length < 2 || !this.summary) return null;
-    return `${bases.length} merge bases (criss-cross merges): the changes are shown from ${shortOid(this.summary.mergeBase)}, the one git merge-base picks.`;
+    return `${bases.length} merge bases, using ${shortOid(this.summary.mergeBase)}.`;
   }
 
   get merged(): boolean {
@@ -138,7 +140,7 @@ export class ReviewStore {
   async setWorktree(on: boolean): Promise<void> {
     if (on === this.worktree || (on && !this.canIncludeWorktree)) return;
     this.worktree = on;
-    if (this.commit === null) await this.#list(++this.#generation);
+    if (this.commit === null && !this.loading) await this.#list(++this.#generation);
   }
 
   async reload(): Promise<void> {
@@ -149,17 +151,17 @@ export class ReviewStore {
     this.loading = true;
     this.error = null;
     this.problem = null;
-    this.forgetWorktreeCounts();
     try {
-      if (this.base === null) this.base = await this.#ipc.reviewBase(repo, branch);
+      const base = this.base ?? await this.#ipc.reviewBase(repo, branch);
       if (generation !== this.#generation) return;
-      if (this.base === null) {
+      this.base = base;
+      if (base === null) {
         this.summary = null;
         this.files = [];
         this.problem = NO_BASE;
         return;
       }
-      const summary = await this.#ipc.branchReview(repo, this.base, branch);
+      const summary = await this.#ipc.branchReview(repo, base, branch);
       if (generation !== this.#generation) return;
       this.summary = summary;
       if (!summary.isHead) this.worktree = false;
@@ -174,26 +176,32 @@ export class ReviewStore {
       this.error = toCogitError(err);
       return;
     } finally {
-      if (generation === this.#generation) this.loading = false;
+      if (generation === this.#generation) {
+        this.loading = false;
+        this.listing = false;
+      }
     }
-    await this.#list(generation);
-    if (this.commit !== null && generation === this.#generation) await this.#listCommit(this.commit, generation);
+    if (this.commit === null) await this.#list(generation);
+    else await this.#listCommit(this.commit, generation);
   }
 
   async #list(generation: number): Promise<void> {
     const repo = this.repo;
     const summary = this.summary;
     if (repo === null || !summary) return;
+    this.error = null;
     this.listing = true;
-    let first = true;
+    const incremental = this.files.length === 0;
+    const next: FileEntry[] = [];
+    const target = this.worktree ? summary.branch : summary.branchOid;
     try {
-      const total = await this.#ipc.reviewFiles(repo, summary.mergeBase, summary.branch, this.worktree, (chunk) => {
+      await this.#ipc.reviewFiles(repo, summary.mergeBase, target, this.worktree, (chunk) => {
         if (generation !== this.#generation) return;
-        this.files = first ? chunk : [...this.files, ...chunk];
-        first = false;
+        next.push(...chunk);
+        if (incremental) this.files = next.slice();
       });
       if (generation !== this.#generation) return;
-      if (total === 0) this.files = [];
+      this.files = next;
     } catch (err) {
       if (generation !== this.#generation) return;
       this.error = toCogitError(err);
@@ -208,13 +216,13 @@ export class ReviewStore {
 
   async selectCommit(oid: string | null): Promise<void> {
     const next = oid === this.commit ? null : oid;
-    const generation = ++this.#generation;
+    if (next === this.commit) return;
     this.commit = next;
     this.commitFiles = null;
-    this.listing = false;
+    if (this.loading) return;
+    const generation = ++this.#generation;
     if (next === null) {
-      this.#dropSelectionIfGone();
-      await this.#count(generation, this.files);
+      await this.#list(generation);
       return;
     }
     await this.#listCommit(next, generation);
@@ -223,6 +231,7 @@ export class ReviewStore {
   async #listCommit(oid: string, generation: number): Promise<void> {
     const repo = this.repo;
     if (repo === null) return;
+    this.error = null;
     this.listing = true;
     try {
       const files = await this.#ipc.commitFiles(repo, oid);
@@ -249,12 +258,13 @@ export class ReviewStore {
   async #count(generation: number, files: readonly FileEntry[]): Promise<void> {
     const repo = this.repo;
     if (repo === null) return;
+    this.countError = null;
     const groups = new Map<string, { spec: DiffSpec; files: ReviewPath[] }>();
     for (const file of files) {
       const spec = this.specFor(file);
       if (!spec || file.mode === "submodule") continue;
       const key = specKey(spec);
-      if (this.counts.has(`${key}\0${file.path}`)) continue;
+      if (spec.kind !== "commitVsWorkTree" && this.counts.has(`${key}\0${file.path}`)) continue;
       const group = groups.get(key) ?? { spec, files: [] };
       group.files.push({ path: file.path, oldPath: file.oldPath ?? null });
       groups.set(key, group);
@@ -265,7 +275,8 @@ export class ReviewStore {
         let found: LineCounts[];
         try {
           found = await this.#ipc.reviewLineCounts(repo, group.spec, group.files.slice(at, at + COUNT_BATCH));
-        } catch {
+        } catch (err) {
+          if (generation === this.#generation) this.countError = toCogitError(err);
           return;
         }
         if (generation !== this.#generation) return;
@@ -274,11 +285,6 @@ export class ReviewStore {
         this.counts = next;
       }
     }
-  }
-
-  forgetWorktreeCounts(): void {
-    const next = new Map([...this.counts].filter(([key]) => !key.startsWith("w:")));
-    if (next.size !== this.counts.size) this.counts = next;
   }
 
   select(path: string): void {

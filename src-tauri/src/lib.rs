@@ -220,6 +220,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::review::review_base,
             commands::review::branch_review,
             commands::review::review_files,
+            commands::review::review_commit_files,
             commands::review::review_line_counts,
             commands::review::open_review_window,
             commands::ref_ops::tag_name_problem,

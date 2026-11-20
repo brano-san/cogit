@@ -587,7 +587,7 @@
         return;
       case "stop-tracking":
         if (at.ref?.kind === "branch") {
-          const branch = at.ref.name;
+          const branch = `${at.ref.kind === "branch" ? "refs/heads" : "refs/remotes"}/${at.ref.name}`;
           await attempt("Could not stop tracking", () => setUpstream(id, branch, null));
         }
         return;

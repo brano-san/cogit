@@ -1,9 +1,9 @@
 <script lang="ts">
   import Button from "$components/common/Button.svelte";
   import Checkbox from "$components/common/Checkbox.svelte";
+  import Dialog from "$components/common/Dialog.svelte";
   import EmptyState from "$components/common/EmptyState.svelte";
   import FileStateIcon from "$components/common/FileStateIcon.svelte";
-  import Select from "$components/common/Select.svelte";
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
   import VirtualList from "$components/common/VirtualList.svelte";
   import DiffView from "$components/diff/DiffView.svelte";
@@ -15,8 +15,8 @@
   import { fileState } from "$lib/file-state";
   import { shortOid } from "$lib/format";
   import { onRepoChanged, repoRefs, type FileEntry } from "$lib/ipc";
-  import { REVIEW_SHOWN_COMMITS, baseOptions, baseCaption, reloadsOn } from "$lib/review-view";
-  import { parseReview, reviewTitle } from "$lib/review-params";
+  import { baseOptions, baseCaption, reloadsOn } from "$lib/review-view";
+  import { branchName, parseReview, reviewTitle } from "$lib/review-params";
   import { followSettings } from "$lib/settings-sync";
   import { diff } from "$stores/diff.svelte";
   import { ReviewStore } from "$stores/review.svelte";
@@ -30,6 +30,9 @@
   $effect(() => followSettings(() => void settings.reload()));
 
   let branches = $state.raw<string[]>([]);
+  let branchLoad = 0;
+  let choosingBase = $state(false);
+  let baseQuery = $state("");
   let leftFraction = $state(0.36);
   let commitsFraction = $state(0.34);
 
@@ -41,19 +44,22 @@
         diff.whitespace = settings.current.ignoreWhitespace;
         await review.open(request.repo, request.branch, request.base);
       })();
-      void repoRefs(request.repo)
-        .then((refs) => (branches = refs.branches.map((branch) => branch.name)))
-        .catch(() => {});
+      void updateBranches();
     }),
   );
 
   $effect(() => {
     if (!request) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let refsChanged = false;
     const pending = onRepoChanged((change) => {
       if (change.repo !== request.repo || !reloadsOn(change.kind, review.worktree)) return;
+      refsChanged ||= change.kind === "head" || change.kind === "refs";
       clearTimeout(timer);
-      timer = setTimeout(() => void review.reload(), 300);
+      timer = setTimeout(() => {
+        refresh(refsChanged);
+        refsChanged = false;
+      }, 300);
     });
     return () => {
       clearTimeout(timer);
@@ -67,15 +73,37 @@
     void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow().setTitle(title)).catch(() => {});
   });
 
-  const options = $derived(baseOptions(branches, request?.branch ?? "", review.base));
+  const options = $derived(baseOptions(branches, baseQuery));
   const summary = $derived(review.summary);
   const totals = $derived(review.totals);
   const commitRows = $derived(summary ? [null, ...summary.commits] : []);
 
+  async function updateBranches() {
+    if (!request) return;
+    const generation = ++branchLoad;
+    try {
+      const refs = await repoRefs(request.repo);
+      if (generation === branchLoad) branches = refs.branches.map((branch) => branch.fullName);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  function refresh(includeBranches = true) {
+    if (includeBranches) void updateBranches();
+    void review.reload();
+  }
+
+  function chooseBase(base: string | undefined) {
+    if (!base) return;
+    choosingBase = false;
+    void review.setBase(base);
+  }
+
   function onkeydown(event: KeyboardEvent) {
     if (event.key === "F5") {
       event.preventDefault();
-      void review.reload();
+      refresh();
     }
   }
 
@@ -91,7 +119,7 @@
   }
 </script>
 
-<svelte:window {onkeydown} />
+<svelte:window {onkeydown} onfocus={() => { if (review.repo !== null) refresh(); }} />
 
 <TooltipLayer />
 <Notifications onopenurl={() => {}} onshowoutput={() => {}} onaction={() => {}} />
@@ -101,52 +129,52 @@
     <EmptyState title="This window needs a branch to review. Open it from a branch's context menu rather than by hand." />
   {:else}
     <header>
-      <span class="title truncate">Review <b>{request.branch}</b></span>
+      <span class="title truncate" title={branchName(request.branch)}>Review <b>{branchName(request.branch)}</b></span>
       <span class="label">against</span>
       <span class="base">
-        <Select
-          value={review.base ?? ""}
-          options={options}
-          label="Base branch"
-          onchange={(value) => value && void review.setBase(value)}
-        />
+        <Button
+          aria-haspopup="dialog"
+          title="Choose a base branch"
+          onclick={() => { baseQuery = ""; choosingBase = true; }}
+        >
+          <span class="truncate">{review.base ? branchName(review.base) : "Choose a base"}</span>
+        </Button>
       </span>
       {#if summary}
-        <span class="facts truncate" title={baseCaption(summary)}>
-          merge base <span class="mono">{shortOid(summary.mergeBase)}</span> ·
-          {summary.ahead} commit{summary.ahead === 1 ? "" : "s"} ahead, {summary.behind} behind
-        </span>
+        <span class="facts" title={baseCaption(summary)}>{summary.ahead} commit{summary.ahead === 1 ? "" : "s"} ahead, {summary.behind} behind</span>
       {:else}
         <span class="facts"></span>
       {/if}
-      <Checkbox
-        label="Include working tree"
-        checked={review.worktree}
-        disabled={!review.canIncludeWorktree || review.commit !== null}
-        title={review.canIncludeWorktree ? "Add the uncommitted changes of the checked-out branch" : "Only the checked-out branch has a working tree"}
-        onchange={(on) => void review.setWorktree(on)}
-      />
-      <Button onclick={() => void review.reload()} title="Refresh (F5)">Refresh</Button>
+      {#if review.canIncludeWorktree}
+        <Checkbox
+          label="Include uncommitted changes"
+          checked={review.worktree}
+          disabled={review.commit !== null}
+          onchange={(on) => void review.setWorktree(on)}
+        />
+      {/if}
+      <Button onclick={() => refresh()} title="Refresh (F5)">Refresh</Button>
     </header>
+    {#if summary}
+      <p class="note truncate" title={baseCaption(summary)}>
+        Merge base <span class="mono">{shortOid(summary.mergeBase)}</span> · {summary.mergeBaseSummary}
+      </p>
+    {/if}
     {#if review.note}
       <p class="note" role="status">{review.note}</p>
     {/if}
 
     {#if review.error}
-      <EmptyState tone="error" title={review.error.message} hint="Choose another base above." />
+      <EmptyState tone="error" title={review.error.message} />
     {:else if review.problem}
       <EmptyState title={review.problem} />
-    {:else if !summary}
-      <EmptyState title="Loading…" />
-    {:else}
+    {:else if summary}
       <div class="body">
         <div class="left" style:flex-basis="{leftFraction * 100}%">
           <div class="commits" style:flex-basis="{commitsFraction * 100}%">
             <div class="heading">
               <span>Commits</span>
-              <span class="muted tabular">
-                {summary.ahead > summary.commits.length ? `${summary.commits.length} of ${summary.ahead}` : summary.ahead}
-              </span>
+              <span class="muted tabular">{summary.ahead}</span>
             </div>
             <VirtualList items={commitRows} label="Commits of the branch">
               {#snippet row(commit, index)}
@@ -169,9 +197,6 @@
                 </button>
               {/snippet}
             </VirtualList>
-            {#if summary.ahead > REVIEW_SHOWN_COMMITS}
-              <p class="muted small">The first {REVIEW_SHOWN_COMMITS} commits are listed.</p>
-            {/if}
           </div>
           <Splitter
             direction="vertical"
@@ -190,9 +215,12 @@
                 <span class="tabular removed">−{totals.removed}</span>
               {/if}
             </div>
+            {#if review.countError}
+              <p class="note truncate" role="status" title={review.countError.message}>Line counts unavailable</p>
+            {/if}
             {#if review.merged && review.commit === null}
               <EmptyState
-                title="Nothing to review: {request.branch} has no commits that {review.base} lacks."
+                title="Nothing to review"
                 hint="The branch is already merged into its base."
               />
             {:else if review.shown.length === 0 && !review.listing}
@@ -248,15 +276,40 @@
               stageable={false}
               whitespace={diff.whitespace}
               onwhitespace={(mode) => void diff.setWhitespace(request.repo, mode)}
+              onexpand={(whole) => void diff.expand(request.repo, whole)}
             />
-          {:else}
-            <EmptyState title="Loading…" />
           {/if}
         </div>
       </div>
     {/if}
   {/if}
 </div>
+
+{#if choosingBase}
+  <Dialog title="Choose Base Branch" onclose={() => (choosingBase = false)} onconfirm={() => chooseBase(options[0])}>
+    <div class="picker">
+      <input type="text" bind:value={baseQuery} data-autofocus aria-label="Search branches" placeholder="Search branches…" />
+      {#if options.length === 0}
+        <EmptyState title="No matching branches" />
+      {:else}
+        <VirtualList items={options} label="Base branches" reveal={baseQuery ? 0 : null}>
+          {#snippet row(ref, index)}
+            <button
+              type="button"
+              class="row"
+              class:selected={review.base === ref}
+              style:top="{index * uiMetricsStore.listRow}px"
+              title={ref}
+              onclick={() => chooseBase(ref)}
+            >
+              <span class="truncate">{branchName(ref)}</span>
+            </button>
+          {/snippet}
+        </VirtualList>
+      {/if}
+    </div>
+  </Dialog>
+{/if}
 
 <style>
   .window {
@@ -273,6 +326,7 @@
     align-items: center;
     gap: var(--sp-4);
     min-height: var(--h-panel-hdr);
+    flex-wrap: wrap;
     padding: 0 var(--sp-5);
     background: var(--surface-panel);
     border-bottom: 1px solid var(--divider);
@@ -292,13 +346,25 @@
   .base {
     display: flex;
     flex: 0 1 220px;
-    min-width: 120px;
+    min-width: 0;
+  }
+
+  .base :global(button) {
+    min-width: 0;
   }
 
   .facts {
     flex: 1 1 auto;
     min-width: 0;
     color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  .picker {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    height: min(320px, 55vh);
   }
 
   .note {
@@ -408,12 +474,6 @@
 
   .mono {
     font-family: var(--font-mono);
-  }
-
-  .small {
-    margin: 0;
-    padding: var(--sp-2) var(--sp-5);
-    font-size: var(--fs-dense);
   }
 
   .diff {

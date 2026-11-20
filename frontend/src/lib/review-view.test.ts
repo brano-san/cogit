@@ -2,19 +2,17 @@ import { describe, expect, it } from "vitest";
 import { baseOptions, reloadsOn } from "./review-view";
 
 describe("the base picker", () => {
-  it("offers every branch but the reviewed one and remote HEAD pointers", () => {
-    expect(baseOptions(["main", "topic", "origin/HEAD", "origin/main"], "topic", "main")).toEqual([
-      ["main", "main"],
-      ["origin/main", "origin/main"],
+  it("offers the reviewed branch and excludes remote HEAD pointers", () => {
+    expect(baseOptions(["refs/heads/topic", "refs/heads/feature/HEAD", "refs/remotes/origin/HEAD"], "")).toEqual([
+      "refs/heads/topic",
+      "refs/heads/feature/HEAD",
     ]);
   });
 
-  it("keeps a base the list does not have", () => {
-    expect(baseOptions(["main"], "topic", "v1.0")[0]).toEqual(["v1.0", "v1.0"]);
-  });
-
-  it("asks for a base while there is none", () => {
-    expect(baseOptions(["dev"], "topic", null)[0]).toEqual(["", "Choose a base"]);
+  it("filters by substring without regard to case", () => {
+    expect(baseOptions(["refs/heads/topic", "refs/remotes/origin/release-2"], " LEASE ")).toEqual([
+      "refs/remotes/origin/release-2",
+    ]);
   });
 });
 
