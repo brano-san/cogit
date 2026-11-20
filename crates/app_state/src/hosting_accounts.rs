@@ -181,6 +181,7 @@ impl AppState {
                     secret: token.to_string(),
                     key: None,
                     account: Some(stored.clone()),
+                    ai: None,
                 }),
             }
         })?;

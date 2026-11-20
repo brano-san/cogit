@@ -246,11 +246,16 @@ pub(crate) struct Stored {
     pub(crate) key: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) account: Option<hosting::HostingAccount>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) ai: Option<ai_message::AiProvider>,
 }
 
 impl Stored {
     fn is(&self, host: &str, ssh: bool) -> bool {
-        self.account.is_none() && self.host == host && self.key.is_some() == ssh
+        self.account.is_none()
+            && self.ai.is_none()
+            && self.host == host
+            && self.key.is_some() == ssh
     }
 }
 
@@ -307,6 +312,7 @@ pub(crate) fn store_in(passwords: &Passwords, sign_in: &SignIn) -> Result<(), Se
             secret: credential.secret,
             key: credential.key,
             account: None,
+            ai: None,
         });
     })
 }
@@ -356,7 +362,7 @@ impl AppState {
             let known = if state == StoreState::Unlocked {
                 let mut known: Vec<KnownCredential> = parse(&store.read()?)?
                     .into_iter()
-                    .filter(|entry| entry.account.is_none())
+                    .filter(|entry| entry.account.is_none() && entry.ai.is_none())
                     .map(|entry| KnownCredential {
                         host: entry.host,
                         username: entry.username,
@@ -417,7 +423,9 @@ impl AppState {
     }
 
     pub fn forget_all_credentials(&self) -> Result<(), SecretError> {
-        self.change_entries(|entries| entries.retain(|entry| entry.account.is_some()))
+        self.change_entries(|entries| {
+            entries.retain(|entry| entry.account.is_some() || entry.ai.is_some());
+        })
     }
 
     /// What Cogit holds for the host of `url`, of `url`'s kind. A locked store holds nothing
@@ -510,6 +518,7 @@ mod keychain {
             secret: old.secret,
             key: None,
             account: None,
+            ai: None,
         })
     }
 

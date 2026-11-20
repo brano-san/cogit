@@ -206,6 +206,7 @@ routed! {
     fn graph_footprint() -> usize = local_graph_footprint, quiet;
     fn watcher_is_quiet() -> bool = local_watcher_is_quiet, quiet;
     fn repo_status() -> Result<git_engine::RepoStatus, GitError> = local_repo_status;
+    fn message_context(subjects: usize) -> Result<git_engine::MessageContext, GitError> = local_message_context;
     fn worktree_files(view: git_engine::WorktreeView) -> Result<std::sync::Arc<git_engine::WorktreeFiles>, GitError> = local_worktree_files;
     fn repo_refs() -> Result<RepoRefs, GitError> = local_repo_refs;
 fn bisect_start(bad: &str, good: Option<&str>) -> Result<(), GitError> = local_bisect_start;

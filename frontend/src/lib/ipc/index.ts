@@ -11,6 +11,10 @@ import { GIT_NOT_FOUND_HINT } from "$lib/git-missing";
 import type {
   SplitPart,
   SignIn,
+  AiChunk,
+  AiConfig,
+  AiKeyInput,
+  AiMessageRequest,
   NewHostingAccount,
   CiTarget,
   HostKeyAsk,
@@ -66,6 +70,12 @@ import type {
 } from "./bindings";
 
 export type {
+  AiChunk,
+  AiConfig,
+  AiKeyState,
+  AiMessage,
+  AiMessageRequest,
+  AiProvider,
   CiBatch,
   CiCheck,
   CiState,
@@ -458,6 +468,27 @@ export async function onHostKeyWithdrawn(handler: (id: number) => void) {
 /** `false` when the operation had already finished. */
 export async function cancelOperation(id: number) {
   return commands.cancelOperation(id);
+}
+
+export async function aiKeyState(config: AiConfig) {
+  return unwrap(await commands.aiKeyState(config));
+}
+
+export async function setAiKey(input: AiKeyInput) {
+  return unwrap(await commands.setAiKey(input));
+}
+
+export async function removeAiKey(config: AiConfig) {
+  return unwrap(await commands.removeAiKey(config));
+}
+
+export async function testAiProvider(config: AiConfig) {
+  return unwrap(await commands.testAiProvider(config));
+}
+
+export async function generateCommitMessage(repo: RepoId, request: AiMessageRequest, receive: (chunk: AiChunk) => void) {
+  const channel = new Channel<AiChunk>(receive);
+  return unwrap(await commands.generateCommitMessage(repo, request, channel));
 }
 
 export async function commitTreeFiles(repo: RepoId, rev: string) {

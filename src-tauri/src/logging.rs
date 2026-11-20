@@ -56,7 +56,9 @@ pub fn init(log_dir: &Path, config_dir: &Path) -> anyhow::Result<(WorkerGuard, P
 
     // `RUST_LOG` wins: a developer overriding the level should not have to open the app.
     let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(log_filter(read_log_level(config_dir).as_deref())));
+        .unwrap_or_else(|_| EnvFilter::new(log_filter(read_log_level(config_dir).as_deref())))
+        .add_directive("ureq=off".parse()?)
+        .add_directive("ureq_proto=off".parse()?);
 
     tracing_subscriber::fmt()
         .with_env_filter(filter)

@@ -144,7 +144,7 @@ const BY_HAND: [&str; 18] = [
     "save_config_file",
 ];
 
-const ON_WINDOWS: [(&str, &str); 17] = [
+const ON_WINDOWS: [(&str, &str); 18] = [
     ("background_turn", "the queue of Windows"),
     ("cancel_merge_tool", "the merge tool runs on Windows"),
     ("merge_tools_running", "the merge tool runs on Windows"),
@@ -164,6 +164,10 @@ const ON_WINDOWS: [(&str, &str); 17] = [
     (
         "ci_statuses",
         "hosting API calls with the Windows password store; the remote URL is routed",
+    ),
+    (
+        "generate_commit_message",
+        "the AI request with the Windows password store; the staged diff is routed (F-962)",
     ),
     (
         "worktree_patch_text",

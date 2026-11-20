@@ -285,6 +285,11 @@ fn the_keyring_is_reached_off_the_async_workers() {
         "remove_hosting_account",
         "hosting_account_for",
         "ci_statuses",
+        "ai_key_state",
+        "set_ai_key",
+        "remove_ai_key",
+        "test_ai_provider",
+        "generate_commit_message",
     ]
     .into_iter()
     .filter(|name| {
@@ -371,6 +376,10 @@ fn the_journal_and_the_settings_are_read_in_the_blocking_pool() {
 /// Repository commands allowed more than one call into `AppState` or a longer body than
 /// INV-09's "get the state, call one method, map the error".
 const ORCHESTRATING: &[(&str, &str)] = &[
+    (
+        "generate_commit_message",
+        "the read id for Cancel goes up the channel before the request starts",
+    ),
     (
         "commit",
         "maintenance after a commit is its own queued step",

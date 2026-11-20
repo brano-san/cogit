@@ -1,6 +1,7 @@
 use app_state::{OperationKind, RepoId};
 use git_engine::GitError;
 
+pub mod ai;
 pub mod avatars;
 pub mod bisect;
 pub mod branches;

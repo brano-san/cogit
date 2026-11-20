@@ -1,4 +1,5 @@
 mod agent_events;
+mod ai_commit;
 mod avatars;
 mod backend;
 mod bisect;
@@ -67,6 +68,10 @@ mod rows;
 mod staging;
 
 pub use agent_events::forward_agent_events;
+pub use ai_commit::{
+    AiCommitError, AiKeyInput, AiKeyState, AiMessage, AiMessageRequest, staged_of,
+};
+pub use ai_message::{AiConfig, AiProvider};
 pub use avatars::{Author, AvatarRow, Avatars};
 pub use backend::{BackendState, Host, provide_agent_binary, serve_agent};
 pub use ci_status::{CiBatch, CiTarget};

@@ -17,6 +17,7 @@ path = "src/bin/cogit_agent.rs"
 
 [dependencies]
 agent.workspace = true
+ai_message.workspace = true
 portable.workspace = true
 avatars.workspace = true
 git_engine.workspace = true
