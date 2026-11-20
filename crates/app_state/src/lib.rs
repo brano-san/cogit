@@ -45,6 +45,7 @@ mod safety;
 pub mod settings;
 mod solver;
 mod sparse;
+mod splitting;
 mod stashing;
 mod streams;
 pub mod taskbar;
@@ -94,6 +95,7 @@ pub use registry::{OpenRepo, RepoRefs, RepoSummary, ScanHit};
 pub use rows::RepoOverview;
 pub use safety::{Recovery, SafetyEntry};
 pub use solver::{MAX_SOLVER_BYTES, MergeToolOutcome, SolverData};
+pub use splitting::{SplitBlock, SplitFile, SplitPart, SplitPreview};
 pub use worktrees::{WorktreeScanChunk, WorktreeScanStage};
 
 use journal::JOURNAL_CAPACITY;

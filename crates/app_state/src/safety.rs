@@ -356,7 +356,11 @@ impl AppState {
                     ensure_unmoved(&handle, &moved.name, Some(&now), moved.after.as_deref())?;
                     others.push((moved, now));
                 }
-                handle.move_branch_back(name, oid)?;
+                if let Some(tip) = tip.as_deref() {
+                    handle.undo_branch_move(name, tip, oid)?;
+                } else {
+                    handle.move_branch_back(name, oid)?;
+                }
                 let mut undone = Vec::new();
                 let mut failed = None;
                 for (moved, now) in others {

@@ -192,6 +192,7 @@ fn commands_that_write_the_repository_wait_for_its_lane() {
         "run_hook",
         "add_remote",
         "apply_patch",
+        "split_commit",
         "rename_remote",
         "remove_remote",
         "set_remote_properties",
@@ -316,6 +317,7 @@ fn the_footer_names_what_runs() {
         ("reset_to", "\"Resetting\""),
         ("rollback_to", "\"Rolling back\""),
         ("split_off", "\"Splitting\""),
+        ("split_commit", "\"Splitting\""),
     ]
     .into_iter()
     .filter(|(name, title)| {

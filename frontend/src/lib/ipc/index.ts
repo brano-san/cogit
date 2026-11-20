@@ -9,6 +9,7 @@ import { secondaryReleased } from "$lib/secondary-button";
 import { withMenuKeys } from "$lib/context-menu";
 import { GIT_NOT_FOUND_HINT } from "$lib/git-missing";
 import type {
+  SplitPart,
   SignIn,
   NewHostingAccount,
   CiTarget,
@@ -178,6 +179,10 @@ export type {
   HookSource,
   HookState,
   Hunk,
+  SplitBlock,
+  SplitFile,
+  SplitPart,
+  SplitPreview,
   Segment,
   Span,
   LineEnding,
@@ -1227,6 +1232,18 @@ export async function splitOff(
   splitFirst: boolean,
 ) {
   return unwrap(await commands.splitOff(repo, rev, paths, message, splitFirst));
+}
+
+export async function splitPreview(repo: RepoId, rev: string) {
+  return unwrap(await commands.splitPreview(repo, rev));
+}
+
+export async function splitCommitBlocked(repo: RepoId, rev: string) {
+  return unwrap(await commands.splitCommitBlocked(repo, rev));
+}
+
+export async function splitCommit(repo: RepoId, rev: string, parts: SplitPart[]) {
+  return unwrap(await commands.splitCommit(repo, rev, parts));
 }
 
 export async function rebaseTodo(repo: RepoId, base: string) {

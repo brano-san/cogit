@@ -270,3 +270,48 @@ pub async fn protecting_refs(
     })
     .await
 }
+
+#[tauri::command]
+#[specta::specta]
+pub async fn split_preview(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    rev: String,
+) -> Result<app_state::SplitPreview, GitError> {
+    let app_state = state.state.clone();
+    blocking("split_preview", move || app_state.split_preview(repo, &rev)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn split_commit_blocked(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    rev: String,
+) -> Result<Option<String>, GitError> {
+    let app_state = state.state.clone();
+    blocking("split_commit_blocked", move || {
+        app_state.split_commit_blocked(repo, &rev)
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn split_commit(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    rev: String,
+    parts: Vec<app_state::SplitPart>,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    mutating_titled(
+        &state.state,
+        repo,
+        OperationKind::Commit,
+        "Splitting",
+        "split_commit",
+        move || app_state.split_commit(repo, &rev, &parts),
+    )
+    .await
+}
