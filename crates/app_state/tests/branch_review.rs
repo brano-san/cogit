@@ -75,6 +75,29 @@ fn the_default_base_and_the_files_go_through_the_state() {
     let files = state
         .review_files(repo, &review.merge_base, "dev", false)
         .unwrap();
-    assert_eq!(base, "main");
+    assert_eq!(base, "refs/heads/main");
     assert_eq!(files.len(), 2);
+}
+
+#[test]
+fn commit_filter_lists_only_the_files_changed_since_the_first_parent() {
+    let f = test_fixtures::branched().unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let review = state.branch_review(repo, "main", "dev").unwrap();
+
+    assert_eq!(review.commits.len(), 2);
+    let paths: Vec<_> = review
+        .commits
+        .iter()
+        .map(|commit| {
+            state
+                .commit_files(repo, &commit.oid)
+                .unwrap()
+                .into_iter()
+                .map(|file| file.path)
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    assert_eq!(paths, [["dev-2.txt".to_owned()], ["dev-1.txt".to_owned()]]);
 }

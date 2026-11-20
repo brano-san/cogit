@@ -404,7 +404,7 @@ impl RepoHandle {
 /// `refs/remotes/origin/release/1.0` is matched as `release/1.0`. From the full name, not
 /// the short one git prints: beside a tag `origin/main` that is `remotes/origin/main`. The
 /// longest configured remote wins, since a remote's name may itself hold a slash.
-fn branch_of<'a>(full: &'a str, remotes: &[String]) -> &'a str {
+pub(crate) fn branch_of<'a>(full: &'a str, remotes: &[String]) -> &'a str {
     let rest = full.strip_prefix("refs/remotes/").unwrap_or(full);
     remotes
         .iter()

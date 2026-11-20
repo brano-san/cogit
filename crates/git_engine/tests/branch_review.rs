@@ -18,18 +18,18 @@ fn the_base_defaults_to_main() {
     let f = test_fixtures::branched().unwrap();
     assert_eq!(
         open(&f).review_base("dev").unwrap().as_deref(),
-        Some("main")
+        Some("refs/heads/main")
     );
 }
 
 #[test]
-fn the_base_is_never_the_branch_itself() {
+fn master_is_the_fallback_when_both_local_main_lines_exist() {
     let f = test_fixtures::branched().unwrap();
     f.git(&["branch", "-m", "main", "master"]).unwrap();
     f.git(&["branch", "main", "dev"]).unwrap();
     assert_eq!(
         open(&f).review_base("main").unwrap().as_deref(),
-        Some("master")
+        Some("refs/heads/master")
     );
 }
 
@@ -47,14 +47,56 @@ fn the_remote_default_branch_comes_first() {
     .unwrap();
     assert_eq!(
         open(&f).review_base("dev").unwrap().as_deref(),
-        Some("origin/trunk")
+        Some("refs/remotes/origin/trunk")
     );
+}
+
+#[test]
+fn a_remote_branch_uses_its_own_remotes_default() {
+    let f = test_fixtures::branched().unwrap();
+    f.git(&["remote", "add", "fork", "."]).unwrap();
+    f.git(&["update-ref", "refs/remotes/fork/topic", "dev"])
+        .unwrap();
+    f.git(&["update-ref", "refs/remotes/fork/trunk", "main"])
+        .unwrap();
+    f.git(&[
+        "symbolic-ref",
+        "refs/remotes/fork/HEAD",
+        "refs/remotes/fork/trunk",
+    ])
+    .unwrap();
+    assert_eq!(
+        open(&f)
+            .review_base("refs/remotes/fork/topic")
+            .unwrap()
+            .as_deref(),
+        Some("refs/remotes/fork/trunk")
+    );
+}
+
+#[test]
+fn the_only_main_branch_can_be_reviewed_against_itself() {
+    let f = test_fixtures::Fixture::init().unwrap();
+    let base = f.commit_file(0, "root.txt", "root\n").unwrap();
+    let handle = open(&f);
+    assert_eq!(
+        handle.review_base("refs/heads/main").unwrap().as_deref(),
+        Some("refs/heads/main")
+    );
+    let review = handle
+        .branch_review("refs/heads/main", "refs/heads/main")
+        .unwrap();
+    assert_eq!(review.merge_base, base);
+    assert_eq!((review.ahead, review.behind), (0, 0));
+    assert!(review.is_head);
 }
 
 #[test]
 fn no_main_line_means_no_default() {
     let f = test_fixtures::branched().unwrap();
     f.git(&["branch", "-m", "main", "trunk"]).unwrap();
+    f.git(&["update-ref", "refs/remotes/origin/feature/main", "dev"])
+        .unwrap();
     assert_eq!(open(&f).review_base("dev").unwrap(), None);
 }
 
@@ -64,6 +106,7 @@ fn the_summary_counts_both_sides_from_the_merge_base() {
     let review = open(&f).branch_review("main", "dev").unwrap();
     let expected = f.oid("main~1").unwrap();
     assert_eq!(review.merge_base, expected);
+    assert_eq!(review.merge_base_summary, "commit 0");
     assert_eq!(review.merge_bases, vec![expected]);
     assert_eq!((review.ahead, review.behind), (2, 1));
     let summaries: Vec<&str> = review.commits.iter().map(|c| c.summary.as_str()).collect();
@@ -139,17 +182,19 @@ fn a_criss_cross_picks_what_git_merge_base_picks() {
     f.commit_file(0, "a.txt", "root\n").unwrap();
     f.git(&["branch", "topic"]).unwrap();
     f.commit_file(1, "main.txt", "main\n").unwrap();
+    f.commit_file(2, "depth.txt", "main depth\n").unwrap();
     f.git(&["switch", "topic"]).unwrap();
-    f.commit_file(2, "topic.txt", "topic\n").unwrap();
+    f.commit_file(3, "topic.txt", "topic\n").unwrap();
     let main_tip = f.oid("main").unwrap();
     let topic_tip = f.oid("topic").unwrap();
-    f.merge(3, &[&main_tip], "topic takes main").unwrap();
+    f.merge(4, &[&main_tip], "topic takes main").unwrap();
     f.git(&["switch", "main"]).unwrap();
-    f.merge(4, &[&topic_tip], "main takes topic").unwrap();
-    f.commit_file(5, "main-2.txt", "main again\n").unwrap();
+    f.merge(5, &[&topic_tip], "main takes topic").unwrap();
+    f.commit_file(6, "main-2.txt", "main again\n").unwrap();
     f.git(&["switch", "topic"]).unwrap();
-    f.commit_file(6, "topic-2.txt", "topic again\n").unwrap();
+    f.commit_file(7, "topic-2.txt", "topic again\n").unwrap();
     f.git(&["switch", "main"]).unwrap();
+    f.git(&["commit-graph", "write", "--reachable"]).unwrap();
 
     let review = open(&f).branch_review("main", "topic").unwrap();
     let git_pick = f.git(&["merge-base", "main", "topic"]).unwrap();
@@ -210,6 +255,42 @@ fn a_change_undone_on_disk_leaves_the_review() {
             ("dev-2.txt", FileStatus::Added)
         ]
     );
+}
+
+#[test]
+fn editing_a_renamed_file_on_disk_keeps_both_paths_in_the_comparison() {
+    let f = test_fixtures::Fixture::init().unwrap();
+    f.commit_file(0, "old.txt", "before\n").unwrap();
+    f.git(&["switch", "-c", "topic"]).unwrap();
+    f.git(&["mv", "old.txt", "new.txt"]).unwrap();
+    f.commit_staged(1, "rename").unwrap();
+    f.write_file("new.txt", "after\n").unwrap();
+    let handle = open(&f);
+    let review = handle.branch_review("main", "topic").unwrap();
+    let files = handle
+        .review_files(&review.merge_base, "topic", true)
+        .unwrap();
+    assert_eq!(
+        paths(&files),
+        [
+            ("new.txt", FileStatus::Added),
+            ("old.txt", FileStatus::Deleted)
+        ]
+    );
+}
+
+#[test]
+fn a_remote_at_head_does_not_have_a_working_tree() {
+    let f = test_fixtures::branched().unwrap();
+    f.git(&["update-ref", "refs/remotes/origin/topic", "HEAD"])
+        .unwrap();
+    let handle = open(&f);
+    let branch = "refs/remotes/origin/topic";
+    let review = handle.branch_review("main", branch).unwrap();
+    assert!(matches!(
+        handle.review_files(&review.merge_base, branch, true),
+        Err(GitError::InvalidState(_))
+    ));
 }
 
 #[test]
