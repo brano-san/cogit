@@ -30,6 +30,7 @@ interface Pending {
     per session, on the first use of the store, and kept by the backend until Cogit exits. */
 class MasterPasswordStore {
   open = $state.raw<Pending | null>(null);
+  revision = $state(0);
   /** The unlock was canceled: not asked again before each command, only when needed. */
   #declined = false;
 
@@ -70,6 +71,7 @@ class MasterPasswordStore {
       if (answer === "forgot") return await this.#forgot();
       if (await unlockCredentials(answer.current)) {
         this.#declined = false;
+        this.revision += 1;
         return true;
       }
       error = "Wrong master password.";
@@ -84,6 +86,7 @@ class MasterPasswordStore {
     const answer = await this.#ask("create");
     if (answer === null || answer === "forgot") return false;
     await createCredentialStore(answer.password);
+    this.revision += 1;
     return true;
   }
 
@@ -109,6 +112,7 @@ class MasterPasswordStore {
     if (answer === null || answer === "forgot") return false;
     await resetCredentialStore(answer.password);
     this.#declined = false;
+    this.revision += 1;
     return true;
   }
 }

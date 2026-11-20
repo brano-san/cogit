@@ -1,6 +1,15 @@
 <script lang="ts">
   import { onDestroy, tick, untrack } from "svelte";
   import Checkbox from "$components/common/Checkbox.svelte";
+  import Button from "$components/common/Button.svelte";
+  import Icon from "$components/common/Icon.svelte";
+  import { aiSettings } from "$stores/ai-settings.svelte";
+  import { AiMessageStore, generateMessageBlocker } from "$stores/ai-message.svelte";
+  import { confirmation } from "$stores/confirm.svelte";
+  import { notices } from "$stores/notices.svelte";
+  import { repository } from "$stores/repository.svelte";
+  import { settings } from "$stores/settings.svelte";
+  import { cancelOperation, generateCommitMessage } from "$lib/ipc";
   import { commitBox } from "$stores/commit-box.svelte";
   import { afterCommit, amends, commitBlocker, draftToSave, initialMessage, messageAfterCommit } from "$lib/commit-draft";
   import { messageSeed } from "$lib/commit-prefix";
@@ -36,6 +45,57 @@
   let noVerify = $state(false);
   let committing = $state(false);
 
+  const ai = new AiMessageStore({
+    consent: (name, key) => confirmation.askWithOption({
+      title: "Send Staged Changes",
+      message: `The staged changes of ${name} will be sent to ${key.host}. Continue?`,
+      fields: [["Service", key.service]],
+      confirm: "Continue",
+      warning: true,
+      option: "Don't ask again for this service",
+    }),
+    replace: () => confirmation.ask({
+      title: "Replace Commit Message",
+      message: "Replace the current commit message with a generated suggestion?",
+      confirm: "Replace",
+    }),
+    allowed: (service) => aiSettings.allowed(service),
+    remember: (service) => aiSettings.remember(service),
+    cancel: cancelOperation,
+    generate: generateCommitMessage,
+    report: (err) => notices.report(err, "Could not generate a commit message"),
+  });
+
+  const config = $derived(settings.current.ai);
+  const key = $derived(aiSettings.at(config));
+  const unavailable = $derived(
+    busy || committing
+      ? "Wait for the staged changes to load"
+      : generateMessageBlocker(stagedCount, config, key, ai.active),
+  );
+  const generationScope = $derived(JSON.stringify([draftKey, repository.current?.head, prefix, config]));
+  $effect(() => {
+    void generationScope;
+    return () => untrack(() => {
+      ai.cancel();
+      ai.shortened = false;
+    });
+  });
+
+  async function generate(): Promise<void> {
+    const repo = repository.current;
+    if (!repo || !config || !key || unavailable) return;
+    const held = generationScope;
+    const owner = draftKey;
+    await ai.start({
+      config, key, prefix, repo: repo.repo, name: repo.name,
+      read: () => message,
+      write: (text) => { message = text; },
+      valid: () => generationScope === held && stagedCount > 0,
+      ownsField: () => draftKey === owner,
+    });
+  }
+
   const overflow = $derived(subjectState(message));
   const length = $derived([...subjectOf(message)].length);
   const amending = $derived(amends({ amend, unborn }));
@@ -46,7 +106,7 @@
   const blocked = $derived(
     commitBlocker({ message, template: seed, stagedCount, amend, busy, committing, scopeEmpty: scope.empty, unborn }),
   );
-  const ready = $derived(blocked === null);
+  const ready = $derived(blocked === null && !ai.active);
 
   // Cleared once the commit is made, not before: a cancelled question or a hook that
   // refused left the box empty, and a retry without Amend made a new commit instead.
@@ -70,6 +130,7 @@
     }
     if (!after.resetField) return;
     message = messageAfterCommit(seed);
+    ai.shortened = false;
     void caretAfterPrefix();
     amend = false;
     noVerify = false;
@@ -89,6 +150,8 @@
   onDestroy(
     commitBox.attach({
       focus: () => field?.focus(),
+      generate,
+      generating: () => ai.active,
       submit: async (withAmend) => {
         if (withAmend) {
           // Commit with Amend before the first commit: there is nothing to amend.
@@ -132,6 +195,7 @@
   });
 
   $effect(() => {
+    if (ai.streaming) return;
     try {
       const kept = draftToSave(message, seed);
       if (kept === null) localStorage.removeItem(draftKey);
@@ -150,12 +214,17 @@
     rows="3"
     placeholder="Commit message — Ctrl+Enter to commit"
     aria-label="Commit message"
+    aria-busy={ai.streaming}
+    readonly={ai.streaming}
     spellcheck="false"
     {@attach spellField(() => message)}
   ></textarea>
 
   {#if scope.warning}
     <p class="hidden-warning">{scope.warning}</p>
+  {/if}
+  {#if ai.shortened}
+    <p class="hidden-warning" role="status">The staged diff was shortened for this suggestion.</p>
   {/if}
 
   <div class="bar">
@@ -174,6 +243,18 @@
     >
     <span class="option"><Checkbox bind:checked={noVerify} label="No verify" /></span>
     <span class="grow"></span>
+    {#if ai.streaming}
+      <Button onclick={() => ai.cancel()} data-tip="Cancel message generation">Cancel</Button>
+    {:else}
+      {#if key?.state === "locked" && config}
+        <Button onclick={() => { if (config) void aiSettings.unlock(config); }} data-tip="Unlock the password store">Unlock…</Button>
+      {/if}
+      <span class="generate" data-tip={unavailable ?? "Generate Message"}>
+        <Button disabled={unavailable !== undefined} aria-label="Generate Message" onclick={generate}>
+          <Icon name="generateMessage" />
+        </Button>
+      </span>
+    {/if}
     <button
       type="button"
       disabled={!ready}
@@ -235,6 +316,15 @@
 
   .grow {
     flex: 1 1 auto;
+  }
+
+  .generate {
+    display: inline-flex;
+  }
+
+  .generate :global(.btn) {
+    width: var(--h-button-sm);
+    padding: 0;
   }
 
   .option {

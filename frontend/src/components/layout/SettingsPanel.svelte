@@ -38,6 +38,7 @@
   import KeymapEditor from "$components/layout/KeymapEditor.svelte";
   import GraphField from "$components/layout/GraphField.svelte";
   import NetworkSettings from "$components/layout/NetworkSettings.svelte";
+  import AiSettings from "$components/layout/AiSettings.svelte";
   import ToolbarEditor from "$components/layout/ToolbarEditor.svelte";
   import UserCommandsEditor from "$components/layout/UserCommandsEditor.svelte";
   import { DEFAULT_LAYOUT } from "$lib/toolbar";
@@ -344,7 +345,9 @@
           </div>
 
           {#each group.fields as field (field.key)}
-            {#if field.key === "avatars"}
+            {#if field.key === "ai"}
+              <AiSettings config={draft.ai} onchange={(value) => set("ai", value)} />
+            {:else if field.key === "avatars"}
               <div class="row choice" role="radiogroup" aria-label={field.label}>
                 <span>{field.label}</span>
                 <div class="options">

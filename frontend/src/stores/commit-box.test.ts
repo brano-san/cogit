@@ -4,7 +4,7 @@ const { commitBox } = await import("./commit-box.svelte");
 const { layout } = await import("./layout.svelte");
 
 function field() {
-  return { focus: vi.fn(), submit: vi.fn(async (_amend: boolean) => {}) };
+  return { focus: vi.fn(), submit: vi.fn(async (_amend: boolean) => {}), generate: vi.fn(async () => {}), generating: vi.fn(() => false) };
 }
 
 // Local ▸ Commit…, its Ctrl+Enter and the palette's Commit Staged ran `() => {}`; with the

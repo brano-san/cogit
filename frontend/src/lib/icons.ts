@@ -26,6 +26,7 @@ const DISKS = [1.5, 6.5, 11.5].map((y) => disk(1.5, y, 13)).join("");
 export const GLYPHS = {
   close: g16("M4 4l8 8M12 4l-8 8"),
   check: g16("M3 8.5 6.5 12 13 4.5"),
+  generateMessage: g16("M7 2c0 3.3 2.7 6 6 6-3.3 0-6 2.7-6 6 0-3.3-2.7-6-6-6 3.3 0 6-2.7 6-6ZM13 2v4m-2-2h4"),
   warning: g16("M8 2 14.5 13.5h-13ZM8 6.5v3.5M8 11.8v.2"),
   error: g16(`${ring(8, 8, 6.5)}M8 4.5v4M8 11v.5`),
   info: g16(`${ring(8, 8, 6.5)}M8 7.5v4M8 5v.5`),

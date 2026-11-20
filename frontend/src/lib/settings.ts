@@ -1,5 +1,6 @@
 import type { DateMode } from "$lib/format";
-import type { Algorithm, Whitespace } from "$lib/ipc";
+import type { AiConfig, Algorithm, Whitespace } from "$lib/ipc";
+import { knownAiConfig } from "$lib/ai-config";
 import { LANE_WIDTH } from "$lib/graph-geometry";
 import { DEFAULT_FILTER_FIELDS, knownFields, type FilterField } from "$lib/filter-fields";
 import { knownPatterns } from "$lib/filter-patterns";
@@ -76,6 +77,7 @@ export interface Settings {
       $1…$9 (F-943). Repository ▸ Settings can override both. Empty pattern: no prefix. */
   commitPrefixPattern: string;
   commitPrefixTemplate: string;
+  ai: AiConfig | null;
   logLevel: "error" | "warn" | "info" | "debug" | "trace";
   /** On by default: a face per row is what the commit list is read by, and the request
       carries a hash rather than the address (doc/12-risks.md, R-145). `ask` is what a
@@ -192,6 +194,7 @@ export const DEFAULT_SETTINGS: Settings = {
   userCommands: [],
   commitPrefixPattern: "",
   commitPrefixTemplate: "$1: ",
+  ai: null,
   logLevel: "info",
   avatars: "gravatar",
   autoUpdate: true,
@@ -321,6 +324,10 @@ export function merge(stored: Partial<Settings> | null | undefined): Settings {
   for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]) {
     const value = record[key];
     const fallback = DEFAULT_SETTINGS[key];
+    if (key === "ai") {
+      merged.ai = knownAiConfig(value);
+      continue;
+    }
     if (key === "graphColumns") {
       merged.graphColumns = knownColumns(value) ?? merged.graphColumns;
       continue;

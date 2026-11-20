@@ -135,6 +135,15 @@ export const CATEGORIES: Category[] = [
     groups: [{ title: "GitHub, GitLab and Bitbucket accounts", fields: [] }],
   },
   {
+    id: "ai",
+    title: "AI",
+    parent: "commands",
+    groups: [{
+      title: "Commit Message Generation",
+      fields: [{ key: "ai", label: "AI Provider", keywords: ["Anthropic", "OpenAI", "Ollama", "LM Studio", "API key"] }],
+    }],
+  },
+  {
     id: "network",
     title: "Network",
     parent: "commands",

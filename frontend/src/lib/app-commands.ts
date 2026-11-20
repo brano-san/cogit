@@ -47,6 +47,7 @@ export type AppCommandId =
   | "commit-amend"
   | "commit-window"
   | "commit-message"
+  | "generate-commit-message"
   | "undo"
   | "output"
   | "zoom-in"
@@ -112,6 +113,7 @@ export interface AppCommandFacts {
   context: Context;
   toolbar: ToolbarFacts;
   lastUndo: boolean;
+  aiMessageReason: string | undefined;
   diffPath: string | null;
   /** HEAD is on a branch the app tracks. */
   branch: boolean;
@@ -170,6 +172,12 @@ export function appCommands(facts: AppCommandFacts, run: AppCommandActions): Pal
     { id: "commit-amend", title: "Commit with Amend", unavailable: noRepo, run: run["commit-amend"] },
     { id: "commit-window", title: "Commit…", unavailable: noRepo, run: run["commit-window"] },
     { id: "commit-message", title: "Go to the Commit Message", unavailable: noRepo, run: run["commit-message"] },
+    {
+      id: "generate-commit-message",
+      title: "Generate Commit Message",
+      unavailable: noRepo ?? facts.aiMessageReason,
+      run: run["generate-commit-message"],
+    },
     {
       id: "undo",
       title: "Undo Last Operation",

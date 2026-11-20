@@ -3,6 +3,8 @@ import { layout } from "$stores/layout.svelte";
 
 export interface CommitField {
   focus(): void;
+  generate(): Promise<void>;
+  generating(): boolean;
   /** Commits if the box is ready to; `amend` ticks Amend first. */
   submit(amend: boolean): Promise<void>;
 }
@@ -10,7 +12,11 @@ export interface CommitField {
 /** The Commit Message box as the menu, the palette and the Working Tree row reach it. It
     exists only while its panel is shown, so each of them brings the panel up first. */
 class CommitBoxStore {
-  #field: CommitField | null = null;
+  #field = $state.raw<CommitField | null>(null);
+
+  get generating(): boolean {
+    return this.#field?.generating() ?? false;
+  }
 
   /** Returns the detach; a box that has gone is never reached through. */
   attach(field: CommitField): () => void {
@@ -30,6 +36,11 @@ class CommitBoxStore {
   async commit(amend = false): Promise<void> {
     const field = await this.focus();
     await field?.submit(amend);
+  }
+
+  async generate(): Promise<void> {
+    const field = await this.focus();
+    await field?.generate();
   }
 }
 

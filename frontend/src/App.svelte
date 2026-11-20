@@ -147,6 +147,10 @@
   import { uiMetricsStore } from "$stores/ui-metrics.svelte";
   import { menuCommandRuns, modals } from "$lib/modal-stack";
   import { commitBox } from "$stores/commit-box.svelte";
+  import { aiSettings } from "$stores/ai-settings.svelte";
+  import { generateMessageBlocker } from "$stores/ai-message.svelte";
+  import { masterPassword } from "$stores/master-password.svelte";
+  import { serviceInput } from "$lib/ai-config";
   import { commitFileMenu, shownRow, worktreeFileMenu } from "$lib/file-menu";
   import { fileName, runFileMenuCommand, type FileActions, type FileScope } from "$lib/file-actions";
   import { listedMessage } from "$lib/file-dialogs";
@@ -619,6 +623,12 @@
   const reposColumn = $derived(shown.repositories || shown.worktrees);
   const leftColumn = $derived(reposColumn || shown.refs);
   const repo = $derived(repository.current);
+  const aiService = $derived(serviceInput(settings.current.ai));
+  $effect(() => {
+    void aiService;
+    void masterPassword.revision;
+    void untrack(() => aiSettings.refresh(settings.current.ai));
+  });
   /** HEAD's branch for `${branch}` of a user command; null on a detached HEAD (F-954). */
   const toolBranch = $derived(headBranch(repo?.head));
   /** What a user command picked in the palette runs on: the selected commit, the open diff's file. */
@@ -869,6 +879,7 @@
       if (current) void openCommitWindow(current.repo, current.root, commitWindowPaths(toolbarFacts));
     },
     "commit-message": () => void commitBox.focus(),
+    "generate-commit-message": () => void commitBox.generate(),
     undo: () => undo(),
     output: () => output.toggle(),
     "zoom-in": () => void settings.set("uiZoom", zoomStep(settings.current.uiZoom, 1)),
@@ -966,6 +977,9 @@
         context: commands,
         toolbar: toolbarFacts,
         lastUndo: lastUndo !== null,
+        aiMessageReason: worktree.loading
+          ? "Wait for the staged changes to load"
+          : generateMessageBlocker(worktree.staged.length, settings.current.ai, aiSettings.at(settings.current.ai), commitBox.generating),
         diffPath: diff.path,
         branch: tracked !== undefined,
         commitOid: commit.oid,
