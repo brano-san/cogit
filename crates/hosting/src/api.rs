@@ -114,19 +114,30 @@ pub fn auth_for(
 }
 
 fn agent_for(url: &str, proxy: Option<&str>) -> Result<ureq::Agent, ApiError> {
+    Ok(http_config(url, proxy, Some(TIMEOUT), None)?.into())
+}
+
+pub fn http_config(
+    url: &str,
+    proxy: Option<&str>,
+    total: Option<Duration>,
+    connect: Option<Duration>,
+) -> Result<ureq::config::Config, ApiError> {
     let local = RemoteRef::parse(url).is_some_and(|remote| is_loopback(&remote.host));
     let proxy = match proxy.map(str::trim).filter(|proxy| !proxy.is_empty()) {
         _ if local => None,
         Some(proxy) => Some(ureq::Proxy::new(proxy).map_err(|_| ApiError::Proxy(redact(proxy)))?),
         None => ureq::Proxy::try_from_env(),
     };
-    let config = ureq::Agent::config_builder()
-        .timeout_global(Some(TIMEOUT))
+    Ok(ureq::Agent::config_builder()
         .http_status_as_error(false)
         .user_agent(concat!("cogit/", env!("CARGO_PKG_VERSION")))
+        .timeout_global(total)
+        .timeout_connect(connect)
+        .timeout_send_request(connect)
+        .timeout_send_body(connect)
         .proxy(proxy)
-        .build();
-    Ok(ureq::Agent::new_with_config(config))
+        .build())
 }
 
 fn redact(proxy: &str) -> String {

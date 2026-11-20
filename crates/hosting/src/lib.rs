@@ -4,8 +4,10 @@ mod ci;
 mod ci_cache;
 mod remote;
 
-pub use account::{AccountError, HostingAccount, HostingProvider, normalize_server};
-pub use api::{ApiError, Auth, Limit, Reply, auth_for, check, check_at, get_json, get_reply};
+pub use account::{AccountError, HostingAccount, HostingProvider, is_loopback, normalize_server};
+pub use api::{
+    ApiError, Auth, Limit, Reply, auth_for, check, check_at, get_json, get_reply, http_config,
+};
 pub use ci::{
     CiCheck, CiReport, CiState, CiStatus, aggregate, bitbucket_statuses, commit_page, fetch_checks,
     github_check_runs, github_statuses, gitlab_statuses,

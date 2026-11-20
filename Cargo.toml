@@ -176,6 +176,7 @@ tempfile = "3.27"
 
 # --- internal crates ---
 agent = { path = "crates/agent" }
+ai_message = { path = "crates/ai_message" }
 app_state = { path = "crates/app_state" }
 avatars = { path = "crates/avatars" }
 build_info = { path = "crates/build_info" }

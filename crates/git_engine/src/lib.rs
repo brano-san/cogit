@@ -44,6 +44,7 @@ mod mailmap;
 mod maintenance;
 mod merged_by_patch;
 mod merging;
+mod message_context;
 mod module_ops;
 mod network;
 mod network_config;
@@ -158,6 +159,7 @@ pub use listing::{
 pub use mailmap::Mailmap;
 pub use merged_by_patch::{BranchMerge, MERGE_SCAN_CAP, MergeCache, MergeKind};
 pub use merging::{MergeOptions, OctopusOptions};
+pub use message_context::{MessageContext, Omitted, StagedFile};
 pub use module_ops::SubmoduleOp;
 pub use network::NetworkStop;
 pub use network_config::{

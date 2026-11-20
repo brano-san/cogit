@@ -93,7 +93,8 @@ pub enum AccountError {
 
 const LOOPBACK: &[&str] = &["127.0.0.1", "localhost", "[::1]"];
 
-pub(crate) fn is_loopback(host: &str) -> bool {
+#[must_use]
+pub fn is_loopback(host: &str) -> bool {
     LOOPBACK.contains(&host)
 }
 

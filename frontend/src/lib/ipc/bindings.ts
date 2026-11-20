@@ -833,6 +833,11 @@ export const commands = {
 	apiUrl: string,
 } | null, GitError>(__TAURI_INVOKE("hosting_account_for", { url })),
 	ciStatuses: (repo: RepoId, targets: CiTarget[]) => typedError<CiBatch, GitError>(__TAURI_INVOKE("ci_statuses", { repo, targets })),
+	aiKeyState: (config: AiConfig) => typedError<AiKeyState, GitError>(__TAURI_INVOKE("ai_key_state", { config })),
+	setAiKey: (input: AiKeyInput) => typedError<null, GitError>(__TAURI_INVOKE("set_ai_key", { input })),
+	removeAiKey: (config: AiConfig) => typedError<null, GitError>(__TAURI_INVOKE("remove_ai_key", { config })),
+	testAiProvider: (config: AiConfig) => typedError<null, GitError>(__TAURI_INVOKE("test_ai_provider", { config })),
+	generateCommitMessage: (repo: RepoId, request: AiMessageRequest, onChunk: Channel<AiChunk>) => typedError<AiMessage, GitError>(__TAURI_INVOKE("generate_commit_message", { repo, request, onChunk })),
 	listHooks: (repo: RepoId) => typedError<HookOverview, GitError>(__TAURI_INVOKE("list_hooks", { repo })),
 	readHook: (repo: RepoId, name: string) => typedError<string, GitError>(__TAURI_INVOKE("read_hook", { repo, name })),
 	writeHook: (repo: RepoId, name: string, body: string) => typedError<null, GitError>(__TAURI_INVOKE("write_hook", { repo, name, body })),
@@ -951,6 +956,41 @@ export const events = {
 };
 
 /* Types */
+export type AiChunk = { kind: "started"; id: number } | { kind: "text"; text: string };
+
+export type AiConfig = {
+	provider: AiProvider,
+	baseUrl: string,
+	model: string,
+	instructions: string,
+	maxDiffBytes: number,
+};
+
+export type AiKeyInput = {
+	config: AiConfig,
+	key: string,
+};
+
+export type AiKeyState = {
+	state: StoreState,
+	host: string,
+	service: string,
+	required: boolean,
+	stored: boolean,
+};
+
+export type AiMessage = {
+	message: string,
+	shortened: boolean,
+};
+
+export type AiMessageRequest = {
+	config: AiConfig,
+	prefix: string | null,
+};
+
+export type AiProvider = "anthropic" | "openai";
+
 export type Algorithm = "histogram" | "myers";
 
 /**  specta follows serde, so a DTO without `camelCase` reads `undefined` in the UI. */
