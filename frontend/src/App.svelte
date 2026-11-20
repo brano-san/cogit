@@ -6,7 +6,7 @@
   import { leaveRepositoryDialogs } from "$lib/leaving";
   import { retryOf } from "$lib/retry";
   import { isEmptyQuery, parseQuery } from "$lib/query";
-  import { publishedOrAssume } from "$lib/published";
+  import { publishedOrAssume, publishedRewriteWarning } from "$lib/published";
   import { menuStatePusher } from "$lib/menu-state";
   import { branchNameProblem, optional, presetNameProblem, textProblem } from "$lib/names";
   import { finder } from "$stores/finder.svelte";
@@ -23,6 +23,7 @@
   import CommitPanel from "$components/panels/CommitPanel.svelte";
   import CommitDetailsPane from "$components/panels/CommitDetailsPane.svelte";
   import SplitOffDialog from "$components/file-list/SplitOffDialog.svelte";
+  import SplitCommitDialog from "$components/file-list/SplitCommitDialog.svelte";
   import GraphHeader from "$components/graph/GraphHeader.svelte";
   import RebaseEditor from "$components/graph/RebaseEditor.svelte";
   import DropMenu from "$components/layout/DropMenu.svelte";
@@ -164,6 +165,7 @@
   import { dragOver } from "$stores/drag-over.svelte";
   import { moveEntry, planPublished } from "$lib/rebase-plan";
   import { splitRequest } from "$lib/split-off";
+  import { splitCommitRequest, type SplitCommitRequest } from "$lib/split-commit";
   import { readsAgain } from "$lib/file-view";
   import { abortAction, bannerQuestion, stateBanner, type BannerAction } from "$lib/repo-state";
   import { runCheckout } from "$lib/checkout-flow";
@@ -212,6 +214,11 @@
     rebaseTodo,
     rollbackTo,
     splitOff,
+    splitPreview,
+    splitCommit,
+    splitCommitBlocked,
+    diffFile as readSplitDiff,
+    DEFAULT_DIFF_OPTIONS,
     switchWithAutostash as runSwitchWithAutostash,
     commitFiles as readCommitFiles,
     mergeInto,
@@ -251,6 +258,7 @@
     type AppInfo,
     type RepoId,
     type WorkingState,
+    type SplitPart,
     openErrorsWindow,
     modalOpen,
     openEditorWindow,
@@ -469,6 +477,21 @@
   /** Panels a disk event has outdated; cleared as each reload lands. */
   let stale = $state.raw<ReadonlySet<PanelId>>(new Set());
   let splitBusy = $state(false);
+  let splitting = $state.raw<(SplitCommitRequest & { repo: RepoId }) | null>(null);
+  let splittingBusy = $state(false);
+  let splitReason = $state<string | null>("Checking commit eligibility…");
+  $effect(() => {
+    const summary = repository.current;
+    const oid = commit.oid;
+    if (!paletteOpen || !summary || !oid) return;
+    let pending = true;
+    splitReason = "Checking commit eligibility…";
+    void splitCommitBlocked(summary.repo, oid).then(
+      (reason) => { if (pending) splitReason = reason; },
+      () => { if (pending) splitReason = "Could not check the commit"; },
+    );
+    return () => { pending = false; };
+  });
   let refFilter = $state("");
   let repoFilter = $state("");
   let dropping = $state(false);
@@ -858,6 +881,7 @@
     flowStart: (kind) => askFlowStart(kind),
     "flow-finish": () => askFlowFinish(),
     "split-off": () => void openSplit(),
+    "split-commit": () => void openSplitCommit(),
     rollback: () => void rollbackFiles([]),
     close: () => void closeCurrent(),
     refresh: () => {
@@ -941,6 +965,7 @@
         flow: { initialised: flow.status.initialised, current: Boolean(flow.current) },
         protectedBy,
         onHead,
+        splitCommitBlocked: splitReason,
         worktrees: { removable: removable(worktrees.current), stale: hasStale(worktrees.entries) },
         conflicts: conflicts.paths.length,
         prReason,
@@ -3332,6 +3357,54 @@ ${event.error}`,
     await afterMutation();
   }
 
+  async function openSplitCommit(rev = commit.oid) {
+    const id = repository.current?.repo;
+    if (!id || !rev || splittingBusy) return;
+    const epoch = repository.epoch;
+    try {
+      const reason = await splitCommitBlocked(id, rev);
+      if (repository.epoch !== epoch) return;
+      if (reason) return notices.inform("Split Commit", reason);
+      const request = await splitCommitRequest(rev, {
+        preview: (oid) => splitPreview(id, oid),
+        published: (oid) => publishedOrAssume(isPublished(id, oid)),
+      });
+      if (repository.epoch !== epoch) return;
+      if (request.published && !(await confirmation.ask(publishedRewriteWarning(rev, "Split")))) return;
+      if (repository.epoch === epoch) splitting = { ...request, repo: id };
+    } catch (err) {
+      errors.report(err, "Could not read the commit");
+    }
+  }
+
+  async function runSplitCommit(parts: SplitPart[]) {
+    const request = splitting;
+    if (!request || splittingBusy || repository.current?.repo !== request.repo) return;
+    splittingBusy = true;
+    try {
+      await splitCommit(request.repo, request.oid, parts);
+      splitting = null;
+    } catch (err) {
+      errors.report(err, "Could not split the commit");
+    } finally {
+      splittingBusy = false;
+    }
+    await afterRefChange(request.repo);
+    if (repository.current?.repo === request.repo && repository.current.state.kind === "rebasing") {
+      splitting = null;
+    }
+  }
+
+  function previewSplitFile(path: string) {
+    const request = splitting;
+    if (!request) return Promise.resolve(null);
+    return readSplitDiff(request.repo, { kind: "commitVsParent", oid: request.oid }, path, {
+      ...DEFAULT_DIFF_OPTIONS,
+      wordDiff: false,
+      detectMoves: false,
+    });
+  }
+
   /** The one way in, from the menu, the palette and the Repositories toolbar alike: the
       dialog opens already looking, on every drive, until a folder is chosen instead. */
   function openScan() {
@@ -4553,6 +4626,7 @@ ${event.error}`,
     {reloadGraph}
     {checkOut}
     {openSplit}
+    openSplitCommit={(oid) => openSplitCommit(oid)}
     {openRebase}
     openAddWorktree={(origin) => worktreeActions?.openAdd(origin)}
     rollbackTree={() => rollbackFiles([])}
@@ -4579,6 +4653,21 @@ ${event.error}`,
       onsplit={(paths, message, first) => void runSplit(paths, message, first)}
       onclose={() => (split = null)}
     />
+  {/if}
+
+  {#if splitting && splitting.repo === repo?.repo}
+    {#key splitting}
+      <SplitCommitDialog
+        oid={splitting.oid}
+        message={splitting.message}
+        files={splitting.files}
+        published={splitting.published}
+        busy={splittingBusy}
+        readDiff={previewSplitFile}
+        onsplit={(parts) => void runSplitCommit(parts)}
+        onclose={() => (splitting = null)}
+      />
+    {/key}
   {/if}
 
   {#if hooks.open}

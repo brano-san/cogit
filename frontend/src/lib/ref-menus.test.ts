@@ -63,6 +63,7 @@ describe("graphCommitMenu (#38)", () => {
       "—",
       "Modify",
       "Split",
+      "Split Commit…",
       "Squash",
       "Fix Up with Staged Changes",
       "Edit Message",
@@ -193,6 +194,7 @@ describe("graphRefMenu (#39)", () => {
       "—",
       "Modify",
       "Split",
+      "Split Commit…",
       "Squash",
       "Fix Up with Staged Changes",
       "Edit Message",
@@ -553,5 +555,38 @@ describe("a branch checked out in another worktree", () => {
     const marks = new Map([["topic", { path: "D:/work/topic" }]]);
     expect(labelTarget({ text: "topic", kind: "local" }, branches, [], marks)?.ref.worktree).toBe("D:/work/topic");
     expect(labelTarget({ text: "topic", kind: "local" }, branches, [])?.ref.worktree).toBeUndefined();
+  });
+});
+
+describe("Split Commit…", () => {
+  const facts = {
+    isHeadCommit: true,
+    detachedHere: false,
+    onHead: true,
+    published: false,
+    parents: 1,
+    upstream: null,
+    hasRemote: false,
+  };
+  const label = (over: Partial<CommitFacts>) =>
+    graphCommitMenu({ ...facts, ...over }).find((item) => item.id === "ref:split-commit");
+
+  it("is offered for an ordinary commit of the current branch", () => {
+    expect(label({})?.enabled).toBe(true);
+  });
+
+  it("allows a root commit and refuses a merge or a commit of another branch", () => {
+    expect(label({ parents: 2 })?.label).toBe("Split Commit… (a merge commit)");
+    expect(label({ parents: 0 })?.enabled).toBe(true);
+    expect(label({ onHead: false })?.label).toBe("Split Commit… (not on the current branch)");
+  });
+
+  it("shows the backend reason for a commit reached through a second parent or an active operation", () => {
+    for (const reason of ["not on the first-parent history", "finish or abort the operation in progress first"]) {
+      expect(label({ splitCommitBlocked: reason })).toMatchObject({
+        enabled: false,
+        label: `Split Commit… (${reason})`,
+      });
+    }
   });
 });

@@ -20,6 +20,7 @@ export interface CommitFacts {
   staged?: number;
   /** A merge, rebase, cherry-pick, revert, bisect or am is unfinished. */
   midOperation?: boolean;
+  splitCommitBlocked?: string | null;
 }
 
 export interface RefTarget {
@@ -86,6 +87,7 @@ function commitActions(facts: CommitFacts, onRef: RefTarget | null): ContextItem
     SEPARATOR,
     offer(id("modify"), "Modify", rewriteBlocked(facts)),
     offer(id("split"), "Split", splitBlocked(facts)),
+    offer(id("split-commit"), "Split Commit…", splitBlocked(facts) ?? facts.splitCommitBlocked ?? null),
     offer(id("squash"), "Squash", squashBlocked(facts)),
     offer(id("fixup"), "Fix Up with Staged Changes", fixupBlocked(facts)),
     offer(id("edit-message"), "Edit Message", rewriteBlocked(facts)),

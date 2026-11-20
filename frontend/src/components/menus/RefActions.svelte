@@ -26,6 +26,7 @@
     fixupInto,
     popupContextMenu,
     protectingRefs,
+    splitCommitBlocked,
     rebaseOnto,
     rebaseTodo,
     renameBranch,
@@ -81,7 +82,7 @@
   } from "$lib/ref-checkout";
   import { worktreeMarks } from "$lib/worktree-list";
   import type { AddOrigin } from "$lib/worktree-add";
-  import { publishedOrAssume } from "$lib/published";
+  import { publishedOrAssume, publishedRewriteWarning } from "$lib/published";
   import { resetChoice } from "$lib/reset-modes";
   import { baseBefore, fullMessage, modifyPlan, rewordPlan, squashPlan } from "$lib/rewrite-plans";
   import { tagNameHint, tagPushRemote, tagRequest } from "$lib/tag-dialog";
@@ -127,6 +128,7 @@
     checkOut: (request: CheckoutRequest) => Promise<void>;
     /** Open App's dialogs for the selected commit. */
     openSplit: () => Promise<void>;
+    openSplitCommit: (oid: string) => Promise<void>;
     openRebase: () => Promise<void>;
     /** App's Add Worktree dialog, started from this commit or branch. */
     openAddWorktree: (origin: AddOrigin) => void;
@@ -140,6 +142,7 @@
     reloadGraph,
     checkOut,
     openSplit,
+    openSplitCommit,
     openRebase,
     openAddWorktree,
     rollbackTree,
@@ -222,11 +225,12 @@
   }
 
   async function loadFacts(id: RepoId, oid: string, withPublished: boolean): Promise<Loaded> {
-    const [details, onHead, published, protectedBy] = await Promise.all([
+    const [details, onHead, published, protectedBy, splitBlocked] = await Promise.all([
       commitDetails(id, oid),
       isAncestor(id, oid, "HEAD").catch(() => false),
       withPublished ? publishedOrAssume(isPublished(id, oid)) : Promise.resolve(false),
       withPublished ? protectingRefs(id, oid).catch(() => [] as string[]) : Promise.resolve([] as string[]),
+      withPublished ? splitCommitBlocked(id, oid).catch(() => "could not check the commit") : null,
     ]);
     const summary = repository.current;
     const facts = commitFacts({
@@ -241,7 +245,7 @@
     });
     const busy = summary?.state.kind;
     const midOperation = busy !== undefined && !["clean", "detachedHead", "empty", "bare"].includes(busy);
-    return { details, facts: { ...facts, staged: worktree.staged.length, midOperation } };
+    return { details, facts: { ...facts, staged: worktree.staged.length, midOperation, splitCommitBlocked: splitBlocked } };
   }
 
   async function show(next: Target, items: ContextItem[], x: number, y: number) {
@@ -450,14 +454,7 @@
   /** "With a warning if pushed": rewriting shared history is asked about first. */
   async function publishedOk(at: Target, action: string): Promise<boolean> {
     if (!at.facts.published || !at.oid) return true;
-    return confirmation.ask({
-      title: `${action} a Pushed Commit`,
-      message:
-        `${shortOid(at.oid)} is already on a remote branch. ${action} rewrites it and every commit ` +
-        "after it, so the branch will need a force-push and everyone who pulled it will have to reset.",
-      confirm: action,
-      warning: true,
-    });
+    return confirmation.ask(publishedRewriteWarning(at.oid, action));
   }
 
   async function act(name: string) {
@@ -509,6 +506,9 @@
           await commit.select(id, oid);
           await openSplit();
         }
+        return;
+      case "split-commit":
+        if (oid) await openSplitCommit(oid);
         return;
       case "squash":
         return squash(id, at);

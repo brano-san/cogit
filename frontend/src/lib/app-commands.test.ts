@@ -38,6 +38,7 @@ const OPEN: AppCommandFacts = {
   flow: { initialised: true, current: true },
   protectedBy: [],
   onHead: true,
+  splitCommitBlocked: null,
   worktrees: { removable: true, stale: true },
   conflicts: 1,
   prReason: undefined,
@@ -102,6 +103,7 @@ describe("app commands", () => {
       ["flow-hotfix", "Git-Flow: Start Hotfix…"],
       ["flow-finish", "Git-Flow: Finish This Branch…"],
       ["split-off", "Split Off Files…"],
+      ["split-commit", "Split Commit…"],
       ["rollback", "Roll Back Tree To This Commit"],
       ["close", "Close Repository"],
       ["refresh", "Refresh"],
@@ -190,11 +192,16 @@ describe("app commands", () => {
     expect(reason({ ...OPEN, commitOid: null }, "split-off")).toBe("Select a commit first");
     expect(reason({ ...OPEN, protectedBy: ["main", "dev"] }, "split-off")).toBe("Already on main, dev");
     expect(reason(OPEN, "split-off")).toBeUndefined();
+    expect(reason({ ...OPEN, splitCommitBlocked: "Already on main" }, "split-commit")).toBe("Already on main");
+    expect(reason(OPEN, "split-commit")).toBeUndefined();
   });
 
   it("rewrites history only at a commit of the checked-out branch", () => {
     const elsewhere = { ...OPEN, onHead: false };
     expect(reason(elsewhere, "split-off")).toBe("Not on the current branch");
+    expect(reason({ ...elsewhere, splitCommitBlocked: "Not on the first-parent history" }, "split-commit")).toBe(
+      "Not on the first-parent history",
+    );
     expect(reason(elsewhere, "rebase-i")).toBe("Not on the current branch");
   });
 

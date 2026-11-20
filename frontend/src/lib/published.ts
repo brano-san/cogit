@@ -1,3 +1,5 @@
+import { shortOid } from "./format";
+
 /** Long enough for git's own walk on a repository without a commit-graph. */
 export const PUBLISHED_WAIT_MS = 200;
 
@@ -18,4 +20,14 @@ export function publishedOrAssume(check: Promise<boolean>, waitMs = PUBLISHED_WA
       },
     );
   });
+}
+export function publishedRewriteWarning(oid: string, action: string) {
+  return {
+    title: `${action} a Pushed Commit`,
+    message:
+      `${shortOid(oid)} is already on a remote branch. ${action} rewrites it and every commit ` +
+      "after it, so the branch will need a force-push and everyone who pulled it will have to reset.",
+    confirm: action,
+    warning: true,
+  };
 }

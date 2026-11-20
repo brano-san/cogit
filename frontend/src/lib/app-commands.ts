@@ -59,6 +59,7 @@ export type AppCommandId =
   | "flow-init"
   | "flow-finish"
   | "split-off"
+  | "split-commit"
   | "rollback"
   | "close"
   | "refresh"
@@ -119,6 +120,7 @@ export interface AppCommandFacts {
   protectedBy: readonly string[];
   /** The selected commit is on the checked-out branch; unknown counts as yes, the engine refuses. */
   onHead: boolean;
+  splitCommitBlocked: string | null;
   worktrees: { removable: boolean; stale: boolean };
   conflicts: number;
   prReason: string | undefined;
@@ -227,6 +229,13 @@ export function appCommands(facts: AppCommandFacts, run: AppCommandActions): Pal
         notOnHead ??
         (facts.protectedBy.length > 0 ? `Already on ${facts.protectedBy.join(", ")}` : undefined),
       run: run["split-off"],
+    },
+    {
+      id: "split-commit",
+      title: "Split Commit…",
+      synonyms: ["split by hunks", "surgery"],
+      unavailable: noCommit ?? facts.splitCommitBlocked ?? undefined,
+      run: run["split-commit"],
     },
     {
       id: "rollback",
