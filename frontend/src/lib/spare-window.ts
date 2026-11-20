@@ -1,4 +1,4 @@
-export const CHILD_WINDOWS = ["blame", "commit", "compare", "editor", "errors", "investigate", "solver"] as const;
+export const CHILD_WINDOWS = ["blame", "commit", "compare", "editor", "errors", "investigate", "review", "solver"] as const;
 
 export type ChildWindow = (typeof CHILD_WINDOWS)[number];
 

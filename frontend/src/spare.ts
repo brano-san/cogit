@@ -5,6 +5,7 @@ import CompareWindow from "./CompareWindow.svelte";
 import EditorWindow from "./EditorWindow.svelte";
 import ErrorsWindow from "./ErrorsWindow.svelte";
 import InvestigateWindow from "./InvestigateWindow.svelte";
+import ReviewWindow from "./ReviewWindow.svelte";
 import SolverWindow from "./SolverWindow.svelte";
 import "./boot";
 import { commands } from "$lib/ipc/bindings";
@@ -20,6 +21,7 @@ const WINDOWS: Record<ChildWindow, Component> = {
   editor: EditorWindow,
   errors: ErrorsWindow,
   investigate: InvestigateWindow,
+  review: ReviewWindow,
   solver: SolverWindow,
 };
 

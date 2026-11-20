@@ -109,6 +109,7 @@ export default defineConfig({
         solver: resolve(fileURLToPath(new URL(".", import.meta.url)), "solver.html"),
         editor: resolve(fileURLToPath(new URL(".", import.meta.url)), "editor.html"),
         investigate: resolve(fileURLToPath(new URL(".", import.meta.url)), "investigate.html"),
+        review: resolve(fileURLToPath(new URL(".", import.meta.url)), "review.html"),
         blame: resolve(fileURLToPath(new URL(".", import.meta.url)), "blame.html"),
         commit: resolve(fileURLToPath(new URL(".", import.meta.url)), "commit.html"),
         errors: resolve(fileURLToPath(new URL(".", import.meta.url)), "errors.html"),
