@@ -57,3 +57,42 @@ test('nothing is stale when the signature and latest.json are rebuilt, or the re
 test('an installer without a signature has no entry', () => {
   assert.equal(buildManifest(dist({ 'Cogit_1.2.3_x64.msi': '' }), '1.2.3', BASE), null);
 });
+
+test('darwin-aarch64 downloads the signed app archive', () => {
+  const archive = 'Cogit_1.2.3_aarch64.app.tar.gz';
+  const d = dist({ [archive]: '', [archive + '.sig']: 'sig-mac\n', 'Cogit_1.2.3_aarch64_notarized.dmg': '' });
+  assert.deepEqual(buildManifest(d, '1.2.3', BASE)?.platforms, {
+    'darwin-aarch64': { signature: 'sig-mac', url: BASE + '/' + archive },
+  });
+});
+
+test('an updater signature alone cannot enable an unsigned Mac release', () => {
+  const archive = 'Cogit_1.2.3_aarch64.app.tar.gz';
+  const d = dist({ [archive]: '', [archive + '.sig']: 'sig-mac', 'Cogit_1.2.3_aarch64.dmg': '' });
+  assert.equal(buildManifest(d, '1.2.3', BASE), null);
+});
+
+test('unsigned or wrong-architecture archives and signed disk images cannot update the app', () => {
+  const d = dist({
+    'Cogit_1.2.3_aarch64.app.tar.gz': '', 'Cogit_1.2.3_aarch64.app.tar.gz.sig': ' \n',
+    'Cogit_1.2.3_x64.app.tar.gz': '', 'Cogit_1.2.3_x64.app.tar.gz.sig': 'sig-intel',
+    'Cogit_1.2.3_aarch64.dmg': '', 'Cogit_1.2.3_aarch64.dmg.sig': 'sig-dmg',
+  });
+  assert.equal(buildManifest(d, '1.2.3', BASE), null);
+});
+
+test('a rerun cannot drop the signed Mac archive while rebuilding latest.json for Windows', () => {
+  const archive = 'Cogit_1.2.3_aarch64.app.tar.gz';
+  const d = ['Cogit_1.2.3_aarch64.dmg', 'latest.json'];
+  assert.deepEqual(staleUpdaterFiles([...d, archive, archive + '.sig'], d), [archive]);
+});
+
+test('a rerun cannot leave the previous notarized disk image outside the new checksums', () => {
+  const signed = 'Cogit_1.2.3_aarch64_notarized.dmg';
+  assert.deepEqual(staleUpdaterFiles([signed], ['Cogit_1.2.3_aarch64.dmg']), [signed]);
+});
+
+test('a rerun whose experimental Mac build failed keeps the earlier Mac files', () => {
+  const existing = ['Cogit_1.2.3_aarch64.dmg', 'Cogit_1.2.3_aarch64.app.tar.gz', 'Cogit_1.2.3_x64-setup.exe'];
+  assert.deepEqual(staleUpdaterFiles(existing, ['Cogit_1.2.3_x64-setup.exe']), []);
+});

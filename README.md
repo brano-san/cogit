@@ -31,7 +31,7 @@
 |---|---|---|
 | Windows 10 / 11 (x64) | installer (`.msi`, `-setup.exe`) and portable `.zip` | Microsoft Edge WebView2 Runtime (preinstalled on Windows 11; the installers fetch it if missing) |
 | Ubuntu 22.04+ / Debian 12+ (x86_64) | `.deb` and portable `.AppImage` | `libwebkit2gtk-4.1`, GTK 3, glibc 2.35+ |
-| macOS (Apple Silicon) | experimental `.dmg`, unsigned | Gatekeeper asks for a manual open |
+| macOS (Apple Silicon) | experimental `.dmg` | See the macOS installation instructions below |
 
 Every platform also needs the system `git` (2.45 or newer): reading history works without
 it, but every write (commit, checkout, merge, push) runs `git`. Cogit explains how to point
@@ -65,7 +65,7 @@ already handles hooks, credentials and merge strategies correctly.
 ## Building
 
 Requires Rust 1.99+, Node 22.12+, Git 2.45+, and a C++ toolchain
-(MSVC on Windows; `scripts/wsl/setup-linux.sh` installs everything on Ubuntu 22.04+).
+(MSVC on Windows, Xcode Command Line Tools on macOS; `scripts/wsl/setup-linux.sh` installs everything on Ubuntu 22.04+).
 
 ```bash
 npm install
@@ -79,6 +79,22 @@ Working on the Rust side alone is much faster:
 cargo check -p git_engine
 cargo test --workspace
 ```
+
+## macOS installation
+
+Download the Apple Silicon disk image from the release, open it, and drag Cogit into
+Applications. Eject the disk image before launching the installed copy.
+
+- `Cogit_<version>_aarch64_notarized.dmg` carries a Developer ID signature and an Apple
+  notarization ticket. If the release also includes `Cogit_<version>_aarch64.app.tar.gz`
+  and its `.sig`, this build supports **Cogit → Check for Updates…**.
+- `Cogit_<version>_aarch64.dmg` is the unsigned experimental build. Gatekeeper may ask
+  you to allow it in **System Settings → Privacy & Security → Open Anyway** after the
+  first launch attempt. To update, replace Cogit in Applications with a new download.
+
+To open a repository from Terminal, choose **Cogit → Preferences… → Tools & Integrations →
+CLI & Terminal → Install Command Line Tool**. Approve the macOS prompt, then run
+`cogit .` from the repository. The command links to the installed copy in Applications.
 
 ## Linux / WSL
 

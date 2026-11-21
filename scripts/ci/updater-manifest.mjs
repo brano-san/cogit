@@ -2,7 +2,7 @@
 // Usage: node scripts/ci/updater-manifest.mjs <dist> <version> <base-url>   (writes <dist>/latest.json)
 //
 // The updater looks for "{os}-{arch}-{installer}" first and falls back to the bare "{os}-{arch}",
-// which would send an MSI copy to the NSIS installer; so only per-installer keys are written.
+// which would send an MSI copy to the NSIS installer; so Windows uses per-installer keys.
 // An entry needs its installer's updater signature. Release notes stay empty: they are written
 // by hand in the release (doc/12-risks.md).
 import fs from 'node:fs';
@@ -14,6 +14,7 @@ const INSTALLERS = [
   ['windows-x86_64-nsis', '-setup.exe'],
   ['windows-x86_64-msi', '.msi'],
   ['linux-x86_64-deb', '.deb'],
+  ['darwin-aarch64', '_aarch64.app.tar.gz'],
 ];
 
 /** The manifest for `dist`, or null when no installer there has a signature. */
@@ -23,7 +24,9 @@ export function buildManifest(dist, version, base, pubDate = new Date().toISOStr
   for (const [key, suffix] of INSTALLERS) {
     const file = files.find((f) => f.endsWith(suffix) && files.includes(`${f}.sig`));
     if (!file) continue;
+    if (key === 'darwin-aarch64' && !files.includes(file.replace(/\.app\.tar\.gz$/, '_notarized.dmg'))) continue;
     const signature = fs.readFileSync(path.join(dist, `${file}.sig`), 'utf8').trim();
+    if (!signature) continue;
     platforms[key] = { signature, url: `${base}/${file}` };
   }
   if (!Object.keys(platforms).length) return null;
@@ -37,6 +40,9 @@ export function buildManifest(dist, version, base, pubDate = new Date().toISOStr
  */
 export function staleUpdaterFiles(existing, dist) {
   const stale = existing.filter((name) => name.endsWith('.sig') && dist.includes(name.slice(0, -4)) && !dist.includes(name));
+  if (dist.some((name) => name.endsWith('.dmg'))) {
+    stale.push(...existing.filter((name) => (name.endsWith('.app.tar.gz') || name.endsWith('.dmg')) && !dist.includes(name)));
+  }
   if (existing.includes('latest.json') && !dist.includes('latest.json')) stale.push('latest.json');
   return stale;
 }
@@ -46,7 +52,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url) && process.argv[2] === 's
   const existing = fs.readFileSync(0, 'utf8').split('\n').map((l) => l.trim()).filter(Boolean);
   const stale = staleUpdaterFiles(existing, fs.readdirSync(process.argv[3]));
   if (stale.length) {
-    console.error(`::error::The release has ${stale.join(', ')}, which this run would leave stale. Restore TAURI_UPDATER_KEY and rerun.`);
+    console.error(`::error::The release has ${stale.join(', ')}, which this run would leave stale. Restore the signed build artifacts and rerun.`);
     process.exit(1);
   }
 } else if (process.argv[1] === fileURLToPath(import.meta.url)) {

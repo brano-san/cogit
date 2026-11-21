@@ -106,7 +106,7 @@ jobs:
             os: ubuntu-22.04   # oldest supported: a build links to the glibc of its runner (24.04 = 2.39 breaks 22.04)
             arch: amd64
             experimental: false
-          # Apple Silicon only, unsigned and not notarized: Gatekeeper asks for a manual open.
+          # Apple Silicon only; Gatekeeper requires a manual open for the unsigned fallback.
           - name: macos-arm64
             os: macos-latest
             arch: aarch64
@@ -121,8 +121,8 @@ jobs:
       # Optional secrets: with them empty the build is unsigned. Only whether they exist is here;
       # the values go to the steps that sign, so npm scripts and build.rs never see them.
       HAS_WINDOWS_CERT: ${{ secrets.WINDOWS_CERT_BASE64 != '' }}
-      # macOS builds no updater artifacts, so it gets no key.
-      HAS_UPDATER_KEY: ${{ secrets.TAURI_UPDATER_KEY != '' && matrix.name != 'macos-arm64' }}
+      HAS_APPLE_SIGNING: ${{ matrix.name == 'macos-arm64' && secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.APPLE_SIGNING_IDENTITY != '' && secrets.APPLE_ID != '' && secrets.APPLE_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
+      HAS_UPDATER_KEY: ${{ secrets.TAURI_UPDATER_KEY != '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -186,6 +186,13 @@ jobs:
           updater=false
           [ "$HAS_UPDATER_KEY" = true ] && updater=true
           [ "$updater" = true ] || echo "::notice::No TAURI_UPDATER_KEY: updater signatures are skipped"
+          if [ "$RUNNER_OS" = macOS ]; then
+            if [ "$HAS_APPLE_SIGNING" != true ]; then
+              echo "::notice::Apple signing credentials incomplete: building an unsigned disk image"
+              updater=false
+            fi
+            echo "COGIT_MACOS_UPDATER=$updater" >> "$GITHUB_ENV"
+          fi
           [ -n "${CERT_THUMBPRINT:-}" ] || [ "$RUNNER_OS" != Windows ] || echo "::notice::No WINDOWS_CERT_BASE64: Windows files are unsigned"
           # Full config for the installers/packages; the plain one for the portable exe (no bundler runs).
           jq -n --argjson upd "$updater" --arg thumb "${CERT_THUMBPRINT:-}" '
@@ -235,6 +242,7 @@ jobs:
           Compress-Archive -Path 'portable\Cogit' -DestinationPath "dist\Cogit_$($env:VERSION)_$($env:ARCH)_portable.zip" -Force
 
       - name: Build installers and packages
+        if: runner.os != 'macOS'
         shell: bash
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ matrix.name != 'macos-arm64' && secrets.TAURI_UPDATER_KEY || '' }}
@@ -242,9 +250,6 @@ jobs:
         run: |
           if [ "$RUNNER_OS" = Windows ]; then
             npm run tauri build -- --ci --bundles "$BUNDLES" --config "$RELEASE_CONF"
-          elif [ "$RUNNER_OS" = macOS ]; then
-            # No in-app updates on macOS yet: the plain config has no updater artifacts.
-            npm run tauri build -- --ci --bundles dmg --config "$PLAIN_CONF"
           else
             npm run tauri build -- --ci --bundles deb --config "$RELEASE_CONF"
             # The bundler signs no deb (only app, appimage, msi, nsis), but the updater installs it:
@@ -255,6 +260,49 @@ jobs:
               done
             fi
           fi
+
+      - name: Build the macOS executable
+        if: runner.os == 'macOS'
+        shell: bash
+        run: npm run tauri build -- --ci --no-bundle --config "$RELEASE_CONF"
+
+      - name: Bundle the unsigned disk image
+        if: runner.os == 'macOS' && env.HAS_APPLE_SIGNING != 'true'
+        shell: bash
+        run: npm run tauri bundle -- --ci --bundles dmg --config "$PLAIN_CONF"
+
+      - name: Sign and notarize the Mac app and sign the disk image
+        if: runner.os == 'macOS' && env.HAS_APPLE_SIGNING == 'true'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_UPDATER_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_UPDATER_KEY_PASSWORD }}
+        run: node node_modules/@tauri-apps/cli/tauri.js bundle --ci --bundles app,dmg --config "$RELEASE_CONF"
+
+      - name: Notarize and staple the disk image
+        if: runner.os == 'macOS' && env.HAS_APPLE_SIGNING == 'true'
+        shell: bash
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          app=target/release/bundle/macos/Cogit.app
+          dmg="target/release/bundle/dmg/Cogit_${VERSION}_${ARCH}.dmg"
+          codesign --verify --deep --strict "$app"
+          xcrun stapler validate "$app"
+          spctl --assess --type execute "$app"
+          codesign --verify --strict "$dmg"
+          xcrun notarytool submit "$dmg" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait --output-format json | jq -e '.status == "Accepted"'
+          xcrun stapler staple "$dmg"
+          xcrun stapler validate "$dmg"
+          spctl --assess --type open --context context:primary-signature "$dmg"
 
       # The AppImage is the portable Linux build, so it is a second build of the same code with
       # the `portable` feature (data in Cogit-data next to the .AppImage; no in-app updater, hence
@@ -279,7 +327,16 @@ jobs:
             collect msi msi "Cogit_${VERSION}_${ARCH}.msi"
             collect nsis exe "Cogit_${VERSION}_${ARCH}-setup.exe"
           elif [ "$RUNNER_OS" = macOS ]; then
-            collect dmg dmg "Cogit_${VERSION}_${ARCH}.dmg"
+            dmg="Cogit_${VERSION}_${ARCH}"
+            dest="$dmg.dmg"
+            if [ "$HAS_APPLE_SIGNING" = true ]; then dest="${dmg}_notarized.dmg"; fi
+            cp "target/release/bundle/dmg/$dmg.dmg" "dist/$dest"
+            if [ "$COGIT_MACOS_UPDATER" = true ]; then
+              archive=target/release/bundle/macos/Cogit.app.tar.gz
+              test -s "$archive" && test -s "$archive.sig" || exit 1
+              cp "$archive" "dist/Cogit_${VERSION}_${ARCH}.app.tar.gz"
+              cp "$archive.sig" "dist/Cogit_${VERSION}_${ARCH}.app.tar.gz.sig"
+            fi
           else
             collect deb deb "Cogit_${VERSION}_${ARCH}.deb"
             # The AppImage is the portable Linux build (feature `portable`): one file, no installation.
