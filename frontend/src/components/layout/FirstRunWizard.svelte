@@ -5,6 +5,7 @@
   import { FIRST_RUN_STEPS, firstRunChoices, type FirstRunChoices } from "$lib/first-run";
   import { PERSPECTIVE_CHOICES } from "$lib/perspectives";
   import { THEMES, type Settings, type Theme } from "$lib/settings";
+  import { WINDOW_LAYOUT_CHOICES, type WindowLayout } from "$lib/window-layout";
   import { themeStore } from "$stores/theme.svelte";
 
   interface Props {
@@ -24,6 +25,12 @@
   const PERSPECTIVE_HINTS: Record<string, string> = {
     main: "Every panel: repositories, branches, the graph, files, the diff and the commit message.",
     review: "Repositories, Commit Message and Worktrees hidden: the graph and the diff get the room.",
+  };
+
+  const LAYOUT_HINTS: Record<WindowLayout, string> = {
+    standard: "History, working files, and the diff.",
+    log: "Commit history, changed files, and the diff.",
+    workingTree: "Working files, the diff, and your commit message.",
   };
 
   function pickTheme(theme: Theme) {
@@ -81,9 +88,9 @@
           label="Check for updates when Cogit starts"
         />
       </div>
-    {:else}
+    {:else if step === "perspective"}
       <h2>Choose a perspective</h2>
-      <p class="lead">The panels Cogit starts with. View ▸ Perspective: Main and Perspective: Review switch at any time.</p>
+      <p class="lead">Choose the panels for the Standard layout. You can change this later in View.</p>
       <div class="options" role="radiogroup" aria-label="Perspective">
         {#each PERSPECTIVE_CHOICES as [id, title] (id)}
           <div class="choice">
@@ -97,8 +104,32 @@
           </div>
         {/each}
       </div>
+    {:else}
+      <h2>Choose a layout</h2>
+      <p class="lead">You can switch layouts later in Window ▸ Layout.</p>
+      <div class="options" role="radiogroup" aria-label="Window layout">
+        {#each WINDOW_LAYOUT_CHOICES as [id, title] (id)}
+          <Radio
+            name="first-run-layout"
+            checked={choices.activeLayout === id}
+            onchange={() => (choices.activeLayout = id)}
+          >
+            <span class="layout-choice">
+              <span>{title}</span>
+              <span class="description">{LAYOUT_HINTS[id]}</span>
+            </span>
+            <span class="preview" data-layout={id} aria-hidden="true">
+              <span class="navigation"></span>
+              {#if id !== "workingTree"}<span class="history"></span>{/if}
+              <span class="files"></span>
+              {#if id !== "log"}<span class="message"></span>{/if}
+              <span class="diff"></span>
+            </span>
+          </Radio>
+        {/each}
+      </div>
     {/if}
-    <p class="later">Everything here can be changed later in Preferences.</p>
+    {#if step !== "layout"}<p class="later">Everything here can be changed later in Preferences.</p>{/if}
   </div>
 
   {#snippet footer()}
@@ -151,9 +182,45 @@
 
   .hint {
     padding-left: calc(var(--sp-6) + var(--sp-2));
+  }
+
+  .hint,
+  .description {
     color: var(--text-secondary);
     font-size: var(--fs-header);
   }
+
+  .layout-choice {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: var(--sp-1);
+  }
+
+  .preview {
+    display: grid;
+    flex: 0 0 calc(2 * var(--sp-8));
+    aspect-ratio: 2;
+    grid-template: "nav graph files" 2fr "nav graph msg" 1fr "nav diff diff" 2fr / 1fr 2fr 1fr;
+    gap: 1px;
+    padding: 1px;
+    background: var(--field-border);
+  }
+
+  .preview[data-layout="log"] {
+    grid-template: "nav graph files" 2fr "nav diff diff" 1fr / 1fr 3fr 1fr;
+  }
+
+  .preview[data-layout="workingTree"] {
+    grid-template: "nav files diff" 2fr "nav msg diff" 1fr / 1fr 2fr 2fr;
+  }
+
+  .preview > span { background: var(--surface-panel); }
+  .preview .navigation { grid-area: nav; }
+  .preview .history { grid-area: graph; background: var(--surface-editor); }
+  .preview .files { grid-area: files; }
+  .preview .message { grid-area: msg; }
+  .preview .diff { grid-area: diff; background: var(--surface-editor); }
 
   .count {
     color: var(--text-secondary);
