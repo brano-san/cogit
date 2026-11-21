@@ -104,7 +104,7 @@ fn embed_agent(out_dir: &Path) {
         && std::env::var_os("COGIT_AGENT_BIN").is_none()
     {
         panic!(
-            "COGIT_REQUIRE_AGENT is set and COGIT_AGENT_BIN is not: this build would open no repository in WSL"
+            "COGIT_REQUIRE_AGENT is set and COGIT_AGENT_BIN is not: this build cannot open repositories through an agent"
         );
     }
     let embedded = out_dir.join("cogit-agent");
@@ -117,6 +117,9 @@ fn embed_agent(out_dir: &Path) {
         }
         None => Vec::new(),
     };
+    if bytes.is_empty() && std::env::var_os("COGIT_REQUIRE_AGENT").is_some() {
+        panic!("The release build requires a nonempty Cogit agent binary");
+    }
     if std::fs::read(&embedded).ok().as_deref() != Some(bytes.as_slice()) {
         std::fs::write(&embedded, &bytes)
             .unwrap_or_else(|err| panic!("{}: {err}", embedded.display()));

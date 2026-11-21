@@ -135,17 +135,15 @@ jobs:
         run: node scripts/ci/check-version.mjs "$VERSION"
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
-        if: runner.os == 'Windows'
         with:
           name: cogit-agent-linux-x64
-          path: ${{ runner.temp }}/agent
+          path: agent-resource
 
-      - name: Embed the WSL agent (Windows)
-        if: runner.os == 'Windows'
+      - name: Embed the Linux x86_64 agent
         shell: bash
         run: |
           {
-            echo "COGIT_AGENT_BIN=$(cygpath -m "$RUNNER_TEMP/agent/cogit-agent")"
+            echo "COGIT_AGENT_BIN=agent-resource/cogit-agent"
             echo "COGIT_REQUIRE_AGENT=1"
           } >> "$GITHUB_ENV"
 
