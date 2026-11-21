@@ -241,7 +241,7 @@ fn a_rebase_continue_that_stops_on_a_modify_delete_is_marked() {
     f.commit_file(12, "file0.txt", "changed\n").unwrap();
     f.git(&[
         "-c",
-        "sequence.editor=sed -i 1s/^pick/edit/",
+        "sequence.editor=sed -i.bak 1s/^pick/edit/",
         "rebase",
         "-i",
         "theirs",
