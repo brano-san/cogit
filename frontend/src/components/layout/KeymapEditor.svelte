@@ -1,6 +1,6 @@
 <script lang="ts">
   import Icon from "$components/common/Icon.svelte";
-  import { claimable, conflicts, effective, prettyKeys, recordKeys, type Keymap } from "$lib/keymap";
+  import { claimable, conflicts, effective, fixedMacCommand, prettyKeys, recordKeys, type Keymap } from "$lib/keymap";
   import { ON_MAC } from "$lib/platform";
   import { captureKeys, type KeyBinding } from "$lib/ipc";
 
@@ -68,6 +68,7 @@
   }
 
   function title(id: string): string {
+    if (onMac && fixedMacCommand(id)) return "Assigned by the macOS menu";
     const clash = clashes[id];
     if (clash) return `Also bound to ${clash.join(", ")}`;
     if (dead(keys[id] ?? "")) return "Cogit cannot take this key; press another";
@@ -101,6 +102,7 @@
         <button
           type="button"
           class="keys"
+          disabled={onMac && fixedMacCommand(binding.id)}
           class:capturing={capturing === binding.id}
           onclick={() => startOrStop(binding.id)}
           onkeydown={(event) => capturing === binding.id && capture(event, binding.id)}
@@ -109,14 +111,14 @@
         >
           {capturing === binding.id ? "Press keys…" : prettyKeys(keys[binding.id] ?? "", onMac)}
         </button>
-        <button type="button" class="act" title="Remove the key" onclick={() => clear(binding.id)}
+        <button type="button" class="act" title="Remove the key" disabled={onMac && fixedMacCommand(binding.id)} onclick={() => clear(binding.id)}
           ><Icon name="close" /></button
         >
         <button
           type="button"
           class="act"
           title="Back to the shipped key"
-          disabled={overrides[binding.id] === undefined}
+          disabled={overrides[binding.id] === undefined || (onMac && fixedMacCommand(binding.id))}
           onclick={() => restore(binding.id)}>↺</button
         >
       </div>

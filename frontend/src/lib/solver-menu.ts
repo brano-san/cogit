@@ -1,3 +1,4 @@
+import { ON_MAC } from "./platform";
 import type { ContextItem } from "./ipc";
 import { SEPARATOR, item, tidy } from "./context-menu";
 import { LAYOUTS, type SolverLayout } from "./solver-geometry";
@@ -77,7 +78,7 @@ export function solverBarMenu(label: string, menu: BarMenu, state: SolverBarStat
     case "Edit":
       return tidy([
         row("solver-undo", "Undo", state.ready, "CmdOrCtrl+Z"),
-        row("solver-redo", "Redo", state.ready, "CmdOrCtrl+Y"),
+        row("solver-redo", "Redo", state.ready, ON_MAC ? "CmdOrCtrl+Shift+Z" : "CmdOrCtrl+Y"),
         SEPARATOR,
         ...solverMenu(label, state).filter((entry) => entry.id.includes("take")),
       ]);

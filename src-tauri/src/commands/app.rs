@@ -3,6 +3,8 @@
 use super::{blocking, blocking_or_default};
 use git_engine::GitError;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
+use tauri::utils::config::BundleType;
 
 /// specta follows serde, so a DTO without `camelCase` reads `undefined` in the UI.
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -79,11 +81,7 @@ pub async fn app_info(
             log_path: log_path.display().to_string(),
             settings_path: settings_path.display().to_string(),
             portable_dir: portable::layout().map(|layout| layout.root().display().to_string()),
-            self_update: self_updates(
-                portable::layout().is_some(),
-                installed(),
-                std::env::consts::OS,
-            ),
+            self_update: self_updates(portable::layout().is_some()),
             legacy_note,
             displays,
         })
@@ -91,33 +89,64 @@ pub async fn app_info(
     .await
 }
 
-/// A portable copy swaps its folder by hand; the macOS build is unsigned and ships no updater
-/// artifacts (doc/RELEASING.md), so latest.json has no entry for it.
-pub(crate) fn self_updates(portable: bool, installed: bool, os: &str) -> bool {
-    !portable && installed && os != "macos"
+pub(crate) fn self_updates(portable: bool) -> bool {
+    let signed_app_exe = if option_env!("COGIT_MACOS_UPDATER") == Some("true") {
+        tauri::utils::platform::current_exe()
+            .inspect_err(
+                |err| tracing::warn!(error = ?err, context = "cannot locate the app for updates"),
+            )
+            .ok()
+    } else {
+        None
+    };
+    self_updates_for_build(
+        portable,
+        tauri::utils::platform::bundle_type(),
+        signed_app_exe.as_deref(),
+    )
 }
 
-pub(crate) fn installed() -> bool {
-    tauri::utils::platform::bundle_type().is_some()
+fn self_updates_for_build(
+    portable: bool,
+    bundle: Option<BundleType>,
+    signed_app_exe: Option<&Path>,
+) -> bool {
+    !portable
+        && match bundle {
+            Some(BundleType::App) => signed_app_exe.and_then(Path::parent).is_some_and(|dir| {
+                dir.ends_with("Contents/MacOS")
+                    && dir
+                        .ancestors()
+                        .nth(2)
+                        .and_then(Path::extension)
+                        .is_some_and(|ext| ext == "app")
+            }),
+            Some(_) => true,
+            None => false,
+        }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::self_updates;
+    use super::{BundleType, Path, self_updates_for_build};
 
     #[test]
-    fn only_an_installed_windows_or_linux_build_updates_itself() {
-        assert!(self_updates(false, true, "windows"));
-        assert!(self_updates(false, true, "linux"));
-        assert!(!self_updates(true, true, "windows"));
-        assert!(!self_updates(true, true, "linux"));
-        assert!(!self_updates(false, true, "macos"));
+    fn mac_requires_a_signed_install_with_an_updater_archive() {
+        let can_update =
+            |portable, exe| self_updates_for_build(portable, Some(BundleType::App), exe);
+        let app = Some(Path::new("/Applications/Cogit.app/Contents/MacOS/cogit"));
+        assert!(can_update(false, app));
+        assert!(!can_update(false, None));
+        assert!(!can_update(false, Some(Path::new("/tmp/cogit"))));
+        assert!(!can_update(true, app));
     }
 
     #[test]
-    fn a_build_no_installer_packaged_does_not_update_itself() {
-        assert!(!self_updates(false, false, "windows"));
-        assert!(!self_updates(false, false, "linux"));
+    fn other_platforms_update_installed_nonportable_builds() {
+        assert!(self_updates_for_build(false, Some(BundleType::Deb), None));
+        assert!(self_updates_for_build(false, Some(BundleType::Msi), None));
+        assert!(!self_updates_for_build(true, Some(BundleType::Deb), None));
+        assert!(!self_updates_for_build(false, None, None));
     }
 }
 

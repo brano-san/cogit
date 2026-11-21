@@ -1,7 +1,8 @@
 <script lang="ts">
+  import { prettyKeys } from "$lib/keymap";
   import Icon from "$components/common/Icon.svelte";
   import { modals } from "$lib/modal-stack";
-  import { ON_MAC, primary } from "$lib/platform";
+  import { foreign, ON_MAC, primary } from "$lib/platform";
   import VirtualList from "$components/common/VirtualList.svelte";
   import SidewaysScrollbar from "$components/common/SidewaysScrollbar.svelte";
   import ScrollMarks from "$components/common/ScrollMarks.svelte";
@@ -145,7 +146,7 @@
 
   /** In the capture phase, ahead of the main window's panel walk, as the diff's F6 is. */
   function onpanelkey(event: KeyboardEvent) {
-    if (!active || modals.any) return;
+    if (!active || modals.any || foreign(event, ON_MAC)) return;
     const press = { key: event.key, code: event.code, ctrl: primary(event, ON_MAC), shift: event.shiftKey, alt: event.altKey };
     if (diffKey(press, { active, findShowing: false, prev: false, next: false })?.kind === "wrap") {
       event.preventDefault();
@@ -172,7 +173,7 @@
     {/if}
     <span class="grow"></span>
     <span class="nav">
-      <button type="button" class="btn sm" onclick={() => step(-1)} disabled={conflicts.length === 0} title="Previous conflict (F6 / Shift+F6)"><Icon name="prevConflict" /></button>
+      <button type="button" class="btn sm" onclick={() => step(-1)} disabled={conflicts.length === 0} title="Previous conflict (F6 / {prettyKeys('Shift+F6')})"><Icon name="prevConflict" /></button>
       <span class="tabular">{current}/{conflicts.length}</span>
       <button type="button" class="btn sm" onclick={() => step(1)} disabled={conflicts.length === 0} title="Next conflict"><Icon name="nextConflict" /></button>
     </span>

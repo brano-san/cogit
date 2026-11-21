@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { prettyKeys } from "$lib/keymap";
   import { deeperHint } from "$lib/investigate/origin";
   import type { InvestigateSession } from "$lib/investigate/session.svelte";
 
@@ -24,7 +25,7 @@
   type="button"
   class="bar {session.search}"
   disabled={!ready}
-  title="{STATE_LABEL[session.search]}. {deeperHint(session.candidate)} (Ctrl+D)"
+  title="{STATE_LABEL[session.search]}. {deeperHint(session.candidate)} ({prettyKeys('CmdOrCtrl+D')})"
   aria-label="Blame (go deeper)"
   onclick={() => void session.goDeeper()}
 >

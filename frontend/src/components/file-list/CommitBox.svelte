@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { prettyKeys } from "$lib/keymap";
   import { onDestroy, tick, untrack } from "svelte";
   import Checkbox from "$components/common/Checkbox.svelte";
   import Button from "$components/common/Button.svelte";
@@ -14,7 +15,7 @@
   import { afterCommit, amends, commitBlocker, draftToSave, initialMessage, messageAfterCommit } from "$lib/commit-draft";
   import { messageSeed } from "$lib/commit-prefix";
   import { SUBJECT_HARD, SUBJECT_SOFT, subjectOf, subjectState } from "$lib/commit-message";
-  import { ON_MAC, primary } from "$lib/platform";
+  import { foreign, ON_MAC, primary } from "$lib/platform";
   import { spellField } from "$lib/spell-field.svelte";
 
   interface Props {
@@ -164,7 +165,7 @@
   );
 
   function onkeydown(event: KeyboardEvent) {
-    if (event.key === "Enter" && primary(event, ON_MAC)) {
+    if (event.key === "Enter" && primary(event, ON_MAC) && !foreign(event, ON_MAC) && !event.shiftKey && !event.altKey) {
       event.preventDefault();
       void submit();
     }
@@ -212,7 +213,7 @@
     bind:value={message}
     {onkeydown}
     rows="3"
-    placeholder="Commit message — Ctrl+Enter to commit"
+    placeholder="Commit message — {prettyKeys('CmdOrCtrl+Enter')} to commit"
     aria-label="Commit message"
     aria-busy={ai.streaming}
     readonly={ai.streaming}

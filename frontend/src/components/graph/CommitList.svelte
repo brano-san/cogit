@@ -334,7 +334,7 @@
 
   /** Past the cap the element would move `scale` times as far per notch; the wheel is ours. */
   function onwheel(event: WheelEvent) {
-    if (!scroller || scale === 1 || event.ctrlKey || event.shiftKey) return;
+    if (!scroller || scale === 1 || event.ctrlKey || event.shiftKey || event.metaKey) return;
     if (Math.abs(event.deltaY) < Math.abs(event.deltaX)) return;
     event.preventDefault();
     writeScroll(readScroll() + wheelStep(event.deltaY, event.deltaMode, rowHeight, viewportHeight));

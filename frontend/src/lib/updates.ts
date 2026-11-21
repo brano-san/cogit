@@ -36,7 +36,7 @@ export function describe(found: UpdateHandle | null): UpdateOutcome {
 export const PORTABLE_UPDATE_NOTE =
   "This is the portable build of Cogit and it never updates itself. Download the new version from the releases page and replace this one; your settings stay in the Cogit-data folder beside it.";
 
-/** A build without the updater plugin (macOS): nothing to check, only a place to download. */
+/** A build without the updater plugin: nothing to check, only a place to download. */
 export const NO_SELF_UPDATE_NOTE =
   "This build of Cogit does not update itself. Download the new version from the releases page and install it over this one.";
 

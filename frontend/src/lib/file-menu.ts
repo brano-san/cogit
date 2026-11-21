@@ -1,4 +1,5 @@
 import type { ContextItem } from "./ipc";
+import { revealLabel } from "./platform";
 import { SEPARATOR, item, offer, submenu, tidy } from "./context-menu";
 
 /** The Working Tree's two lists: unstaged changes are the working tree, staged the index. */
@@ -74,7 +75,7 @@ export function worktreeFileMenu(at: WorktreeFileTarget): ContextItem[] {
 
   return tidy([
     offer("file-open", "Open File", at.desktopBlock ?? single ?? (onDisk ? null : "not on disk")),
-    offer("file-reveal", `Reveal in ${at.fileManager}`, at.desktopBlock ?? single ?? (onDisk ? null : "not on disk")),
+    offer("file-reveal", revealLabel(at.fileManager), at.desktopBlock ?? single ?? (onDisk ? null : "not on disk")),
     offer("file-changes", "Show Changes", single),
     offer("file-edit", "Edit", single ?? at.editBlocked ?? (onDisk ? null : "not on disk")),
     offer("file-diff-tool", "Open in External Diff Tool", at.desktopBlock ?? single ?? diffToolBlocked(status)),
@@ -164,7 +165,7 @@ export function commitFileMenu(at: CommitFileTarget): ContextItem[] {
     ),
     offer(
       "file-reveal",
-      `Reveal in ${at.fileManager}`,
+      revealLabel(at.fileManager),
       at.desktopBlock ?? single ?? (at.onDisk ? null : "not in the working tree"),
       "CmdOrCtrl+Shift+E",
     ),

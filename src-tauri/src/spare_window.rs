@@ -52,6 +52,7 @@ fn build<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
         PAGE.to_owned(),
     )
     .build()?;
+    #[cfg(not(target_os = "macos"))]
     window.remove_menu()?;
     #[cfg(windows)]
     crate::webview2::harden(&window);
@@ -105,6 +106,13 @@ impl<R: tauri::Runtime> Spare<R> {
         window.set_title(title)?;
         window.set_theme(Some(crate::native_theme::current()))?;
         window.set_background_color(Some(crate::native_theme::background()))?;
+        #[cfg(target_os = "macos")]
+        app.state::<crate::menu::macos_window::WindowMenus<R>>()
+            .remember(
+                window.label(),
+                crate::menu::macos_window::child_menu(app, window.label(), menu)?,
+            );
+        #[cfg(not(target_os = "macos"))]
         if !menu.is_empty() {
             window.set_menu(crate::child_window::build_menu(app, window.label(), menu)?)?;
         }

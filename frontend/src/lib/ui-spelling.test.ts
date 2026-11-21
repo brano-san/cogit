@@ -102,12 +102,13 @@ function britishWords(text: string): string[] {
 }
 
 describe("spelling in the window", () => {
-  it("is American in every string the user reads", () => {
+  it("uses American spelling and platform-aware shortcuts in every string the user reads", () => {
     const found: string[] = [];
     for (const file of files(SRC)) {
       const source = readFileSync(file, "utf8");
       const texts = file.endsWith(".svelte") ? svelteTexts(source) : scriptTexts(source, file);
       for (const text of texts) {
+        if (/\bCtrl\+/i.test(text)) found.push(`Hard-coded Ctrl shortcut in ${relative(SRC, file)}: ${text.trim()}`);
         if (isKey(text)) continue;
         for (const word of britishWords(text)) {
           found.push(`${word} in ${relative(SRC, file)}: ${text.trim().slice(0, 70)}`);

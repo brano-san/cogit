@@ -7,7 +7,11 @@ export type Keymap = Record<string, string>;
 export function effective(bindings: readonly KeyBinding[], overrides: Keymap, onMac = ON_MAC): Keymap {
   const map: Keymap = {};
   for (const binding of bindings) {
-    const keys = overrides[binding.id] ?? binding.defaultAccelerator ?? "";
+    const override = overrides[binding.id];
+    const fallback = binding.defaultAccelerator ?? "";
+    const keys = onMac && (fixedMacCommand(binding.id) || (override && nativeMacShortcut(override)))
+      ? fallback
+      : override ?? fallback;
     map[binding.id] = onMac ? keys : keys.replace(/^Ctrl\+/, "CmdOrCtrl+");
   }
   return map;
@@ -117,6 +121,10 @@ const RESERVED: Record<string, string> = {
   "Alt+Shift+Tab": "is the system's",
 };
 
+function physicalTabControl(press: KeyPress, onMac: boolean): boolean {
+  return onMac && press.ctrlKey && !press.metaKey && ["Tab", "PageUp", "PageDown"].includes(press.code);
+}
+
 function keyAt(code: string): string | null {
   const place = /^(?:Key([A-Z])|Digit(\d)|(F\d{1,2}))$/.exec(code);
   if (place) return place[1] ?? place[2] ?? place[3] ?? null;
@@ -127,10 +135,10 @@ function keyAt(code: string): string | null {
     Ctrl+K with a Russian layout is still `CmdOrCtrl+K`. `null` for a key without a place. */
 export function pressedAccelerator(press: KeyPress, onMac: boolean): string | null {
   const key = keyAt(press.code);
-  if (key === null || press.getModifierState?.("AltGraph")) return null;
+  if (key === null || (!onMac && press.getModifierState?.("AltGraph"))) return null;
   const parts: string[] = [];
   if (foreign(press, onMac)) {
-    if (!onMac || press.metaKey) return null;
+    if (!physicalTabControl(press, onMac)) return null;
     parts.push("Ctrl");
   }
   if (primary(press, onMac)) parts.push("CmdOrCtrl");
@@ -145,12 +153,11 @@ export function recordKeys(press: KeyPress, onMac: boolean): Recorded | null {
   if (MODIFIER_KEYS.has(press.key)) return null;
 
   // AltGr arrives as Ctrl and Alt and types a character; the window lets it through.
-  const altGr = press.getModifierState?.("AltGraph") ?? false;
-  const tabKey = ["Tab", "PageUp", "PageDown"].includes(press.code);
-  const macControl = onMac && press.ctrlKey && !press.metaKey && tabKey;
+  const altGr = !onMac && press.getModifierState?.("AltGraph");
+  const macControl = physicalTabControl(press, onMac);
   const foreignHeld = foreign(press, onMac) && !macControl;
   const parts: string[] = [];
-  if (macControl && !altGr) parts.push("Ctrl");
+  if (macControl) parts.push("Ctrl");
   if (primary(press, onMac) && !altGr) parts.push("CmdOrCtrl");
   if (press.altKey && !altGr) parts.push("Alt");
   if (press.shiftKey) parts.push("Shift");
@@ -159,19 +166,63 @@ export function recordKeys(press: KeyPress, onMac: boolean): Recorded | null {
   const named = placed ?? SHOWN[press.key] ?? (press.key.length === 1 ? press.key.toUpperCase() : press.key);
   const keys = [...parts, named].join("+");
 
-  const extra = altGr ? "AltGr+" : foreignHeld ? (onMac ? "Ctrl+" : "Win+") : "";
+  const extra = altGr ? "AltGr+" : foreignHeld ? (onMac ? "⌃" : "Win+") : "";
   const shown = extra + prettyKeys(keys, onMac);
   if (altGr || foreignHeld || placed === null || !claimable(keys)) return { refused: `${shown} cannot be used here` };
   if (onMac && (keys === "CmdOrCtrl+Tab" || keys === "CmdOrCtrl+Shift+Tab")) {
     return { refused: `${shown} is the system's` };
   }
-  const reserved = RESERVED[keys];
+  const reserved = RESERVED[keys] ?? (onMac && nativeMacShortcut(keys) ? "is kept for the macOS menu" : undefined);
   return reserved ? { refused: `${shown} ${reserved}` } : { keys };
 }
 
-export function prettyKeys(keys: string, onMac: boolean): string {
+const MAC_MODIFIERS: Record<string, string> = { ctrl: "⌃", alt: "⌥", shift: "⇧", cmd: "⌘" };
+
+function partsOf(keys: string, onMac: boolean) {
+  const parts = keys.split("+").map((part) => part.trim());
+  const key = parts.pop() ?? "";
+  const modifiers = parts.map((part) => {
+    switch (part.toLowerCase()) {
+      case "cmdorctrl": case "commandorcontrol": return onMac ? "cmd" : "ctrl";
+      case "command": case "super": case "meta": return "cmd";
+      case "control": return "ctrl";
+      case "option": return "alt";
+      default: return part.toLowerCase();
+    }
+  });
+  return { key, modifiers };
+}
+
+/** `Shift+CmdOrCtrl+k` and `CmdOrCtrl+Shift+K` are one chord. */
+export function canonicalShortcut(keys: string, onMac: boolean): string {
+  const { key, modifiers } = partsOf(keys, onMac);
+  return [...new Set(modifiers.sort()), key.toLowerCase()].join("+");
+}
+
+const MAC_KEYS: Record<string, string> = {
+  left: "←", right: "→", up: "↑", down: "↓", enter: "↩", return: "↩", escape: "⎋", tab: "⇥",
+};
+
+export function prettyKeys(keys: string, onMac = ON_MAC): string {
   if (keys === "") return "—";
-  return keys.replace("CmdOrCtrl", onMac ? "Cmd" : "Ctrl");
+  if (!onMac) return keys.replace(/CmdOrCtrl|CommandOrControl/gi, "Ctrl");
+  const { key, modifiers } = partsOf(keys, true);
+  const glyphs = Object.entries(MAC_MODIFIERS).filter(([name]) => modifiers.includes(name)).map(([, glyph]) => glyph);
+  return glyphs.join("") + (MAC_KEYS[key.toLowerCase()] ?? key);
+}
+
+const MAC_NATIVE = new Set([
+  "cmd+tab", "cmd+shift+tab", "cmd+,", "cmd+comma", "cmd+q", "cmd+w", "cmd+m", "cmd+h", "alt+cmd+h",
+  "cmd+`", "cmd+shift+`", "cmd+backquote", "cmd+shift+backquote", "cmd+grave", "cmd+shift+grave",
+  "cmd+a", "cmd+z", "cmd+shift+z", "cmd+x", "cmd+c", "cmd+v",
+]);
+
+export function nativeMacShortcut(keys: string): boolean {
+  return MAC_NATIVE.has(canonicalShortcut(keys, true));
+}
+
+export function fixedMacCommand(id: string): boolean {
+  return id === "settings" || id === "exit" || id === "select-all";
 }
 
 /** The keys a command runs by, as its menu item shows them: the user's own from

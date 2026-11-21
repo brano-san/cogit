@@ -28,8 +28,8 @@
   import { uiMetricsStore } from "$stores/ui-metrics.svelte";
   import { isSetting, type Field } from "$lib/preferences";
   import { createGitChecker, describeCheck, type GitCheck } from "$lib/git-check";
-  import { ON_WINDOWS } from "$lib/platform";
-  import { fontFamilies, probeGit } from "$lib/ipc";
+  import { ON_MAC, ON_WINDOWS } from "$lib/platform";
+  import { fontFamilies, installCommandLineTool, probeGit } from "$lib/ipc";
   import { credentials } from "$stores/credentials.svelte";
   import { hosting } from "$stores/hosting.svelte";
   import { providerLabel, serverOf } from "$lib/hosting";
@@ -166,6 +166,22 @@
   const note = $derived(current?.note ?? (restartFields(active).length > 0 ? "* Requires restart" : ""));
 
   let gitCheck = $state.raw<GitCheck>({ state: "idle" });
+  let installingCli = $state(false);
+  let cliResult = $state("");
+
+  async function installCli() {
+    if (installingCli) return;
+    installingCli = true;
+    cliResult = "";
+    try {
+      await installCommandLineTool();
+      cliResult = "Installed at /usr/local/bin/cogit.";
+    } catch (error) {
+      cliResult = error instanceof Error ? error.message : String(error);
+    } finally {
+      installingCli = false;
+    }
+  }
   // svelte-ignore state_referenced_locally
   let gitInUse = value.gitPath;
   /** The checker drops overtaken answers, so an `ok` is about the path in the field now.
@@ -723,6 +739,12 @@
                   onchange={(next) => set("terminal", next)}
                 />
               </div>
+              {#if ON_MAC}
+                <div class="row">
+                  <button class="btn" type="button" disabled={installingCli} onclick={installCli}>Install Command Line Tool</button>
+                  <span class="verdict" role="status">{cliResult}</span>
+                </div>
+              {/if}
             {:else if field.key === "logLevel"}
               <div class="row">
                 {@render caption(field)}

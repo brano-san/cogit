@@ -65,7 +65,7 @@ export function wheelGlide(element: () => HTMLElement | undefined, line: () => n
   const onwheel = (event: WheelEvent) => {
     const el = element();
     // Zoom, sideways scroll and a list that does not scroll stay the browser's.
-    if (!el || event.ctrlKey || event.shiftKey) return;
+    if (!el || event.ctrlKey || event.shiftKey || event.metaKey) return;
     if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
     const max = el.scrollHeight - el.clientHeight;
     if (max <= 0) return;

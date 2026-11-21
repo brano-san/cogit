@@ -1,3 +1,5 @@
+import type { Keymap } from "./keymap";
+import { revealLabel } from "./platform";
 import type { ContextItem, Submodule } from "./ipc";
 import type { DesktopInfo } from "./ipc/file-menus";
 import { SEPARATOR, item, offer, submenu, tidy } from "./context-menu";
@@ -77,18 +79,18 @@ function moveTo(at: RepoMenuTarget): ContextItem {
 
 /** A fixed order (#36). PowerShell and Git Shell exist only on Windows and are left
     out elsewhere; everything else is disabled, not hidden, when it does not apply. */
-export function repoMenu(at: RepoMenuTarget, desktop: DesktopInfo): ContextItem[] {
+export function repoMenu(at: RepoMenuTarget, desktop: DesktopInfo, keys: Keymap): ContextItem[] {
   const gone = at.missing ? "the folder is missing" : null;
   const local = at.desktopBlock ?? gone;
   const closed = at.open ? gone : "closed";
   const listOnly = at.kind === "submodule" ? SUBMODULE_REASON : null;
-  const onlyActive = (chord: string) => (at.active ? chord : undefined);
+  const onlyActive = (id: string) => (at.active ? keys[id] || undefined : undefined);
   const manager = desktop.fileManager;
 
   return tidy([
     at.active ? item("repo-open", "Open Repository", false) : offer("repo-open", "Open Repository", gone),
     offer("repo-open-folder", `Open in ${manager}`, local),
-    offer("repo-reveal", `Reveal in ${manager}`, local),
+    offer("repo-reveal", revealLabel(manager), local),
     offer("repo-terminal", "Open in Terminal", local),
     ...(desktop.windowsShells
       ? [
@@ -100,10 +102,10 @@ export function repoMenu(at: RepoMenuTarget, desktop: DesktopInfo): ContextItem[
           ),
         ]
       : []),
-    item("repo-close", "Close Repository", at.open, onlyActive("CmdOrCtrl+W")),
+    item("repo-close", "Close Repository", at.open, onlyActive("close")),
     SEPARATOR,
-    offer("repo-pull", "Pull", closed, onlyActive("CmdOrCtrl+Shift+U")),
-    offer("repo-push", "Push", closed, onlyActive("CmdOrCtrl+Shift+O")),
+    offer("repo-pull", "Pull", closed, onlyActive("pull")),
+    offer("repo-push", "Push", closed, onlyActive("push")),
     offer("repo-update", "Update", updateReason(at)),
     offer("repo-edit-ignore", "Edit .gitignore…", closed),
     SEPARATOR,

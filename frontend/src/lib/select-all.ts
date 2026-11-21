@@ -1,12 +1,12 @@
 import { keyLetter } from "./key-letter";
-import { ON_MAC, primary, type Modifiers } from "./platform";
+import { foreign, ON_MAC, primary, type Modifiers } from "./platform";
 
 /** Ctrl+A / Cmd+A, with nothing else held. */
 export function isSelectAllKey(
   event: Modifiers & { key: string; code?: string; shiftKey: boolean; altKey: boolean },
   onMac: boolean,
 ): boolean {
-  return primary(event, onMac) && !event.shiftKey && !event.altKey && keyLetter(event) === "a";
+  return primary(event, onMac) && !foreign(event, onMac) && !event.shiftKey && !event.altKey && keyLetter(event) === "a";
 }
 
 export interface SelectAllContext {
@@ -48,6 +48,13 @@ export function isEditable(target: EventTarget | null): boolean {
 
 export const TEXT_REGION = "data-select-text";
 export const OWN_SELECTION = "data-select-own";
+
+const ownSelections = new WeakMap<Element, () => void>();
+
+export function ownSelectAll(node: HTMLElement, select: () => void) {
+  ownSelections.set(node, select);
+  return { destroy: () => ownSelections.delete(node) };
+}
 
 /** The text region (a diff side, the commit details) holding `node`. */
 export function regionOf(node: Node | null): HTMLElement | null {
@@ -92,9 +99,10 @@ export function installSelectAll(win: Window, active: () => string | null): () =
   function answer(target: EventTarget | null, key?: KeyboardEvent) {
     const region = touched?.isConnected === true ? touched : regionOf(win.document.activeElement);
     const panel = active();
+    const owner = target instanceof Element ? target.closest(`[${OWN_SELECTION}]`) : null;
     const action = decideSelectAll({
       editable: isEditable(target),
-      own: target instanceof Element && target.closest(`[${OWN_SELECTION}]`) !== null,
+      own: owner !== null,
       panel,
       lists: new Set(lists.keys()),
       region: region === null ? null : { panel: region.getAttribute(TEXT_REGION) || null },
@@ -104,7 +112,10 @@ export function installSelectAll(win: Window, active: () => string | null): () =
       if (!key) win.document.execCommand("selectAll");
       return;
     }
-    if (action === "own") return;
+    if (action === "own") {
+      if (!key && owner) ownSelections.get(owner)?.();
+      return;
+    }
     key?.preventDefault();
     if (action === "list" && panel !== null) lists.get(panel)?.();
     else if (action === "text" && region !== null) selectContents(region);

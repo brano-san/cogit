@@ -1,9 +1,10 @@
+import { installMacEditContext, type EditSurface } from "$lib/mac-edit-context";
 import { closeThisWindow, onRepoChanged } from "$lib/ipc";
 import { suppressBrowserFind } from "$lib/browser-find";
 import { suppressBrowserNavigation } from "$lib/browser-navigation";
 import { suppressNativeMenu } from "$lib/native-menu";
-import { ON_MAC, primary } from "$lib/platform";
-import { installSelectAll } from "$lib/select-all";
+import { foreign, ON_MAC, primary } from "$lib/platform";
+import { installSelectAll, selectAllFromMenu } from "$lib/select-all";
 
 interface Keyed {
   key: string;
@@ -11,13 +12,16 @@ interface Keyed {
   code?: string;
   ctrlKey: boolean;
   metaKey: boolean;
+  shiftKey?: boolean;
+  altKey?: boolean;
 }
 
 /** `Esc` and `Ctrl+W` close a window that holds one file. `Ctrl+W` is the main window's
     "close repository", but a compare or merge window has no repository to close. */
 export function closesWindow(event: Keyed, onMac: boolean): boolean {
   if (event.key === "Escape") return true;
-  return primary(event, onMac) && (event.code === "KeyW" || event.key.toLowerCase() === "w");
+  return primary(event, onMac) && !foreign(event, onMac) && !event.shiftKey && !event.altKey
+    && (event.code ? event.code === "KeyW" : event.key.toLowerCase() === "w");
 }
 
 /** `Esc` waits for the rest of the page: an open find bar inside the window takes it
@@ -86,18 +90,24 @@ interface ChildGlobals {
 
 /** What every child window sets up once: no browser menu or find bar, the closing keys, and
     the flag that retires the HTML fallback. Returns the undo. */
-export function installChildWindow(win: Window): () => void {
+export function installChildWindow(win: Window, surface: EditSurface = null): () => void {
+  const stopEdit = installMacEditContext(win, surface);
   const stopMenu = suppressNativeMenu(win.document);
   const stopFind = suppressBrowserFind(win);
   const stopNavigation = suppressBrowserNavigation(win);
   const stopSelectAll = installSelectAll(win, () => null);
+  const stopMenuAction = onMenuAction(win, (action) => {
+    if (action === "select-all") selectAllFromMenu();
+  });
   win.addEventListener("keydown", onWindowKey);
   (win as Window & ChildGlobals).__cogitMounted = true;
   return () => {
+    stopEdit();
     stopMenu();
     stopFind();
     stopNavigation();
     stopSelectAll();
+    stopMenuAction();
     win.removeEventListener("keydown", onWindowKey);
   };
 }

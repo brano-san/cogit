@@ -88,12 +88,21 @@ fn a_path_given_as_an_argument_is_given_whole() {
 }
 
 #[test]
-fn off_windows_the_desktop_terminal_is_the_only_choice() {
+fn windows_shells_are_not_offered_on_other_desktops() {
     for platform in [Platform::MacOs, Platform::Linux] {
-        assert_eq!(choices(platform), [Terminal::System]);
         // A Windows choice saved in the settings falls back to the default.
         assert_eq!(Terminal::from_id(platform, "powerShell"), None);
     }
+    assert_eq!(choices(Platform::Linux), [Terminal::System]);
+}
+
+#[test]
+fn iterm_opens_the_repository_as_one_argument_on_mac() {
+    let kind = Terminal::from_id(Platform::MacOs, "iterm").unwrap();
+    assert_eq!(Terminal::from_id(Platform::Windows, "iterm"), None);
+    let launch = launch_for(Platform::MacOs, kind, "/Users/me/it's my repo", None);
+    assert_eq!(launch.program, "open");
+    assert_eq!(launch.args, ["-a", "iTerm", "/Users/me/it's my repo"]);
 }
 
 #[test]

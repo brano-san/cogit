@@ -1,3 +1,4 @@
+import { prettyKeys } from "$lib/keymap";
 import { reasonFor, type Context } from "./availability";
 import type { PaletteCommand } from "./palette";
 import { PANELS, type PanelId } from "./perspectives";
@@ -471,7 +472,7 @@ export function appCommands(facts: AppCommandFacts, run: AppCommandActions): Pal
     {
       id: "diff-wrap",
       title: "Toggle Wrapped Lines in Diff",
-      shortcut: "Alt+Z",
+      shortcut: prettyKeys("Alt+Z"),
       synonyms: ["wrap", "word wrap", "soft wrap", "long lines"],
       run: run["diff-wrap"],
     },

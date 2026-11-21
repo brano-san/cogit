@@ -2,7 +2,7 @@
   import EmptyState from "$components/common/EmptyState.svelte";
   import { keyLetter } from "$lib/key-letter";
   import { modals } from "$lib/modal-stack";
-  import { ON_MAC, primary } from "$lib/platform";
+  import { foreign, ON_MAC, primary } from "$lib/platform";
   import { sameLists, sameShapes, selectAllKeys, type SectionShape } from "$lib/files-panel";
   import { registerSelectAll } from "$lib/select-all";
   import { untrack } from "svelte";
@@ -146,7 +146,7 @@
 
   function onkeydown(event: KeyboardEvent) {
     if (!activePanel || modals.any) return;
-    if (primary(event, ON_MAC) && keyLetter(event) === "f") {
+    if (primary(event, ON_MAC) && !foreign(event, ON_MAC) && !event.altKey && !event.shiftKey && keyLetter(event) === "f") {
       event.preventDefault();
       bar?.focus();
     }

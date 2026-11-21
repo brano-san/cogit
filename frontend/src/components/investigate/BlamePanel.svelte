@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { prettyKeys } from "$lib/keymap";
   import Icon from "$components/common/Icon.svelte";
   import EmptyState from "$components/common/EmptyState.svelte";
   import { shortOid } from "$lib/format";
@@ -120,7 +121,7 @@
       <button
         type="button"
         disabled={previous === null}
-        title="Previous change in this version (Shift+F6)"
+        title="Previous change in this version ({prettyKeys('Shift+F6')})"
         aria-label="Previous change"
         onclick={() => session.moveToChange(-1)}
         ><Icon name="prev" /></button

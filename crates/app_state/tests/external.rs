@@ -59,6 +59,44 @@ fn the_editor_without_arguments_opens_the_file_at_the_first_line() {
 }
 
 #[test]
+fn mac_application_bundles_open_documents_and_cli_editors_keep_their_arguments() {
+    let file = "/r/it's my ${line}.rs";
+    let bundle = "/Applications/Visual Studio Code.app";
+    let launch = editor_command(Platform::MacOs, bundle, "", file, None).unwrap();
+    assert_eq!(launch.program, "open");
+    assert_eq!(launch.args, ["-a", bundle, file]);
+    let custom = editor_command(
+        Platform::MacOs,
+        bundle,
+        "--goto \"${file}:${line}\"",
+        file,
+        Some(7),
+    )
+    .unwrap();
+    assert_eq!(
+        custom.args,
+        [
+            "-n",
+            "-a",
+            bundle,
+            "--args",
+            "--goto",
+            "/r/it's my ${line}.rs:7"
+        ]
+    );
+    let cli = editor_command(
+        Platform::MacOs,
+        "code",
+        "--goto \"${file}:${line}\"",
+        file,
+        Some(7),
+    )
+    .unwrap();
+    assert_eq!(cli.program, "code");
+    assert_eq!(cli.args, ["--goto", "/r/it's my ${line}.rs:7"]);
+}
+
+#[test]
 fn the_editor_refuses_what_it_cannot_fill_in() {
     assert_eq!(
         editor_command(Platform::Linux, "  ", "", "/r/a", None),

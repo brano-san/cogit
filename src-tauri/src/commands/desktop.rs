@@ -19,6 +19,15 @@ pub async fn desktop_info() -> Result<DesktopInfo, GitError> {
     blocking("desktop_info", || Ok(desktop::info(Platform::current()))).await
 }
 
+#[tauri::command]
+#[specta::specta]
+pub async fn install_command_line_tool() -> Result<(), GitError> {
+    blocking("install_command_line_tool", || {
+        desktop_entry::mac_cli::install().map_err(|err| GitError::Io(err.to_string()))
+    })
+    .await
+}
+
 /// The frontend's theme is dark or light, on its `bg.app` background: the menus, dialogs
 /// and window backgrounds follow it.
 #[tauri::command]
@@ -149,10 +158,14 @@ pub async fn open_in_editor(
         }
         let launch = app_state::external::editor_command(platform, &program, &args, &path, line)
             .map_err(|err| GitError::InvalidState(err.to_string()))?;
+        if platform == Platform::MacOs && launch.program == "open" {
+            return desktop::run(&launch).map_err(|err| GitError::Io(err.to_string()));
+        }
         let program = launch.program.clone();
         start("editor", launch, None).map_err(|err| {
+            let hint = if platform == Platform::Windows { "; a .cmd or .bat needs its full path." } else { "." };
             GitError::Io(format!(
-                "{err}. Check {program} in Preferences ▸ Tools & Integrations ▸ External Editor; a .cmd or .bat needs its full path."
+                "{err}. Check {program} in Preferences ▸ Tools & Integrations ▸ External Editor{hint}"
             ))
         })
     })

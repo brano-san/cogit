@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { prettyKeys } from "$lib/keymap";
   import Icon from "$components/common/Icon.svelte";
   import type { Gap } from "$lib/diff-fold";
 
@@ -30,7 +31,7 @@
       <button
         type="button"
         class="arrow"
-        title="Show 20 more lines above the change below (Ctrl+click: every hidden line)"
+        title="Show 20 more lines above the change below ({prettyKeys('CmdOrCtrl+click')}: every hidden line)"
         onclick={(event) => onopen("up", event)}><Icon name="unfoldUp" /></button
       >
     {/if}
@@ -38,7 +39,7 @@
       <button
         type="button"
         class="count"
-        title="Show all {gap.hidden} hidden lines (Ctrl+click: every hidden line in the file)"
+        title="Show all {gap.hidden} hidden lines ({prettyKeys('CmdOrCtrl+click')}: every hidden line in the file)"
         onclick={(event) => onopen("all", event)}>{gap.hidden} lines hidden · show</button
       >
     {/if}
@@ -46,7 +47,7 @@
       <button
         type="button"
         class="arrow"
-        title="Show 20 more lines below the change above (Ctrl+click: every hidden line)"
+        title="Show 20 more lines below the change above ({prettyKeys('CmdOrCtrl+click')}: every hidden line)"
         onclick={(event) => onopen("down", event)}><Icon name="unfoldDown" /></button
       >
     {/if}

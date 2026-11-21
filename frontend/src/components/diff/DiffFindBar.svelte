@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { prettyKeys } from "$lib/keymap";
   import Icon from "$components/common/Icon.svelte";
   import type { DiffSearch } from "$lib/diff-search.svelte";
 
@@ -51,7 +52,7 @@
     type="button"
     class="btn sm"
     disabled={find.hits.length === 0}
-    title="Previous match (Shift+Enter)"
+    title="Previous match ({prettyKeys('Shift+Enter')})"
     onclick={() => find.go(-1, reveal)}><Icon name="prev" /></button
   >
   <button

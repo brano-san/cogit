@@ -1,11 +1,12 @@
 <script lang="ts">
+  import { prettyKeys } from "$lib/keymap";
   import Icon from "$components/common/Icon.svelte";
   import EmptyState from "$components/common/EmptyState.svelte";
   import FileContentView from "$components/diff/FileContentView.svelte";
   import { errors } from "$stores/errors.svelte";
   import { diffKey } from "$lib/diff-keys";
   import { modals } from "$lib/modal-stack";
-  import { ON_MAC, primary } from "$lib/platform";
+  import { foreign, ON_MAC, primary } from "$lib/platform";
   import { mount, unmount, untrack } from "svelte";
   import DiffFold from "./DiffFold.svelte";
   import EditBanners from "./EditBanners.svelte";
@@ -157,7 +158,7 @@
   let editorOverflow = $state(0);
   /** Edits not saved yet: Stage, Unstage and Discard wait, their patch is cut from the disk. */
   const dirty = $derived(editor !== null && diffEdit.dirty);
-  const SAVE_FIRST = "Save the file first (Ctrl+S): staging takes the lines on disk";
+  const SAVE_FIRST = `Save the file first (${prettyKeys("CmdOrCtrl+S")}): staging takes the lines on disk`;
   const wrap = $derived(settings.current.diffWrap && diff.kind === "text");
   const wrapTool = $derived(wrapButton(settings.current.diffWrap));
   /** One editor per file: it lives on through new diffs of it, a layout switch and a save. */
@@ -321,7 +322,7 @@
       (Unstage is on its hunks and in the toolbar). With unsaved edits they take the block
       back in the editor instead: the file on disk is not what the diff shows (R-743). */
   const bandActions = $derived(bandAction(stageable, diffStore.lineActions));
-  const IN_EDITOR = " in the editor (Ctrl+Z undoes; save to write the file)";
+  const IN_EDITOR = ` in the editor (${prettyKeys("CmdOrCtrl+Z")} undoes; save to write the file)`;
 
   function bandAct(block: Block, keys: readonly string[], label: string) {
     if (!editor || !dirty) return askDiscard(new Set(keys), label);
@@ -840,7 +841,7 @@
       is marked handled before the panel walk looks at it. */
   function onkeydown(event: KeyboardEvent) {
     // A dialog above the panel has the keys (11 §1).
-    if (modals.any) return;
+    if (modals.any || foreign(event, ON_MAC)) return;
     const press = {
       key: event.key,
       code: event.code,
@@ -1233,7 +1234,7 @@
       {/if}
       {#if diff.lossyEncoding}<span class="warn">not valid UTF-8</span>{/if}
       {#if diff.converted}<span class="warn" title="Shown converted; stage or discard the file whole">{diff.converted}</span>{/if}
-      <button type="button" class="btn sm" disabled={!nav.prev} onclick={() => jump(-1)} title="Previous change (Shift+F6)"
+      <button type="button" class="btn sm" disabled={!nav.prev} onclick={() => jump(-1)} title="Previous change ({prettyKeys('Shift+F6')})"
         ><Icon name="prev" /></button
       >
       <button type="button" class="btn sm" disabled={!nav.next} onclick={() => jump(1)} title="Next change (F6)"><Icon name="next" /></button>
@@ -1256,7 +1257,7 @@
         type="button"
         class="btn sm"
         aria-pressed={find.showing}
-        title="Search the lines shown in this diff (Ctrl+F); open the folds to search the whole file"
+        title="Search the lines shown in this diff ({prettyKeys('CmdOrCtrl+F')}); open the folds to search the whole file"
         onclick={() => (find.showing ? find.close() : openFind())}>Find</button
       >
     {/if}
@@ -1279,7 +1280,7 @@
         type="button"
         class="btn sm"
         disabled={edit.blocked !== null || !dirty || diffEdit.saving}
-        title={edit.blocked ?? refused ?? "Write the file in its own encoding and line endings (Ctrl+S)"}
+        title={edit.blocked ?? refused ?? `Write the file in its own encoding and line endings (${prettyKeys("CmdOrCtrl+S")})`}
         onclick={() => void saveFile()}>Save</button
       >
     {/if}
@@ -1293,7 +1294,7 @@
         type="button"
         class="btn sm"
         disabled={diffStore.repo === null}
-        title="Trace where the lines of this file came from (Ctrl+Alt+Shift+L)"
+        title="Trace where the lines of this file came from ({prettyKeys('CmdOrCtrl+Alt+Shift+L')})"
         onclick={startInvestigate}>Investigate</button
       >
       <button

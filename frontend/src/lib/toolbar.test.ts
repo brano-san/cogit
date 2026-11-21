@@ -491,7 +491,7 @@ describe("shortcutOfAction", () => {
 
   it("shows the key of the button's command as the keymap has it", () => {
     expect(shortcutOfAction(action("stash"), keys, false)).toBe("Ctrl+Shift+H");
-    expect(shortcutOfAction(action("pull"), keys, true)).toBe("Cmd+Shift+U");
+    expect(shortcutOfAction(action("pull"), keys, true)).toBe("⇧⌘U");
   });
 
   it("shows no key for a command whose key was removed", () => {
@@ -500,7 +500,7 @@ describe("shortcutOfAction", () => {
 
   it("shows the page's own key for Discard, which no menu item has", () => {
     expect(shortcutOfAction(action("discard"), keys, false)).toBe("Ctrl+Z");
-    expect(shortcutOfAction(action("discard"), keys, true)).toBe("Cmd+Z");
+    expect(shortcutOfAction(action("discard"), keys, true)).toBe("⌘Z");
   });
 
   it("shows nothing for a button without a key", () => {

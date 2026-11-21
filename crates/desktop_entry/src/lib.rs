@@ -3,6 +3,7 @@
 //! `--add-to-path` for the Windows installer, and the paths the window is asked to open.
 
 pub mod launch;
+pub mod mac_cli;
 pub mod path_env;
 
 use std::ffi::OsString;

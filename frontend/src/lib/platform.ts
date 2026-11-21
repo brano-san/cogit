@@ -14,6 +14,10 @@ export const OS: Os = osOf(typeof navigator === "undefined" ? "" : navigator.pla
 export const ON_MAC = OS === "mac";
 export const ON_WINDOWS = OS === "windows";
 
+export function revealLabel(fileManager: string): string {
+  return `Reveal in ${fileManager}`;
+}
+
 /** Where Delete moves files, in the system's own words. */
 export function binName(os: Os): string {
   return os === "windows" ? "Recycle Bin" : "Trash";

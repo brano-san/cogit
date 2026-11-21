@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { ON_MAC } from "$lib/platform";
+  import { prettyKeys } from "$lib/keymap";
   import { DiffEditor } from "$lib/diff-editor";
   import { diffEdit } from "$stores/diff-edit.svelte";
   import { untrack } from "svelte";
@@ -56,12 +58,12 @@
 <div class="edit">
   <div class="bar">
     <span class="file truncate" title={opened?.path}>{opened?.path ?? ""}{diffEdit.dirty ? " *" : ""}</span>
-    <button type="button" class="btn sm" title="Undo (Ctrl+Z)" disabled={!opened} onclick={() => editor?.undo()}>Undo</button>
-    <button type="button" class="btn sm" title="Redo (Ctrl+Y)" disabled={!opened} onclick={() => editor?.redo()}>Redo</button>
+    <button type="button" class="btn sm" title="Undo ({prettyKeys('CmdOrCtrl+Z')})" disabled={!opened} onclick={() => editor?.undo()}>Undo</button>
+    <button type="button" class="btn sm" title="Redo ({prettyKeys(ON_MAC ? 'CmdOrCtrl+Shift+Z' : 'CmdOrCtrl+Y')})" disabled={!opened} onclick={() => editor?.redo()}>Redo</button>
     <button
       type="button"
       class="btn sm"
-      title="Write the file in its own encoding and line endings (Ctrl+S)"
+      title="Write the file in its own encoding and line endings ({prettyKeys('CmdOrCtrl+S')})"
       disabled={!diffEdit.dirty || diffEdit.saving}
       onclick={() => void save()}>Save</button
     >

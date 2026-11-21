@@ -125,6 +125,8 @@
   import { toolbar } from "$stores/toolbar.svelte";
   import { stashDialog } from "$stores/stash-dialog.svelte";
   import { settle, step } from "$lib/panel-focus";
+  import { onMenuAction } from "$lib/child-window";
+  import { editContext, installMacEditContext } from "$lib/mac-edit-context";
   import { installSelectAll, selectAllFromMenu } from "$lib/select-all";
   import { forgeSetting, needsPush, pullRequestFor, type Forge } from "$lib/pull-request";
   import { commitScope } from "$lib/commit-scope";
@@ -145,7 +147,7 @@
   import { undoRewriteQuestion } from "$lib/undo-rewrite";
   import { isAncestor, tagMessage, undoRewrite, undoRewriteInfo } from "$lib/ipc/ref-ops";
   import { effective, withShortcuts } from "$lib/keymap";
-  import { binName, ON_MAC, ON_WINDOWS, OS, primary } from "$lib/platform";
+  import { binName, foreign, ON_MAC, ON_WINDOWS, OS, primary } from "$lib/platform";
   import { pageCommand } from "$lib/page-accelerators";
   import { zoomStep } from "$lib/ui-metrics";
   import { uiMetricsStore } from "$stores/ui-metrics.svelte";
@@ -353,6 +355,12 @@
   });
 
   // Ctrl+A goes to the panel in focus (the one with the underlined header); behind a modal, to nothing.
+  $effect(() => installMacEditContext(window, focused === "files" ? "files" : null));
+  $effect(() => onMenuAction(window, (action) => {
+    if (action === "edit-undo" && focused === "files" && !editContext("files", document.activeElement, modals.any).nativeUndo) {
+      void discardFromToolbar(targetsOf("discard", toolbarFacts));
+    }
+  }));
   $effect(() => installSelectAll(window, () => (modals.any ? "modal" : focused)));
   // Under a modal the window's menu claims only Exit's key, so Ctrl+Enter reaches the dialog.
   // Sent once on start too: a reloaded page must not inherit a modal that is gone.
@@ -1148,7 +1156,7 @@
   function onkeydown(event: KeyboardEvent) {
     // A dialog, the palette and Find Object close on their own Esc; nothing behind a modal
     // answers a key (11 §1).
-    if (modals.any) return;
+    if (modals.any || foreign(event, ON_MAC)) return;
 
     // A menu key the native menu does not hold here (Ctrl+K, F5 off Windows): the same path a
     // menu click takes. A field or panel that took the key first keeps it.
@@ -3173,6 +3181,7 @@ ${event.error}`,
         groups: groupChoices(repoGroups.groups),
       },
       info,
+      menuKeys,
     );
     const tools = userTools.submenu("repository", row.overview?.repo ?? null, {
       file: null,
@@ -3217,6 +3226,7 @@ ${event.error}`,
         module: row.module,
       },
       info,
+      menuKeys,
     );
     await popupContextMenu(items, x, y).catch(() => {});
   }
@@ -4231,9 +4241,9 @@ ${event.error}`,
       // The Welcome dialog is a modal, so its own menu answers before the modal check.
       if (id === WELCOME_FORGET) return forgetWelcomeTarget();
       if (id === WELCOME_FORGET_MISSING) return forgetMissingWelcome();
+      if (id === "select-all") return selectAllFromMenu();
       if (!menuCommandRuns(id, modals)) return;
       if (id === "toolbar-preferences") return openSettings("toolbar");
-      if (id === "select-all") return selectAllFromMenu();
       if (userTools.runMenu(id)) return;
       if (ciStatus.runMenu(id)) return;
       if (refActions?.run(id)) return;

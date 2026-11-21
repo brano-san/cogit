@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { prettyKeys } from "$lib/keymap";
   import EmptyState from "$components/common/EmptyState.svelte";
   import { untrack } from "svelte";
   import Checkbox from "$components/common/Checkbox.svelte";
@@ -53,7 +54,7 @@
     repoRefs,
     type CommitDetails,
   } from "$lib/ipc";
-  import { ON_MAC, primary } from "$lib/platform";
+  import { foreign, ON_MAC, primary } from "$lib/platform";
   import { publishedOrAssume } from "$lib/published";
   import { requestPush } from "$lib/push-head";
   import { placePopup, type Box, type Placed } from "$lib/popup-place";
@@ -343,7 +344,7 @@
 
   function onkeydown(event: KeyboardEvent) {
     if (question || picking) return;
-    if (event.key === "Enter" && primary(event, ON_MAC)) {
+    if (event.key === "Enter" && primary(event, ON_MAC) && !foreign(event, ON_MAC) && !event.shiftKey && !event.altKey) {
       event.preventDefault();
       void start(false);
     } else if (event.key === "Escape" && menuAt) {
@@ -361,7 +362,7 @@
 <TooltipLayer />
 
 {#if !request}
-  <EmptyState title="This window needs a repository. Open it with Ctrl+K in the main window." />
+  <EmptyState title="This window needs a repository. Open it with {prettyKeys('CmdOrCtrl+K')} in the main window." />
 {:else}
   <div class="window">
     <header class="head">

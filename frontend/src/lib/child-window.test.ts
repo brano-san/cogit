@@ -26,6 +26,13 @@ describe("closesWindow", () => {
     expect(closesWindow(key("w", { ctrlKey: true }), true)).toBe(false);
   });
 
+  it("leaves other Command+W chords alone", () => {
+    const cmdW = key("w", { metaKey: true });
+    expect(closesWindow({ ...cmdW, shiftKey: true }, true)).toBe(false);
+    expect(closesWindow({ ...cmdW, altKey: true }, true)).toBe(false);
+    expect(closesWindow({ ...cmdW, ctrlKey: true }, true)).toBe(false);
+  });
+
   it("does not care which case the layout reports", () => {
     expect(closesWindow(key("W", { ctrlKey: true }), false)).toBe(true);
   });

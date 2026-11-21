@@ -192,11 +192,13 @@ pub fn open_with_menu<R: tauri::Runtime>(
     let label = format!("{kind}-{}", NEXT.fetch_add(1, Ordering::Relaxed));
     // Without a menu of its own the window inherits the application's. An empty one still
     // draws a blank bar, so it is taken off again before the window is first shown.
-    let bar = build_menu(app, &label, menu)?;
-
-    let window = hidden_builder(app, label, url)
+    let builder = hidden_builder(app, label.clone(), url);
+    #[cfg(not(target_os = "macos"))]
+    let builder = builder.menu(build_menu(app, &label, menu)?);
+    #[cfg(target_os = "macos")]
+    let bar = crate::menu::macos_window::child_menu(app, &label, menu)?;
+    let window = builder
         .title(title)
-        .menu(bar)
         .inner_size(shape.width, shape.height)
         .min_inner_size(shape.min_width, shape.min_height)
         .center()
@@ -205,6 +207,10 @@ pub fn open_with_menu<R: tauri::Runtime>(
     if let Some(main) = tauri::Manager::get_webview_window(app, MAIN) {
         crate::window_place::centre_on_monitor_of(&window, &main);
     }
+    #[cfg(target_os = "macos")]
+    app.state::<crate::menu::macos_window::WindowMenus<R>>()
+        .remember(&label, bar);
+    #[cfg(not(target_os = "macos"))]
     if menu.is_empty() {
         window.remove_menu()?;
     }
@@ -234,6 +240,7 @@ pub(crate) fn hidden_builder<'a, R: tauri::Runtime>(
         .theme(Some(crate::native_theme::current()))
         .background_color(crate::native_theme::background());
     // WebView2 refuses a second environment on the same profile with other arguments.
+    #[cfg(windows)]
     if let Some(args) = browser_args(&app.config().app.windows) {
         builder = builder.additional_browser_args(&args);
     }
@@ -248,6 +255,7 @@ pub(crate) fn next_label(kind: &str) -> String {
     format!("{kind}-{}", NEXT.fetch_add(1, Ordering::Relaxed))
 }
 
+#[cfg(not(target_os = "macos"))]
 pub(crate) fn build_menu<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     label: &str,
@@ -324,6 +332,7 @@ pub fn on_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>, id: &str) -> bool {
 }
 
 /// The main window's browser arguments, which every other webview has to repeat.
+#[cfg(any(windows, test))]
 fn browser_args(windows: &[tauri::utils::config::WindowConfig]) -> Option<String> {
     windows
         .iter()
@@ -437,6 +446,21 @@ mod tests {
     fn windows_of(config: &str) -> Vec<tauri::utils::config::WindowConfig> {
         let value: serde_json::Value = serde_json::from_str(config).unwrap();
         serde_json::from_value(value["app"]["windows"].clone()).unwrap()
+    }
+
+    #[test]
+    fn macos_window_controls_stay_in_the_system_title_bar() {
+        for config in [
+            include_str!("../tauri.conf.json"),
+            include_str!("../tauri.debug.conf.json"),
+            include_str!("../tauri.bench.conf.json"),
+        ] {
+            for window in windows_of(config) {
+                assert!(window.decorations);
+                assert_eq!(window.title_bar_style, tauri::utils::TitleBarStyle::Visible);
+                assert!(window.traffic_light_position.is_none());
+            }
+        }
     }
 
     /// The benchmark's config opens a debugging port on the main window; a child window

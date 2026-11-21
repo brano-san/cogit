@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { prettyKeys } from "$lib/keymap";
   import EmptyState from "$components/common/EmptyState.svelte";
   import { onMount, untrack } from "svelte";
   import DiffView from "$components/diff/DiffView.svelte";
@@ -249,8 +250,8 @@
         The best candidate is chosen; <b>Blame+Origins</b> and <b>Origins</b> show the rest.
       </p>
       <p>
-        <b>Go Deeper</b> (Ctrl+D) opens the version before the origin at the matching line and
-        searches again. Back and Forward (Alt+Left, Alt+Right) walk the steps taken.
+        <b>Go Deeper</b> ({prettyKeys('CmdOrCtrl+D')}) opens the version before the origin at the matching line and
+        searches again. Back and Forward ({prettyKeys('Alt+Left')}, {prettyKeys('Alt+Right')}) walk the steps taken.
       </p>
       <p>
         Line markers: <span class="mono">+</span> added, <span class="mono">~</span> changed in place,

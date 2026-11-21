@@ -30,7 +30,8 @@
   import { closeGuard, installChildWindow, onDiskChange, onMenuAction } from "$lib/child-window";
   import { failureText } from "$lib/merge-params";
   import { modals } from "$lib/modal-stack";
-  import { ON_MAC, primary } from "$lib/platform";
+  import { editContext } from "$lib/mac-edit-context";
+  import { foreign, ON_MAC, primary } from "$lib/platform";
   import { followSettings } from "$lib/settings-sync";
   import { SolverEditors, languageExtension, type PaneName, type Snapshot } from "$lib/solver-editor";
   import {
@@ -66,7 +67,7 @@
   const win = getCurrentWindow();
 
   // No browser menu, and Esc / Ctrl+W close the window.
-  $effect(() => installChildWindow(window));
+  $effect(() => installChildWindow(window, "solver"));
   // What Preferences changes in the main window reaches this one too (F-335).
   $effect(() => followSettings(() => void settings.reload()));
 
@@ -535,6 +536,12 @@
   $effect(() =>
     onMenuAction(window, (action) => {
       if (modals.any) return;
+      if (action === "edit-undo" || action === "edit-redo") {
+        if (docs && !toolRunning && !saving && !editContext("solver", document.activeElement, false).nativeUndo) {
+          editors?.history(action === "edit-undo" ? "undo" : "redo", true);
+        }
+        return;
+      }
       const takes: Record<string, TakeAction> = {
         "solver-take-ours": "ours",
         "solver-take-theirs": "theirs",
@@ -602,7 +609,7 @@
   }
 
   function onkeydown(event: KeyboardEvent) {
-    if (modals.any || toolRunning || !docs) return;
+    if (modals.any || toolRunning || !docs || foreign(event, ON_MAC)) return;
     const action = solverKey({
       key: event.key,
       code: event.code,

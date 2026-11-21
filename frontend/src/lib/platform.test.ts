@@ -1,9 +1,14 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { binName, foreign, osOf, primary } from "./platform";
+import { binName, foreign, osOf, primary, revealLabel } from "./platform";
 
 describe("platform", () => {
+  it("names the desktop file manager in the Reveal command", () => {
+    expect(revealLabel("Finder")).toBe("Reveal in Finder");
+    expect(revealLabel("Explorer")).toBe("Reveal in Explorer");
+    expect(revealLabel("File Manager")).toBe("Reveal in File Manager");
+  });
   it("reads the system from navigator.platform", () => {
     expect(osOf("Win32")).toBe("windows");
     expect(osOf("MacIntel")).toBe("mac");

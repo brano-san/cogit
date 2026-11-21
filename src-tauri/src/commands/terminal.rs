@@ -39,8 +39,12 @@ pub async fn open_in_terminal(path: String, terminal: String) -> Result<(), GitE
             .then(desktop::find_git_bash)
             .flatten();
         let launch = launch_for(platform, kind, &path, git_bash.as_deref());
-        desktop::spawn(&launch, working_dir(&path))
-            .map_err(|err| GitError::Io(format!("cannot start {}: {err}", launch.program)))
+        let started = if platform == Platform::MacOs {
+            desktop::run(&launch)
+        } else {
+            desktop::spawn(&launch, working_dir(&path))
+        };
+        started.map_err(|err| GitError::Io(format!("cannot start {}: {err}", launch.program)))
     })
     .await
 }

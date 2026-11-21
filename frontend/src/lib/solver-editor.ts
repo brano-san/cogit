@@ -1138,10 +1138,11 @@ export class SolverEditors {
   }
 
   /** Undo or Redo in the Result, from wherever the focus was; the Result takes it. */
-  history(direction: "undo" | "redo"): void {
-    const result = this.views.result;
-    (direction === "undo" ? undo : redo)(result);
-    result.focus();
+  history(direction: "undo" | "redo", useFocus = false): void {
+    const focused = useFocus ? Object.values(this.views).find((view) => view.hasFocus) : undefined;
+    const view = focused ?? this.views.result;
+    (direction === "undo" ? undo : redo)(view);
+    view.focus();
   }
 
   focusResult(): void {

@@ -69,10 +69,12 @@ describe("modeChangeText (DF-026)", () => {
 
 describe("layoutTip (#14)", () => {
   it("says what the button does, then that the choice is kept", () => {
-    expect(layoutTip("split")).toBe(
+    expect(layoutTip("split", true)).toContain("(⇧⌘D)");
+    expect(wrapButton(true, true).title).toContain("(⌥Z)");
+    expect(layoutTip("split", false)).toBe(
       "Switch to the unified view: both versions in one column (Ctrl+Shift+D)\nRemembered between runs",
     );
-    expect(layoutTip("unified")).toBe(
+    expect(layoutTip("unified", false)).toBe(
       "Switch to the side-by-side view: old and new versions in two columns (Ctrl+Shift+D)\nRemembered between runs",
     );
   });
@@ -108,17 +110,17 @@ describe("alignedButton", () => {
 
 describe("wrapButton (F-950)", () => {
   it("says which way lines go now, what a click does, and the key", () => {
-    const on = wrapButton(true);
+    const on = wrapButton(true, false);
     expect(on).toMatchObject({ pressed: true, disabled: false });
     expect(on.title).toBe("ON: long lines wrap at the width of their pane (Alt+Z).\nClick for: one row per line, long lines scroll sideways.");
-    const off = wrapButton(false);
+    const off = wrapButton(false, false);
     expect(off).toMatchObject({ pressed: false, disabled: false });
     expect(off.title.startsWith("OFF: one row per line")).toBe(true);
   });
 
   it("never mentions editing: the working file stays editable wrapped", () => {
-    expect(wrapButton(true).title).not.toContain("edit");
-    expect(wrapButton(false).title).not.toContain("edit");
+    expect(wrapButton(true, false).title).not.toContain("edit");
+    expect(wrapButton(false, false).title).not.toContain("edit");
   });
 });
 

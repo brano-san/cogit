@@ -19,6 +19,8 @@ pub enum Terminal {
     PowerShell,
     Cmd,
     GitBash,
+    #[serde(rename = "iterm")]
+    ITerm,
 }
 
 impl Terminal {
@@ -30,6 +32,7 @@ impl Terminal {
             Self::PowerShell => "powerShell",
             Self::Cmd => "cmd",
             Self::GitBash => "gitBash",
+            Self::ITerm => "iterm",
         }
     }
 
@@ -41,6 +44,7 @@ impl Terminal {
             Self::PowerShell => "PowerShell",
             Self::Cmd => "Command Prompt",
             Self::GitBash => "Git Bash",
+            Self::ITerm => "iTerm",
         }
     }
 
@@ -61,7 +65,8 @@ pub fn choices(platform: Platform) -> Vec<Terminal> {
             Terminal::Cmd,
             Terminal::GitBash,
         ],
-        Platform::MacOs | Platform::Linux => vec![Terminal::System],
+        Platform::MacOs => vec![Terminal::System, Terminal::ITerm],
+        Platform::Linux => vec![Terminal::System],
     }
 }
 
@@ -89,6 +94,10 @@ pub fn command_for(
             vec!["--login".to_owned(), "-i".to_owned()],
         ),
         Terminal::System => system_terminal(platform, path),
+        Terminal::ITerm => (
+            "open".to_owned(),
+            vec!["-a".into(), "iTerm".into(), path.into()],
+        ),
     }
 }
 

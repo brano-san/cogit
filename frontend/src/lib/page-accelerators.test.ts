@@ -69,6 +69,15 @@ describe("pageCommand", () => {
     expect(pageCommand(press("k", "KeyK"), bindings, removed, linux)).toBeNull();
   });
 
+  it("requires Command on a Mac and matches only the modifiers held", () => {
+    const mac = { windows: false, mac: true };
+    expect(pageCommand(press("л", "KeyK", { ctrlKey: false, metaKey: true }), bindings, keys, mac)).toBe("commit-window");
+    expect(pageCommand(press("k", "KeyK"), bindings, keys, mac)).toBeNull();
+    expect(pageCommand(press("k", "KeyK", { metaKey: true }), bindings, keys, mac)).toBeNull();
+    expect(pageCommand(press("F5", "F5"), bindings, keys, mac)).toBeNull();
+    expect(pageCommand(press("F5", "F5", { ctrlKey: false, metaKey: true }), bindings, keys, linux)).toBeNull();
+  });
+
   it("leaves everything to the window on Windows", () => {
     expect(pageCommand(press("k", "KeyK"), bindings, keys, { windows: true, mac: false })).toBeNull();
   });

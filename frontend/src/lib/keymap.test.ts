@@ -38,6 +38,16 @@ describe("effective", () => {
     expect(effective(DEFAULTS, { find: "F3" })["find"]).toBe("F3");
   });
 
+  it("protects native shortcuts from stored overrides on a Mac", () => {
+    const defaults = [binding("close", null), binding("settings", "CmdOrCtrl+,"), binding("exit", "CmdOrCtrl+Q")];
+    for (const chord of ["CmdOrCtrl+Tab", "Shift+Command+Tab", "CmdOrCtrl+W", "Command+W", "Option+Command+H", "CmdOrCtrl+M", "CmdOrCtrl+Q", "CmdOrCtrl+,"]) {
+      expect(effective(defaults, { close: chord, settings: "F9", exit: "" }, true)).toEqual({
+        close: "", settings: "CmdOrCtrl+,", exit: "CmdOrCtrl+Q",
+      });
+    }
+    expect(effective(defaults, { close: "F9" }, true).close).toBe("F9");
+  });
+
   it("treats an empty override as no key at all", () => {
     expect(effective(DEFAULTS, { find: "" })["find"]).toBe("");
   });
@@ -97,8 +107,18 @@ describe("recordKeys", () => {
     for (const key of ["Tab", "PageUp", "PageDown"]) {
       expect(keysOf({ key, code: key, ctrlKey: true }, true)).toBe(`Ctrl+${key}`);
     }
-    expect(keysOf({ key: "Tab", code: "Tab", metaKey: true }, true)).toEqual({ refused: "Cmd+Tab is the system's" });
+    expect(keysOf({ key: "Tab", code: "Tab", ctrlKey: true, shiftKey: true }, true)).toBe("Ctrl+Shift+Tab");
+    expect(keysOf({ key: "Tab", code: "Tab", metaKey: true }, true)).toEqual({ refused: "⌘⇥ is the system's" });
     expect(keysOf({ key: "Tab", code: "Tab", altKey: true })).toEqual({ refused: "Alt+Tab is the system's" });
+  });
+
+  it("leaves native macOS shortcuts to the system", () => {
+    for (const code of ["KeyQ", "KeyW", "KeyH", "KeyM", "Comma", "Backquote"]) {
+      expect(recordKeys(press({ key: code.slice(-1), code, metaKey: true }), true)).toHaveProperty("refused");
+    }
+    expect(recordKeys(press({ key: "h", code: "KeyH", metaKey: true, altKey: true }), true)).toHaveProperty("refused");
+    expect(keysOf({ key: "w", code: "KeyW", ctrlKey: true })).toBe("CmdOrCtrl+W");
+    expect(keysOf({ key: "˚", code: "KeyK", altKey: true, metaKey: true, getModifierState: (key) => key === "AltGraph" }, true)).toBe("CmdOrCtrl+Alt+K");
   });
 
   it("keeps the modifiers in a fixed order", () => {
@@ -160,7 +180,7 @@ describe("recordKeys", () => {
       refused: "Win+S cannot be used here",
     });
     expect(recordKeys(press({ key: "s", code: "KeyS", ctrlKey: true }), true)).toEqual({
-      refused: "Ctrl+S cannot be used here",
+      refused: "⌃S cannot be used here",
     });
   });
 
@@ -197,7 +217,14 @@ describe("claimable", () => {
 describe("prettyKeys", () => {
   it("writes the platform's own word for the modifier", () => {
     expect(prettyKeys("CmdOrCtrl+Shift+P", false)).toBe("Ctrl+Shift+P");
-    expect(prettyKeys("CmdOrCtrl+Shift+P", true)).toBe("Cmd+Shift+P");
+    expect(prettyKeys("CmdOrCtrl+Shift+P", true)).toBe("⇧⌘P");
+  });
+
+  it("uses Apple's modifier order and key symbols", () => {
+    expect(prettyKeys("Shift+CmdOrCtrl+Ctrl+Alt+Left", true)).toBe("⌃⌥⇧⌘←");
+    expect(prettyKeys("CmdOrCtrl+Enter", true)).toBe("⌘↩");
+    expect(prettyKeys("CmdOrCtrl+click", true)).toBe("⌘click");
+    expect(prettyKeys("Alt+Left", false)).toBe("Alt+Left");
   });
 
   it("says so when there is no key", () => {
@@ -222,7 +249,7 @@ describe("shortcutOf", () => {
 
   it("reads the user's key over the shipped one, in the platform's words", () => {
     expect(shortcutOf("stash", keys, false)).toBe("Ctrl+Shift+H");
-    expect(shortcutOf("stash", keys, true)).toBe("Cmd+Shift+H");
+    expect(shortcutOf("stash", keys, true)).toBe("⇧⌘H");
   });
 
   it("has nothing for a command without a key, or one the user took the key from", () => {

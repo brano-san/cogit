@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { prettyKeys } from "$lib/keymap";
   import Icon from "$components/common/Icon.svelte";
   import { NO_PROMPT_ADVICE } from "$lib/credentials";
   import VirtualList from "$components/common/VirtualList.svelte";
@@ -7,8 +8,9 @@
   import { revealOnDesktop } from "$lib/ipc/file-menus";
   import { asCogitError, commandReport, repoNameOf } from "$lib/notices";
   import { findMatches, logLines } from "$lib/output-highlight";
+  import { isEditable, ownSelectAll } from "$lib/select-all";
   import { outputKey } from "$lib/output-keys";
-  import { ON_MAC, primary } from "$lib/platform";
+  import { foreign, ON_MAC, primary } from "$lib/platform";
   import { readKey, writeKey } from "$lib/settings-file";
   import { startsDrag } from "$lib/error-window";
   import { clampBox, defaultBox, type Box } from "$lib/window-box";
@@ -138,6 +140,7 @@
   }
 
   function onkeydown(event: KeyboardEvent) {
+    if (foreign(event, ON_MAC) || event.altKey) return;
     const action = outputKey({
       key: event.key,
       code: event.code,
@@ -201,6 +204,13 @@
   <section
     bind:this={frame}
     data-select-own
+    use:ownSelectAll={() => (allSelected = true)}
+    oncopy={(event) => {
+      if (allSelected && event.clipboardData && !isEditable(event.target)) {
+        event.preventDefault();
+        event.clipboardData.setData("text/plain", commandReport(entry));
+      }
+    }}
     class="window"
     class:warned={!failed}
     class:docked
@@ -257,7 +267,7 @@
           <span class="count tabular">
             {hits.length === 0 ? (needle === "" ? "" : "no matches") : `${(at % hits.length) + 1} of ${hits.length}`}
           </span>
-          <button type="button" class="btn sm" onclick={() => step(-1)} title="Previous (Shift+Enter)"><Icon name="prev" /></button>
+          <button type="button" class="btn sm" onclick={() => step(-1)} title="Previous ({prettyKeys('Shift+Enter')})"><Icon name="prev" /></button>
           <button type="button" class="btn sm" onclick={() => step(1)} title="Next (Enter)"><Icon name="next" /></button>
           <button type="button" class="btn sm" onclick={() => ((finding = false), (needle = ""))} title="Close find" aria-label="Close find"><Icon name="close" /></button>
         </div>

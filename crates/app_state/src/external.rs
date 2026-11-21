@@ -128,20 +128,45 @@ pub fn editor_command(
     let mut out = Vec::new();
     for word in words(args, DEFAULT_EDITOR_ARGS, TOOL)? {
         let mut rest = word.as_str();
+        let mut argument = String::new();
         while let Some(at) = rest.find("${") {
             let tail = &rest[at..];
             let end = tail.find('}').map_or(tail.len(), |close| close + 1);
             let name = &tail[..end];
-            if name != "${file}" && name != "${line}" {
-                return Err(ExternalError::UnknownPlaceholder {
-                    tool: TOOL,
-                    name: name.to_owned(),
-                    known: "${file} and ${line}",
-                });
+            argument.push_str(&rest[..at]);
+            match name {
+                "${file}" => argument.push_str(&file),
+                "${line}" => argument.push_str(&line),
+                _ => {
+                    return Err(ExternalError::UnknownPlaceholder {
+                        tool: TOOL,
+                        name: name.to_owned(),
+                        known: "${file} and ${line}",
+                    });
+                }
             }
             rest = &tail[end..];
         }
-        out.push(word.replace("${file}", &file).replace("${line}", &line));
+        argument.push_str(rest);
+        out.push(argument);
+    }
+    if platform == Platform::MacOs && program.to_ascii_lowercase().ends_with(".app") {
+        let mut args = if out.as_slice() == [file] {
+            vec!["-a".to_owned(), program]
+        } else {
+            vec![
+                "-n".to_owned(),
+                "-a".to_owned(),
+                program,
+                "--args".to_owned(),
+            ]
+        };
+        args.extend(out);
+        return Ok(Launch {
+            program: "open".to_owned(),
+            args,
+            hidden: false,
+        });
     }
     Ok(Launch {
         program,

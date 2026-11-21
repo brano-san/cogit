@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { prettyKeys } from "$lib/keymap";
   import Icon from "$components/common/Icon.svelte";
   import { deeperHint, describeCandidate, likelihoodLabel } from "$lib/investigate/origin";
   import type { InvestigateSession } from "$lib/investigate/session.svelte";
@@ -47,7 +48,7 @@
     type="button"
     class="deeper"
     disabled={!session.candidate?.deeper}
-    title="{deeperHint(session.candidate)} (Ctrl+D)"
+    title="{deeperHint(session.candidate)} ({prettyKeys('CmdOrCtrl+D')})"
     onclick={(event) => {
       event.stopPropagation();
       void session.goDeeper();

@@ -7,7 +7,7 @@ import {
   SUBMODULE_REASON,
   groupChoices,
   parseRepoCommand,
-  repoMenu,
+  repoMenu as itemsFor,
   type RepoMenuTarget,
 } from "./repo-menu";
 import { UNGROUPED } from "./repo-groups";
@@ -19,6 +19,9 @@ const WINDOWS: DesktopInfo = {
   separator: "\\",
 };
 const LINUX: DesktopInfo = { fileManager: "File Manager", windowsShells: false, gitShell: null, separator: "/" };
+
+const keys = { close: "CmdOrCtrl+W", pull: "CmdOrCtrl+Shift+U", push: "CmdOrCtrl+Shift+O" };
+const repoMenu = (at: RepoMenuTarget, desktop: DesktopInfo) => itemsFor(at, desktop, keys);
 
 const OPEN: RepoMenuTarget = {
   kind: "repository",
@@ -117,6 +120,11 @@ describe("repoMenu", () => {
   it("shows the chords only on the repository they act on", () => {
     expect(find(repoMenu({ ...OPEN, active: true }, WINDOWS), "repo-pull")?.accelerator).toBe("CmdOrCtrl+Shift+U");
     expect(find(repoMenu(OPEN, WINDOWS), "repo-pull")?.accelerator).toBeNull();
+  });
+
+  it("leaves the native Close Window chord off Close Repository on macOS", () => {
+    const items = itemsFor({ ...OPEN, active: true }, { ...LINUX, fileManager: "Finder" }, { ...keys, close: "" });
+    expect(find(items, "repo-close")?.accelerator).toBeNull();
   });
 
   it("says Unpin on a pinned row", () => {

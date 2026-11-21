@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { prettyKeys } from "$lib/keymap";
   import Icon from "$components/common/Icon.svelte";
   import Checkbox from "$components/common/Checkbox.svelte";
   import Radio from "$components/common/Radio.svelte";
@@ -98,7 +99,7 @@
             type="button"
             class="grip"
             data-column-row={index}
-            aria-label="Move {COLUMN_LABELS[row.id]}: Alt+Up or Alt+Down, position {index + 1} of {rows.length}"
+            aria-label="Move {COLUMN_LABELS[row.id]}: {prettyKeys('Alt+Up')} or {prettyKeys('Alt+Down')}, position {index + 1} of {rows.length}"
             onkeydown={(event) => onrowkey(event, index)}>⠿</button
           >
           <Checkbox

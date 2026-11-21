@@ -8,6 +8,10 @@ use tauri::menu::{
 use tauri::{AppHandle, Manager as _, Runtime};
 
 mod context;
+mod macos;
+#[cfg(any(test, target_os = "macos"))]
+#[cfg_attr(all(test, not(target_os = "macos")), allow(dead_code))]
+pub(crate) mod macos_window;
 pub use context::{ContextItem, ContextMenu, popup};
 
 /// Item ids are the palette command ids: one place decides what an action is called and
@@ -309,6 +313,10 @@ pub struct KeyBinding {
 
 #[must_use]
 pub fn default_keymap() -> Vec<KeyBinding> {
+    keymap_for(cfg!(target_os = "macos"))
+}
+
+fn keymap_for(mac: bool) -> Vec<KeyBinding> {
     let mut rows = Vec::new();
     for (section, entries) in SECTIONS {
         for (entry, on_bar) in keyed(section, entries) {
@@ -316,10 +324,12 @@ pub fn default_keymap() -> Vec<KeyBinding> {
                 Entry::Item(id, label, keys) | Entry::Check(id, label, keys) => (id, label, keys),
                 Entry::Separator | Entry::Nested(..) => continue,
             };
+            let (section, label, accelerator) =
+                macos::command_location(mac, section, id, label, *accelerator);
             rows.push(KeyBinding {
                 id: (*id).to_owned(),
-                label: (*label).to_owned(),
-                section: (*section).to_owned(),
+                label: label.to_owned(),
+                section: section.to_owned(),
                 default_accelerator: accelerator.map(str::to_owned),
                 on_bar,
             });
@@ -339,7 +349,9 @@ pub fn default_keymap_pairs() -> Vec<(&'static str, Option<&'static str>)> {
     for (section, entries) in SECTIONS {
         for (entry, _) in keyed(section, entries) {
             if let Entry::Item(id, _, keys) | Entry::Check(id, _, keys) = entry {
-                rows.push((*id, *keys));
+                let (_, _, keys) =
+                    macos::command_location(cfg!(target_os = "macos"), section, id, "", *keys);
+                rows.push((*id, keys));
             }
         }
     }
@@ -406,13 +418,20 @@ fn accelerator<'a>(
     id: &str,
     fallback: Option<&'a &'static str>,
 ) -> Option<&'a str> {
+    let mac = cfg!(target_os = "macos");
+    let (_, _, fallback) = macos::command_location(mac, "", id, "", fallback.copied());
+    if mac && matches!(id, "settings" | "exit") {
+        return fallback;
+    }
     match overrides.get(id) {
         Some(keys) if keys.is_empty() => None,
+        Some(keys) if mac && macos::reserved(keys) => fallback,
         Some(keys) => Some(keys.as_str()),
-        None => fallback.copied(),
+        None => fallback,
     }
 }
 
+#[derive(Clone, Copy)]
 pub(crate) enum Entry {
     Item(&'static str, &'static str, Option<&'static str>),
     /// A toggle. muda flips the tick itself on click, so the frontend always writes the
@@ -583,8 +602,21 @@ pub fn build<R: Runtime>(
         items: HashMap::new(),
         checks: HashMap::new(),
     };
-    let mut section =
-        |title: &str, entries: &[Entry]| submenu(app, title, entries, overrides, &mut collected);
+    let mut section = |title: &str, entries: &[Entry]| {
+        let entries = macos::section_entries(cfg!(target_os = "macos"), entries);
+        if cfg!(target_os = "macos") && title == "Help" {
+            fill(
+                app,
+                SubmenuBuilder::with_id(app, tauri::menu::HELP_SUBMENU_ID, title),
+                &entries,
+                overrides,
+                &mut collected,
+            )?
+            .build()
+        } else {
+            submenu(app, title, &entries, overrides, &mut collected)
+        }
+    };
 
     let repository = section("Repository", REPOSITORY)?;
     let view = section("View", VIEW)?;
@@ -599,7 +631,11 @@ pub fn build<R: Runtime>(
     // for Ctrl+C to work inside an input, and muda gives them native behaviour. GTK has no
     // Undo, Redo, Minimize, Maximize or Close of its own: muda drew them disabled, so Linux
     // gets plain items that `native_command` answers.
-    let clipboard = SubmenuBuilder::new(app, "Edit");
+    let clipboard = if cfg!(target_os = "macos") {
+        SubmenuBuilder::with_id(app, macos::EDIT_ID, "Edit")
+    } else {
+        SubmenuBuilder::new(app, "Edit")
+    };
     #[cfg(target_os = "linux")]
     let clipboard = clipboard
         .item(&MenuItem::with_id(
@@ -618,17 +654,28 @@ pub fn build<R: Runtime>(
         )?);
     #[cfg(not(target_os = "linux"))]
     let clipboard = clipboard.undo().redo();
-    let clipboard = clipboard
-        .separator()
-        .cut()
-        .copy()
-        .paste()
+    let clipboard = clipboard.separator().cut().copy().paste();
+    let edit = if cfg!(target_os = "macos") {
+        clipboard.select_all().build()?
+    } else {
         // Not the predefined item: its Ctrl+A accelerator is taken by the menu and selects the
         // whole document before the page can answer. This one has no key; the page owns Ctrl+A.
-        .item(&MenuItem::with_id(app, "select-all", "Select All", true, None::<&str>)?)
-        .separator();
-    let edit = fill(app, clipboard, EDIT, overrides, &mut collected)?.build()?;
-    let window = SubmenuBuilder::new(app, "Window");
+        let clipboard = clipboard
+            .item(&MenuItem::with_id(
+                app,
+                "select-all",
+                "Select All",
+                true,
+                None::<&str>,
+            )?)
+            .separator();
+        fill(app, clipboard, EDIT, overrides, &mut collected)?.build()?
+    };
+    let window = if cfg!(target_os = "macos") {
+        SubmenuBuilder::with_id(app, tauri::menu::WINDOW_SUBMENU_ID, "Window")
+    } else {
+        SubmenuBuilder::new(app, "Window")
+    };
     #[cfg(target_os = "linux")]
     let window = window
         .item(&MenuItem::with_id(
@@ -646,7 +693,14 @@ pub fn build<R: Runtime>(
             None::<&str>,
         )?);
     #[cfg(not(target_os = "linux"))]
-    let window = window.minimize().maximize();
+    let window = if cfg!(target_os = "macos") {
+        window
+            .minimize()
+            .maximize_with_text("Zoom")
+            .bring_all_to_front()
+    } else {
+        window.minimize().maximize()
+    };
     let mut sizes = SubmenuBuilder::new(app, "Size");
     for (id, label, preset) in crate::window_place::SIZE_PRESETS {
         if preset.is_none() {
@@ -701,6 +755,9 @@ pub fn build<R: Runtime>(
         if id.starts_with("window-layout-") {
             item.set_checked(id == active_layout)?;
         }
+    }
+    if cfg!(target_os = "macos") {
+        menu.prepend(&macos::app_menu(app, overrides, &mut collected)?)?;
     }
     Ok((menu, collected))
 }
@@ -772,9 +829,15 @@ pub fn rebuild<R: Runtime>(
 ) -> tauri::Result<()> {
     keymap.set(overrides);
     let (menu, collected) = build(app, &keymap.snapshot(), &items.checked_layout()?)?;
+    #[cfg(target_os = "macos")]
+    {
+        app.state::<macos_window::WindowMenus<R>>()
+            .rebuild_main(app, menu)?;
+    }
+    #[cfg(not(target_os = "macos"))]
     match app.get_webview_window(crate::child_window::MAIN) {
         // macOS has one bar for the whole app.
-        Some(main) if cfg!(not(target_os = "macos")) => {
+        Some(main) => {
             main.set_menu(menu)?;
         }
         _ => {
@@ -943,6 +1006,37 @@ mod nested_tests {
         for (id, _, keys) in checks {
             assert!(defaults.contains(&(id, Some(keys))));
         }
+    }
+
+    #[test]
+    fn mac_application_commands_move_together_and_window_close_owns_command_w() {
+        let mac = keymap_for(true);
+        let desktop = keymap_for(false);
+        for (id, key, desktop_section) in [
+            ("about", None, "Help"),
+            ("check-updates", None, "Help"),
+            ("settings", Some("CmdOrCtrl+,"), "Edit"),
+            ("exit", Some("CmdOrCtrl+Q"), "Repository"),
+        ] {
+            let moved = mac.iter().filter(|row| row.id == id).collect::<Vec<_>>();
+            assert_eq!(moved.len(), 1);
+            assert_eq!(moved[0].section, "Cogit");
+            assert_eq!(moved[0].default_accelerator.as_deref(), key);
+            assert!(
+                desktop
+                    .iter()
+                    .any(|row| row.id == id && row.section == desktop_section)
+            );
+        }
+        let close = |rows: &[KeyBinding]| {
+            rows.iter()
+                .find(|row| row.id == "close")
+                .unwrap()
+                .default_accelerator
+                .clone()
+        };
+        assert_eq!(close(&mac), None);
+        assert_eq!(close(&desktop).as_deref(), Some("CmdOrCtrl+W"));
     }
 
     /// Repository ▸ Edit Git Config ▸ Repository / User: a submenu's items are commands
@@ -1224,7 +1318,14 @@ mod remote_tests {
             .expect("listed");
         assert_eq!(
             (row.section.as_str(), row.label.as_str()),
-            ("Edit", "Preferences…")
+            (
+                if cfg!(target_os = "macos") {
+                    "Cogit"
+                } else {
+                    "Edit"
+                },
+                "Preferences…"
+            )
         );
     }
 }

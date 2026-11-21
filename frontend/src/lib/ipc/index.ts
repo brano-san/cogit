@@ -781,6 +781,10 @@ export async function terminalChoices() {
   return await commands.terminalChoices();
 }
 
+export async function installCommandLineTool() {
+  unwrap(await commands.installCommandLineTool());
+}
+
 export async function openInTerminal(path: string, terminal: string) {
   return unwrap(await commands.openInTerminal(path, terminal));
 }

@@ -1,3 +1,5 @@
+import { ON_MAC } from "./platform";
+import { prettyKeys } from "$lib/keymap";
 import type { EolInfo, LineEnding, Whitespace } from "./ipc/bindings";
 import type { DiffLayout } from "./settings";
 
@@ -44,12 +46,12 @@ export function modeChangeText(oldMode: string, newMode: string): string {
 }
 
 /** The button names the view it switches to; the tooltip says what that view is (#14). */
-export function layoutTip(current: "split" | "unified"): string {
+export function layoutTip(current: "split" | "unified", onMac = ON_MAC): string {
   const action =
     current === "split"
       ? "Switch to the unified view: both versions in one column"
       : "Switch to the side-by-side view: old and new versions in two columns";
-  return `${action} (Ctrl+Shift+D)\nRemembered between runs`;
+  return `${action} (${prettyKeys("CmdOrCtrl+Shift+D", onMac)})\nRemembered between runs`;
 }
 
 const WHITESPACE: Record<
@@ -108,13 +110,13 @@ export function alignedButton(layout: DiffLayout): {
 }
 
 /** The Wrap toggle of the diff bar (F-950). */
-export function wrapButton(on: boolean): { pressed: boolean; disabled: boolean; title: string } {
+export function wrapButton(on: boolean, onMac = ON_MAC): { pressed: boolean; disabled: boolean; title: string } {
   return {
     pressed: on,
     disabled: false,
     title: on
-      ? "ON: long lines wrap at the width of their pane (Alt+Z).\nClick for: one row per line, long lines scroll sideways."
-      : "OFF: one row per line, long lines scroll sideways (Alt+Z).\nClick for: long lines wrap at the width of their pane.",
+      ? `ON: long lines wrap at the width of their pane (${prettyKeys("Alt+Z", onMac)}).\nClick for: one row per line, long lines scroll sideways.`
+      : `OFF: one row per line, long lines scroll sideways (${prettyKeys("Alt+Z", onMac)}).\nClick for: long lines wrap at the width of their pane.`,
   };
 }
 

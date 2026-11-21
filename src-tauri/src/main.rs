@@ -16,6 +16,11 @@ fn short_description() -> String {
 static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 fn main() {
+    #[cfg(target_os = "macos")]
+    if let Err(err) = desktop_entry::mac_cli::enter_bundle() {
+        cogit_lib::report_fatal(&err.into());
+        std::process::exit(1);
+    }
     // Started by git as its credential helper or by ssh as its `SSH_ASKPASS`: the answer
     // comes from the environment Cogit gave the command, at once and without a window.
     if let Some(code) = git_engine::run_as_helper() {

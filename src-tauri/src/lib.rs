@@ -359,6 +359,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::terminal_choices,
             commands::open_in_terminal,
             commands::desktop::desktop_info,
+            commands::desktop::install_command_line_tool,
             commands::desktop::set_native_theme,
             commands::desktop::system_font,
             commands::desktop::font_families,
@@ -568,14 +569,14 @@ pub fn run() -> anyhow::Result<()> {
                 .build(),
         );
     }
-    if commands::app::self_updates(
-        portable.is_some(),
-        commands::app::installed(),
-        std::env::consts::OS,
-    ) {
+    if commands::app::self_updates(portable.is_some()) {
         builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
     }
     let mut context = tauri::generate_context!();
+    #[cfg(not(windows))]
+    for window in &mut context.config_mut().app.windows {
+        window.additional_browser_args = None;
+    }
     notify::register_app_id(&context.config().identifier);
     if portable.is_some() {
         portable_mode::hold_config_windows(&mut context);
@@ -583,6 +584,8 @@ pub fn run() -> anyhow::Result<()> {
     builder
         .plugin(tauri_plugin_process::init())
         .on_window_event(|window, event| {
+            #[cfg(target_os = "macos")]
+            menu::macos_window::event(window, event);
             #[cfg(windows)]
             if matches!(event, tauri::WindowEvent::Resized(_)) {
                 webview2::match_memory_to_minimized(window);
@@ -668,6 +671,11 @@ pub fn run() -> anyhow::Result<()> {
             app.manage(menu::ContextMenu::<tauri::Wry>::default());
             let (stored, active_layout) = menu::stored_menu(&config_dir);
             let (menu, collected) = menu::build(app.handle(), &stored, active_layout)?;
+            #[cfg(target_os = "macos")]
+            {
+                app.manage(menu::macos_window::WindowMenus::new(menu.clone()));
+                menu::macos_window::listen(app.handle());
+            }
             app.set_menu(menu)?;
             app.manage(menu::MenuItems::from(collected));
             let keymap = menu::Keymap::default();
@@ -739,6 +747,10 @@ pub fn run() -> anyhow::Result<()> {
 /// the window took back from the webview (problem 3).
 pub fn dispatch_menu_command(app: &tauri::AppHandle, id: &str) {
     if child_window::on_menu(app, id) {
+        return;
+    }
+    #[cfg(target_os = "macos")]
+    if menu::macos_window::app_command(app, id) {
         return;
     }
     #[cfg(target_os = "linux")]

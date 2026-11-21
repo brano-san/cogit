@@ -1,3 +1,4 @@
+import { prettyKeys } from "$lib/keymap";
 import type { OriginReport } from "$lib/ipc/investigate";
 
 export type Perspective = "log" | "diff" | "blame" | "blameOrigins" | "origins";
@@ -11,19 +12,19 @@ export interface PerspectiveInfo {
 
 /** DeepGit's five perspectives, in its order. */
 export const PERSPECTIVES: readonly PerspectiveInfo[] = [
-  { id: "log", label: "Log", shortcut: "Ctrl+1", hint: "The commit and every file it changed" },
-  { id: "diff", label: "Diff", shortcut: "Ctrl+2", hint: "What the commit changed in this file" },
-  { id: "blame", label: "Blame", shortcut: "Ctrl+3", hint: "The file with the origin of each line" },
+  { id: "log", label: "Log", shortcut: prettyKeys("CmdOrCtrl+1"), hint: "The commit and every file it changed" },
+  { id: "diff", label: "Diff", shortcut: prettyKeys("CmdOrCtrl+2"), hint: "What the commit changed in this file" },
+  { id: "blame", label: "Blame", shortcut: prettyKeys("CmdOrCtrl+3"), hint: "The file with the origin of each line" },
   {
     id: "blameOrigins",
     label: "Blame+Origins",
-    shortcut: "Ctrl+4",
+    shortcut: prettyKeys("CmdOrCtrl+4"),
     hint: "Blame beside the origin candidates of the selected line",
   },
   {
     id: "origins",
     label: "Origins",
-    shortcut: "Ctrl+5",
+    shortcut: prettyKeys("CmdOrCtrl+5"),
     hint: "The origin candidates and the chosen one compared with the lines",
   },
 ];

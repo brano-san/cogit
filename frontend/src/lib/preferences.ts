@@ -1,4 +1,6 @@
+import { prettyKeys } from "$lib/keymap";
 import { DEFAULT_SETTINGS, needsRestart, type GraphColumn, type Settings } from "./settings";
+import { ON_MAC } from "./platform";
 
 export type FieldKey = keyof Settings | "keymap" | "suppressions" | "toolbar" | "network";
 
@@ -91,7 +93,7 @@ export const CATEGORIES: Category[] = [
           {
             key: "gitPath",
             label: "Git executable",
-            hint: "Leave as `git` to use the one on PATH.",
+            hint: ON_MAC ? "Leave as `git` to search PATH, Homebrew, and the Xcode developer tools." : "Leave as `git` to use the one on PATH.",
             keywords: ["binary", "path", "executable"],
           },
         ],
@@ -241,7 +243,7 @@ export const CATEGORIES: Category[] = [
           {
             key: "uiZoom",
             label: "Zoom",
-            hint: "Also View ▸ Zoom In (Ctrl+=), Zoom Out (Ctrl+-), Actual Size (Ctrl+0).",
+            hint: `Also View ▸ Zoom In (${prettyKeys("CmdOrCtrl+=")}), Zoom Out (${prettyKeys("CmdOrCtrl+-")}), Actual Size (${prettyKeys("CmdOrCtrl+0")}).`,
             keywords: ["zoom", "scale", "magnify", "size"],
           },
           {
@@ -265,7 +267,7 @@ export const CATEGORIES: Category[] = [
           {
             key: "graphColumns",
             label: "Columns",
-            hint: "Drag a row by its handle, or focus the handle and press Alt+↑ / Alt+↓, to change the order.",
+            hint: `Drag a row by its handle, or focus the handle and press ${prettyKeys("Alt+↑")} / ${prettyKeys("Alt+↓")}, to change the order.`,
             keywords: ["author", "avatar", "time", "date", "hash", "sha", "order", "hide"],
           },
           {
@@ -565,7 +567,7 @@ export const CATEGORIES: Category[] = [
           {
             key: "diffWrap",
             label: "Wrap long lines",
-            hint: "Long lines wrap at the width of their pane instead of scrolling sideways. In the diff, the 3-way preview and the Conflict Solver. The Wrap button of the diff and Alt+Z switch it too.",
+            hint: `Long lines wrap at the width of their pane instead of scrolling sideways. In the diff, the 3-way preview and the Conflict Solver. The Wrap button of the diff and ${prettyKeys("Alt+Z")} switch it too.`,
             keywords: ["wrap", "word wrap", "soft wrap", "long lines", "sideways", "horizontal"],
           },
         ],
@@ -678,7 +680,7 @@ export const CATEGORIES: Category[] = [
           {
             key: "externalEditor",
             label: "Editor",
-            hint: "Opened by Open in External Editor in the Files menu. Empty: the program the desktop opens the file with. A .cmd or .bat needs its full path.",
+            hint: ON_MAC ? "Choose an application (.app) or an editor executable. Leave empty to use the default app for the file." : "Opened by Open in External Editor in the Files menu. Empty: the program the desktop opens the file with. A .cmd or .bat needs its full path.",
             keywords: ["editor", "external", "open", "vscode", "code", "notepad", "sublime", "vim", "ide"],
           },
           {

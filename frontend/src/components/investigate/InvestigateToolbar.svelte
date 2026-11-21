@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { prettyKeys } from "$lib/keymap";
   import Icon from "$components/common/Icon.svelte";
   import Caret from "$components/common/Caret.svelte";
   import { backList, locationLabel } from "$lib/investigate/history";
@@ -40,7 +41,7 @@
     <button
       type="button"
       disabled={!session.canGoBack}
-      title="Back (Alt+Left)"
+      title="Back ({prettyKeys('Alt+Left')})"
       onclick={() => void session.back()}
     >
       <Icon name="back" />
@@ -68,7 +69,7 @@
   <button
     type="button"
     disabled={!session.canGoForward}
-    title="Forward (Alt+Right)"
+    title="Forward ({prettyKeys('Alt+Right')})"
     onclick={() => void session.forward()}
   >
     Forward

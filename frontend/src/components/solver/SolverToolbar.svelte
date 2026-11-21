@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { prettyKeys } from "$lib/keymap";
   import Icon from "$components/common/Icon.svelte";
   import type { GlyphName } from "$lib/icons";
   import { LAYOUTS, type SolverLayout } from "$lib/solver-geometry";
@@ -74,10 +75,10 @@
     type="button"
     class="tool"
     disabled={locked || saving || !dirty}
-    title="Write the Result to the working file; it stays conflicted until Mark Resolved (Ctrl+S)"
+    title="Write the Result to the working file; it stays conflicted until Mark Resolved ({prettyKeys('CmdOrCtrl+S')})"
     onclick={onsave}><Icon name="save" /><span>Save</span></button
   >
-  <button type="button" class="tool" disabled={locked || !hasChanges} title="Previous change (Shift+F6)" onclick={() => onstep("change", -1)}
+  <button type="button" class="tool" disabled={locked || !hasChanges} title="Previous change ({prettyKeys('Shift+F6')})" onclick={() => onstep("change", -1)}
     ><Icon name="prev" /><span>Prev. Change</span></button
   >
   <button type="button" class="tool" disabled={locked || !hasChanges} title="Next change (F6)" onclick={() => onstep("change", 1)}
@@ -85,16 +86,16 @@
   >
   <span class="sep" aria-hidden="true"></span>
   <div class="group" role="group" aria-label="Take">
-    <button type="button" class="tool" disabled={locked || !can?.oursTheirs} title="Ours, then Theirs, for the current change (Ctrl+3)" onclick={() => ontake("oursTheirs")}
+    <button type="button" class="tool" disabled={locked || !can?.oursTheirs} title="Ours, then Theirs, for the current change ({prettyKeys('CmdOrCtrl+3')})" onclick={() => ontake("oursTheirs")}
       ><Icon name="takeOursTheirs" /><span>Take Ours, Theirs</span></button
     >
-    <button type="button" class="tool" disabled={locked || !can?.ours} title="Take Ours for the current change (Ctrl+1)" onclick={() => ontake("ours")}
+    <button type="button" class="tool" disabled={locked || !can?.ours} title="Take Ours for the current change ({prettyKeys('CmdOrCtrl+1')})" onclick={() => ontake("ours")}
       ><Icon name="takeOurs" /><span>Take Ours</span></button
     >
-    <button type="button" class="tool" disabled={locked || !can?.theirs} title="Take Theirs for the current change (Ctrl+2)" onclick={() => ontake("theirs")}
+    <button type="button" class="tool" disabled={locked || !can?.theirs} title="Take Theirs for the current change ({prettyKeys('CmdOrCtrl+2')})" onclick={() => ontake("theirs")}
       ><Icon name="takeTheirs" /><span>Take Theirs</span></button
     >
-    <button type="button" class="tool" disabled={locked || !can?.theirsOurs} title="Theirs, then Ours, for the current change (Ctrl+4)" onclick={() => ontake("theirsOurs")}
+    <button type="button" class="tool" disabled={locked || !can?.theirsOurs} title="Theirs, then Ours, for the current change ({prettyKeys('CmdOrCtrl+4')})" onclick={() => ontake("theirsOurs")}
       ><Icon name="takeTheirsOurs" /><span>Take Theirs, Ours</span></button
     >
   </div>
@@ -134,7 +135,7 @@
     </div>
   {/if}
   <span class="grow"></span>
-  <button type="button" class="tool" disabled={locked || !hasConflicts} title="Previous conflict (Shift+F7)" onclick={() => onstep("conflict", -1)}
+  <button type="button" class="tool" disabled={locked || !hasConflicts} title="Previous conflict ({prettyKeys('Shift+F7')})" onclick={() => onstep("conflict", -1)}
     ><Icon name="prevConflict" /><span>Prev. Conflict</span></button
   >
   <button type="button" class="tool" disabled={locked || !hasConflicts} title="Next conflict (F7)" onclick={() => onstep("conflict", 1)}

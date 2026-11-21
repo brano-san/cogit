@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { prettyKeys } from "$lib/keymap";
   import FileStateIcon from "$components/common/FileStateIcon.svelte";
   import Icon from "$components/common/Icon.svelte";
   import MenuMark from "$components/common/MenuMark.svelte";
@@ -93,7 +94,7 @@
       value={filter}
       placeholder="File Filter"
       aria-label="Filter files by name or path"
-      title="Filter files by name or path (Ctrl+F)"
+      title="Filter files by name or path ({prettyKeys('CmdOrCtrl+F')})"
       {disabled}
       oninput={(event) => onfilter(event.currentTarget.value)}
     />
