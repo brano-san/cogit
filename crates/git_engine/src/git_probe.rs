@@ -49,31 +49,32 @@ pub fn parse_git_version(stdout: &str) -> Option<String> {
 ///
 /// [`GitError::GitNotFound`] with the probe's reason when `program` is not a working git.
 pub fn switch_git(program: &str, timeout: Duration) -> Result<GitProbe, crate::GitError> {
-    let probe = probe_git(program, timeout);
+    let program = resolve_program(program);
+    let probe = probe_program(&program, timeout, true);
     if !probe.valid {
-        return Err(crate::GitError::GitNotFound(
-            probe
-                .error
-                .unwrap_or_else(|| format!("{program} is not a working git")),
-        ));
+        return Err(crate::GitError::GitNotFound(probe.error.unwrap_or_else(
+            || format!("{} is not a working git", program.display()),
+        )));
     }
-    let program = match program.trim() {
-        "" => "git",
-        trimmed => trimmed,
-    };
-    crate::runner::use_git_program(program.into());
+    crate::runner::use_git_program(program);
     Ok(probe)
 }
 
-/// Runs `<program> --version`, never longer than `timeout`. An empty path is the `git` on
-/// PATH. Nothing here throws: a missing or broken program is an invalid probe with a reason.
+fn resolve_program(program: &str) -> std::path::PathBuf {
+    match program.trim() {
+        "" | "git" => crate::git_candidates::default_program(),
+        trimmed => trimmed.into(),
+    }
+}
+
 #[must_use]
 pub fn probe_git(program: &str, timeout: Duration) -> GitProbe {
-    let program = match program.trim() {
-        "" => "git",
-        trimmed => trimmed,
-    };
-    let mut command = command_for(Path::new(program));
+    probe_program(&resolve_program(program), timeout, true)
+}
+
+pub(crate) fn probe_program(path: &Path, timeout: Duration, remember_version: bool) -> GitProbe {
+    let program = path.display();
+    let mut command = command_for(path);
     command
         .arg("--version")
         .stdin(Stdio::null())
@@ -103,9 +104,9 @@ pub fn probe_git(program: &str, timeout: Duration) -> GitProbe {
         }
     };
     let stdout = String::from_utf8_lossy(&output.stdout);
-    if output.status.success() {
+    if remember_version && output.status.success() {
         // `git_version` would start the same program to hear the same line.
-        crate::runner::GIT_VERSION.remember(program.into(), stdout.trim().to_owned());
+        crate::runner::GIT_VERSION.remember(path.into(), stdout.trim().to_owned());
     }
     match parse_git_version(&stdout) {
         Some(version) if output.status.success() => GitProbe {

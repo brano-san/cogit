@@ -495,7 +495,7 @@ fn git_program() -> std::path::PathBuf {
         |poisoned| poisoned.into_inner().clone(),
         |held| held.clone(),
     );
-    held.unwrap_or_else(|| std::path::PathBuf::from("git"))
+    held.unwrap_or_else(crate::git_candidates::default_program)
 }
 
 /// Something learned from the git in use (its release, its bash), learned again once

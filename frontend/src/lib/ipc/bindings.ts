@@ -632,6 +632,7 @@ export const commands = {
 	openInTerminal: (path: string, terminal: string) => typedError<null, GitError>(__TAURI_INVOKE("open_in_terminal", { path, terminal })),
 	/**  Looks for Git Bash on disk and in the registry, so it stays off the main thread. */
 	desktopInfo: () => typedError<DesktopInfo, GitError>(__TAURI_INVOKE("desktop_info")),
+	installCommandLineTool: () => typedError<null, GitError>(__TAURI_INVOKE("install_command_line_tool")),
 	/**
 	 *  The frontend's theme is dark or light, on its `bg.app` background: the menus, dialogs
 	 *  and window backgrounds follow it.

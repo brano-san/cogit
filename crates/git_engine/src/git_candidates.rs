@@ -1,4 +1,4 @@
-use crate::git_probe::{GitProbe, probe_git};
+use crate::git_probe::{GitProbe, probe_program};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -23,12 +23,15 @@ pub struct GitCandidate {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Platform {
     Windows,
+    Mac,
     Unix,
 }
 
 impl Platform {
     pub const CURRENT: Self = if cfg!(windows) {
         Self::Windows
+    } else if cfg!(target_os = "macos") {
+        Self::Mac
     } else {
         Self::Unix
     };
@@ -43,6 +46,34 @@ pub trait Lookup {
     /// `InstallPath` of Git for Windows under `HKLM` or `HKCU`.
     fn install_path(&self, machine_wide: bool) -> Option<PathBuf>;
     fn canonical(&self, path: &Path) -> PathBuf;
+    fn developer_git(&self) -> Option<PathBuf> {
+        None
+    }
+}
+
+const CLT_GIT: &str = "/Library/Developer/CommandLineTools/usr/bin/git";
+
+fn mac_git_paths(dirs: impl Iterator<Item = PathBuf>, developer: Option<PathBuf>) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    for path in dirs
+        .filter(|dir| dir.starts_with("/") && !matches!(dir.to_str(), Some("/usr/bin" | "/bin")))
+        .map(|dir| dir.join("git"))
+        .chain(
+            [
+                "/opt/homebrew/bin/git",
+                "/usr/local/bin/git",
+                "/opt/local/bin/git",
+            ]
+            .map(PathBuf::from),
+        )
+        .chain(developer)
+        .chain([PathBuf::from(CLT_GIT)])
+    {
+        if !paths.contains(&path) {
+            paths.push(path);
+        }
+    }
+    paths
 }
 
 const UNIX: &[&str] = &[
@@ -58,6 +89,10 @@ const UNIX: &[&str] = &[
 #[must_use]
 pub fn candidate_paths(platform: Platform, lookup: &impl Lookup) -> Vec<PathBuf> {
     let mut found = Vec::new();
+    if platform == Platform::Mac {
+        let path = lookup.var("PATH").unwrap_or_default();
+        return mac_git_paths(std::env::split_paths(&path), lookup.developer_git());
+    }
     if platform == Platform::Unix {
         found.extend(UNIX.iter().map(PathBuf::from));
         if let Some(home) = lookup.var("HOME") {
@@ -115,6 +150,9 @@ pub fn working_candidates(
     probe: &(impl Fn(&Path) -> GitProbe + Sync),
 ) -> Vec<GitCandidate> {
     let mut seen = std::collections::HashSet::new();
+    if platform == Platform::Mac {
+        seen.insert(lookup.canonical(Path::new("/usr/bin/git")));
+    }
     let paths: Vec<PathBuf> = candidate_paths(platform, lookup)
         .into_iter()
         .filter(|path| lookup.is_file(path))
@@ -142,6 +180,15 @@ pub fn working_candidates(
 struct System;
 
 impl Lookup for System {
+    fn developer_git(&self) -> Option<PathBuf> {
+        let output = std::process::Command::new("/usr/bin/xcode-select")
+            .arg("-p")
+            .output()
+            .ok()?;
+        let path = std::str::from_utf8(&output.stdout).ok()?.trim();
+        (output.status.success() && Path::new(path).is_absolute())
+            .then(|| Path::new(path).join("usr/bin/git"))
+    }
     fn var(&self, name: &str) -> Option<PathBuf> {
         std::env::var_os(name)
             .filter(|value| !value.is_empty())
@@ -206,8 +253,26 @@ pub fn git_for_windows_install(_machine_wide: bool) -> Option<PathBuf> {
 #[must_use]
 pub fn find_git_candidates() -> Vec<GitCandidate> {
     working_candidates(Platform::CURRENT, &System, &|path: &Path| {
-        probe_git(&path.display().to_string(), Duration::from_secs(3))
+        probe_program(path, Duration::from_secs(3), false)
     })
+}
+
+pub(crate) fn default_program() -> PathBuf {
+    #[cfg(target_os = "macos")]
+    {
+        static DEFAULT: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+        if let Some(program) = DEFAULT.get() {
+            return program.clone();
+        }
+        if let Some(git) = find_git_candidates().into_iter().next() {
+            return DEFAULT.get_or_init(|| git.path.into()).clone();
+        }
+        PathBuf::from(CLT_GIT)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        PathBuf::from("git")
+    }
 }
 
 #[cfg(test)]
@@ -323,6 +388,49 @@ mod tests {
             Path::new("/home/ann/.nix-profile/bin/git")
         );
         assert!(paths.contains(&PathBuf::from("/opt/homebrew/bin/git")));
+    }
+
+    #[test]
+    fn a_finder_launch_finds_brew_and_the_selected_developer_tools_without_the_stub() {
+        let developer =
+            PathBuf::from("/Applications/Xcode Beta.app/Contents/Developer/usr/bin/git");
+        let dirs = ["/usr/bin", "/custom/bin", "/usr/local/bin", "/bin", "."].map(PathBuf::from);
+        let paths = mac_git_paths(dirs.into_iter(), Some(developer.clone()));
+        let paths: Vec<_> = paths
+            .iter()
+            .map(|path| path.to_string_lossy().replace('\\', "/"))
+            .collect();
+        assert_eq!(
+            paths,
+            [
+                "/custom/bin/git",
+                "/usr/local/bin/git",
+                "/opt/homebrew/bin/git",
+                "/opt/local/bin/git",
+                "/Applications/Xcode Beta.app/Contents/Developer/usr/bin/git",
+                "/Library/Developer/CommandLineTools/usr/bin/git",
+            ]
+        );
+    }
+
+    #[test]
+    fn a_broken_brew_install_and_a_symlink_to_the_stub_are_skipped() {
+        let mut fake = Fake::default();
+        for path in ["/opt/homebrew/bin/git", "/usr/local/bin/git", CLT_GIT] {
+            fake.files.insert(PathBuf::from(path));
+        }
+        fake.aliases
+            .insert("/usr/local/bin/git".into(), "/usr/bin/git".into());
+        let found = working_candidates(Platform::Mac, &fake, &|path| {
+            assert_ne!(path, Path::new("/usr/local/bin/git"));
+            if path == Path::new(CLT_GIT) {
+                ok("2.45.0")
+            } else {
+                bad()
+            }
+        });
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].path, CLT_GIT);
     }
 
     #[test]
