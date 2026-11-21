@@ -85,7 +85,7 @@ export interface CheckOptions {
     `unknown`; after `signal` aborts nothing more is reported. */
 export async function checkAvailability(
   paths: readonly string[],
-  probe: (path: string) => Promise<FolderKind>,
+  probe: (path: string) => Promise<FolderKind | null>,
   { timeoutMs, concurrency = 4, signal, onResult }: CheckOptions,
 ): Promise<void> {
   const queue = [...paths];

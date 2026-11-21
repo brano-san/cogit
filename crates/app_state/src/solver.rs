@@ -168,6 +168,7 @@ impl AppState {
         temp_root: &std::path::Path,
         on_exit: impl FnOnce(MergeToolOutcome) + Send + 'static,
     ) -> Result<(), GitError> {
+        crate::external::require_desktop_path(&self.root_of(repo)?)?;
         let sides = self.merge_sides(repo, path)?;
         // The tool would write its result over the submodule's folder.
         if sides.submodule {

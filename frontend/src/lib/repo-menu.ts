@@ -25,6 +25,7 @@ export interface RepoMenuTarget {
   /** Loaded, and so watched; a closed row is only remembered by the list. */
   open: boolean;
   missing: boolean;
+  desktopBlock?: string | null;
   pinned: boolean;
   group: string;
   groups: readonly GroupChoice[];
@@ -78,6 +79,7 @@ function moveTo(at: RepoMenuTarget): ContextItem {
     out elsewhere; everything else is disabled, not hidden, when it does not apply. */
 export function repoMenu(at: RepoMenuTarget, desktop: DesktopInfo): ContextItem[] {
   const gone = at.missing ? "the folder is missing" : null;
+  const local = at.desktopBlock ?? gone;
   const closed = at.open ? gone : "closed";
   const listOnly = at.kind === "submodule" ? SUBMODULE_REASON : null;
   const onlyActive = (chord: string) => (at.active ? chord : undefined);
@@ -85,16 +87,16 @@ export function repoMenu(at: RepoMenuTarget, desktop: DesktopInfo): ContextItem[
 
   return tidy([
     at.active ? item("repo-open", "Open Repository", false) : offer("repo-open", "Open Repository", gone),
-    offer("repo-open-folder", `Open in ${manager}`, gone),
-    offer("repo-reveal", `Reveal in ${manager}`, gone),
-    offer("repo-terminal", "Open in Terminal", gone),
+    offer("repo-open-folder", `Open in ${manager}`, local),
+    offer("repo-reveal", `Reveal in ${manager}`, local),
+    offer("repo-terminal", "Open in Terminal", local),
     ...(desktop.windowsShells
       ? [
-          offer("repo-powershell", "Open in PowerShell", gone),
+          offer("repo-powershell", "Open in PowerShell", local),
           offer(
             "repo-git-shell",
             "Open in Git Shell",
-            gone ?? (desktop.gitShell === null ? "Git Bash not found" : null),
+            local ?? (desktop.gitShell === null ? "Git Bash not found" : null),
           ),
         ]
       : []),

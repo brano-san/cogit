@@ -11,6 +11,17 @@ pub const DEFAULT_EDITOR_ARGS: &str = "${file}";
 
 pub const WSL_REFUSAL: &str = "Open in External Diff Tool is not available for a repository inside WSL: git difftool would run inside the distribution, out of reach of Windows programs. Use the Diff panel, or Open in External Editor.";
 
+pub fn require_desktop_path(path: &std::path::Path) -> Result<(), GitError> {
+    let location =
+        RepoLocation::checked(path).map_err(|reason| GitError::InvalidState(reason.into()))?;
+    if matches!(location, RepoLocation::Ssh { .. }) {
+        return Err(GitError::InvalidState(
+            "This action requires a local file. The repository is on an SSH server.".into(),
+        ));
+    }
+    Ok(())
+}
+
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum ExternalError {
     #[error("the {tool} program is empty")]
@@ -152,6 +163,7 @@ impl AppState {
         args: &str,
     ) -> Result<(), GitError> {
         let root = self.root_of(repo)?;
+        require_desktop_path(&root)?;
         if self.remote(repo).is_some()
             || matches!(RepoLocation::of(&root), RepoLocation::Wsl { .. })
         {

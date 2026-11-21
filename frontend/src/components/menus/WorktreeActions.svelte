@@ -3,6 +3,7 @@
   import AddWorktreeDialog from "$components/repo-tree/AddWorktreeDialog.svelte";
   import RemoveWorktreeDialog from "$components/repo-tree/RemoveWorktreeDialog.svelte";
   import { openInTerminal, popupContextMenu, type WorktreeBranch, type WorktreeEntry } from "$lib/ipc";
+  import { desktopBlock } from "$lib/ipc/repo-rows";
   import { openOnDesktop } from "$lib/ipc/file-menus";
   import { optional } from "$lib/names";
   import type { AddOrigin } from "$lib/worktree-add";
@@ -37,6 +38,7 @@
   let { openRow, copyText, graphFocused }: Props = $props();
 
   let addOpen = $state(false);
+  let addRemote = $state(false);
   let addOrigin = $state<AddOrigin>({ kind: "current" });
   let removal = $state.raw<{ entry: WorktreeEntry } | null>(null);
   /** The row the menu was opened on, until its choice comes back as a menu command. */
@@ -99,10 +101,15 @@
 
   /** Repair cannot guess where a folder went: the new place is asked for first. */
   export async function repair(entry: WorktreeEntry) {
-    const picked = await openFolderDialog({
-      directory: true,
-      title: `Locate the folder of worktree ${entry.name}`,
-    });
+    const owner = repository.current;
+    if (!owner) return;
+    const blocked = await desktopBlock(owner.root);
+    const title = `Locate the folder of worktree ${entry.name}`;
+    const picked = blocked
+      ? await prompt.ask({ title, label: "Absolute folder on the SSH host", value: entry.path, confirm: "Repair",
+          validate: (path) => path.trim().startsWith("/") ? null : "Enter an absolute path on the SSH host" })
+      : await openFolderDialog({ directory: true, title });
+    if (repository.current?.repo !== owner.repo) return;
     if (typeof picked !== "string") return;
     await worktrees
       .repair(picked.replace(/\\/g, "/"))
@@ -110,7 +117,12 @@
   }
 
   /** A commit selected in the graph is the start; a menu on a branch or commit says its own. */
-  export function openAdd(origin?: AddOrigin) {
+  export async function openAdd(origin?: AddOrigin) {
+    const owner = repository.current;
+    if (!owner) return;
+    const blocked = await desktopBlock(owner.root);
+    if (repository.current?.repo !== owner.repo) return;
+    addRemote = blocked !== null;
     addOrigin = origin ?? (graphFocused && commit.oid ? { kind: "commit", oid: commit.oid } : { kind: "current" });
     addOpen = true;
   }
@@ -124,14 +136,15 @@
       return;
     }
     if (!request.open) return;
-    const wanted = request.path.toLowerCase();
-    const added = worktrees.entries.find((entry) => entry.path.toLowerCase() === wanted);
+    const added = worktrees.entries.find((entry) => addRemote
+      ? entry.path === request.path
+      : entry.path.toLowerCase() === request.path.toLowerCase());
     if (added) await openRow(added);
   }
 
   export async function context(entry: WorktreeEntry, x: number, y: number) {
     target = entry;
-    await popupContextMenu(worktreeMenu(entry, desktop.info.fileManager), x, y).catch(() => {});
+    await popupContextMenu(worktreeMenu(entry, desktop.info.fileManager, await desktopBlock(repository.current?.root ?? entry.path)), x, y).catch(() => {});
   }
 
   /** Git keeps the reason; an empty one locks without it. */
@@ -216,7 +229,8 @@
   {@const repo = repository.current}
   <AddWorktreeDialog
     repo={repo.repo}
-    root={repo.root}
+    root={addRemote ? worktrees.entries.find((entry) => entry.isCurrent)?.path ?? "" : repo.root}
+    ssh={addRemote}
     branches={repo.branches}
     tags={repo.tags}
     worktrees={worktrees.entries}

@@ -80,11 +80,7 @@ impl AppState {
                 already_open: self.find_by_root(&found.path).is_some(),
             })
         };
-        #[cfg(feature = "loopback")]
-        if let Some(host) = crate::backend::loopback() {
-            return self.find_repositories_through(&host, root, max_depth, &cancelled, &mut hit);
-        }
-        if let Some(host) = crate::Host::of(root) {
+        if let Some(host) = crate::backend::host_of(root) {
             return self.find_repositories_through(&host, root, max_depth, &cancelled, &mut hit);
         }
         let options = git_engine::discover::ScanOptions { max_depth };
@@ -94,12 +90,18 @@ impl AppState {
 
     /// Blocking by design; the Tauri layer wraps it in `spawn_blocking`.
     pub fn open_repository(&self, path: &Path) -> Result<RepoSummary, git_engine::GitError> {
-        #[cfg(feature = "loopback")]
-        if let Some(host) = crate::backend::loopback() {
-            return self.open_repository_on(&host, path);
-        }
-        if let Some(host) = crate::Host::of(path) {
-            return self.open_repository_on(&host, path);
+        self.open_repository_with_login(path, None)
+    }
+
+    pub fn open_repository_with_login(
+        &self,
+        path: &Path,
+        sign_in: Option<&crate::SignIn>,
+    ) -> Result<RepoSummary, git_engine::GitError> {
+        crate::location::RepoLocation::checked(path)
+            .map_err(|reason| git_engine::GitError::InvalidState(reason.into()))?;
+        if let Some(host) = crate::backend::host_of(path) {
+            return self.open_on_with_login(&host, path, sign_in);
         }
         let began = self.closes_so_far();
         let mut watch = Steps::new();
@@ -147,8 +149,16 @@ impl AppState {
     /// `open_repository` of one already open, by its id: listed or not stays as it was, so a
     /// re-read of a submodule or worktree on screen does not make it an entry (R-543).
     pub fn reread_repository(&self, repo: RepoId) -> Result<RepoSummary, git_engine::GitError> {
+        self.refresh_repository(repo, false)
+    }
+
+    pub fn refresh_repository(
+        &self,
+        repo: RepoId,
+        background: bool,
+    ) -> Result<RepoSummary, git_engine::GitError> {
         if let Some(remote) = self.remote(repo) {
-            return self.reread_through(repo, &remote);
+            return self.reread_through(repo, &remote, background);
         }
         let began = self.closes_so_far();
         let open = self.get(repo).ok_or_else(|| crate::not_open(repo))?;
@@ -558,6 +568,14 @@ impl Steps {
 }
 
 pub(crate) fn same_root(a: &Path, b: &Path) -> bool {
+    use crate::location::RepoLocation;
+    if a.as_os_str() == b.as_os_str() {
+        return true;
+    }
+    let (left, right) = (RepoLocation::of(a), RepoLocation::of(b));
+    if matches!(left, RepoLocation::Ssh { .. }) || matches!(right, RepoLocation::Ssh { .. }) {
+        return left == right;
+    }
     a == b || root_key(a) == root_key(b)
 }
 
@@ -574,6 +592,17 @@ fn root_key(path: &Path) -> PathBuf {
 mod tests {
     use super::*;
     use crate::safety;
+
+    #[test]
+    fn ssh_root_identity_preserves_remote_case_and_normalizes_the_address() {
+        let root = Path::new("ssh://me@build/home/me/Repo");
+        assert!(same_root(root, Path::new("me@build:/home/me/Repo")));
+        assert!(!same_root(root, Path::new("ssh://me@build/home/me/repo")));
+        assert!(!same_root(
+            root,
+            Path::new("ssh://other@build/home/me/Repo")
+        ));
+    }
 
     #[test]
     fn a_repository_opened_again_counts_its_lost_commits_from_what_it_had() {

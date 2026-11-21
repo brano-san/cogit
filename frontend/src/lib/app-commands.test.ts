@@ -85,6 +85,7 @@ describe("app commands", () => {
   it("keeps the palette's order and titles", () => {
     expect(appCommands(OPEN, spies()).map((command) => [command.id, command.title])).toEqual([
       ["open", "Open Repository…"],
+      ["open-ssh", "Add Remote Repository…"],
       ["clone", "Clone Repository…"],
       ["fetch", "Fetch"],
       ["pull", "Pull…"],

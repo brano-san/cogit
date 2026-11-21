@@ -4,6 +4,15 @@ const OTHER_COUNTS_FOR: std::time::Duration = std::time::Duration::from_secs(30)
 
 pub(crate) type KeptCounts = (std::time::Instant, (u32, u32));
 
+fn check_target(path: &str) -> Result<(), git_engine::GitError> {
+    if crate::ssh_transport::inside_agent() && (!path.starts_with('/') || path.starts_with("//")) {
+        return Err(git_engine::GitError::InvalidState(
+            "Enter the absolute path of a folder on the SSH server.".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
 impl AppState {
     pub(crate) fn local_worktrees(
         &self,
@@ -82,6 +91,7 @@ impl AppState {
         branch: &git_engine::WorktreeBranch,
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
+        check_target(path)?;
         self.handle(repo)?.add_worktree_with(path, branch)
     }
 
@@ -186,6 +196,7 @@ impl AppState {
         path: &str,
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
+        check_target(path)?;
         self.handle(repo)?.repair_worktree(path)
     }
 
@@ -206,6 +217,7 @@ impl AppState {
         to: &str,
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
+        check_target(to)?;
         self.handle(repo)?.move_worktree(path, to)
     }
 

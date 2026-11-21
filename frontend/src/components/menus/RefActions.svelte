@@ -133,6 +133,7 @@
     openRebase: () => Promise<void>;
     /** App's Add Worktree dialog, started from this commit or branch. */
     openAddWorktree: (origin: AddOrigin) => void;
+    desktopBlock: string | null;
     rollbackTree: () => Promise<void>;
   }
 
@@ -146,6 +147,7 @@
     openSplitCommit,
     openRebase,
     openAddWorktree,
+    desktopBlock,
     rollbackTree,
   }: Props = $props();
 
@@ -298,7 +300,7 @@
         file: null,
         commit: details?.oid ?? oid,
         branch: head?.kind === "branch" ? head.name : null,
-      });
+      }, desktopBlock);
       await show({ ...blank(), oid, details, facts }, withTools(graphCommitMenu(facts, bisect), tools), x, y);
     } catch (err) {
       errors.report(err, "Could not open the commit menu");

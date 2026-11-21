@@ -48,6 +48,7 @@ pub mod settings;
 mod solver;
 mod sparse;
 mod splitting;
+mod ssh_transport;
 mod stashing;
 mod streams;
 pub mod taskbar;
@@ -76,8 +77,8 @@ pub use avatars::{Author, AvatarRow, Avatars};
 pub use backend::{BackendState, Host, provide_agent_binary, serve_agent};
 pub use ci_status::{CiBatch, CiTarget};
 pub use credentials::{
-    CredentialStore, KnownCredential, SecretError, SignIn, SshKeys, credential_host,
-    credential_target, host_input, host_of, private_keys, ssh_host, ssh_keys,
+    CredentialStore, KnownCredential, SecretError, SignIn, SshKeys, SshRepositoryKey,
+    credential_host, credential_target, host_input, host_of, private_keys, ssh_host, ssh_keys,
 };
 pub use diffing::FileContent;
 pub use graph_cache::{GraphProgress, GraphWindow, PROGRESS_EVERY, throttled};

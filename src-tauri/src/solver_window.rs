@@ -66,21 +66,19 @@ pub fn reveal_or_open(
     repo: u32,
     path: &str,
     external_tool: bool,
+    ssh: bool,
 ) -> Result<(), GitError> {
+    let external_tool = external_tool && !ssh;
+    let mut address = url(repo, path, external_tool);
+    if ssh {
+        address.push_str("&ssh=true");
+    }
     let found = child_window::existing_or_open(
         app,
         "solver",
         (repo, path),
         |open| is_window_for(open, repo, path),
-        || {
-            child_window::open(
-                app,
-                "solver",
-                url(repo, path, external_tool),
-                title(path),
-                SHAPE,
-            )
-        },
+        || child_window::open(app, "solver", address, title(path), SHAPE),
     )
     .map_err(|err| GitError::Internal(format!("cannot open the Conflict Solver: {err}")))?;
     let Some(window) = found else {

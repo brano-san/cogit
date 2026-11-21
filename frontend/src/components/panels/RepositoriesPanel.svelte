@@ -6,6 +6,7 @@
 
   interface Props {
     filter: string;
+    disconnected: ReadonlySet<string>;
     onselect: (entry: RepoOverview) => void;
     oncontext: (row: ListedRepo, x: number, y: number) => void;
     onreopen: (root: string) => void;
@@ -19,6 +20,7 @@
 
   let {
     filter,
+    disconnected,
     onselect,
     oncontext,
     onreopen,
@@ -40,6 +42,7 @@
 <RepositoryList
   bind:this={list}
   {filter}
+  {disconnected}
   {onselect}
   {oncontext}
   {onreopen}

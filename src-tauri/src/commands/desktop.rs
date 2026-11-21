@@ -50,6 +50,7 @@ pub async fn system_font(
 #[specta::specta]
 pub async fn open_path(path: String) -> Result<(), GitError> {
     blocking("open_path", move || {
+        app_state::external::require_desktop_path(path.as_ref())?;
         crate::shell_open::open(&path)
             .map_err(|err| GitError::Io(format!("cannot open {path}: {err}")))
     })
@@ -73,6 +74,7 @@ pub async fn open_url(app: tauri::AppHandle, url: String) -> Result<(), GitError
 #[specta::specta]
 pub async fn reveal_path(path: String) -> Result<(), GitError> {
     blocking("reveal_path", move || {
+        app_state::external::require_desktop_path(path.as_ref())?;
         crate::shell_open::reveal(&path)
             .map_err(|err| GitError::Io(format!("cannot show {path} in the file manager: {err}")))
     })
@@ -83,6 +85,7 @@ pub async fn reveal_path(path: String) -> Result<(), GitError> {
 #[specta::specta]
 pub async fn open_power_shell(path: String) -> Result<(), GitError> {
     blocking("open_power_shell", move || {
+        app_state::external::require_desktop_path(path.as_ref())?;
         let launch = desktop::power_shell_command(Platform::current())
             .ok_or_else(|| GitError::InvalidState("PowerShell is a Windows program".to_owned()))?;
         start("powershell", launch, Some(path))
@@ -94,6 +97,7 @@ pub async fn open_power_shell(path: String) -> Result<(), GitError> {
 #[specta::specta]
 pub async fn open_git_shell(path: String) -> Result<(), GitError> {
     blocking("open_git_shell", move || {
+        app_state::external::require_desktop_path(path.as_ref())?;
         let bash = desktop::find_git_bash().ok_or_else(|| {
             GitError::InvalidState("Git Bash from Git for Windows was not found".to_owned())
         })?;
@@ -132,6 +136,7 @@ pub async fn open_in_editor(
     args: String,
 ) -> Result<(), GitError> {
     blocking("open_in_editor", move || {
+        app_state::external::require_desktop_path(path.as_ref())?;
         let platform = Platform::current();
         if !std::path::Path::new(&desktop::native_path(platform, &path)).is_file() {
             return Err(GitError::InvalidState(format!(

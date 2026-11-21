@@ -38,6 +38,7 @@
   interface Props {
     repo: RepoId;
     root: string;
+    ssh: boolean;
     branches: readonly Branch[];
     tags: readonly Tag[];
     worktrees: readonly WorktreeEntry[];
@@ -47,7 +48,7 @@
     onclose: () => void;
   }
 
-  let { repo, root, branches, tags, worktrees, origin, onbrowse, onadd, onclose }: Props = $props();
+  let { repo, root, ssh, branches, tags, worktrees, origin, onbrowse, onadd, onclose }: Props = $props();
 
   const CHECK_DELAY_MS = 200;
   const MODES: readonly (readonly [AddMode, string])[] = [
@@ -142,6 +143,10 @@
 
   $effect(() => {
     const path = folder.trim().replace(/\\/g, "/").replace(/\/+$/, "");
+    if (ssh) {
+      folderAnswer = { path, problem: path.startsWith("/") ? null : "Enter an absolute folder on the SSH host" };
+      return;
+    }
     return ask(path !== "", () => worktreeFolderProblem(path), (problem) => (folderAnswer = { path, problem }));
   });
 
@@ -240,7 +245,8 @@
         spellcheck="false"
         aria-label="Folder"
       />
-      <button type="button" class="btn" onclick={() => void browse()}>Browse…</button>
+      <button type="button" class="btn" disabled={ssh} title={ssh ? "Enter the folder on the SSH host" : undefined}
+        onclick={() => void browse()}>Browse…</button>
     </span>
   </div>
 

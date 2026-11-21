@@ -1,3 +1,5 @@
+import { backendLabels } from "$lib/ipc/repo-rows";
+import { sshHost } from "$lib/ssh-repositories";
 import { folderKind, type FolderKind } from "$lib/ipc/clone";
 import {
   checkAvailability,
@@ -12,7 +14,7 @@ import {
 /** A dead share must not leave a row "checking" for ever, nor hold the dialog. */
 const CHECK_TIMEOUT_MS = 4000;
 
-type Probe = (path: string) => Promise<FolderKind>;
+type Probe = (path: string) => Promise<FolderKind | null>;
 
 /** The Welcome dialog (F-586): open or not, the filter, the selected recent repository (by
     path, so a filter or a removal cannot shift it onto another row), and which turned out gone. */
@@ -26,7 +28,7 @@ export class WelcomeDialog {
   #timeoutMs: number;
   #checking: AbortController | null = null;
 
-  constructor(probe: Probe = folderKind, timeoutMs = CHECK_TIMEOUT_MS) {
+  constructor(probe: Probe = async (path) => sshHost((await backendLabels([path]))[0]) ? null : folderKind(path), timeoutMs = CHECK_TIMEOUT_MS) {
     this.#probe = probe;
     this.#timeoutMs = timeoutMs;
   }

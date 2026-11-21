@@ -25,11 +25,12 @@
   interface Props {
     repo: RepoId;
     name: string;
+    desktopBlock: string | null;
     onsaved: () => Promise<void>;
     onclose: () => void;
   }
 
-  let { repo, name, onsaved, onclose }: Props = $props();
+  let { repo, name, desktopBlock, onsaved, onclose }: Props = $props();
 
   let read = $state.raw<RepoSetting[] | null>(null);
   let drafts = $state.raw<Map<string, string | null>>(new Map());
@@ -147,6 +148,8 @@
                     <button
                       type="button"
                       class="btn browse"
+                      disabled={!!desktopBlock}
+                      title={desktopBlock ?? control.title}
                       aria-label={control.title}
                       onclick={() => void browse(field, control.title)}>...</button
                     >

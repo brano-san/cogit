@@ -27,6 +27,7 @@
     dirty?: boolean;
     /** An external tool has the file: nothing here acts until it is done. */
     locked: boolean;
+    toolBlock: string | null;
     saving: boolean;
   }
 
@@ -48,6 +49,7 @@
     onresolve,
     dirty = false,
     locked,
+    toolBlock,
     saving,
   }: Props = $props();
 
@@ -139,7 +141,7 @@
     ><Icon name="nextConflict" /><span>Next Conflict</span></button
   >
   <span class="sep" aria-hidden="true"></span>
-  <button type="button" class="tool" disabled={locked} title="Run the merge tool set in Preferences or in the Git config on this file" onclick={onexternal}
+  <button type="button" class="tool" disabled={locked || !!toolBlock} title={toolBlock ?? "Run the merge tool set in Preferences or in the Git config on this file"} onclick={onexternal}
     ><Icon name="external" /><span>External Tool</span></button
   >
   <button

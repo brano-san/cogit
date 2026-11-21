@@ -51,6 +51,9 @@ pub(crate) fn answer_agent(
     host_keys: &crate::host_keys::HostKeyDesk,
     question: Value,
 ) -> Value {
+    if matches!(host, Host::Ssh { .. }) {
+        return Value::Null;
+    }
     match serde_json::from_value(question) {
         Ok(Question::Credential { url }) => to_json(
             &crate::credentials::stored_in(passwords, &url)
@@ -76,16 +79,18 @@ pub fn forward_agent_events(state: Arc<AppState>, events: agent::Events) {
     if state.window.set(events.clone()).is_err() {
         tracing::error!(context = "a second window for one agent");
     }
-    let window = events.clone();
-    git_engine::ask_host_keys(Arc::new(move |question, _| {
-        ask_window::<bool>(
-            &window,
-            &Question::HostKey {
-                question: question.clone(),
-            },
-        )
-        .unwrap_or(false)
-    }));
+    if !crate::ssh_transport::inside_agent() {
+        let window = events.clone();
+        git_engine::ask_host_keys(Arc::new(move |question, _| {
+            ask_window::<bool>(
+                &window,
+                &Question::HostKey {
+                    question: question.clone(),
+                },
+            )
+            .unwrap_or(false)
+        }));
+    }
     let commands = events.clone();
     state.tap_commands(Box::new(move |output| {
         let mut output = output.clone();
@@ -166,5 +171,40 @@ impl Sink {
             .iter()
             .find(|(_, remote)| remote.host() == &self.host && remote.id() == theirs)
             .map(|(id, _)| *id)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_ssh_agent_cannot_read_or_replace_desktop_credentials() {
+        let state = AppState::new();
+        let directory = tempfile::tempdir().unwrap();
+        state.use_password_store(directory.path().join("passwords.json"));
+        state.create_credential_store(None).unwrap();
+        let mut login = crate::SignIn {
+            host: "example.test".into(),
+            username: Some("user".into()),
+            secret: "original".into(),
+            key_path: None,
+            remember: true,
+        };
+        state.store_credential(&login).unwrap();
+        let remote = Host::of(std::path::Path::new("ssh://box/project")).unwrap();
+        let ask = |question| {
+            answer_agent(
+                &remote,
+                &state.passwords,
+                &state.host_keys,
+                to_json(&question),
+            )
+        };
+        let url = "https://example.test/repo";
+        assert_eq!(ask(Question::Credential { url: url.into() }), Value::Null);
+        login.secret = "replacement".into();
+        assert_eq!(ask(Question::Remember { sign_in: login }), Value::Null);
+        assert_eq!(state.stored_credential(url).unwrap().secret, "original");
     }
 }

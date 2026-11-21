@@ -7,8 +7,13 @@ describe("parseSolver", () => {
       repo: 7,
       path: "deep/nested/file.rs",
       tool: false,
+      ssh: false,
     });
-    expect(parseSolver("?repo=7&path=a%20b%26c.txt&tool=1")).toEqual({ repo: 7, path: "a b&c.txt", tool: true });
+    expect(parseSolver("?repo=7&path=a%20b%26c.txt&tool=1")).toEqual({ repo: 7, path: "a b&c.txt", tool: true, ssh: false });
+  });
+
+  it("keeps the external tool disabled for an SSH repository", () => {
+    expect(parseSolver("?repo=7&path=a&ssh=true&tool=1")).toEqual({ repo: 7, path: "a", ssh: true, tool: false });
   });
 
   it("is null without a usable repository or path", () => {

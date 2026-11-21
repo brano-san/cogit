@@ -9,11 +9,12 @@
     opening: boolean;
     filter: string;
     onopen: () => void;
+    onremote: () => void;
     onscan: () => void;
     onaddgroup: () => void;
   }
 
-  let { opening, filter = $bindable(), onopen, onscan, onaddgroup }: Props = $props();
+  let { opening, filter = $bindable(), onopen, onremote, onscan, onaddgroup }: Props = $props();
 </script>
 
 <!-- In the panel's header, as SmartGit keeps it: a toolbar row of its own cost the list a row (R-792). -->
@@ -35,6 +36,9 @@
   aria-label="Open Repository"
 >
   <Icon name="folder" />
+</button>
+<button type="button" class="tool" onclick={onremote} disabled={repository.busy} title="Add Remote Repository…" aria-label="Add Remote Repository">
+  <Icon name="repository" />
 </button>
 <button
   type="button"

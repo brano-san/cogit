@@ -22,9 +22,9 @@ class UserToolsStore {
   }
 
   /** The Tools submenu for a menu about to open on `context`; `repo` null is a closed row. */
-  submenu(place: ToolPlace, repo: RepoId | null, context: ToolContext): ContextItem | null {
-    this.#target = repo === null ? null : { repo, context };
-    return toolsSubmenu(settings.current.userCommands, place, context, repo === null ? "closed" : null);
+  submenu(place: ToolPlace, repo: RepoId | null, context: ToolContext, blocked: string | null = null): ContextItem | null {
+    this.#target = repo === null || blocked ? null : { repo, context };
+    return toolsSubmenu(settings.current.userCommands, place, context, blocked ?? (repo === null ? "closed" : null));
   }
 
   /** True when `id` was a Tools row and has been taken care of. */

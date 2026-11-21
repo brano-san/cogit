@@ -38,7 +38,12 @@ pub async fn repo_pulse(
 pub async fn backend_labels(roots: Vec<String>) -> Vec<String> {
     roots
         .iter()
-        .map(|root| app_state::location::RepoLocation::of(std::path::Path::new(root)).label())
+        .map(|root| {
+            app_state::location::RepoLocation::checked(std::path::Path::new(root)).map_or_else(
+                |_| "invalid SSH address".to_owned(),
+                |location| location.label(),
+            )
+        })
         .collect()
 }
 

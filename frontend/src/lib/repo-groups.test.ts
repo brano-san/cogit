@@ -231,6 +231,12 @@ describe("backendRows", () => {
     expect(backendRows(withTwo, roots, local, new Set())).toEqual(groupRows(withTwo, roots, new Set()));
   });
 
+  it("keeps the SSH host visible when it is the only backend", () => {
+    const rows = backendRows(empty, ["/one"], new Map([["/one", "SSH: build"]]), new Set());
+    expect(rows[0]).toMatchObject({ kind: "backend", name: "SSH: build", count: 1 });
+    expect(rows[1]).toMatchObject({ kind: "repo", root: "/one" });
+  });
+
   it("puts Local first and each backend's repositories under it", () => {
     const rows = backendRows(empty, roots, where, new Set());
     expect(ids(rows)).toEqual([

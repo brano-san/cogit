@@ -1,4 +1,4 @@
-use crate::location::RepoLocation;
+use crate::location::{RepoLocation, SshHost};
 use crate::routes::RepoCall;
 use crate::{AppState, RepoId, RepoSummary};
 use git_engine::{GitError, NetworkStop};
@@ -45,6 +45,7 @@ fn agent_dir(bytes: &[u8]) -> &'static str {
 pub enum Host {
     Loopback(PathBuf),
     Wsl { distro: String },
+    Ssh { host: SshHost },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
@@ -59,10 +60,17 @@ pub enum BackendState {
 impl Host {
     #[must_use]
     pub fn of(path: &Path) -> Option<Self> {
-        match RepoLocation::of(path) {
+        Self::checked(path).ok().flatten()
+    }
+
+    pub(crate) fn checked(path: &Path) -> Result<Option<Self>, GitError> {
+        let location =
+            RepoLocation::checked(path).map_err(|reason| GitError::InvalidState(reason.into()))?;
+        Ok(match location {
             RepoLocation::Wsl { distro, .. } => Some(Self::Wsl { distro }),
-            RepoLocation::Local | RepoLocation::Ssh { .. } => None,
-        }
+            RepoLocation::Ssh { host, .. } => Some(Self::Ssh { host }),
+            RepoLocation::Local => None,
+        })
     }
 
     #[must_use]
@@ -70,11 +78,23 @@ impl Host {
         match self {
             Self::Loopback(_) => "loopback".to_owned(),
             Self::Wsl { distro } => format!("WSL: {distro}"),
+            Self::Ssh { host } => format!("SSH: {host}"),
         }
     }
 
-    fn command(&self) -> Result<Command, GitError> {
+    fn command(
+        &self,
+        login: &AgentLogin<'_>,
+        askpass: &mut Option<git_engine::RepositoryAskpass>,
+    ) -> Result<Command, GitError> {
         match self {
+            Self::Ssh { host } => crate::ssh_transport::command(
+                host,
+                ssh_agent_bytes()?,
+                login.key,
+                login.background,
+                askpass,
+            ),
             Self::Loopback(exe) => {
                 let mut command = Command::new(exe);
                 command.arg("serve");
@@ -144,7 +164,8 @@ impl Host {
 
     fn agent_path(&self, path: &Path) -> String {
         match (self, RepoLocation::of(path)) {
-            (Self::Wsl { .. }, RepoLocation::Wsl { path, .. }) => path,
+            (Self::Wsl { .. }, RepoLocation::Wsl { path, .. })
+            | (Self::Ssh { .. }, RepoLocation::Ssh { path, .. }) => path,
             _ => path.to_string_lossy().into_owned(),
         }
     }
@@ -171,6 +192,7 @@ impl Host {
     pub(crate) fn local_path(&self, path: &str) -> PathBuf {
         match self {
             Self::Loopback(_) => PathBuf::from(path),
+            Self::Ssh { host } => host.repository_url(path).into(),
             Self::Wsl { distro } => PathBuf::from(format!(
                 r"\\wsl.localhost\{distro}{}",
                 path.replace('/', r"\")
@@ -181,6 +203,18 @@ impl Host {
     fn unreachable(&self, err: &dyn std::fmt::Display) -> GitError {
         GitError::Unavailable(format!("Cogit could not reach {}: {err}", self.label()))
     }
+}
+
+#[derive(Default)]
+struct AgentLogin<'a> {
+    key: Option<&'a git_engine::Credential>,
+    background: bool,
+}
+
+fn ssh_agent_bytes() -> Result<&'static [u8], GitError> {
+    AGENT_BINARY.get().copied().ok_or_else(|| GitError::Unavailable(
+        "This build of Cogit carries no agent. Install a release or build with COGIT_AGENT_BIN to open repositories over SSH.".into()
+    ))
 }
 
 fn hide_window(command: &mut Command) {
@@ -195,11 +229,15 @@ fn hide_window(command: &mut Command) {
 }
 
 pub(crate) fn host_of(root: &Path) -> Option<Host> {
-    #[cfg(feature = "loopback")]
-    if let Some(host) = loopback() {
-        return Some(host);
+    if std::env::var_os(INSIDE_AGENT).is_some() {
+        return None;
     }
-    Host::of(root)
+    let host = Host::of(root);
+    #[cfg(feature = "loopback")]
+    if !matches!(&host, Some(Host::Ssh { .. })) {
+        return loopback().or(host);
+    }
+    host
 }
 
 #[cfg(feature = "loopback")]
@@ -241,6 +279,18 @@ struct Spawned {
 }
 
 impl Spawned {
+    fn finish_failed_start(mut self) -> (Option<i32>, String) {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(250);
+        while matches!(self.child.try_wait(), Ok(None)) {
+            if std::time::Instant::now() >= deadline {
+                let _ = self.child.kill();
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        self.finish()
+    }
+
     fn finish(mut self) -> (Option<i32>, String) {
         let status = self.child.wait();
         if self.listener.join().is_err() {
@@ -264,6 +314,7 @@ type Failure = (Option<i32>, GitError);
 #[derive(Debug)]
 pub(crate) struct Agent {
     host: Host,
+    key: Option<git_engine::Credential>,
     pid: u32,
     client: Option<agent::Client>,
     leaving: Arc<AtomicBool>,
@@ -273,26 +324,43 @@ pub(crate) struct Agent {
 impl Agent {
     fn start(
         host: &Host,
+        login: &AgentLogin<'_>,
         on_event: impl Fn(Value) + Send + Clone + 'static,
         on_ask: impl Fn(Value) -> Value + Send + Sync + Clone + 'static,
         on_lost: impl FnOnce(String) + Send + 'static,
     ) -> Result<Self, GitError> {
-        let (client, spawned) = match Self::connect(host, on_event.clone(), on_ask.clone()) {
-            Err((Some(NOT_INSTALLED), _)) if host.install()? => {
-                Self::connect(host, on_event, on_ask)
+        let (client, spawned) =
+            match Self::connect(host, login, on_event.clone(), on_ask.clone()) {
+                Err((Some(NOT_INSTALLED), _)) if host.install()? => {
+                    Self::connect(host, login, on_event, on_ask)
+                }
+                other => other,
             }
-            other => other,
-        }
-        .map_err(|(_, err)| err)?;
-        Ok(Self::watch(host, client, spawned, on_lost))
+            .map_err(|(_, err)| err)?;
+        Ok(Self::watch(
+            host,
+            client,
+            spawned,
+            on_lost,
+            login.key.cloned(),
+        ))
     }
 
     fn connect(
         host: &Host,
+        login: &AgentLogin<'_>,
         on_event: impl Fn(Value) + Send + 'static,
         on_ask: impl Fn(Value) -> Value + Send + Sync + 'static,
     ) -> Result<(agent::Client, Spawned), Failure> {
-        let mut command = host.command().map_err(|err| (None, err))?;
+        let mut askpass = None;
+        let mut command = host
+            .command(login, &mut askpass)
+            .map_err(|err| (None, err))?;
+        let invocation = std::iter::once(command.get_program())
+            .chain(command.get_args())
+            .map(|arg| format!("{arg:?}"))
+            .collect::<Vec<_>>()
+            .join(" ");
         command
             .env(INSIDE_AGENT, "1")
             .stdin(Stdio::piped())
@@ -302,7 +370,7 @@ impl Agent {
         let mut child = command
             .spawn()
             .map_err(|err| (None, host.unreachable(&err)))?;
-        let (Some(output), Some(input), Some(errors)) =
+        let (Some(output), Some(mut input), Some(errors)) =
             (child.stdout.take(), child.stdin.take(), child.stderr.take())
         else {
             return Err((
@@ -313,9 +381,17 @@ impl Agent {
         let words = Arc::new(Mutex::new(LastWords::default()));
         let heard = Arc::clone(&words);
         let label = host.label();
+        let startup_stderr = Arc::new(Mutex::new(matches!(host, Host::Ssh { .. }).then(Vec::new)));
+        let capture = Arc::clone(&startup_stderr);
         let listener = std::thread::spawn(move || {
-            for line in BufReader::new(errors).lines() {
-                let Ok(line) = line else { break };
+            let mut reader = BufReader::new(errors);
+            let mut raw = Vec::new();
+            while let Ok(1..) = reader.read_until(b'\n', &mut raw) {
+                if let Some(bytes) = capture.lock().as_mut() {
+                    bytes.extend_from_slice(&raw);
+                }
+                let line = String::from_utf8_lossy(&raw).trim_end().to_owned();
+                raw.clear();
                 tracing::warn!(host = label, line, "agent stderr");
                 let mut words = heard.lock();
                 if words.lines.len() == LAST_WORDS {
@@ -324,11 +400,75 @@ impl Agent {
                 words.lines.push_back(line);
             }
         });
-        let spawned = Spawned {
+        let mut spawned = Spawned {
             child,
             words,
             listener,
         };
+        let mut output = BufReader::new(output);
+        if matches!(host, Host::Ssh { .. }) {
+            let bytes = ssh_agent_bytes().map_err(|err| (None, err))?;
+            let result = std::thread::scope(|scope| {
+                let (done, timer) = std::sync::mpsc::channel::<()>();
+                let child = &mut spawned.child;
+                let deadline = scope.spawn(move || {
+                    if timer.recv_timeout(std::time::Duration::from_secs(180))
+                        == Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+                    {
+                        let _ = child.kill();
+                        return true;
+                    }
+                    false
+                });
+                let connected = crate::ssh_transport::bootstrap(&mut output, &mut input, bytes)
+                    .and_then(|()| {
+                        agent::Client::connect_with(output, input, on_event, on_ask)
+                            .map_err(|err| host.unreachable(&err))
+                    });
+                drop(done);
+                if deadline.join().unwrap_or(false) {
+                    Err(GitError::Unavailable(
+                        "Timed out starting the agent over SSH.".into(),
+                    ))
+                } else {
+                    connected
+                }
+            });
+            match result {
+                Ok(client) => {
+                    startup_stderr.lock().take();
+                    return Ok((client, spawned));
+                }
+                Err(err) => {
+                    let (code, _) = spawned.finish_failed_start();
+                    let stderr =
+                        String::from_utf8_lossy(&startup_stderr.lock().take().unwrap_or_default())
+                            .into_owned();
+                    let summary = if let Some(message) = git_engine::host_key_summary(&stderr) {
+                        message
+                    } else if stderr.to_ascii_lowercase().contains("permission denied") {
+                        "SSH authentication failed. Configure a public key for this account. Password-only login is unavailable.".to_owned()
+                    } else {
+                        err.to_string()
+                    };
+                    return Err((
+                        code,
+                        git_engine::GitCommandError {
+                            id: git_engine::next_output_id(),
+                            repo: host.label(),
+                            operation: "Connect over SSH".into(),
+                            command: invocation,
+                            stdout: String::new(),
+                            stderr,
+                            summary,
+                            exit_code: code,
+                            auth_required: None,
+                        }
+                        .into(),
+                    ));
+                }
+            }
+        }
         match agent::Client::connect_with(output, input, on_event, on_ask) {
             Ok(client) => Ok((client, spawned)),
             Err(err) => {
@@ -349,6 +489,7 @@ impl Agent {
         client: agent::Client,
         spawned: Spawned,
         on_lost: impl FnOnce(String) + Send + 'static,
+        key: Option<git_engine::Credential>,
     ) -> Self {
         tracing::info!(?host, version = client.version(), "agent started");
         let leaving = Arc::new(AtomicBool::new(false));
@@ -364,6 +505,7 @@ impl Agent {
         });
         Self {
             host: host.clone(),
+            key,
             pid,
             client: Some(client),
             leaving,
@@ -431,6 +573,12 @@ impl Drop for Agent {
 
 fn check_git(host: &Host, agent: &Agent) -> Result<(), GitError> {
     let version: String = agent.ask(&Request::GitVersion, None).map_err(|err| {
+        if matches!(host, Host::Ssh { .. }) {
+            return match err {
+                GitError::Command(_) => err,
+                _ => GitError::Unavailable(format!("Cogit could not run Git on {}. Check that Git is installed and in the SSH session's PATH.\n{err}", host.label())),
+            };
+        }
         GitError::Unavailable(format!(
             "Git is not installed in {}, and Cogit needs it there: sudo apt install git\n{err}",
             host.label()
@@ -718,8 +866,17 @@ pub(crate) fn to_json(value: &impl Serialize) -> Value {
 
 impl AppState {
     pub fn open_repository_on(&self, host: &Host, path: &Path) -> Result<RepoSummary, GitError> {
+        self.open_on_with_login(host, path, None)
+    }
+
+    pub(crate) fn open_on_with_login(
+        &self,
+        host: &Host,
+        path: &Path,
+        sign_in: Option<&crate::SignIn>,
+    ) -> Result<RepoSummary, GitError> {
         let began = self.closes_so_far();
-        let agent = self.agent(host)?;
+        let agent = self.connect_agent(host, sign_in, false)?;
         let request = Request::Open {
             path: host.agent_path(path),
         };
@@ -740,9 +897,10 @@ impl AppState {
         &self,
         repo: RepoId,
         remote: &Remote,
+        background: bool,
     ) -> Result<RepoSummary, GitError> {
         let remote = if remote.agent.is_gone() {
-            &self.reconnect(repo, remote)?
+            &self.reconnect(repo, remote, background)?
         } else {
             remote
         };
@@ -755,9 +913,14 @@ impl AppState {
         })
     }
 
-    fn reconnect(&self, repo: RepoId, remote: &Remote) -> Result<Remote, GitError> {
+    fn reconnect(
+        &self,
+        repo: RepoId,
+        remote: &Remote,
+        background: bool,
+    ) -> Result<Remote, GitError> {
         let root = self.root_of(repo)?;
-        let agent = self.agent(&remote.agent.host)?;
+        let agent = self.connect_agent(&remote.agent.host, None, background)?;
         let Opened { summary, .. } = agent.ask(
             &Request::Open {
                 path: agent.host.agent_path(&root),
@@ -768,7 +931,23 @@ impl AppState {
             agent,
             id: summary.repo,
         };
-        self.remotes.write().insert(repo, fresh.clone());
+        let mut remotes = self.remotes.write();
+        let current = remotes
+            .get_mut(&repo)
+            .ok_or_else(|| crate::not_open(repo))?;
+        if !Arc::ptr_eq(&current.agent, &remote.agent) {
+            return Ok(current.clone());
+        }
+        *current = fresh.clone();
+        drop(remotes);
+        if self.is_shown(repo) {
+            fresh.ask::<()>(
+                &Request::Show {
+                    repo: Some(fresh.id),
+                },
+                None,
+            )?;
+        }
         tracing::info!(repo = repo.0, root = %root.display(), "reconnected to the agent");
         Ok(fresh)
     }
@@ -869,7 +1048,9 @@ impl AppState {
                 target: host.agent_path(Path::new(request.target.trim())),
                 ..request.clone()
             },
-            sign_in: sign_in.cloned(),
+            sign_in: sign_in
+                .filter(|_| !matches!(host, Host::Ssh { .. }))
+                .cloned(),
         };
         let done: String = agent.stream(&request, &|| stop.is_stopped(), &mut |chunk| {
             if let Ok(line) = serde_json::from_str::<String>(chunk.get()) {
@@ -896,10 +1077,13 @@ impl AppState {
     ) -> Option<Result<T, GitError>> {
         let host = host_of(root)?;
         let request = request(host.agent_path(root));
-        Some(
+        let agent = if matches!(host, Host::Ssh { .. }) {
+            self.live_agent(&host)
+                .ok_or_else(|| GitError::Unavailable(format!("{} is not connected.", host.label())))
+        } else {
             self.agent(&host)
-                .and_then(|agent| agent.ask(&request, stop)),
-        )
+        };
+        Some(agent.and_then(|agent| agent.ask(&request, stop)))
     }
 
     pub(crate) fn find_repositories_through(
@@ -941,7 +1125,9 @@ impl AppState {
         self.agent(host)?.ask(
             &Request::RemoteBranches {
                 source: host.source_path(source.trim()),
-                sign_in: sign_in.cloned(),
+                sign_in: sign_in
+                    .filter(|_| !matches!(host, Host::Ssh { .. }))
+                    .cloned(),
             },
             None,
         )
@@ -1042,7 +1228,7 @@ impl AppState {
             for distro in distros {
                 scope.spawn(move || {
                     let started = std::time::Instant::now();
-                    match self.started_agent(&Host::Wsl { distro }) {
+                    match self.started_agent(&Host::Wsl { distro }, None, true) {
                         Ok(_) => tracing::info!(
                             elapsed_ms = started.elapsed().as_millis(),
                             "agent of the last run started ahead"
@@ -1057,26 +1243,41 @@ impl AppState {
     }
 
     fn agent(&self, host: &Host) -> Result<Arc<Agent>, GitError> {
+        self.connect_agent(host, None, false)
+    }
+
+    fn connect_agent(
+        &self,
+        host: &Host,
+        sign_in: Option<&crate::SignIn>,
+        background: bool,
+    ) -> Result<Arc<Agent>, GitError> {
         if let Host::Wsl { distro } = host {
             self.hosts_used.lock().remember(distro);
         }
-        self.started_agent(host)
+        self.started_agent(host, sign_in, background)
     }
 
-    fn started_agent(&self, host: &Host) -> Result<Arc<Agent>, GitError> {
-        let live = || {
-            self.agents
-                .lock()
-                .get(host)
-                .filter(|agent| !agent.is_gone())
-                .cloned()
-        };
-        if let Some(agent) = live() {
+    fn live_agent(&self, host: &Host) -> Option<Arc<Agent>> {
+        self.agents
+            .lock()
+            .get(host)
+            .filter(|agent| !agent.is_gone())
+            .cloned()
+    }
+
+    fn started_agent(
+        &self,
+        host: &Host,
+        sign_in: Option<&crate::SignIn>,
+        background: bool,
+    ) -> Result<Arc<Agent>, GitError> {
+        if let Some(agent) = self.live_agent(host) {
             return Ok(agent);
         }
         let gate = Arc::clone(self.agent_starts.lock().entry(host.clone()).or_default());
         let _starting = gate.lock();
-        if let Some(agent) = live() {
+        if let Some(agent) = self.live_agent(host) {
             return Ok(agent);
         }
         let sink = Arc::new(crate::agent_events::Sink {
@@ -1098,23 +1299,50 @@ impl AppState {
         let lost = tell.clone();
         let (asked, passwords) = (host.clone(), Arc::clone(&self.passwords));
         let host_keys = Arc::clone(&self.host_keys);
-        let started = Agent::start(
-            host,
-            move |event| sink.take(event),
-            move |question| {
-                crate::agent_events::answer_agent(&asked, &passwords, &host_keys, question)
-            },
-            move |reason| lost(BackendState::Lost { reason }),
-        );
+        let launch = |login: AgentLogin<'_>| {
+            Agent::start(
+                host,
+                &login,
+                move |event| sink.take(event),
+                move |question| {
+                    crate::agent_events::answer_agent(&asked, &passwords, &host_keys, question)
+                },
+                move |reason| lost(BackendState::Lost { reason }),
+            )
+            .and_then(|agent| {
+                if !matches!(host, Host::Loopback(_)) {
+                    check_git(host, &agent)?;
+                }
+                Ok(agent)
+            })
+        };
+        let started = if let Host::Ssh { host: address } = host {
+            let previous = self
+                .agents
+                .lock()
+                .get(host)
+                .and_then(|agent| agent.key.clone());
+            self.signed_in(sign_in, |credential| {
+                let selected = credential(&address.repository_url("/"));
+                let key = if sign_in.is_some() {
+                    selected
+                } else {
+                    previous.or(selected)
+                };
+                launch(AgentLogin {
+                    key: key.as_ref(),
+                    background,
+                })
+            })
+        } else {
+            launch(AgentLogin::default())
+        };
         tell(if started.is_ok() {
             BackendState::Started
         } else {
             BackendState::Failed
         });
         let agent = Arc::new(started?);
-        if let Host::Wsl { .. } = host {
-            check_git(host, &agent)?;
-        }
         if let Some(bytes) = self.graph_cache_budget()
             && let Err(err) = agent.ask::<()>(&Request::GraphBudget { bytes }, None)
         {

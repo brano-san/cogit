@@ -12,7 +12,7 @@ impl AppState {
         sign_in: Option<&crate::SignIn>,
         into: Option<&std::path::Path>,
     ) -> Result<RemoteBranches, GitError> {
-        if let Some(host) = into.and_then(crate::Host::of) {
+        if let Some(host) = into.map(crate::Host::checked).transpose()?.flatten() {
             return self.remote_branches_through(&host, source, sign_in);
         }
         self.signed_in(sign_in, |credential| {
@@ -34,7 +34,7 @@ impl AppState {
         stop: &NetworkStop,
         on_line: impl FnMut(&str),
     ) -> Result<PathBuf, GitError> {
-        if let Some(host) = crate::Host::of(std::path::Path::new(request.target.trim())) {
+        if let Some(host) = crate::Host::checked(std::path::Path::new(request.target.trim()))? {
             return self.clone_through(&host, request, sign_in, stop, on_line);
         }
         let sink = self.unowned_sink();
@@ -45,7 +45,7 @@ impl AppState {
     }
 
     pub fn init_repository(&self, path: &std::path::Path) -> Result<PathBuf, GitError> {
-        if let Some(host) = crate::Host::of(path) {
+        if let Some(host) = crate::Host::checked(path)? {
             return self.init_through(&host, path);
         }
         git_engine::init_repository(path, Some(&self.unowned_sink()))

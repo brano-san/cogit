@@ -71,6 +71,20 @@ macro_rules! route {
             [$($c)* $n,] [$stop] [Some(&mut $n as &mut dyn FnMut(&str))]; $($($rest)*)?);
     };
     (@munch [$call:ident $agent:ident] [$($mode:ident)?] $name:ident $local:ident [$answer:ty] [$($p:tt)*] [$($f:tt)*] [$($o:tt)*] [$($l:tt)*] [$($c:tt)*] [$stop:expr] [$sink:expr];
+        $n:ident: Option<&crate::SignIn> $(, $($rest:tt)*)?) => {
+        route!(@munch [$call $agent] [$($mode)?] $name $local [$answer]
+            [$($p)* $n: Option<&crate::SignIn>,] [$($f)* $n: Option<crate::SignIn>,]
+            [$($o)* $n: $n.filter(|_| !matches!($agent.host(), crate::Host::Ssh { .. })).cloned(),]
+            [$($l)* $call.$n.as_ref(),] [$($c)* $n,] [$stop] [$sink]; $($($rest)*)?);
+    };
+    (@munch [$call:ident $agent:ident] [$($mode:ident)?] $name:ident $local:ident [$answer:ty] [$($p:tt)*] [$($f:tt)*] [$($o:tt)*] [$($l:tt)*] [$($c:tt)*] [$stop:expr] [$sink:expr];
+        $n:ident: &DesktopPath $(, $($rest:tt)*)?) => {
+        route!(@munch [$call $agent] [$($mode)?] $name $local [$answer]
+            [$($p)* $n: &Path,] [$($f)* $n: PathBuf,]
+            [$($o)* $n: desktop_destination($agent.host(), $n)?,]
+            [$($l)* &$call.$n,] [$($c)* $n,] [$stop] [$sink]; $($($rest)*)?);
+    };
+    (@munch [$call:ident $agent:ident] [$($mode:ident)?] $name:ident $local:ident [$answer:ty] [$($p:tt)*] [$($f:tt)*] [$($o:tt)*] [$($l:tt)*] [$($c:tt)*] [$stop:expr] [$sink:expr];
         $n:ident: Option<&$t:ty> $(, $($rest:tt)*)?) => {
         route!(@munch [$call $agent] [$($mode)?] $name $local [$answer]
             [$($p)* $n: Option<&$t>,]
@@ -113,8 +127,8 @@ macro_rules! route {
             pub fn $name(&self, repo: RepoId, $($p)*) -> $answer {
                 match self.remote(repo) {
                     None => self.$local(repo, $($c)*),
-                    Some(remote) => remote.call(
-                        &Request::Repo(RepoCall::$name($name { repo: remote.id(), $($o)* })),
+                    Some($agent) => $agent.call(
+                        &Request::Repo(RepoCall::$name($name { repo: $agent.id(), $($o)* })),
                         $stop,
                         $sink,
                     ),
@@ -142,9 +156,9 @@ macro_rules! route {
             pub fn $name(&self, repo: RepoId, $($p)*) -> $answer {
                 match self.remote(repo) {
                     None => self.$local(repo, $($c)*),
-                    Some(remote) => remote
+                    Some($agent) => $agent
                         .call(
-                            &Request::Repo(RepoCall::$name($name { repo: remote.id(), $($o)* })),
+                            &Request::Repo(RepoCall::$name($name { repo: $agent.id(), $($o)* })),
                             $stop,
                             $sink,
                         )
@@ -159,6 +173,17 @@ macro_rules! route {
 }
 
 pub(crate) type ConflictsReader = Box<dyn Fn() -> Result<Vec<String>, GitError> + Send>;
+
+fn desktop_destination(host: &crate::Host, path: &Path) -> Result<PathBuf, GitError> {
+    if matches!(host, crate::Host::Ssh { .. }) {
+        Err(GitError::InvalidState(
+            "This action requires a file on this computer. The repository is on an SSH server."
+                .into(),
+        ))
+    } else {
+        Ok(path.to_owned())
+    }
+}
 
 impl AppState {
     pub(crate) fn conflicts_reader(&self, repo: RepoId) -> Result<ConflictsReader, GitError> {
@@ -256,8 +281,8 @@ fn bisect_start(bad: &str, good: Option<&str>) -> Result<(), GitError> = local_b
     fn save_editable(path: &str, text: &str, shape: git_engine::editable::Shape, stamp: &str, force: bool) -> Result<git_engine::editable::SaveOutcome, GitError> = local_save_editable;
     fn index_editor_sides(path: &str) -> Result<IndexEditorSides, GitError> = local_index_editor_sides;
     fn write_index_editor(path: &str, index: Option<&str>, worktree: Option<&str>) -> Result<(), GitError> = local_write_index_editor;
-    fn save_blob(rev: &str, path: &str, target: &Path) -> Result<(), GitError> = local_save_blob;
-    fn export_read_only(rev: &str, path: &str, dir: &Path) -> Result<PathBuf, GitError> = local_export_read_only;
+    fn save_blob(rev: &str, path: &str, target: &DesktopPath) -> Result<(), GitError> = local_save_blob;
+    fn export_read_only(rev: &str, path: &str, dir: &DesktopPath) -> Result<PathBuf, GitError> = local_export_read_only;
     fn apply_commit_file(rev: &str, path: &str, old_path: Option<&str>, reverse: bool) -> Result<(), GitError> = local_apply_commit_file;
     fn present_on_disk(paths: &[String]) -> Result<Vec<String>, GitError> = local_present_on_disk;
     fn flow_status() -> Result<git_engine::FlowStatus, git_engine::GitError> = local_flow_status;

@@ -38,6 +38,7 @@ export const WINDOW_SIZES: readonly { id: string; title: string }[] = [
 
 export type AppCommandId =
   | "open"
+  | "open-ssh"
   | "clone"
   | "fetch"
   | "pull"
@@ -157,6 +158,7 @@ export function appCommands(facts: AppCommandFacts, run: AppCommandActions): Pal
 
   return [
     { id: "open", title: "Open Repository…", run: run.open },
+    { id: "open-ssh", title: "Add Remote Repository…", synonyms: ["SSH", "open on server"], run: run["open-ssh"] },
     {
       id: "clone",
       title: "Clone Repository…",

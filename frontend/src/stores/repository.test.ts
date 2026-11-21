@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const commands = {
+  backendLabels: vi.fn().mockResolvedValue(["local"]),
   openRepository: vi.fn(),
   rereadRepository: vi.fn(),
   closeRepository: vi.fn(),
@@ -131,7 +132,7 @@ describe("repository store, as a state machine", () => {
     await repository.refresh();
 
     expect(commands.openRepository).not.toHaveBeenCalled();
-    expect(commands.rereadRepository).toHaveBeenCalledWith(module.repo);
+    expect(commands.rereadRepository).toHaveBeenCalledWith(module.repo, false);
     expect(repository.current?.root).toBe("C:/repos/app/vendor/lib");
   });
 

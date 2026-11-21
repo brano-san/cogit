@@ -55,12 +55,14 @@
     type Hunk,
     type TakeAction,
   } from "$lib/solver-model";
+  import { SSH_DESKTOP_REASON } from "$lib/ssh-repositories";
   import { parseSolver } from "$lib/solver-params";
   import { loadPrefs, savePrefs, type SolverPrefs } from "$lib/solver-prefs";
   import { confirmation } from "$stores/confirm.svelte";
   import { settings } from "$stores/settings.svelte";
 
   const request = parseSolver(window.location.search);
+  const toolBlock = request?.ssh ? SSH_DESKTOP_REASON : null;
   const win = getCurrentWindow();
 
   // No browser menu, and Esc / Ctrl+W close the window.
@@ -418,7 +420,7 @@
   }
 
   async function runExternal() {
-    if (!request || toolRunning || !data) return;
+    if (!request || toolBlock || toolRunning || !data) return;
     if (snapshot?.dirty) {
       const go = await confirmation.ask({
         title: "Open in External Tool",
@@ -569,7 +571,8 @@
     hunk: merged && target() !== null,
     changes: merged && hunkIds.length > 0,
     conflicts: merged && unresolved.length > 0,
-    tool: !toolRunning,
+    tool: !toolRunning && !toolBlock,
+    toolBlock,
     save: merged && !toolRunning && !saving && (snapshot?.dirty ?? false),
     ready: !toolRunning && !saving,
     deleted,
@@ -592,7 +595,8 @@
       hunk: merged && (id ?? snapshot?.currentId ?? null) !== null,
       changes: merged && hunkIds.length > 0,
       conflicts: merged && unresolved.length > 0,
-      tool: true,
+      tool: !toolBlock,
+      toolBlock,
     });
     await popupContextMenu(menu, event.clientX, event.clientY).catch(() => {});
   }
@@ -640,6 +644,7 @@
     <SolverMenuBar label={win.label} state={barState} />
     {#if data.binary || data.tooLarge}
       <SolverWholeFile
+        {toolBlock}
         {data}
         path={request.path}
         locked={toolRunning}
@@ -649,6 +654,7 @@
       />
     {:else}
       <SolverToolbar
+        {toolBlock}
         layout={prefs.layout}
         onlayout={setLayout}
         baseChanges={prefs.baseChanges}

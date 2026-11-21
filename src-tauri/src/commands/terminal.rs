@@ -31,6 +31,7 @@ pub struct TerminalChoice {
 #[specta::specta]
 pub async fn open_in_terminal(path: String, terminal: String) -> Result<(), GitError> {
     blocking("open_in_terminal", move || {
+        app_state::external::require_desktop_path(path.as_ref())?;
         let platform = Platform::current();
         let kind = Terminal::from_id(platform, &terminal).unwrap_or_default();
         // Registry and disk: looked up only for the one choice that needs it.

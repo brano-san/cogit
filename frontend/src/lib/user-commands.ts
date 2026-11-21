@@ -218,6 +218,7 @@ export function toolPaletteCommands(
   commands: readonly UserCommand[],
   context: ToolContext | null,
   run: (command: UserCommand) => void,
+  blocked: string | null = null,
 ): PaletteCommand[] {
   return commands
     .filter((command) => commandProblem(command) === null)
@@ -225,7 +226,7 @@ export function toolPaletteCommands(
       id: `${TOOL_PALETTE_PREFIX}${command.id}`,
       title: `Tools: ${command.name}`,
       synonyms: ["user command", "external tool", command.program],
-      unavailable: context === null ? "Open a repository first" : (toolBlocked(command, context) ?? undefined),
+      unavailable: blocked ?? (context === null ? "Open a repository first" : (toolBlocked(command, context) ?? undefined)),
       run: () => run(command),
     }));
 }

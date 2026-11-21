@@ -28,7 +28,7 @@ export function pruneBlocked(entry: WorktreeEntry): string | null {
 }
 
 /** The chosen item comes back as a `menu-command`, like every popup menu (R-260). */
-export function worktreeMenu(entry: WorktreeEntry, fileManager: string): ContextItem[] {
+export function worktreeMenu(entry: WorktreeEntry, fileManager: string, desktopBlock: string | null = null): ContextItem[] {
   const lock =
     entry.locked === null
       ? offer(id("lock"), "Lock…", entry.isMain ? "the main worktree" : null)
@@ -44,8 +44,8 @@ export function worktreeMenu(entry: WorktreeEntry, fileManager: string): Context
   }
   return tidy([
     offer(id("open"), "Open", entry.isCurrent ? "already open" : null, "Enter"),
-    item(id("folder"), `Open in ${fileManager}`),
-    item(id("terminal"), "Open in Terminal"),
+    offer(id("folder"), `Open in ${fileManager}`, desktopBlock),
+    offer(id("terminal"), "Open in Terminal", desktopBlock),
     item(id("copy"), "Copy Path"),
     SEPARATOR,
     lock,

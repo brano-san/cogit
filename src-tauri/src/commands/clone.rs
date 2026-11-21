@@ -36,7 +36,13 @@ pub async fn clone_destination(path: String) -> Result<CloneDestination, GitErro
 #[specta::specta]
 pub async fn folder_kind(path: String) -> Result<FolderKind, GitError> {
     blocking("folder_kind", move || {
-        Ok(git_engine::folder_kind(std::path::Path::new(&path)))
+        let path = std::path::Path::new(&path);
+        let location = app_state::location::RepoLocation::checked(path)
+            .map_err(|reason| GitError::InvalidState(reason.into()))?;
+        if matches!(location, app_state::location::RepoLocation::Ssh { .. }) {
+            return Ok(FolderKind::Missing);
+        }
+        Ok(git_engine::folder_kind(path))
     })
     .await
 }

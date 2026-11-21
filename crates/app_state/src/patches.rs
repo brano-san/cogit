@@ -92,6 +92,10 @@ impl AppState {
         target: &Path,
         one_file: bool,
     ) -> Result<Vec<String>, GitError> {
+        let from_ssh = matches!(
+            crate::location::RepoLocation::of(&self.root_of(repo)?),
+            crate::location::RepoLocation::Ssh { .. }
+        );
         let files = self.format_patches(repo, commits)?;
         if one_file {
             let bytes: Vec<u8> = files.into_iter().flat_map(|file| file.bytes).collect();
@@ -102,8 +106,13 @@ impl AppState {
         files
             .into_iter()
             .map(|file| {
-                let path = target.join(&file.name);
-                std::fs::write(&path, file.bytes)?;
+                let path = if from_ssh {
+                    file.write_to(target)?
+                } else {
+                    let path = target.join(file.name);
+                    std::fs::write(&path, file.bytes)?;
+                    path
+                };
                 Ok(git_engine::slash_path(&path))
             })
             .collect()

@@ -8,12 +8,13 @@
     data: SolverData;
     path: string;
     locked: boolean;
+    toolBlock: string | null;
     onkeep: (side: "ours" | "theirs") => void;
     ondelete: () => void;
     onexternal: () => void;
   }
 
-  let { data, path, locked, onkeep, ondelete, onexternal }: Props = $props();
+  let { data, path, locked, toolBlock, onkeep, ondelete, onexternal }: Props = $props();
 
   const why = $derived(wholeReason(data.kind, data.binary));
   const submodule = $derived(data.kind === "submodule");
@@ -43,8 +44,8 @@
     {/if}
     <button
       type="button"
-      disabled={locked || submodule}
-      title={externalToolRefusal(data.kind)}
+      disabled={locked || submodule || !!toolBlock}
+      title={toolBlock ?? externalToolRefusal(data.kind)}
       onclick={onexternal}>Open in external tool</button
     >
   </div>

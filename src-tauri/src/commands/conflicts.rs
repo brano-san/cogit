@@ -108,13 +108,20 @@ pub async fn open_editor_window(
 #[tauri::command]
 #[specta::specta]
 pub async fn open_solver_window(
+    state: tauri::State<'_, crate::AppContext>,
     app: tauri::AppHandle,
     repo: RepoId,
     path: String,
     external_tool: bool,
 ) -> Result<(), GitError> {
+    let app_state = state.state.clone();
     blocking("open_solver_window", move || {
-        crate::solver_window::reveal_or_open(&app, repo.0, &path, external_tool)
+        let root = app_state.root_of(repo)?;
+        let ssh = matches!(
+            app_state::location::RepoLocation::of(&root),
+            app_state::location::RepoLocation::Ssh { .. }
+        );
+        crate::solver_window::reveal_or_open(&app, repo.0, &path, external_tool, ssh)
     })
     .await
 }

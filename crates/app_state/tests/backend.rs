@@ -144,7 +144,11 @@ const BY_HAND: [&str; 18] = [
     "save_config_file",
 ];
 
-const ON_WINDOWS: [(&str, &str); 18] = [
+const ON_WINDOWS: [(&str, &str); 19] = [
+    (
+        "refresh_repository",
+        "rebinds the desktop ID and delegates the reread to its backend",
+    ),
     ("background_turn", "the queue of Windows"),
     ("cancel_merge_tool", "the merge tool runs on Windows"),
     ("merge_tools_running", "the merge tool runs on Windows"),

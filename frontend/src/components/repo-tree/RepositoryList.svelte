@@ -37,6 +37,7 @@
   import { settings } from "$stores/settings.svelte";
   import { TypeAhead, moveFocus } from "$lib/list-keys";
   import { tick, untrack } from "svelte";
+  import { probeRoots, sshHost } from "$lib/ssh-repositories";
   import { backendLabels } from "$lib/ipc/repo-rows";
   import { moduleTitle } from "$lib/module-tree";
   import { ON_MAC, primary } from "$lib/platform";
@@ -44,6 +45,7 @@
   interface Props {
     /** Typed in the panel's header (R-792). */
     filter: string;
+    disconnected: ReadonlySet<string>;
     onopenmodule: (row: ModuleRow) => void;
     /** A submodule of a repository the panels do not own: open both in one click. */
     onopenforeignmodule: (root: string, row: ModuleRow) => void;
@@ -61,6 +63,7 @@
 
   let {
     filter,
+    disconnected,
     onselect,
     oncontext,
     onreopen,
@@ -93,13 +96,14 @@
   const filtering = $derived(filter.trim() !== "");
   const everyListed = $derived(listedRepos(repository.openRepos, repoList.list));
   const everyRoot = $derived(everyListed.map((each) => each.root));
-  /** Filled only when the list mixes backends: a list of one gets no backend headings. */
   let backends = $state.raw(new Map<string, string>());
   $effect(() => {
     const roots = everyRoot;
+    let active = true;
     void backendLabels(roots).then((labels) => {
-      backends = new Set(labels).size > 1 ? new Map(roots.map((root, at) => [root, labels[at] ?? ""])) : new Map();
+      if (active) backends = new Map(roots.map((root, at) => [root, labels[at]!]));
     });
+    return () => { active = false; };
   });
   const rows = $derived(
     backendRows(repoGroups.groups, order, backends, shownFolds(repoGroups.collapsed, filter, filterFolds), filtering),
@@ -132,8 +136,10 @@
   );
   /** Every node showing in any tree has marks of its own, read by its folder (R-542). */
   const openRoots = $derived(repository.openRepos.map((each) => each.root));
+  const readableRoots = $derived(probeRoots(everyRoot, backends, openRoots, disconnected));
+  const readable = $derived(new Set(readableRoots));
   const moduleRoots = $derived(
-    everyListed.flatMap((each) =>
+    everyListed.filter((each) => readable.has(each.root)).flatMap((each) =>
       pulsedRoots(
         each.root,
         ownsTree(each.overview) ? submodules.rows : moduleForest.rows(each.root),
@@ -160,7 +166,7 @@
   const conflictsIn = (root: string, owned: boolean) =>
     conflictedTree(moduleRowsOf(root, owned), (key) => nodeSync(root, owned, key).conflicted);
 
-  $effect(() => repoPulse.watch(everyRoot, moduleRoots, openRoots));
+  $effect(() => repoPulse.watch(readableRoots, moduleRoots, openRoots.filter((root) => readable.has(root))));
 
   let pulsedTop: string | null = null;
   const pulsedModules = new Set<string>();
@@ -182,7 +188,7 @@
 
   $effect(() => {
     void moduleForest.trees;
-    void moduleForest.probe(order);
+    void moduleForest.probe(order.filter((root) => readable.has(root)));
   });
 
   /** Dropping a repository that is part of a marked set moves the whole set. */
@@ -409,9 +415,12 @@
         onclick={(event) => {
           const ctrl = primary(event, ON_MAC);
           marked = markRow(marked, entry.root, order, { ctrl, shift: event.shiftKey });
-          if (!ctrl && !event.shiftKey) onselect(entry);
+          if (!ctrl && !event.shiftKey) {
+            if (disconnected.has(backends.get(entry.root) ?? "")) onreopen(entry.root);
+            else onselect(entry);
+          }
         }}
-        onkeydown={(event) => event.key === "Enter" && onselect(entry)}
+        onkeydown={(event) => event.key === "Enter" && (disconnected.has(backends.get(entry.root) ?? "") ? onreopen(entry.root) : onselect(entry))}
         oncontextmenu={(event) => {
           event.preventDefault();
           oncontext(listed, event.clientX, event.clientY);
@@ -427,6 +436,7 @@
         {#if repoStateTag(entry.state)}
           <span class="op" title={STATE_TAG_HINT}>{repoStateTag(entry.state)}</span>
         {/if}
+        {#if disconnected.has(backends.get(row.root) ?? "")}<span class="branch truncate shrink-first">not connected</span>{/if}
         {#if sync.missing}
           <span class="gone" title={MISSING_REPOSITORY}>missing</span>
         {/if}
@@ -446,7 +456,7 @@
             data-key-label={listed.name}
             role="button"
             tabindex="0"
-            title="{listed.root} — closed; click to open"
+            title="{listed.root} — {sshHost(backends.get(listed.root)) ? 'not connected; click to connect' : 'closed; click to open'}"
             style:padding-left="calc(var(--tree-base) + {row.depth} * var(--tree-step))"
             onclick={() => onreopen(listed.root)}
             onkeydown={(event) => event.key === "Enter" && onreopen(listed.root)}
@@ -458,6 +468,7 @@
             {@render topDisclosure(listed.root, false, true)}
             <RepositoryMarks {sync} />
             <span class="name truncate shrink-last">{listed.name}</span>
+            {#if sshHost(backends.get(listed.root))}<span class="branch truncate shrink-first">not connected</span>{/if}
             {#if listed.pinned}<span class="pin" title="Pinned to the top of its group">⊤</span>{/if}
             {#if sync.missing}<span class="gone" title={MISSING_REPOSITORY}>missing</span>{/if}
             {#if sync.sparse !== null}<span class="sparse" title={sparseTooltip(sync.sparse)}>sparse</span>{/if}

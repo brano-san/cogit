@@ -90,6 +90,9 @@
   import { repoSettings, submoduleOp } from "$lib/ipc/remote-ops";
   import { branchPrefix, effectiveRule, headBranch, repoRule } from "$lib/commit-prefix";
   import PromptDialog from "$components/layout/PromptDialog.svelte";
+  import OpenRepositoryDialog from "$components/repo-tree/OpenRepositoryDialog.svelte";
+  import { backendLabels, desktopBlock } from "$lib/ipc/repo-rows";
+  import { retrySshHost, sshHost } from "$lib/ssh-repositories";
   import SignInDialog from "$components/layout/SignInDialog.svelte";
   import HostingAccountDialog from "$components/layout/HostingAccountDialog.svelte";
   import MasterPasswordDialog from "$components/layout/MasterPasswordDialog.svelte";
@@ -233,6 +236,7 @@
     fetchRemote,
     onMenuCommand,
     openInTerminal,
+    rereadRepository,
     terminalChoices,
     openRepository,
     openSubmodule,
@@ -645,6 +649,15 @@
   const reposColumn = $derived(shown.repositories || shown.worktrees);
   const leftColumn = $derived(reposColumn || shown.refs);
   const repo = $derived(repository.current);
+  let activeDesktopBlock = $state<string | null>(null);
+  $effect(() => {
+    const root = repo?.root;
+    let current = true;
+    activeDesktopBlock = root ? "Checking the repository location" : null;
+    if (root) void desktopBlock(root).then((reason) => { if (current) activeDesktopBlock = reason; })
+      .catch((err) => { if (current) activeDesktopBlock = String(err); });
+    return () => { current = false; };
+  });
   const aiService = $derived(serviceInput(settings.current.ai));
   $effect(() => {
     void aiService;
@@ -884,6 +897,7 @@
   /** One action per command id: the palette, the native menu and the toolbar run these. */
   const actions: AppCommandActions = {
     open: () => void pickRepository(),
+    "open-ssh": () => void pickRepository(true),
     clone: () => void openCloneWizard(),
     fetch: () => void networkActions?.run("fetch"),
     pull: () => networkActions?.openPull(),
@@ -1033,7 +1047,7 @@
     ...bisectCommands(repo?.state, (action) => bisectActions?.command(action)),
     ...toolPaletteCommands(settings.current.userCommands, toolContext, (command) => {
       if (repo && toolContext) void userTools.run(command, repo.repo, toolContext);
-    }),
+    }, activeDesktopBlock),
     ...remoteCommands(
       {
         repository: repo !== null,
@@ -1249,9 +1263,48 @@
   let startingBackends = $state<string[]>([]);
   const agentRestarts = new Map<string, number>();
 
+  const reconnecting = new Set<string>();
+  let disconnected = $state.raw<ReadonlySet<string>>(new Set());
+
+  async function reconnectSsh(host: string) {
+    if (reconnecting.has(host)) return;
+    reconnecting.add(host);
+    try {
+      await retrySshHost(async () => {
+        const entries = repository.openRepos;
+        const active = repository.current;
+        const affected = active && !entries.some((entry) => entry.repo === active.repo) ? [...entries, active] : entries;
+        const labels = await backendLabels(affected.map((entry) => entry.root));
+        for (const [index, entry] of affected.entries()) {
+          if (labels[index] !== host) continue;
+          if (!repository.openRepos.some((open) => open.repo === entry.repo) && repository.current?.repo !== entry.repo) continue;
+          await rereadRepository(entry.repo, true);
+        }
+        const shown = repository.current?.repo;
+        if (shown && affected.some((entry, index) => entry.repo === shown && labels[index] === host)) {
+          for (const kind of EVERYTHING) diskPasses.add(kind);
+        }
+      });
+    } catch (err) {
+      notices.report(err, `Could not reconnect to ${host}. Refresh (F5) to retry.`);
+    } finally {
+      reconnecting.delete(host);
+    }
+  }
+
   function onBackendChanged(event: import("$lib/ipc").BackendChanged) {
     startingBackends = trackStarting(startingBackends, event);
+    if (event.state.state === "started" && disconnected.has(event.host)) {
+      const online = new Set(disconnected);
+      online.delete(event.host);
+      disconnected = online;
+    }
     if (event.state.state !== "lost") return;
+    if (sshHost(event.host)) {
+      disconnected = new Set(disconnected).add(event.host);
+      void reconnectSsh(event.host);
+      return;
+    }
     const now = Date.now();
     if (restartsLost(agentRestarts, event.host, now)) {
       agentRestarts.set(event.host, now);
@@ -1637,7 +1690,10 @@ ${event.error}`,
     // A worktree of this repository opens in the panels, as a double-click in Worktrees
     // does; activating its folder made it a repository of its own in the list (R-184).
     const row = worktrees.entries.find((entry) => entry.path === elsewhere.path);
-    if (go) await (row ? openWorktreeRow(row) : activate(elsewhere.path));
+    if (go && repository.current?.repo === id) {
+      if (row || activeDesktopBlock) await openWorktreeRow(row ?? elsewhere, id);
+      else await activate(elsewhere.path);
+    }
     return true;
   }
 
@@ -2670,6 +2726,8 @@ ${event.error}`,
     const id = repository.current?.repo;
     if (!id) return;
     const { clientX: x, clientY: y } = event;
+    const block = await desktopBlock(repository.current!.root);
+    if (repository.current?.repo !== id) return;
     const paths = fileScope(path, section);
     const info = desktop.info;
 
@@ -2682,10 +2740,11 @@ ${event.error}`,
       const items = commitFileMenu({
         status: clicked?.status ?? "modified",
         count: paths.length,
+        desktopBlock: block,
         onDisk: true,
         fileManager: info.fileManager,
       });
-      const tools = userTools.submenu("file", id, { file: path, commit: commit.oid, branch: toolBranch });
+      const tools = userTools.submenu("file", id, { file: path, commit: commit.oid, branch: toolBranch }, block);
       await popupContextMenu(withTools(items, tools), x, y).catch(() => {});
       return;
     }
@@ -2702,10 +2761,11 @@ ${event.error}`,
       staged: paths.some((each) => worktree.staged.some((file) => file.path === each)),
       unstaged: paths.some((each) => worktree.unstaged.some((file) => file.path === each)),
       fileManager: info.fileManager,
+      desktopBlock: block,
       editBlocked: refusal(editRoute(rowFile(path), rowPlace(path))),
       modeChanged: paths.some((each) => worktree.unstaged.some((file) => file.path === each && file.modeChange !== null)),
     });
-    const tools = userTools.submenu("file", id, { file: path, commit: null, branch: toolBranch });
+    const tools = userTools.submenu("file", id, { file: path, commit: null, branch: toolBranch }, block);
     await popupContextMenu(withTools(items, tools), x, y).catch(() => {});
   }
 
@@ -2713,7 +2773,7 @@ ${event.error}`,
     const scope = fileTarget;
     const root = repository.current?.root;
     if (scope === null || !root || !id.startsWith("file-")) return false;
-    return runFileMenuCommand(id, scope, fileActions, { root, separator: desktop.info.separator });
+    return runFileMenuCommand(id, scope, fileActions, { root, separator: activeDesktopBlock ? "/" : desktop.info.separator });
   }
 
   /** Where each file menu command lands; most are the panel's own actions. */
@@ -3057,8 +3117,7 @@ ${event.error}`,
   }
 
   /** Like a submodule: the panels switch to it, the Repositories tree stays (R-184). */
-  async function openWorktreeRow(entry: import("$lib/ipc").WorktreeEntry) {
-    const owner = worktrees.repo;
+  async function openWorktreeRow(entry: import("$lib/ipc").WorktreeEntry, owner = worktrees.repo) {
     const listed = repository.current?.root ?? null;
     if (!owner || entry.missing || entry.isCurrent) return;
     const epoch = repository.epoch;
@@ -3093,6 +3152,7 @@ ${event.error}`,
   async function showRepoMenu(row: ListedRepo, x: number, y: number) {
     const info = desktop.info;
     repoTarget = { kind: "repository", root: row.root, overview: row.overview };
+    const block = await desktopBlock(row.root);
     const active = row.overview !== null && repo?.repo.valueOf() === row.overview.repo.valueOf();
     // What the row itself shows: a closed row knows it is missing only from its pulse.
     const { missing } = rowSync({
@@ -3107,6 +3167,7 @@ ${event.error}`,
         active,
         open: row.overview !== null,
         missing,
+        desktopBlock: block,
         pinned: row.pinned,
         group: repoGroups.groups.of[row.root] ?? UNGROUPED,
         groups: groupChoices(repoGroups.groups),
@@ -3117,7 +3178,7 @@ ${event.error}`,
       file: null,
       commit: null,
       branch: active ? toolBranch : (row.overview?.branch ?? null),
-    });
+    }, block);
     await popupContextMenu(withTools(items, tools), x, y).catch(() => {});
   }
 
@@ -3152,6 +3213,7 @@ ${event.error}`,
         pinned: false,
         group: UNGROUPED,
         groups: [],
+        desktopBlock: await desktopBlock(top),
         module: row.module,
       },
       info,
@@ -3631,9 +3693,26 @@ ${event.error}`,
     }
   }
 
+  let locationDialog = $state.raw<{
+    remote: boolean;
+    title: string;
+    settle: (path: string | null) => void;
+  } | null>(null);
+
+  function requestLocation(remote: boolean, title: string): Promise<string | null> {
+    locationDialog?.settle(null);
+    return new Promise((resolve) => {
+      const settle = (path: string | null) => {
+        if (locationDialog?.settle === settle) locationDialog = null;
+        resolve(path);
+      };
+      locationDialog = { remote, title, settle };
+    });
+  }
+
   /** The root opened, or null when the dialog was cancelled or the open did not win. */
-  async function pickRepository(): Promise<string | null> {
-    const picked = await openFolderDialog({ directory: true, title: "Open Repository" });
+  async function pickRepository(remote = false): Promise<string | null> {
+    const picked = await requestLocation(remote, remote ? "Add Remote Repository" : "Open Repository");
     if (typeof picked !== "string") return null;
     opening = true;
     try {
@@ -3643,8 +3722,11 @@ ${event.error}`,
     }
   }
 
-  function openCloneWizard() {
-    return cloneWizard.start(parentFolder(repository.current?.root ?? session.recent[0] ?? ""));
+  async function openCloneWizard() {
+    const roots = [...new Set([repository.current?.root, ...session.recent].filter((root): root is string => !!root))];
+    const labels = await backendLabels(roots);
+    const nearby = roots.find((_, index) => sshHost(labels[index]) === null) ?? "";
+    return cloneWizard.start(parentFolder(nearby));
   }
 
   /** The Welcome dialog (F-586), shown only at startup: rows come from the same recent list
@@ -3727,8 +3809,9 @@ ${event.error}`,
     // Clone opens over the Welcome dialog: Cancel comes back to it, Finish closes it.
     if (action.kind === "clone") return openCloneWizard();
 
-    const picked = await pickFolder("Open or Create Repository");
+    const picked = await requestLocation(false, "Open or Create Repository");
     if (picked === null) return;
+    if (sshHost((await backendLabels([picked]))[0])) return openFromWelcome(picked);
     const kind = await folderKind(picked).catch((err) => {
       errors.report(err, "Could not read the folder");
       return null;
@@ -4328,13 +4411,15 @@ ${event.error}`,
             <RepoListActions
               {opening}
               bind:filter={repoFilter}
-              onopen={pickRepository}
+              onopen={() => void pickRepository()}
+              onremote={() => void pickRepository(true)}
               onscan={openScan}
               onaddgroup={askAddGroup}
             />
           {/snippet}
           <RepositoriesPanel
             bind:this={repositoriesPanel}
+            {disconnected}
             filter={repoFilter}
             onselect={(entry) => void selectRepository(entry)}
             oncontext={(row, x, y) => void repoContext(row, x, y)}
@@ -4748,6 +4833,7 @@ ${event.error}`,
   {/if}
 
   <RefActions
+    desktopBlock={activeDesktopBlock}
     bind:this={refActions}
     {afterRefChange}
     afterMutation={() => afterMutation()}
@@ -4987,6 +5073,7 @@ ${event.error}`,
   {#if repoSettingsOpen && repo}
     <!-- Readers of these keys, the tag folders among them, pick them up on the refresh. -->
     <RepoSettingsDialog
+      desktopBlock={activeDesktopBlock}
       repo={repo.repo}
       name={repo.name}
       onsaved={() => Promise.all([repository.refresh(), loadPrefixRule()]).then(() => {})}
@@ -4994,7 +5081,11 @@ ${event.error}`,
     />
   {/if}
 
-  <SignInDialog />
+  {#if locationDialog}
+  <OpenRepositoryDialog remote={locationDialog.remote} title={locationDialog.title} onpick={locationDialog.settle}
+    onbrowse={() => pickFolder("Open Repository")} />
+{/if}
+<SignInDialog />
   <HostingAccountDialog />
   <MasterPasswordDialog />
   <HostKeyDialog />

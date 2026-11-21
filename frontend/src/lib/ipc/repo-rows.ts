@@ -1,3 +1,4 @@
+import { sshHost, SSH_DESKTOP_REASON } from "$lib/ssh-repositories";
 import { commands } from "./bindings";
 import { unwrap } from "./index";
 
@@ -22,4 +23,8 @@ export async function pullProbe(root: string) {
 /** Per root, the backend it lives on (`local`, `WSL: Ubuntu`, `SSH: host`), in order (M15). */
 export function backendLabels(roots: string[]) {
   return commands.backendLabels(roots);
+}
+
+export async function desktopBlock(root: string) {
+  return sshHost((await backendLabels([root]))[0]) ? SSH_DESKTOP_REASON : null;
 }

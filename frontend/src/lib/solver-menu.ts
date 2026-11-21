@@ -12,6 +12,7 @@ export interface SolverMenuState {
   changes: boolean;
   conflicts: boolean;
   tool: boolean;
+  toolBlock?: string | null;
 }
 
 export function actionOf(id: string): string {
@@ -33,7 +34,7 @@ export function solverMenu(label: string, state: SolverMenuState): ContextItem[]
     row("solver-prev-conflict", "Previous Conflict", state.conflicts, "Shift+F7"),
     row("solver-next-conflict", "Next Conflict", state.conflicts, "F7"),
     SEPARATOR,
-    row("solver-external-tool", "Open in External Tool", state.tool),
+    row("solver-external-tool", state.toolBlock ? `Open in External Tool (${state.toolBlock})` : "Open in External Tool", state.tool),
   ]);
 }
 
@@ -71,7 +72,7 @@ export function solverBarMenu(label: string, menu: BarMenu, state: SolverBarStat
         row("solver-keep-theirs", "Keep File (Theirs)", state.ready && state.deleted !== null && !state.deleted.theirs),
         row("solver-delete-file", "Delete File", state.ready && state.deleted !== null),
         SEPARATOR,
-        row("solver-external-tool", "Open in External Tool", state.tool),
+        row("solver-external-tool", state.toolBlock ? `Open in External Tool (${state.toolBlock})` : "Open in External Tool", state.tool),
       ]);
     case "Edit":
       return tidy([

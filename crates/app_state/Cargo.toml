@@ -17,6 +17,7 @@ path = "src/bin/cogit_agent.rs"
 
 [dependencies]
 agent.workspace = true
+sha2.workspace = true
 ai_message.workspace = true
 portable.workspace = true
 avatars.workspace = true
@@ -60,6 +61,11 @@ harness = false
 [[test]]
 name = "host_key"
 harness = false
+
+[[test]]
+name = "ssh_backend"
+harness = false
+required-features = ["loopback"]
 
 [lints]
 workspace = true

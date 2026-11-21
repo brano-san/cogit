@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { flushSync } from "svelte";
 
 const commands = {
+  backendLabels: vi.fn().mockResolvedValue(["local"]),
   openRepository: vi.fn(),
   rereadRepository: vi.fn(),
   closeRepository: vi.fn(),

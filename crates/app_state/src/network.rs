@@ -265,6 +265,18 @@ impl AppState {
         sign_in: Option<&SignIn>,
         run: impl FnOnce(Credentials<'_>) -> Result<T, GitError>,
     ) -> Result<T, GitError> {
+        if crate::ssh_transport::inside_agent() {
+            return run(&|_| None).map_err(|mut error| {
+                if let GitError::Command(failure) = &mut error {
+                    let output = format!("{}\n{}", failure.stderr, failure.stdout);
+                    if git_engine::credential_trouble(&output).is_some() || git_engine::host_key_summary(&output).is_some() {
+                        failure.summary.push_str(" Configure Git credentials and trusted host keys on the SSH server. Remote Git cannot prompt for a sign-in.");
+                    }
+                    failure.auth_required = None;
+                }
+                error
+            });
+        }
         let typed = sign_in.and_then(|sign_in| Some((host_input(&sign_in.host)?, sign_in)));
         // Each host asked, with the username sent there.
         let asked: RefCell<Vec<Asked>> = RefCell::new(Vec::new());

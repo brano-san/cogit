@@ -8,6 +8,7 @@ export interface WorktreeFileTarget {
   section: FileSection;
   /** One status per file the menu acts on; the right-clicked one first. */
   statuses: readonly string[];
+  desktopBlock?: string | null;
   staged: boolean;
   /** Some of those files have unstaged changes, untracked ones included. */
   unstaged: boolean;
@@ -72,12 +73,12 @@ export function worktreeFileMenu(at: WorktreeFileTarget): ContextItem[] {
   const flaggable = worktreeOnly ?? (untracked ? "untracked" : null);
 
   return tidy([
-    offer("file-open", "Open File", single ?? (onDisk ? null : "not on disk")),
-    offer("file-reveal", `Reveal in ${at.fileManager}`, single ?? (onDisk ? null : "not on disk")),
+    offer("file-open", "Open File", at.desktopBlock ?? single ?? (onDisk ? null : "not on disk")),
+    offer("file-reveal", `Reveal in ${at.fileManager}`, at.desktopBlock ?? single ?? (onDisk ? null : "not on disk")),
     offer("file-changes", "Show Changes", single),
     offer("file-edit", "Edit", single ?? at.editBlocked ?? (onDisk ? null : "not on disk")),
-    offer("file-diff-tool", "Open in External Diff Tool", single ?? diffToolBlocked(status)),
-    offer("file-external-editor", "Open in External Editor", single ?? (onDisk ? null : "not on disk")),
+    offer("file-diff-tool", "Open in External Diff Tool", at.desktopBlock ?? single ?? diffToolBlocked(status)),
+    offer("file-external-editor", "Open in External Editor", at.desktopBlock ?? single ?? (onDisk ? null : "not on disk")),
     item("file-log", "Log", history),
     item("file-blame", "Blame", history),
     item("file-investigate", "Investigate", history),
@@ -106,7 +107,7 @@ export function worktreeFileMenu(at: WorktreeFileTarget): ContextItem[] {
         item("file-resolve-theirs", "Take Theirs"),
         item("file-resolve-ours", "Take Ours"),
         SEPARATOR,
-        offer("file-resolve-external", "Open in External Tool", single),
+        offer("file-resolve-external", "Open in External Tool", at.desktopBlock ?? single),
       ],
       conflicted,
     ),
@@ -140,6 +141,7 @@ export function shownRow<F extends { path: string }>(
 
 export interface CommitFileTarget {
   status: string;
+  desktopBlock?: string | null;
   count: number;
   onDisk: boolean;
   fileManager: string;
@@ -153,21 +155,21 @@ export function commitFileMenu(at: CommitFileTarget): ContextItem[] {
   return tidy([
     offer("file-changes", "Show Changes", single),
     offer("file-compare-worktree", "Compare with Working Tree", single),
-    offer("file-open-version", "Open File", inCommit),
-    offer("file-diff-tool", "Open in External Diff Tool", single),
+    offer("file-open-version", "Open File", at.desktopBlock ?? inCommit),
+    offer("file-diff-tool", "Open in External Diff Tool", at.desktopBlock ?? single),
     offer(
       "file-external-editor",
       "Open in External Editor",
-      single ?? (at.status === "deleted" ? "deleted in this commit" : at.onDisk ? null : "not in the working tree"),
+      at.desktopBlock ?? single ?? (at.status === "deleted" ? "deleted in this commit" : at.onDisk ? null : "not in the working tree"),
     ),
     offer(
       "file-reveal",
       `Reveal in ${at.fileManager}`,
-      single ?? (at.onDisk ? null : "not in the working tree"),
+      at.desktopBlock ?? single ?? (at.onDisk ? null : "not in the working tree"),
       "CmdOrCtrl+Shift+E",
     ),
     SEPARATOR,
-    offer("file-save-as", "Save As…", inCommit),
+    offer("file-save-as", "Save As…", at.desktopBlock ?? inCommit),
     offer("file-log", "Log", single),
     offer("file-blame", "Blame", inCommit),
     offer("file-investigate", "Investigate", inCommit),

@@ -4,6 +4,7 @@ import { Channel } from "@tauri-apps/api/core";
 import { commands, events } from "./bindings";
 import type { WorktreeBranch } from "./bindings";
 import { counted } from "$lib/listener-count";
+import { sshHost } from "$lib/ssh-repositories";
 import { OS } from "$lib/platform";
 import { secondaryReleased } from "$lib/secondary-button";
 import { withMenuKeys } from "$lib/context-menu";
@@ -354,17 +355,23 @@ export async function openThirdPartyLicences(frontend: string | null) {
   unwrap(await commands.openThirdPartyLicences(frontend));
 }
 
-export async function openRepository(path: string) {
-  const result = await commands.openRepository(path);
-  if (result.status === "error") {
-    throw new CogitError(result.error);
-  }
-  return result.data;
+export async function openRepository(path: string, onSsh?: () => void) {
+  const [label] = await commands.backendLabels([path]);
+  const read = async (credential: SignIn | null) => {
+    const key = credential?.keyPath ? {
+      host: credential.host, keyPath: credential.keyPath, passphrase: credential.secret, remember: credential.remember,
+    } : null;
+    return unwrap(await commands.openRepository(path, key));
+  };
+  if (sshHost(label) === null) return read(null);
+  onSsh?.();
+  const { signedIn } = await import("$stores/sign-in.svelte");
+  return signedIn(read);
 }
 
 /** The repository on screen read again by id: listed or not, it stays as it was (R-543). */
-export async function rereadRepository(repo: RepoId) {
-  return unwrap(await commands.rereadRepository(repo));
+export async function rereadRepository(repo: RepoId, background = false) {
+  return unwrap(await commands.rereadRepository(repo, background));
 }
 
 export const EMPTY_QUERY: CommitQuery = {

@@ -125,6 +125,35 @@ pub struct SignIn {
     pub remember: bool,
 }
 
+#[derive(Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SshRepositoryKey {
+    host: String,
+    key_path: String,
+    passphrase: String,
+    remember: bool,
+}
+
+impl std::fmt::Debug for SshRepositoryKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SshRepositoryKey")
+            .field("host", &self.host)
+            .finish_non_exhaustive()
+    }
+}
+
+impl From<SshRepositoryKey> for SignIn {
+    fn from(key: SshRepositoryKey) -> Self {
+        Self {
+            host: key.host,
+            username: None,
+            key_path: Some(key.key_path),
+            secret: key.passphrase,
+            remember: key.remember,
+        }
+    }
+}
+
 impl std::fmt::Debug for SignIn {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SignIn")
@@ -431,6 +460,9 @@ impl AppState {
     /// What Cogit holds for the host of `url`, of `url`'s kind. A locked store holds nothing
     /// yet: the page unlocks it before a command that may ask (R-891).
     pub fn stored_credential(&self, url: &str) -> Option<Credential> {
+        if crate::ssh_transport::inside_agent() {
+            return None;
+        }
         if let Some(window) = self.window.get() {
             return crate::agent_events::ask_window(
                 window,

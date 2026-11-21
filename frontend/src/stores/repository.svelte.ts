@@ -34,6 +34,7 @@ export type RepoPhase =
 /** Long enough that a cold repository with submodules is not called a failure, short
     enough that nobody watches a spinner wondering whether it is still alive. */
 const OPEN_TIMEOUT_MS = 30_000;
+const SSH_OPEN_TIMEOUT_MS = 180_000;
 const KEPT_REPOSITORIES = 8;
 
 function asCogitError(err: unknown): CogitError {
@@ -124,7 +125,12 @@ class RepositoryStore {
   /** `false` when a newer open overtook this one and its answer was dropped. */
   async open(path: string): Promise<boolean> {
     this.#again = false;
-    let shown = await this.#read(path, () => openRepository(path));
+    let shown = await this.#read(path, () => {
+      const ticket = this.#ticket;
+      return openRepository(path, () => {
+        if (ticket === this.#ticket) this.#arm(path, ticket, SSH_OPEN_TIMEOUT_MS);
+      });
+    });
     while (shown && this.#again && this.current?.root === path) {
       this.#again = false;
       const repo = this.current.repo;
@@ -162,22 +168,26 @@ class RepositoryStore {
     const ticket = ++this.#ticket;
     this.#timedOut = null;
     this.#leaving(root);
-    this.#disarm();
     this.phase = { kind: "opening", root, repo: this.current };
     trace(`open:${root}`, `phase → opening, ticket ${ticket}`);
+    this.#arm(root, ticket, OPEN_TIMEOUT_MS);
+    return ticket;
+  }
+
+  #arm(root: string, ticket: number, timeout: number): void {
+    this.#disarm();
     // A backend that never answers is a bug of its own, but it must not read as
     // "still working" for ever. A real answer arriving later still wins.
     this.#timer = setTimeout(() => {
       if (this.#ticket !== ticket || this.phase.kind !== "opening") return;
-      trace(`open:${root}`, `phase → failed, timed out after ${OPEN_TIMEOUT_MS}ms`);
+      trace(`open:${root}`, `phase → failed, timed out after ${timeout}ms`);
       // `invalidState`, not `internal`: a slow open is a normal state, not a bug of Cogit.
       this.#timedOut = new CogitError({
         kind: "invalidState",
-        data: `Opening ${root} is taking longer than ${Math.round(OPEN_TIMEOUT_MS / 1000)}s. It may still be running; the log says how far it got.`,
+        data: `Opening ${root} is taking longer than ${Math.round(timeout / 1000)}s. It may still be running; the log says how far it got.`,
       });
       this.phase = { kind: "failed", root, error: this.#timedOut, repo: this.current };
-    }, OPEN_TIMEOUT_MS);
-    return ticket;
+    }, timeout);
   }
 
   #settle(ticket: number, phase: RepoPhase): boolean {

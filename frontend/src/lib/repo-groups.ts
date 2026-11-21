@@ -1,3 +1,5 @@
+import { sshHost } from "./ssh-repositories";
+
 /** Virtual folders over the open repositories. They group nothing on disk — a repository
     belongs to at most one, and one that belongs to none sits at the top level, beside the
     folders, as a branch outside any folder does in Branches. */
@@ -221,7 +223,7 @@ export function backendRows(
   const labels = [...new Set(backendOf.values())].sort((a, b) =>
     a === "local" ? -1 : b === "local" ? 1 : a.localeCompare(b),
   );
-  if (labels.length < 2) return groupRows(groups, roots, collapsed, filtering);
+  if (labels.length < 2 && !sshHost(labels[0])) return groupRows(groups, roots, collapsed, filtering);
 
   const holding = new Set<string>();
   for (const root of roots) {

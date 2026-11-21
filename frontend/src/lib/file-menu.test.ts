@@ -21,6 +21,20 @@ const find = (items: ContextItem[], id: string) => items.find((item) => item.id 
 const on = (items: ContextItem[], id: string) => find(items, id)?.enabled;
 
 describe("worktreeFileMenu", () => {
+  it("explains desktop-only actions while keeping SSH file operations available", () => {
+    const desktopBlock = "requires a file on this computer";
+    const working = worktreeFileMenu({ ...MODIFIED, desktopBlock });
+    for (const id of ["file-open", "file-reveal", "file-diff-tool", "file-external-editor"]) {
+      expect(find(working, id)).toMatchObject({ enabled: false, label: expect.stringContaining(desktopBlock) });
+    }
+    for (const id of ["file-stage", "file-changes", "file-save-patch"]) expect(on(working, id)).toBe(true);
+    const historical = commitFileMenu({ count: 1, onDisk: true, status: "modified", fileManager: "Explorer", desktopBlock });
+    for (const id of ["file-open-version", "file-save-as", "file-diff-tool", "file-reveal", "file-external-editor"]) {
+      expect(on(historical, id)).toBe(false);
+    }
+    expect(on(historical, "file-changes")).toBe(true);
+  });
+
   // F-948: a patch of Staged is the index against HEAD, of Unstaged the tree against the index.
   it("offers a patch of the list the files are in", () => {
     const stagedOnly = { ...MODIFIED, staged: true, unstaged: false };

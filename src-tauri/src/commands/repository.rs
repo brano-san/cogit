@@ -11,12 +11,16 @@ use std::path::PathBuf;
 pub async fn open_repository(
     state: tauri::State<'_, crate::AppContext>,
     path: String,
+    key: Option<app_state::SshRepositoryKey>,
 ) -> Result<RepoSummary, GitError> {
     let app_state = state.state.clone();
     let path = PathBuf::from(path);
 
     let started = std::time::Instant::now();
-    let summary = blocking("open_repository", move || app_state.open_repository(&path)).await?;
+    let summary = blocking("open_repository", move || {
+        app_state.open_repository_with_login(&path, key.map(app_state::SignIn::from).as_ref())
+    })
+    .await?;
 
     tracing::info!(
         repo = summary.repo.0,
@@ -36,10 +40,11 @@ pub async fn open_repository(
 pub async fn reread_repository(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,
+    background: Option<bool>,
 ) -> Result<RepoSummary, GitError> {
     let app_state = state.state.clone();
     blocking("reread_repository", move || {
-        app_state.reread_repository(repo)
+        app_state.refresh_repository(repo, background.unwrap_or(false))
     })
     .await
 }
