@@ -182,6 +182,34 @@ const TOOLS: &[Entry] = &[
     Entry::Item("copy-pr", "Copy Pull Request Link", None),
 ];
 
+const WINDOW: &[Entry] = &[
+    Entry::Nested(
+        "Layout",
+        &[
+            Entry::Check(
+                "window-layout-standard",
+                "Standard",
+                Some("CmdOrCtrl+Alt+1"),
+            ),
+            Entry::Check("window-layout-log", "Log", Some("CmdOrCtrl+Alt+2")),
+            Entry::Check(
+                "window-layout-workingTree",
+                "Working Tree",
+                Some("CmdOrCtrl+Alt+3"),
+            ),
+            Entry::Separator,
+            Entry::Item("window-layout-reset", "Reset Layout", None),
+        ],
+    ),
+    Entry::Separator,
+    Entry::Item("tab-next", "Next Repository Tab", Some("Ctrl+Tab")),
+    Entry::Item(
+        "tab-previous",
+        "Previous Repository Tab",
+        Some("Ctrl+Shift+Tab"),
+    ),
+];
+
 const HELP: &[Entry] = &[
     // Moved here from Tools: this is where someone looks when asked to send a log.
     Entry::Item("reveal-log", "Open Log Folder", None),
@@ -202,12 +230,28 @@ const SECTIONS: &[(&str, &[Entry])] = &[
     ("Branch", BRANCH),
     ("Query", QUERY),
     ("Tools", TOOLS),
+    ("Window", WINDOW),
     ("Help", HELP),
 ];
 
 /// Keyed commands with no place on the bar (#43): the window still claims the key, or
 /// WebView2 would take F5 as "reload the page", and the keymap editor still lists them.
 const OFF_THE_BAR: &[(&str, &[Entry])] = &[
+    (
+        "Window",
+        &[
+            Entry::Item(
+                "tab-next-alternate",
+                "Next Repository Tab (Alternate)",
+                Some("Ctrl+PageDown"),
+            ),
+            Entry::Item(
+                "tab-previous-alternate",
+                "Previous Repository Tab (Alternate)",
+                Some("Ctrl+PageUp"),
+            ),
+        ],
+    ),
     (
         "Repository",
         &[Entry::Item("refresh", "Refresh", Some("F5"))],
@@ -331,8 +375,9 @@ impl Keymap {
 /// Read straight from the settings file: the bar is built before the webview exists, so
 /// a restart must already show the user's own keys.
 #[must_use]
-pub fn stored_keymap(config_dir: &std::path::Path) -> HashMap<String, String> {
-    app_state::settings::read_document(config_dir)
+pub fn stored_menu(config_dir: &std::path::Path) -> (HashMap<String, String>, &'static str) {
+    let document = app_state::settings::read_document(config_dir);
+    let keys = document
         .get("keymap")
         .and_then(serde_json::Value::as_object)
         .map(|map| {
@@ -340,7 +385,18 @@ pub fn stored_keymap(config_dir: &std::path::Path) -> HashMap<String, String> {
                 .filter_map(|(id, keys)| Some((id.clone(), keys.as_str()?.to_owned())))
                 .collect()
         })
-        .unwrap_or_default()
+        .unwrap_or_default();
+    let layout = document
+        .pointer("/settings/activeLayout")
+        .and_then(serde_json::Value::as_str);
+    let selected = leaves(WINDOW)
+        .into_iter()
+        .find_map(|entry| match entry {
+            Entry::Check(id, _, _) if id.strip_prefix("window-layout-") == layout => Some(*id),
+            _ => None,
+        })
+        .unwrap_or("window-layout-standard");
+    (keys, selected)
 }
 
 /// An empty override means "no accelerator at all", which is how a user removes one.
@@ -389,6 +445,17 @@ pub struct MenuItems<R: Runtime> {
 }
 
 impl<R: Runtime> MenuItems<R> {
+    fn checked_layout(&self) -> tauri::Result<String> {
+        if let Ok(checks) = self.checks.lock() {
+            for (id, item) in checks.iter() {
+                if id.starts_with("window-layout-") && item.is_checked()? {
+                    return Ok(id.clone());
+                }
+            }
+        }
+        Ok("window-layout-standard".to_owned())
+    }
+
     /// A rebuilt bar has new items; the old handles point at nothing the user can see.
     fn replace(&self, collected: Collected<R>) {
         if let Ok(mut items) = self.items.lock() {
@@ -509,6 +576,7 @@ fn fill<'m, R: Runtime>(
 pub fn build<R: Runtime>(
     app: &AppHandle<R>,
     overrides: &HashMap<String, String>,
+    active_layout: &str,
 ) -> tauri::Result<(Menu<R>, Collected<R>)> {
     let mut collected = Collected {
         items: HashMap::new(),
@@ -585,6 +653,7 @@ pub fn build<R: Runtime>(
         }
         sizes = sizes.item(&MenuItem::with_id(app, *id, *label, true, None::<&str>)?);
     }
+    let window = fill(app, window.separator(), WINDOW, overrides, &mut collected)?;
     let window = window
         .separator()
         .item(&sizes.build()?)
@@ -627,6 +696,11 @@ pub fn build<R: Runtime>(
         ],
     )?;
 
+    for (id, item) in &collected.checks {
+        if id.starts_with("window-layout-") {
+            item.set_checked(id == active_layout)?;
+        }
+    }
     Ok((menu, collected))
 }
 
@@ -696,7 +770,7 @@ pub fn rebuild<R: Runtime>(
     overrides: HashMap<String, String>,
 ) -> tauri::Result<()> {
     keymap.set(overrides);
-    let (menu, collected) = build(app, &keymap.snapshot())?;
+    let (menu, collected) = build(app, &keymap.snapshot(), &items.checked_layout()?)?;
     match app.get_webview_window(crate::child_window::MAIN) {
         // macOS has one bar for the whole app.
         Some(main) if cfg!(not(target_os = "macos")) => {
@@ -806,6 +880,69 @@ mod separator_tests {
 #[cfg(test)]
 mod nested_tests {
     use super::*;
+
+    #[test]
+    fn saved_layout_and_shortcuts_round_trip_to_the_startup_menu() {
+        let dir = tempfile::tempdir().expect("temporary settings");
+        let folder = dir.path();
+        assert_eq!(stored_menu(folder).1, "window-layout-standard");
+        app_state::settings::write_key(
+            folder,
+            "keymap",
+            serde_json::json!({"window-layout-log": "F8"}),
+        )
+        .expect("write keymap");
+        for (layout, expected) in [
+            ("log", "window-layout-log"),
+            ("workingTree", "window-layout-workingTree"),
+            ("unrecognized", "window-layout-standard"),
+        ] {
+            app_state::settings::write_key(
+                folder,
+                "settings",
+                serde_json::json!({"activeLayout": layout}),
+            )
+            .expect("write layout");
+            let (keys, checked) = stored_menu(folder);
+            assert_eq!(checked, expected);
+            assert_eq!(
+                keys.get("window-layout-log").map(String::as_str),
+                Some("F8")
+            );
+        }
+    }
+
+    #[test]
+    fn window_layout_has_three_checkable_choices_and_a_size_reset() {
+        let [Entry::Nested("Layout", choices), ..] = WINDOW else {
+            panic!("Window must contain Layout");
+        };
+        let patterns = [
+            ("window-layout-standard", "Standard", "CmdOrCtrl+Alt+1"),
+            ("window-layout-log", "Log", "CmdOrCtrl+Alt+2"),
+            (
+                "window-layout-workingTree",
+                "Working Tree",
+                "CmdOrCtrl+Alt+3",
+            ),
+        ];
+        let checks: Vec<_> = choices
+            .iter()
+            .filter_map(|entry| match entry {
+                Entry::Check(id, label, Some(keys)) => Some((*id, *label, *keys)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(checks, patterns);
+        assert!(matches!(
+            choices.last(),
+            Some(Entry::Item("window-layout-reset", "Reset Layout", None))
+        ));
+        let defaults = default_keymap_pairs();
+        for (id, _, keys) in checks {
+            assert!(defaults.contains(&(id, Some(keys))));
+        }
+    }
 
     /// Repository ▸ Edit Git Config ▸ Repository / User: a submenu's items are commands
     /// like any other, so the keymap and the window accelerators must see them.

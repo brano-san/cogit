@@ -1,13 +1,14 @@
 import type { KeyBinding } from "$lib/ipc/bindings";
-import { foreign, primary } from "$lib/platform";
+import { foreign, ON_MAC, primary } from "$lib/platform";
 
 /** Command id to accelerator. An empty string means the user removed the key. */
 export type Keymap = Record<string, string>;
 
-export function effective(bindings: readonly KeyBinding[], overrides: Keymap): Keymap {
+export function effective(bindings: readonly KeyBinding[], overrides: Keymap, onMac = ON_MAC): Keymap {
   const map: Keymap = {};
   for (const binding of bindings) {
-    map[binding.id] = overrides[binding.id] ?? binding.defaultAccelerator ?? "";
+    const keys = overrides[binding.id] ?? binding.defaultAccelerator ?? "";
+    map[binding.id] = onMac ? keys : keys.replace(/^Ctrl\+/, "CmdOrCtrl+");
   }
   return map;
 }
@@ -36,11 +37,11 @@ export function conflicts(
 
 const MODIFIERS = new Set(["cmdorctrl", "commandorcontrol", "ctrl", "control", "cmd", "command", "shift", "alt", "option"]);
 const FUNCTION_KEY = /^F(?:[1-9]|1\d|2[0-4])$/;
-const OTHER_KEYS = new Set(["ENTER", "RETURN", "LEFT", "UP", "RIGHT", "DOWN", ",", ".", "-", "="]);
+const OTHER_KEYS = new Set(["ENTER", "RETURN", "LEFT", "UP", "RIGHT", "DOWN", "TAB", "PAGEUP", "PAGEDOWN", ",", ".", "-", "="]);
 
 /** Whether the window takes this accelerator for its command — the rule of
     `accelerators::parse` in Rust: Ctrl (⌘) or Alt with a letter, a digit, `, . - =`, Enter
-    or an arrow; an F-key with or without them. A key outside it shows in the menu and does
+    Tab, PageUp, PageDown or an arrow; an F-key with or without them. A key outside it shows in the menu and does
     nothing, because WebView2 keeps it from the menu. Both sides test
     `accelerator-cases.json`. */
 export function claimable(keys: string): boolean {
@@ -90,6 +91,9 @@ const PLACES: Record<string, string> = {
   ArrowDown: "Down",
   ArrowLeft: "Left",
   ArrowRight: "Right",
+  Tab: "Tab",
+  PageUp: "PageUp",
+  PageDown: "PageDown",
 };
 
 /** Names for keys the window cannot take, to say which one it was. */
@@ -109,6 +113,8 @@ const RESERVED: Record<string, string> = {
   "CmdOrCtrl+Y": FOR_TYPING,
   "CmdOrCtrl+F": FOR_TYPING,
   "Alt+F4": "is the system's",
+  "Alt+Tab": "is the system's",
+  "Alt+Shift+Tab": "is the system's",
 };
 
 function keyAt(code: string): string | null {
@@ -121,8 +127,12 @@ function keyAt(code: string): string | null {
     Ctrl+K with a Russian layout is still `CmdOrCtrl+K`. `null` for a key without a place. */
 export function pressedAccelerator(press: KeyPress, onMac: boolean): string | null {
   const key = keyAt(press.code);
-  if (key === null) return null;
+  if (key === null || press.getModifierState?.("AltGraph")) return null;
   const parts: string[] = [];
+  if (foreign(press, onMac)) {
+    if (!onMac || press.metaKey) return null;
+    parts.push("Ctrl");
+  }
   if (primary(press, onMac)) parts.push("CmdOrCtrl");
   if (press.altKey) parts.push("Alt");
   if (press.shiftKey) parts.push("Shift");
@@ -136,8 +146,11 @@ export function recordKeys(press: KeyPress, onMac: boolean): Recorded | null {
 
   // AltGr arrives as Ctrl and Alt and types a character; the window lets it through.
   const altGr = press.getModifierState?.("AltGraph") ?? false;
-  const foreignHeld = foreign(press, onMac);
+  const tabKey = ["Tab", "PageUp", "PageDown"].includes(press.code);
+  const macControl = onMac && press.ctrlKey && !press.metaKey && tabKey;
+  const foreignHeld = foreign(press, onMac) && !macControl;
   const parts: string[] = [];
+  if (macControl && !altGr) parts.push("Ctrl");
   if (primary(press, onMac) && !altGr) parts.push("CmdOrCtrl");
   if (press.altKey && !altGr) parts.push("Alt");
   if (press.shiftKey) parts.push("Shift");
@@ -149,6 +162,9 @@ export function recordKeys(press: KeyPress, onMac: boolean): Recorded | null {
   const extra = altGr ? "AltGr+" : foreignHeld ? (onMac ? "Ctrl+" : "Win+") : "";
   const shown = extra + prettyKeys(keys, onMac);
   if (altGr || foreignHeld || placed === null || !claimable(keys)) return { refused: `${shown} cannot be used here` };
+  if (onMac && (keys === "CmdOrCtrl+Tab" || keys === "CmdOrCtrl+Shift+Tab")) {
+    return { refused: `${shown} is the system's` };
+  }
   const reserved = RESERVED[keys];
   return reserved ? { refused: `${shown} ${reserved}` } : { keys };
 }
@@ -173,7 +189,10 @@ export function withShortcuts<T extends { id: string; shortcut?: string }>(
   keys: Keymap,
   onMac: boolean,
 ): T[] {
-  return rows.map((row) => ({ ...row, shortcut: shortcutOf(row.id, keys, onMac) }));
+  return rows.map((row) => {
+    const shortcuts = [row.id, `${row.id}-alternate`].map((id) => shortcutOf(id, keys, onMac));
+    return { ...row, shortcut: shortcuts.filter(Boolean).join(" / ") || undefined };
+  });
 }
 
 export function mergeKeymap(stored: unknown): Keymap {

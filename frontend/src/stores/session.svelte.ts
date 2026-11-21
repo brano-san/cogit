@@ -7,6 +7,7 @@ import {
   writeSession,
   type Session,
 } from "$lib/session";
+import { moveTab, reconcileTabs } from "$lib/repository-tabs";
 
 const STORAGE_KEY = "cogit.session.v1";
 const WRITE_DELAY_MS = 400;
@@ -50,7 +51,20 @@ class SessionStore {
   }
 
   /** The open list, after every change to it. Anything that left takes its record along. */
-  remember(roots: readonly string[]): void {
+  remember(open: readonly string[], dormant: readonly string[]): void {
+    this.setRepositories(reconcileTabs(this.repositories, open, dormant));
+  }
+
+  closeTab(root: string): void {
+    this.setRepositories(this.repositories.filter((item) => item !== root));
+  }
+
+  moveTab(root: string, target: string): void {
+    this.setRepositories(moveTab(this.repositories, root, target));
+  }
+
+  private setRepositories(roots: readonly string[]): void {
+    if (roots.length === this.repositories.length && roots.every((root, i) => root === this.repositories[i])) return;
     const selected: Record<string, string> = {};
     for (const root of roots) {
       const oid = this.#session.selected[root];

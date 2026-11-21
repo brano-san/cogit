@@ -22,7 +22,7 @@ const same = (a: string, b: string | null) =>
 
 export function repoClick(entry: { repo: RepoId; root: string }, state: RepoClickState): RepoClick {
   if (same(entry.root, state.opening)) return "stay";
-  if (state.shown !== null && state.shown.valueOf() === entry.repo.valueOf()) return "stay";
+  if (state.opening === null && state.shown !== null && state.shown.valueOf() === entry.repo.valueOf()) return "stay";
   if (same(entry.root, state.worktreeOwner)) return "return";
   if (state.moduleOwner !== null && state.moduleOwner.valueOf() === entry.repo.valueOf()) {
     return "return";
@@ -33,7 +33,7 @@ export function repoClick(entry: { repo: RepoId; root: string }, state: RepoClic
 /** The panels show this repository, one of its submodules or worktrees, or are opening it:
     closing it has to free them. */
 export function holdsPanels(entry: { repo: RepoId; root: string }, state: RepoClickState): boolean {
-  return repoClick(entry, { ...state, kept: false }) !== "open";
+  return same(entry.root, state.opening) || repoClick(entry, { ...state, opening: null, kept: false }) !== "open";
 }
 
 export type CloseStep =

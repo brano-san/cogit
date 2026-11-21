@@ -61,6 +61,7 @@ class SettingsStore {
   }
 
   #first: Promise<void> | null = null;
+  #writing = Promise.resolve();
 
   /** The first load, started once and shared: a spare window starts it while it waits to
       become one, and the window it becomes takes the answer instead of asking again. A
@@ -73,6 +74,11 @@ class SettingsStore {
   async set<K extends keyof Settings>(key: K, value: Settings[K]): Promise<void> {
     this.current = merge({ ...this.current, [key]: value });
     this.#apply();
+    await this.#save(KEY, this.current);
+  }
+
+  async setActiveLayout(value: Settings["activeLayout"]): Promise<void> {
+    this.current.activeLayout = value;
     await this.#save(KEY, this.current);
   }
 
@@ -107,12 +113,15 @@ class SettingsStore {
   /** Unsaved is still applied: the change lasts for this session, not past a restart; the
       user is told, since a disk that refuses now will lose it silently at the next one. */
   async #save(key: string, value: unknown): Promise<void> {
-    try {
+    this.#writing = this.#writing.then(async () => {
       await writeKey(key, value);
       announceSettings();
-    } catch (err) {
-      errors.report(err, "Could not save the settings");
-    }
+    }).catch((err) => errors.report(err, "Could not save the settings"));
+    await this.#writing;
+  }
+
+  saved(): Promise<void> {
+    return this.#writing;
   }
 
   /** The two settings that live outside the reactive graph: CSS and canvas geometry. */

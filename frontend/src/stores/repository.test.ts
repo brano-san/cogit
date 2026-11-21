@@ -15,6 +15,7 @@ vi.mock("$lib/ipc/bindings", () => ({ commands, events: {} }));
 const { repository } = await import("./repository.svelte");
 const { panelView } = await import("$lib/repo-phase");
 const { repoList } = await import("./repo-list.svelte");
+const { session } = await import("./session.svelte");
 
 const summary = (root: string) => ({
   repo: root.length,
@@ -760,6 +761,29 @@ describe("the refs after a commit", () => {
 });
 
 describe("reopening a closed repository", () => {
+  it("shares live rows and dormant tabs while preserving the reordered session", async () => {
+    const cold = "C:/tabs/cold";
+    const first = summary("C:/tabs/first");
+    const second = summary("C:/tabs/second");
+    repoList.closed(cold);
+    session.remember([cold], []);
+    commands.repositories.mockResolvedValue({ status: "ok", data: [first, second] });
+    await repository.refreshList();
+    expect(session.repositories).toEqual([cold, first.root, second.root]);
+    session.moveTab(second.root, first.root);
+    await repository.refreshList();
+    expect(session.repositories).toEqual([cold, second.root, first.root]);
+    expect(repository.openRepos.map((entry) => entry.root)).not.toContain(cold);
+    repoList.closed(second.root);
+    commands.closeRepository.mockResolvedValue({ status: "ok", data: [first] });
+    await repository.closeOne(second.repo as never);
+    expect(session.repositories).toEqual([cold, first.root]);
+    expect(repoList.list.closed).toContain(second.root);
+    session.closeTab(cold);
+    expect(session.repositories).toEqual([first.root]);
+    expect(repoList.list.closed).toContain(cold);
+  });
+
   it("keeps its row listed until the open list carries it", async () => {
     const root = "C:/repos/flicker";
     repoList.closed(root);

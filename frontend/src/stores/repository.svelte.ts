@@ -355,11 +355,12 @@ class RepositoryStore {
     if (asked !== this.#listed) return;
     this.openRepos = list;
     for (const entry of list) repoList.opened(entry.root);
-    session.remember(this.openRepos.map((entry) => entry.root));
+    session.remember(list.map((entry) => entry.root), repoList.list.closed);
   }
 
-  async closeOne(repo: RepoId): Promise<void> {
+  async closeOne(repo: RepoId): Promise<CogitError | null> {
     trace("close", `asked to close repository ${repo}`);
+    const root = this.openRepos.find((entry) => entry.repo === repo)?.root;
     if (this.current?.repo === repo) this.close();
     for (const [root, kept] of this.#kept) if (kept.repo === repo) this.#kept.delete(root);
     this.openRepos = this.openRepos.filter((entry) => entry.repo !== repo);
@@ -370,9 +371,12 @@ class RepositoryStore {
       const left = await closeRepository(repo);
       trace("close", `backend released repository ${repo}, ${left.length} left open`);
       this.#takeList(asked, left);
+      if (root && !this.openRepos.some((entry) => entry.root === root)) session.closeTab(root);
+      return null;
     } catch (err) {
       trace("close", `backend refused to close ${repo}: ${String(err)}`);
       await this.refreshList();
+      return toCogitError(err);
     }
   }
 

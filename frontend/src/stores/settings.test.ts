@@ -122,3 +122,14 @@ describe("ready", () => {
     load.mockRestore();
   });
 });
+
+it("changes the window layout without replacing repository display settings", async () => {
+  await settings.load();
+  const columns = settings.current.graphColumns;
+  const filters = settings.current.graphFilterFields;
+  await settings.setActiveLayout("log");
+  expect(settings.current.graphColumns).toBe(columns);
+  expect(settings.current.graphFilterFields).toBe(filters);
+  await settings.reload();
+  expect(settings.current.activeLayout).toBe("log");
+});

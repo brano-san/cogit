@@ -6,6 +6,7 @@ import { DEFAULT_FILTER_FIELDS, knownFields, type FilterField } from "$lib/filte
 import { knownPatterns } from "$lib/filter-patterns";
 import { knownWords } from "$lib/spelling";
 import { knownUserCommands, type UserCommand } from "$lib/user-commands";
+import { WINDOW_LAYOUT_CHOICES, type WindowLayout } from "$lib/window-layout";
 import type { PerspectiveId } from "$lib/perspectives";
 import { GRAPH_COLORINGS, migratedColoring, type GraphColoring } from "$lib/graph-coloring";
 
@@ -113,6 +114,7 @@ export interface Settings {
   settingsVersion: number;
   graphDensity: GraphDensity;
   graphStripes: boolean;
+  showRepositoryTabs: boolean;
   /** A note icon on commits that have a git note; hover shows the note. */
   graphShowNotes: boolean;
   /** A CI status icon on commits and branches, from the hosting account of the remote (F-959). */
@@ -157,6 +159,7 @@ export interface Settings {
   spellRuRu: boolean;
   spellWords: string[];
 
+  activeLayout: WindowLayout;
   startupPerspective: PerspectiveId;
   firstRunDone: boolean;
 }
@@ -164,7 +167,7 @@ export interface Settings {
 /** 1: a stored graph `date` became `dateTime` (R-370). */
 export const SETTINGS_VERSION = 3;
 /** Kept in the file but never shown in Preferences. */
-export const INTERNAL_SETTINGS: readonly (keyof Settings)[] = ["settingsVersion", "firstRunDone"];
+export const INTERNAL_SETTINGS: readonly (keyof Settings)[] = ["settingsVersion", "firstRunDone", "activeLayout"];
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: "dark",
@@ -212,6 +215,7 @@ export const DEFAULT_SETTINGS: Settings = {
   settingsVersion: SETTINGS_VERSION,
   graphDensity: "normal",
   graphStripes: true,
+  showRepositoryTabs: true,
   graphShowNotes: true,
   graphCiStatus: true,
   graphAvatarsChangedOnly: false,
@@ -239,6 +243,7 @@ export const DEFAULT_SETTINGS: Settings = {
   spellRuRu: false,
   spellWords: [],
 
+  activeLayout: "standard",
   startupPerspective: "main",
   firstRunDone: false,
 };
@@ -258,6 +263,7 @@ const ENUMS: Partial<Record<keyof Settings, readonly string[]>> = {
   graphDensity: ["compact", "normal", "comfortable"],
   graphColoring: GRAPH_COLORINGS,
   graphSort: ["topological", "date"],
+  activeLayout: WINDOW_LAYOUT_CHOICES.map(([id]) => id),
   startupPerspective: ["main", "review"],
 };
 

@@ -46,6 +46,8 @@ const OPEN: AppCommandFacts = {
   logPath: true,
   banner: null,
   openCount: 1,
+  canCycleTabs: true,
+  windowLayout: "standard",
 };
 
 const CLOSED: AppCommandFacts = {
@@ -54,12 +56,21 @@ const CLOSED: AppCommandFacts = {
   toolbar: NO_FACTS,
   commitOid: null,
   openCount: 0,
+  canCycleTabs: false,
 };
 
 const reason = (facts: AppCommandFacts, id: string) =>
   appCommands(facts, spies()).find((command) => command.id === id)?.unavailable;
 
 describe("app commands", () => {
+  it("marks the active layout and offers Reset Perspective only in Standard", () => {
+    for (const windowLayout of ["standard", "log", "workingTree"] as const) {
+      const commands = appCommands({ ...OPEN, windowLayout }, spies());
+      expect(commands.filter((command) => command.checked).map((command) => command.id)).toEqual([`window-layout-${windowLayout}`]);
+      expect(Boolean(commands.find((command) => command.id === "reset-layout")?.unavailable)).toBe(windowLayout !== "standard");
+    }
+  });
+
   // The Welcome dialog shows itself at startup only: no command, menu item or key opens it.
   it("has no Welcome command", () => {
     expect(appCommands(OPEN, spies()).map((command) => command.id)).not.toContain("welcome");
@@ -134,6 +145,12 @@ describe("app commands", () => {
       ["panel-commit", "Toggle Commit Message Panel"],
       ["panel-diff", "Toggle Diff Panel"],
       ["panel-worktrees", "Toggle Worktrees Panel"],
+      ["window-layout-standard", "Switch to Standard Layout"],
+      ["window-layout-log", "Switch to Log Layout"],
+      ["window-layout-workingTree", "Switch to Working Tree Layout"],
+      ["window-layout-reset", "Reset Layout"],
+      ["tab-next", "Next Repository Tab"],
+      ["tab-previous", "Previous Repository Tab"],
       ["window-size-1280x800", "Window Size: 1280 × 800"],
       ["window-size-1440x900", "Window Size: 1440 × 900"],
       ["window-size-1600x1000", "Window Size: 1600 × 1000"],
@@ -168,6 +185,8 @@ describe("app commands", () => {
         expect(actions.togglePanel).toHaveBeenLastCalledWith(command.id.slice("panel-".length));
       } else if (command.id.startsWith("window-size-")) {
         expect(actions.windowSize).toHaveBeenLastCalledWith(command.id);
+      } else if (command.id.startsWith("window-layout-") && command.id !== "window-layout-reset") {
+        expect(actions.windowLayout).toHaveBeenLastCalledWith(command.id.slice("window-layout-".length));
       } else if (["flow-feature", "flow-release", "flow-hotfix"].includes(command.id)) {
         expect(actions.flowStart).toHaveBeenLastCalledWith(command.id.slice("flow-".length));
       } else {
@@ -177,6 +196,9 @@ describe("app commands", () => {
   });
 
   it("says no repository is open for what needs one", () => {
+    for (const id of ["tab-next", "tab-previous"]) {
+      expect(reason(CLOSED, id)).toBe("No other repository tab");
+    }
     for (const id of ["fetch", "stash-selection", "commit", "close", "refresh", "find", "journal", "fetch-all"]) {
       expect(reason(CLOSED, id), id).toBe("No repository is open");
     }

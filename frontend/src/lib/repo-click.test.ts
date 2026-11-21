@@ -19,6 +19,12 @@ describe("repoClick", () => {
     expect(repoClick(beta, state({ opening: "E:/w/beta" }))).toBe("stay");
   });
 
+  it("honors a switch back to the visible tab while the next tab is still opening", () => {
+    const pending = state({ opening: beta.root, kept: true });
+    expect(repoClick(alpha, pending)).toBe("return");
+    expect(holdsPanels(alpha, pending)).toBe(true);
+  });
+
   it("switches back to the owner of the submodule on screen", () => {
     expect(repoClick(alpha, state({ shown: id(7), moduleOwner: id(1) }))).toBe("return");
   });

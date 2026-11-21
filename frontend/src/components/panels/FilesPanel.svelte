@@ -11,7 +11,7 @@
   import { compareView } from "$stores/compare-view.svelte";
   import { diff } from "$stores/diff.svelte";
   import { errors } from "$stores/errors.svelte";
-  import { fileTotal } from "$stores/file-total.svelte";
+  import { FileTotalStore } from "$stores/file-total.svelte";
   import { filesView } from "$stores/files-view.svelte";
   import { layout } from "$stores/layout.svelte";
   import { repository } from "$stores/repository.svelte";
@@ -70,6 +70,8 @@
 
 
   const fractions = $derived(layout.fractions);
+  const historyTotal = new FileTotalStore();
+  const indexTotal = new FileTotalStore();
   const contents = new ContentSearch(() => repository.current?.repo ?? null);
 
   let commitMask = $state("");
@@ -80,7 +82,7 @@
   $effect(() => {
     const id = repository.current?.repo;
     const oid = commit.oid;
-    if (!onWorkingTree && wholeTree && id && oid) void commitTree.load(id, oid);
+    if (wholeTree && id && oid) void commitTree.load(id, oid);
   });
 
   $effect(() => errors.report(commitTree.error, "Could not list the unchanged files of the commit"));
@@ -92,24 +94,31 @@
     ),
   );
 
-  const shown = $derived(
+  const history = $derived(
     filesPanelList({
       content: view === "content",
       stash: stashView.contents,
       compare: compareView.showing(commit.oid) ? compareView.files : null,
-      onWorkingTree,
+      onWorkingTree: false,
       worktree: worktree.total,
       commit: commitSearch ? commit.files.length : commitList.length,
     }),
   );
 
-  $effect(() => oncount?.(shown.count));
+  const showTree = $derived(onWorkingTree && (layout.arrangement.files === "worktree" || history.kind === "commit"));
+  $effect(() => oncount?.(showTree ? worktree.total : history.count));
+
+  $effect(() => {
+    const repo = repository.current?.repo;
+    void [worktree.staged, worktree.unstaged];
+    if (repo && worktree.loaded) untrack(() => void indexTotal.read(repo, null));
+  });
 
   /** The revision the list is of, for "N files hidden"; the index is read again whenever the
       working tree's lists are. */
   $effect(() => {
     const repo = repository.current?.repo;
-    const kind = shown.kind;
+    const kind = history.kind;
     const rev =
       kind === "commit"
         ? commit.oid
@@ -118,25 +127,18 @@
           : kind === "compare"
             ? compareView.to
             : null;
-    if (kind === "worktree") void [worktree.staged, worktree.unstaged];
     untrack(() => {
-      if (repo === undefined || kind === "none" || (kind !== "worktree" && rev === null)) fileTotal.clear();
-      else void fileTotal.read(repo, rev);
+      if (repo === undefined || kind === "none" || rev === null) historyTotal.clear();
+      else void historyTotal.read(repo, rev);
     });
   });
 
-  /** The working tree list's filter looks through every file, the unchanged ones gray under the
-      changes; the Unchanged switch stays as it is. Another list in the panel has a filter of
-      its own, so this one starts empty again. */
   let mask = $state("");
   $effect(() => {
-    if (shown.kind !== "worktree") mask = "";
-  });
-  $effect(() => {
-    if (shown.kind !== "commit") commitMask = "";
+    if (history.kind !== "commit") commitMask = "";
   });
   const everyFile = $derived(
-    shown.kind === "worktree" && !filesView.current.unchanged && mask.trim() !== "",
+    !filesView.current.unchanged && mask.trim() !== "",
   );
   $effect(() => {
     const on = everyFile;
@@ -166,14 +168,15 @@
   );
 </script>
 
-<div class="files">
-  {#if shown.kind === "none"}
-    <FileList sections={[{ files: [] }]} empty={nothing} disabled {activePanel} />
-  {:else if shown.kind === "stash" && stashView.contents}
+<div class="files" hidden={showTree}>
+  {#if history.kind === "none"}
+    <FileList sections={[{ files: [] }]} empty={nothing} disabled visible={!showTree} activePanel={activePanel && !showTree} />
+  {:else if history.kind === "stash" && stashView.contents}
     {@const parts = stashView.contents}
     <FileList
-      {activePanel}
-      revisionFiles={fileTotal.value}
+      visible={!showTree}
+      activePanel={activePanel && !showTree}
+      revisionFiles={historyTotal.value}
       context="stash"
       view={filesView.commit}
       onview={(next) => filesView.setCommit(next)}
@@ -203,10 +206,11 @@
       onopen={onopenwindow}
       {onmarked}
     />
-  {:else if shown.kind === "compare"}
+  {:else if history.kind === "compare"}
     <FileList
-      {activePanel}
-      revisionFiles={fileTotal.value}
+      visible={!showTree}
+      activePanel={activePanel && !showTree}
+      revisionFiles={historyTotal.value}
       context="compare"
       view={filesView.commit}
       onview={(next) => filesView.setCommit(next)}
@@ -225,10 +229,34 @@
       onopen={onopenwindow}
       {onmarked}
     />
-  {:else if shown.kind === "worktree"}
+  {:else}
     <FileList
-      {activePanel}
-      revisionFiles={fileTotal.value}
+      visible={!showTree}
+      activePanel={activePanel && !showTree}
+      revisionFiles={historyTotal.value}
+      context="commit"
+      view={filesView.commit}
+      onview={(next) => filesView.setCommit(next)}
+      sections={[{ files: commitList }]}
+      empty={nothing}
+      selected={diff.path}
+      onselect={onopencommit}
+      onopen={(path) => onopenpast(path)}
+      unchanged={commitSearch}
+      onmask={(text) => {
+        commitMask = text;
+        onmask(text);
+      }}
+      {onmarked}
+      {oncontext}
+    />
+  {/if}
+</div>
+<div class="files" hidden={!showTree}>
+    <FileList
+      visible={showTree}
+      activePanel={activePanel && showTree}
+      revisionFiles={indexTotal.value}
       view={filesView.current}
       onview={onviewchange}
       {contents}
@@ -275,30 +303,12 @@
       {onmarked}
       {oncontext}
     />
-  {:else}
-    <FileList
-      {activePanel}
-      revisionFiles={fileTotal.value}
-      context="commit"
-      view={filesView.commit}
-      onview={(next) => filesView.setCommit(next)}
-      sections={[{ files: commitList }]}
-      empty={nothing}
-      selected={diff.path}
-      onselect={onopencommit}
-      onopen={(path) => onopenpast(path)}
-      unchanged={commitSearch}
-      onmask={(text) => {
-        commitMask = text;
-        onmask(text);
-      }}
-      {onmarked}
-      {oncontext}
-    />
-  {/if}
 </div>
 
 <style>
+  .files[hidden] {
+    display: none;
+  }
   .files {
     display: flex;
     flex-direction: column;

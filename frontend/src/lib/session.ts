@@ -41,7 +41,9 @@ export function withSelected(session: Session, root: string, oid: string | null)
 }
 
 export function withOpened(session: Session, root: string): Session {
-  return session.recent[0] === root ? session : { ...session, recent: remember(session.recent, root) };
+  const repositories = session.repositories.includes(root) ? session.repositories : [...session.repositories, root];
+  if (session.recent[0] === root && repositories === session.repositories) return session;
+  return { ...session, repositories, recent: remember(session.recent, root) };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

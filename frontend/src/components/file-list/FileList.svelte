@@ -61,6 +61,7 @@
     disabled?: boolean;
     /** This list is in the panel holding the keyboard, so Ctrl+F is ours (issue 15). */
     activePanel?: boolean;
+    visible?: boolean;
     selected?: string | null;
     empty?: string;
     /** The eight view switches; absent means this list is not a working tree. */
@@ -111,6 +112,7 @@
     onmarked,
     disabled = false,
     activePanel = false,
+    visible = true,
     contents,
     unchanged = false,
     context = "worktree",
@@ -160,7 +162,7 @@
   });
 
   $effect(() => {
-    onmask?.(applied);
+    if (visible) onmask?.(applied);
   });
 
   $effect(() => {
@@ -169,12 +171,12 @@
       const title = shapes[index]?.title;
       if (title) bySection[title] = [...paths];
     }
-    onmarked?.(marks.paths, bySection);
+    if (visible) onmarked?.(marks.paths, bySection);
   });
 
   // The Files panel swaps one list for another; the ticks of the one that went must not
   // stay behind as the ticks of the one that came (a commit's menu acting on them).
-  $effect(() => () => onmarked?.([], {}));
+  $effect(() => () => { if (visible) onmarked?.([], {}); });
 
   let shownBefore: string | null = null;
   $effect(() => {
@@ -270,16 +272,16 @@
   // What Collapse All in the toolbar folds: every folder these lists draw, once.
   $effect(() => {
     const folders = active.directories ? [...new Set(groups.flatMap((group) => foldersOf(group.rows)))] : [];
-    untrack(() => filesView.setFolders(folders));
+    if (visible) untrack(() => filesView.setFolders(folders));
   });
 
   $effect(() => {
     const shown = shapes.map((_, index) => groups.find((group) => group.index === index)?.paths ?? []);
-    untrack(() => onshown?.(shown));
+    if (visible) untrack(() => onshown?.(shown));
   });
   // Gone, it shows nothing: the Commit panel stays, and a commit of what it last showed
   // would leave out what was staged since.
-  $effect(() => () => onshown?.(null));
+  $effect(() => () => { if (visible) onshown?.(null); });
 
   const layout = $derived(paneLayout(sections.length, groups.length, active.separateIndex));
   const columns = $derived(shownColumns(filesView.columns, active.directories));

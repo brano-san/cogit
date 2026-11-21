@@ -666,8 +666,8 @@ pub fn run() -> anyhow::Result<()> {
             events::forward_repo_changes(app.handle().clone(), &state);
 
             app.manage(menu::ContextMenu::<tauri::Wry>::default());
-            let stored = menu::stored_keymap(&config_dir);
-            let (menu, collected) = menu::build(app.handle(), &stored)?;
+            let (stored, active_layout) = menu::stored_menu(&config_dir);
+            let (menu, collected) = menu::build(app.handle(), &stored, active_layout)?;
             app.set_menu(menu)?;
             app.manage(menu::MenuItems::from(collected));
             let keymap = menu::Keymap::default();

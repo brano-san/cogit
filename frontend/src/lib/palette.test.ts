@@ -127,10 +127,11 @@ describe("checkedIds", () => {
     output: false,
     maximized: false,
     perspective: "main" as const,
+    windowLayout: "standard" as const,
   };
 
   it("always ticks the active perspective", () => {
-    expect(checkedIds(off)).toEqual(["perspective-main"]);
+    expect(checkedIds(off)).toEqual(["perspective-main", "window-layout-standard"]);
   });
 
   it("ticks each visible panel", () => {
@@ -146,7 +147,15 @@ describe("checkedIds", () => {
   });
 
   it("follows the perspective that is active", () => {
-    expect(checkedIds({ ...off, perspective: "review" })).toEqual(["perspective-review"]);
+    expect(checkedIds({ ...off, perspective: "review" })).toEqual(["perspective-review", "window-layout-standard"]);
+  });
+
+  it("checks exactly the displayed layout after switching or reselecting it", () => {
+    for (const windowLayout of ["standard", "log", "workingTree", "workingTree"] as const) {
+      const ids = checkedIds({ ...off, windowLayout });
+      expect(ids.filter((id) => id.startsWith("window-layout-"))).toEqual([`window-layout-${windowLayout}`]);
+      expect(ids.includes("perspective-main")).toBe(windowLayout === "standard");
+    }
   });
 
   it("is sorted so an unchanged set produces an identical array", () => {

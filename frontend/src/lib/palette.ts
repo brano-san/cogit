@@ -1,9 +1,11 @@
 import type { PanelId, PerspectiveId } from "./perspectives";
+import type { WindowLayout } from "./window-layout";
 
 export interface PaletteCommand {
   id: string;
   title: string;
   shortcut?: string;
+  checked?: boolean;
   synonyms?: string[];
   /** Why the command cannot run now. Shown, not hidden: hiding it teaches nothing. */
   unavailable?: string;
@@ -87,6 +89,7 @@ export interface ToggleState {
   output: boolean;
   maximized: boolean;
   perspective: PerspectiveId;
+  windowLayout: WindowLayout;
 }
 
 /** Sorted, like `disabledIds`: the native menu only needs writing when the set changed. */
@@ -94,6 +97,7 @@ export function checkedIds(state: ToggleState): string[] {
   const ids = state.panels.map((panel) => `panel-${panel}`);
   if (state.output) ids.push("output");
   if (state.maximized) ids.push("maximize-panel");
-  ids.push(`perspective-${state.perspective}`);
+  if (state.windowLayout === "standard") ids.push(`perspective-${state.perspective}`);
+  ids.push(`window-layout-${state.windowLayout}`);
   return ids.sort();
 }

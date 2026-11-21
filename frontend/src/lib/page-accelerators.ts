@@ -1,7 +1,7 @@
 import type { KeyBinding } from "$lib/ipc/bindings";
 import { pressedAccelerator, type KeyPress, type Keymap } from "./keymap";
 
-const ORDER = ["cmdorctrl", "alt", "shift"];
+const ORDER = ["cmdorctrl", "ctrl", "alt", "shift"];
 
 /** `Shift+CmdOrCtrl+k` and `CmdOrCtrl+Shift+K` are one chord. */
 function canonical(keys: string): string {

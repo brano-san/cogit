@@ -220,6 +220,7 @@ export const CATEGORIES: Category[] = [
         title: "Appearance",
         fields: [
           { key: "theme", label: "Theme", keywords: ["dark", "light", "grey", "gray"] },
+          { key: "showRepositoryTabs", label: "Show repository tabs", keywords: ["tab bar", "repositories", "window"] },
           {
             key: "fontFamily",
             label: "Font",

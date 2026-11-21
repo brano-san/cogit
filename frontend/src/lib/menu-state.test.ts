@@ -10,6 +10,20 @@ function pusher() {
 }
 
 describe("menuStatePusher", () => {
+  it("restores a reselected layout check and lets the next layout supersede a pending resend", async () => {
+    const { send, push } = pusher();
+    const log = ["window-layout-log"];
+    const tree = ["window-layout-workingTree"];
+    push([], log);
+    await vi.runOnlyPendingTimersAsync();
+    push([], log, { resend: true });
+    await vi.runOnlyPendingTimersAsync();
+    push([], log, { resend: true });
+    push([], tree);
+    await vi.runOnlyPendingTimersAsync();
+    expect(send.mock.calls).toEqual([[[], log], [[], log], [[], tree]]);
+  });
+
   // One action re-ran the effect six times and more, each a call that walks every item.
   it("sends the changes of one action as one call with the last state", async () => {
     const { send, push } = pusher();

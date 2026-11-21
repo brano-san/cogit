@@ -5,7 +5,7 @@ const KEPT = 500;
 
 /** How many files the revision Files shows holds, for "N files hidden" (R-871). A commit's
     count never changes, so it is kept; the index's is asked again on every refresh. */
-class FileTotalStore {
+export class FileTotalStore {
   value = $state<number | null>(null);
 
   #commits = new Map<string, number>();
@@ -38,5 +38,3 @@ class FileTotalStore {
     this.value = null;
   }
 }
-
-export const fileTotal = new FileTotalStore();

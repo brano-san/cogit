@@ -1,6 +1,7 @@
 <script lang="ts">
   import { modalLayer, modals } from "$lib/modal-stack";
   import { rankCommands, type PaletteCommand } from "$lib/palette";
+  import MenuMark from "$components/common/MenuMark.svelte";
 
   interface Props {
     commands: readonly PaletteCommand[];
@@ -88,12 +89,14 @@
           class:active={index === cursor}
           class:blocked={Boolean(command.unavailable)}
           role="button"
+          aria-pressed={command.checked}
           tabindex="-1"
           onmouseenter={() => (cursor = index)}
           onclick={() => !command.unavailable && onrun(command)}
           onkeydown={(e) => e.key === "Enter" && !command.unavailable && onrun(command)}
         >
           <span class="title truncate">{command.title}</span>
+          {#if command.checked !== undefined}<MenuMark kind="radio" checked={command.checked} />{/if}
           {#if command.unavailable}
             <span class="why truncate">{command.unavailable}</span>
           {:else if command.shortcut}

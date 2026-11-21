@@ -642,7 +642,7 @@
 
   function onscroll() {
     // Whole pixels: a fractional translateY blurs the rows' text; the canvas reads the same value.
-    if (scroller) scrollTop = Math.round(readScroll());
+    if (scroller?.clientHeight) scrollTop = Math.round(readScroll());
   }
 
   /** The request already acted on. Without it every arriving chunk would re-centre and
@@ -783,7 +783,7 @@
   $effect(() => {
     if (!scroller) return;
     const observer = new ResizeObserver(([entry]) => {
-      if (!entry || !scroller) return;
+      if (!entry || !scroller || entry.contentRect.height <= 0) return;
       viewportHeight = entry.contentRect.height;
       // The row at the top stays there when the panel changes height (#13).
       const kept = anchoredScrollTop({ scrollTop, rowHeight }, { rowHeight, viewportHeight, totalRows: listRows });

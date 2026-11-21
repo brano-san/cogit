@@ -93,6 +93,14 @@ describe("recordKeys", () => {
     expect(keysOf({ key: "p", code: "KeyP", metaKey: true }, true)).toBe("CmdOrCtrl+P");
   });
 
+  it("records the physical Control tab keys on a Mac and leaves application switching to the OS", () => {
+    for (const key of ["Tab", "PageUp", "PageDown"]) {
+      expect(keysOf({ key, code: key, ctrlKey: true }, true)).toBe(`Ctrl+${key}`);
+    }
+    expect(keysOf({ key: "Tab", code: "Tab", metaKey: true }, true)).toEqual({ refused: "Cmd+Tab is the system's" });
+    expect(keysOf({ key: "Tab", code: "Tab", altKey: true })).toEqual({ refused: "Alt+Tab is the system's" });
+  });
+
   it("keeps the modifiers in a fixed order", () => {
     expect(keysOf({ key: "p", code: "KeyP", ctrlKey: true, shiftKey: true, altKey: true })).toBe(
       "CmdOrCtrl+Alt+Shift+P",
@@ -137,7 +145,7 @@ describe("recordKeys", () => {
     expect(refused({ key: "ArrowUp", code: "ArrowUp" })).toBe("Up cannot be used here");
     expect(refused({ key: " ", code: "Space", ctrlKey: true })).toBe("Ctrl+Space cannot be used here");
     expect(refused({ key: "/", code: "Slash", ctrlKey: true })).toBe("Ctrl+/ cannot be used here");
-    expect(refused({ key: "Tab", code: "Tab", ctrlKey: true })).toBe("Ctrl+Tab cannot be used here");
+    expect(refused({ key: "Tab", code: "Tab" })).toBe("Tab cannot be used here");
     expect(refused({ key: "Delete", code: "Delete", ctrlKey: true })).toBe("Ctrl+Delete cannot be used here");
   });
 
@@ -225,6 +233,11 @@ describe("shortcutOf", () => {
 });
 
 describe("withShortcuts", () => {
+  it("shows both current tab cycle bindings in one palette row", () => {
+    const keys = { "tab-next": "Ctrl+Tab", "tab-next-alternate": "Alt+D" };
+    expect(withShortcuts([{ id: "tab-next" }], keys, false)[0]).toMatchObject({ shortcut: "Ctrl+Tab / Alt+D" });
+  });
+
   it("puts each palette row's keys by its command id", () => {
     const keys = effective([binding("stash", "CmdOrCtrl+S"), binding("panel-graph", "CmdOrCtrl+3")], {});
     const rows = withShortcuts([{ id: "stash" }, { id: "panel-graph" }, { id: "about", shortcut: "stale" }], keys, false);

@@ -1,16 +1,19 @@
 import {
   clampFraction,
-  DEFAULT_LAYOUT,
   DEFAULT_PERSPECTIVES,
   isVisible,
-  mergePerspectives,
   toggleHidden,
   type LayoutFractions,
   type PanelId,
-  type Perspective,
   type PerspectiveId,
 } from "$lib/perspectives";
 
+import { WINDOW_LAYOUTS, windowProfiles, type LayoutProfile, type WindowLayout } from "$lib/window-layout";
+import { readKey, writeKey } from "$lib/settings-file";
+import { settings } from "./settings.svelte";
+import { errors } from "./errors.svelte";
+
+const PROFILE_KEY = "windowLayouts";
 const STORAGE_KEY = "cogit.layout.v1";
 
 function stored(): unknown {
@@ -22,21 +25,60 @@ function stored(): unknown {
   }
 }
 
-class LayoutStore {
-  #perspectives = $state<Record<PerspectiveId, Perspective>>(mergePerspectives(stored()));
+export class LayoutStore {
+  #profiles = $state(windowProfiles(null, null));
+  #maximized = $state<Partial<Record<LayoutProfile, PanelId | null>>>({});
+  #writes: Promise<void> = Promise.resolve();
+  #revision = 0;
+  #available = false;
   active = $state<PerspectiveId>("main");
-  maximized = $state<PanelId | null>(null);
+
+  constructor(private choice: () => WindowLayout, private legacy = stored()) {
+    this.#profiles = windowProfiles(null, legacy);
+  }
+
+  async load(): Promise<void> {
+    const saved = await readKey<unknown>(PROFILE_KEY);
+    this.#profiles = windowProfiles(saved, this.legacy);
+    this.#available = true;
+  }
+
+  get activeLayout(): WindowLayout {
+    return this.choice();
+  }
+
+  get arrangement() {
+    return WINDOW_LAYOUTS[this.activeLayout];
+  }
+
+  private get profile(): LayoutProfile {
+    const layout = this.activeLayout;
+    return layout === "standard" ? this.active : layout;
+  }
+
+  private get defaults() {
+    const profile = this.profile;
+    return profile === "main" || profile === "review" ? DEFAULT_PERSPECTIVES[profile] : WINDOW_LAYOUTS[profile].defaults;
+  }
+
+  get maximized(): PanelId | null {
+    return this.#maximized[this.profile] ?? null;
+  }
+
+  private set maximized(value: PanelId | null) {
+    this.#maximized[this.profile] = value;
+  }
 
   get fractions(): LayoutFractions {
-    return this.#perspectives[this.active].fractions;
+    return this.#profiles[this.profile].fractions;
   }
 
   get hidden(): readonly PanelId[] {
-    return this.#perspectives[this.active].hidden;
+    return this.#profiles[this.profile].hidden;
   }
 
   visible(panel: PanelId): boolean {
-    return isVisible(this.#perspectives[this.active], this.maximized, panel);
+    return isVisible(this.#profiles[this.profile], this.maximized, panel);
   }
 
   nudge(key: keyof LayoutFractions, delta: number): void {
@@ -44,7 +86,7 @@ class LayoutStore {
   }
 
   set(key: keyof LayoutFractions, value: number): void {
-    this.#perspectives[this.active].fractions[key] = clampFraction(value);
+    this.#profiles[this.profile].fractions[key] = clampFraction(value);
     this.persist();
   }
 
@@ -64,28 +106,45 @@ class LayoutStore {
     const show = !this.visible(panel);
     this.maximized = null;
     if (show === this.hidden.includes(panel)) {
-      this.#perspectives[this.active].hidden = toggleHidden(this.hidden, panel);
+      this.#profiles[this.profile].hidden = toggleHidden(this.hidden, panel);
     }
     this.persist();
   }
 
   reset(): void {
-    this.#perspectives[this.active] = structuredClone(DEFAULT_PERSPECTIVES[this.active]);
+    this.#profiles[this.profile] = structuredClone(this.defaults);
     this.maximized = null;
     this.persist();
   }
 
   resetOne(key: keyof LayoutFractions): void {
-    this.set(key, DEFAULT_LAYOUT[key]);
+    this.set(key, this.defaults.fractions[key]);
+  }
+
+  resetSizes(): void {
+    this.#profiles[this.profile].fractions = { ...this.defaults.fractions };
+    this.persist();
+  }
+
+  saved(): Promise<void> {
+    return this.#writes;
   }
 
   private persist(): void {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.#perspectives));
-    } catch {
-      // A blocked localStorage costs the layout on restart, nothing more.
-    }
+    if (!this.#available) return;
+    const revision = ++this.#revision;
+    this.#writes = this.#writes.then(async () => {
+      if (revision === this.#revision) await writeKey(PROFILE_KEY, $state.snapshot(this.#profiles));
+    }).catch((err) => errors.report(err, "Could not save the window layout"));
   }
 }
 
-export const layout = new LayoutStore();
+export const layout = new LayoutStore(() => settings.current.activeLayout);
+
+export function setWindowLayout(id: WindowLayout): void {
+  if (id !== layout.activeLayout) void settings.setActiveLayout(id);
+}
+
+export function resetWindowLayout(): void {
+  layout.resetSizes();
+}

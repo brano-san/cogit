@@ -267,3 +267,19 @@ fn a_missing_or_damaged_file_still_reads_as_empty() {
     std::fs::write(home.path().join("settings.json"), "{ nope").unwrap();
     assert_eq!(try_read_document(home.path()).unwrap(), json!({}));
 }
+
+#[test]
+fn window_layout_and_splitters_round_trip_together() {
+    let home = dir();
+    let settings = json!({ "activeLayout": "workingTree" });
+    let layouts = json!({
+        "main": { "fractions": { "graph": 0.68 } },
+        "workingTree": { "fractions": { "topRow": 0.43 }, "hidden": ["graph"] }
+    });
+    write_key(home.path(), "settings", settings.clone()).unwrap();
+    write_key(home.path(), "windowLayouts", layouts.clone()).unwrap();
+
+    let restored = try_read_document(home.path()).unwrap();
+    assert_eq!(restored["settings"], settings);
+    assert_eq!(restored["windowLayouts"], layouts);
+}

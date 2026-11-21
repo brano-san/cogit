@@ -17,6 +17,7 @@
   import RefSortButtons from "$components/branch-tree/RefSortButtons.svelte";
   import SafetyJournal from "$components/layout/SafetyJournal.svelte";
   import RepositoriesPanel from "$components/panels/RepositoriesPanel.svelte";
+  import RepositoryTabs from "$components/layout/RepositoryTabs.svelte";
   import RepoListActions from "$components/repo-tree/RepoListActions.svelte";
   import GraphPanel from "$components/panels/GraphPanel.svelte";
   import FilesPanel from "$components/panels/FilesPanel.svelte";
@@ -127,7 +128,7 @@
   import { activity, applyOperation, cancellable, trackCancellable, trackStarting, restartsLost } from "$lib/operations";
   import { measurer } from "$lib/timing";
   import { watchFrameStalls } from "$lib/frame-stalls";
-  import { item as menuItem, refMenu, setMenuKeys } from "$lib/context-menu";
+  import { item as menuItem, refMenu, SEPARATOR, setMenuKeys } from "$lib/context-menu";
   import RefActions from "$components/menus/RefActions.svelte";
   import RefGroupActions from "$components/menus/RefGroupActions.svelte";
   import SelectionActions from "$components/menus/SelectionActions.svelte";
@@ -135,7 +136,7 @@
   import WorktreeActions from "$components/menus/WorktreeActions.svelte";
   import NetworkActions from "$components/menus/NetworkActions.svelte";
   import { bisectCommands } from "$lib/bisect";
-  import { appCommands, PANEL_TITLES, type AppCommandActions } from "$lib/app-commands";
+  import { appCommands, PANEL_TITLES, tabAlternate, type AppCommandActions } from "$lib/app-commands";
   import { compareView } from "$stores/compare-view.svelte";
   import { confirmation } from "$stores/confirm.svelte";
   import { undoRewriteQuestion } from "$lib/undo-rewrite";
@@ -184,6 +185,7 @@
   import { capFraction, commitHeightAfterDrag, floorFraction, PANELS, bottomPaneAfterDrag, type PanelId } from "$lib/perspectives";
   import { DIFF_PANEL_MIN_HEIGHT_PX, GRAPH_PANEL_MIN_HEIGHT, GRAPH_PANEL_MIN_HEIGHT_PX, graphPanelMinWidth } from "$lib/graph-panel";
   import { closeStep, holdsPanels, reopenClick, repoClick } from "$lib/repo-click";
+  import { cycleTab, neighborAfterClose, tabsToClose } from "$lib/repository-tabs";
   import { ModuleInitialiser, moduleClick } from "$lib/module-init";
   import { moduleRoot, shownRowRoot, updateModule } from "$lib/module-tree";
   import { moduleForest } from "$stores/module-forest.svelte";
@@ -325,7 +327,8 @@
   import { diffEdit } from "$stores/diff-edit.svelte";
   import { overlap } from "$stores/overlap.svelte";
   import { settings } from "$stores/settings.svelte";
-  import { layout } from "$stores/layout.svelte";
+  import { workingTreeFiles } from "$lib/window-layout";
+  import { layout, resetWindowLayout, setWindowLayout } from "$stores/layout.svelte";
   import { repoGroups } from "$stores/repo-groups.svelte";
   import { repository } from "$stores/repository.svelte";
   import { filesView } from "$stores/files-view.svelte";
@@ -499,6 +502,12 @@
   });
   let refFilter = $state("");
   let repoFilter = $state("");
+  let repositoriesPanel: RepositoriesPanel | undefined = $state();
+  let tabMenuRoot: string | null = null;
+  const activeTabRoot = $derived(
+    worktrees.ownerRoot ?? (submodules.open !== null ? submodules.ownerRoot : null) ?? repository.current?.root ?? null,
+  );
+  const canCycleRepositoryTabs = $derived(session.repositories.length > (activeTabRoot ? 1 : 0));
   let dropping = $state(false);
   let fileMask = $state("");
 
@@ -538,7 +547,7 @@
         })
         .catch((err) => errors.report(err, "Could not read the application info"));
       void remoteOps.detectLfs();
-      const settingsRead = settings.load().then(async () => {
+      const settingsRead = Promise.all([settings.load(), layout.load()]).then(async () => {
         diff.whitespace = settings.current.ignoreWhitespace;
         layout.switch(settings.current.startupPerspective);
         // Only after the settings are read: the tick is what permits the network call.
@@ -608,6 +617,19 @@
   let graphPane = $state<HTMLDivElement | null>(null);
   let topRowWidth = $state(0);
   let rightAreaHeight = $state(0);
+  let rightAreaWidth = $state(0);
+  let filesColumnEl = $state<HTMLDivElement>();
+  const diffBeside = $derived(layout.arrangement.diff === "beside" && rightAreaWidth >= 680);
+
+  function resizeDiff(delta: number) {
+    const extent = diffBeside ? rightAreaWidth : rightAreaHeight;
+    const filesWidth = filesColumnEl ? parseFloat(getComputedStyle(filesColumnEl).minWidth) || 0 : 0;
+    const minimum = diffBeside
+      ? (filesColumn ? filesWidth : 0) + (shown.graph ? graphMinPx() : 0)
+      : shown.graph ? GRAPH_PANEL_MIN_HEIGHT_PX : 0;
+    const fraction = floorFraction(fractions.topRow + delta, extent, minimum);
+    layout.set("topRow", capFraction(fraction, extent, diffBeside ? 180 : DIFF_PANEL_MIN_HEIGHT_PX));
+  }
   let workspaceWidth = $state(0);
   /** The Graph panel's CSS minimum in pixels, so the splitters stop where the panel does. */
   const graphMinPx = () => (graphPane ? parseFloat(getComputedStyle(graphPane).minWidth) || 0 : 0);
@@ -665,7 +687,7 @@
   const prUrl = $derived("url" in prPlan ? prPlan.url : null);
   const prReason = $derived("reason" in prPlan ? prPlan.reason : undefined);
 
-  const onWorkingTree = $derived(repo !== undefined && repo !== null && commit.oid === null);
+  const onWorkingTree = $derived(repo != null && workingTreeFiles(layout.activeLayout, commit.oid));
   const filesColumn = $derived(shown.files || (shown.commit && onWorkingTree));
   const topRow = $derived(shown.graph || filesColumn);
 
@@ -816,7 +838,7 @@
   const toolbarFacts = $derived<ToolbarFacts>({
     repository: repo !== null,
     remote: Boolean(network.primary),
-    onWorkingTree: onWorkingTree && stashView.contents === null,
+    onWorkingTree: onWorkingTree && (layout.arrangement.files === "worktree" || stashView.contents === null),
     ...splitMarked({
       marked: markedFiles,
       unstaged: worktree.unstaged,
@@ -856,6 +878,7 @@
 
   /** The palette shows each command's keys as the menu has them (11 §12, rule 5). */
   const menuKeys = $derived(effective(settings.bindings, settings.keymap));
+  const alternateTabBindings = $derived(settings.bindings.filter((entry) => tabAlternate(entry.id)));
   $effect(() => setMenuKeys(menuKeys));
 
   /** One action per command id: the palette, the native menu and the toolbar run these. */
@@ -907,6 +930,10 @@
     },
     branch: () => void runBannerAction("createBranch"),
     "reset-layout": () => layout.reset(),
+    windowLayout: setWindowLayout,
+    "window-layout-reset": resetWindowLayout,
+    "tab-next": () => cycleRepositoryTab(1),
+    "tab-previous": () => cycleRepositoryTab(-1),
     overlap: () => overlap.toggle(),
     avatars: () =>
       void settings.apply({
@@ -917,8 +944,8 @@
       const id = repository.current?.repo;
       if (id) void hooks.show(id);
     },
-    "perspective-main": () => layout.switch("main"),
-    "perspective-review": () => layout.switch("review"),
+    "perspective-main": () => selectPerspective("main"),
+    "perspective-review": () => selectPerspective("review"),
     "maximize-panel": () => layout.toggleMaximized(focused),
     "worktree-add": () => worktreeActions?.openAdd(),
     "worktree-remove": () => {
@@ -971,6 +998,11 @@
     },
   };
 
+  function selectPerspective(id: "main" | "review") {
+    setWindowLayout("standard");
+    layout.switch(id);
+  }
+
   const palette = $derived<PaletteCommand[]>([
     ...appCommands(
       {
@@ -993,6 +1025,8 @@
         logPath: Boolean(info?.logPath),
         banner,
         openCount: repository.openRepos.length,
+        canCycleTabs: canCycleRepositoryTabs,
+        windowLayout: layout.activeLayout,
       },
       actions,
     ),
@@ -1086,6 +1120,17 @@
     );
   }
 
+  function runPageShortcut(event: KeyboardEvent, tabOnly = false): boolean {
+    if (modals.any || event.defaultPrevented || ON_WINDOWS) return false;
+    const bindings = tabOnly ? alternateTabBindings : settings.bindings;
+    const command = pageCommand(event, bindings, menuKeys, { windows: false, mac: ON_MAC });
+    if (command === null) return false;
+    event.preventDefault();
+    if (tabOnly) event.stopPropagation();
+    void runMenuCommand(command).catch((err) => errors.report(err, "Could not run the shortcut"));
+    return true;
+  }
+
   function onkeydown(event: KeyboardEvent) {
     // A dialog, the palette and Find Object close on their own Esc; nothing behind a modal
     // answers a key (11 §1).
@@ -1093,14 +1138,7 @@
 
     // A menu key the native menu does not hold here (Ctrl+K, F5 off Windows): the same path a
     // menu click takes. A field or panel that took the key first keeps it.
-    const command = event.defaultPrevented
-      ? null
-      : pageCommand(event, settings.bindings, menuKeys, { windows: ON_WINDOWS, mac: ON_MAC });
-    if (command !== null) {
-      event.preventDefault();
-      void runMenuCommand(command).catch((err) => errors.report(err, "Could not run the shortcut"));
-      return;
-    }
+    if (runPageShortcut(event)) return;
 
     // F6 walks the panels. Ctrl+Tab is left to the window: the menu agent owns the
     // accelerators, and browsers and hosts both claim that pair (issue 15). A diff with the
@@ -2196,6 +2234,13 @@ ${event.error}`,
   /** The root of the repository now on screen, or null when this open lost to a newer
       one or failed. */
   async function activate(root: string): Promise<string | null> {
+    const key = pathKey(root);
+    const existing = repository.openRepos.find((entry) => pathKey(entry.root) === key);
+    if (existing) return selectRepository(existing);
+    return openInPanels(root);
+  }
+
+  async function openInPanels(root: string): Promise<string | null> {
     const story = `open:${root}`;
     trace(story, "activate: panels cleared");
     const shownBefore = repository.current?.repo;
@@ -2252,11 +2297,12 @@ ${event.error}`,
   /** A click in the Repositories list (#50): the one on screen reloads nothing, the owner
       of the submodule or worktree on screen comes back from what was kept, keeping its
       submodule tree, and only another repository goes through a full open. */
-  async function selectRepository(entry: import("$lib/ipc").RepoOverview) {
+  async function selectRepository(entry: import("$lib/ipc").RepoOverview): Promise<string | null> {
     const step = repoClick(entry, { ...panelsNow(), kept: repository.kept(entry.root) });
     trace(`open:${entry.root}`, `repository click: ${step}`);
-    if (step === "open") await activate(entry.root);
+    if (step === "open") return openInPanels(entry.root);
     else if (step === "return") await comeBack(entry.root);
+    return repository.current?.root === entry.root ? entry.root : null;
   }
 
   async function comeBack(root: string) {
@@ -2269,7 +2315,7 @@ ${event.error}`,
     const watch = measure("switch-repository");
     if (!repository.switchTo(root)) {
       trace(story, "switch: nothing kept, opening");
-      await activate(root);
+      await openInPanels(root);
       return;
     }
     const opened = repository.current;
@@ -3225,6 +3271,7 @@ ${event.error}`,
     moduleMemory.setOpen(target.root, false);
     closeModulesOf(target.root);
     const wasActive = holdsPanels(overview, panelsNow());
+    const neighbor = neighborAfterClose(session.repositories, target.root);
     const last = wasActive && repository.openRepos.every((entry) => entry.repo === overview.repo);
     if (wasActive) {
       commit.clear();
@@ -3240,11 +3287,89 @@ ${event.error}`,
     }
     // In the frame the other panels empty in, not a round trip after them.
     if (last) graph.clear();
-    await repository.closeOne(overview.repo);
-    if (!wasActive) return;
-    const next = repository.openRepos[0];
-    if (next) await activate(next.root);
+    const failure = await repository.closeOne(overview.repo);
+    if (failure) {
+      errors.report(failure, "Could not close the repository");
+      if (wasActive && repository.phase.kind === "closed" && repository.openRepos.some((entry) => entry.root === target.root)) {
+        await activate(target.root);
+      }
+      return;
+    }
+    if (!wasActive || repository.phase.kind !== "closed") return;
+    const next = neighbor && session.repositories.includes(neighbor) ? neighbor : session.repositories[0];
+    if (next) await activate(next);
     else if (!last) graph.clear();
+  }
+
+  function selectTab(root: string) {
+    const phase = repository.phase;
+    if (phase.kind !== "opening" || phase.root !== root) {
+      void activate(root).catch((err) => errors.report(err, "Could not switch repositories"));
+    }
+  }
+
+  function cycleRepositoryTab(direction: 1 | -1) {
+    const phase = repository.phase;
+    const current = phase.kind === "opening" ? phase.root : activeTabRoot;
+    const root = cycleTab(session.repositories, current, direction);
+    if (root) selectTab(root);
+  }
+
+  async function closeTabs(root: string, scope: "this" | "others" | "right") {
+    const targets = tabsToClose(session.repositories, root, scope);
+    const active = activeTabRoot;
+    const order = targets.filter((item) => item !== active);
+    if (active && targets.includes(active)) order.push(active);
+    try {
+      for (const item of order) {
+        if (!session.repositories.includes(item)) continue;
+        if (repository.current?.root === item && !repository.openRepos.some((entry) => entry.root === item)) {
+          await repository.refreshList();
+        }
+        const entry = repository.openRepos.find((candidate) => candidate.root === item);
+        if (entry) await closeListed({ kind: "repository", root: item, overview: entry });
+        else if (!(repository.phase.kind === "opening" && repository.phase.root === item)) session.closeTab(item);
+      }
+    } catch (err) {
+      errors.report(err, "Could not close the repository");
+    }
+  }
+
+  function tabContext(root: string, x: number, y: number) {
+    tabMenuRoot = root;
+    const order = session.repositories;
+    const closing = repository.phase.kind === "opening" && repository.phase.root === root;
+    void popupContextMenu([
+      menuItem("tab-close", "Close", !closing),
+      menuItem("tab-close-others", "Close Others", order.length > 1),
+      menuItem("tab-close-right", "Close Tabs to the Right", order.indexOf(root) < order.length - 1),
+      SEPARATOR,
+      menuItem("tab-copy-path", "Copy Path"),
+      menuItem("tab-show-repository", "Show in Repositories"),
+    ], x, y).catch((err) => errors.report(err, "Could not open the tab menu"));
+  }
+
+  async function revealTab(root: string) {
+    if (!layout.visible("repositories")) layout.togglePanel("repositories");
+    repoFilter = "";
+    focused = "repositories";
+    await tick();
+    await repositoriesPanel?.reveal(root);
+  }
+
+  function runTabCommand(id: string): boolean {
+    const root = tabMenuRoot;
+    if (!root || !id.startsWith("tab-")) return false;
+    tabMenuRoot = null;
+    switch (id) {
+      case "tab-close": void closeTabs(root, "this"); break;
+      case "tab-close-others": void closeTabs(root, "others"); break;
+      case "tab-close-right": void closeTabs(root, "right"); break;
+      case "tab-copy-path": void copyText(root).catch((err) => errors.report(err, "Could not copy the path")); break;
+      case "tab-show-repository": void revealTab(root); break;
+      default: return false;
+    }
+    return true;
   }
 
   async function renameListed(root: string, overview: import("$lib/ipc").RepoOverview | null) {
@@ -3274,6 +3399,7 @@ ${event.error}`,
       await closeListed(target);
     }
     repoList.forget(target.root);
+    session.closeTab(target.root);
     moduleMemory.forget(target.root);
     moduleMemory.closeModulesUnder(target.root);
     repoPulse.forget(target.root);
@@ -3741,7 +3867,8 @@ ${event.error}`,
       commit.clear();
       diff.clear();
       health.clear();
-      await repository.closeOne(step.repo);
+      const failure = await repository.closeOne(step.repo);
+      if (failure) errors.report(failure, "Could not close the repository");
     }
   }
 
@@ -3778,6 +3905,7 @@ ${event.error}`,
     const source = exitFlow.takeSource();
     flushTrace();
     session.persist();
+    await Promise.all([layout.saved(), settings.saved()]);
     const what = unsavedWork();
     const question = { title: "Unsaved Work", message: `${what} Close anyway?`, confirm: "Close", warning: true };
     if (what && !(await confirmation.ask(question))) return false;
@@ -3794,6 +3922,7 @@ ${event.error}`,
     if (what && !(await confirmation.ask(question))) return false;
     flushTrace();
     session.persist();
+    await Promise.all([layout.saved(), settings.saved()]);
     // Asks only while operations run: "Exit When Done" installs once they are over.
     return exitFlow.ask("command", false, listOperations);
   }
@@ -3803,6 +3932,7 @@ ${event.error}`,
   async function onSessionEnding() {
     flushTrace();
     session.persist();
+    await Promise.all([layout.saved(), settings.saved()]);
     if (!(await exitFlow.ask("system", settings.current.confirmExit, listOperations))) return;
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
     await getCurrentWindow().destroy();
@@ -4028,12 +4158,14 @@ ${event.error}`,
       if (selectionActions?.run(id)) return;
       if (bisectActions?.run(id)) return;
       if (runGroupCommand(id)) return;
+      if (runTabCommand(id)) return;
       if (runRepoCommand(id)) return;
       if (worktreeActions?.run(id)) return;
       if (runFileCommand(id)) return;
       if (runRefCommand(id)) return;
       if (runTodoCommand(id)) return;
-      const command = palette.find((entry) => entry.id === id);
+      const actionId = tabAlternate(id) ?? id;
+      const command = palette.find((entry) => entry.id === actionId);
       if (!command) return;
       // A command that cannot run says why instead of doing nothing (Ctrl+K with no
       // repository open, R-772).
@@ -4075,6 +4207,7 @@ ${event.error}`,
       output: output.open,
       maximized: layout.maximized !== null,
       perspective: layout.active,
+      windowLayout: layout.activeLayout,
     });
     sendMenuState(disabledIds(palette), checked, { resend });
   }
@@ -4087,6 +4220,7 @@ ${event.error}`,
 <!-- A closed repository has no watcher: its row is read again when the user comes back. -->
 <svelte:window
   bind:innerHeight={windowHeight}
+  onkeydowncapture={(event) => runPageShortcut(event, true)}
   {onkeydown}
   onfocus={() => {
     repoPulse.revisit();
@@ -4149,6 +4283,10 @@ ${event.error}`,
       : {}}
   />
 
+  {#if settings.current.showRepositoryTabs && session.repositories.length}
+    <RepositoryTabs active={activeTabRoot} onselect={selectTab} onclose={(root) => void closeTabs(root, "this")} oncontext={tabContext} />
+  {/if}
+
   {#if banner && !shown.graph}
     <StateBanner {banner} busy={repository.busy} onaction={runBannerAction} />
   {/if}
@@ -4161,24 +4299,21 @@ ${event.error}`,
         onclone={() => void openCloneWizard()}
       />
     {/if}
-    {#if leftColumn}
     <div
-      class="left-column"
+      hidden={!leftColumn} class="left-column"
       bind:clientHeight={leftColumnHeight}
       style:flex={shown.diff || topRow ? `0 1 ${fractions.leftColumn * 100}%` : "1 1 auto"}
     >
-      {#if reposColumn}
       <div
-        class="repos-column"
+        hidden={!reposColumn} class="repos-column"
         class:grow={!shown.refs}
         class:with-repos={shown.repositories}
         class:with-worktrees={shown.worktrees}
         bind:this={reposColumnEl}
         style:flex={shown.refs ? `0 0 ${fractions.repositories * 100}%` : undefined}
       >
-      {#if shown.repositories}
       <div
-        class="pane grow"
+        hidden={!shown.repositories} class="pane grow"
         role="region"
         aria-label={PANEL_TITLES.repositories}
         onpointerdown={() => (focused = "repositories")}
@@ -4199,6 +4334,7 @@ ${event.error}`,
             />
           {/snippet}
           <RepositoriesPanel
+            bind:this={repositoriesPanel}
             filter={repoFilter}
             onselect={(entry) => void selectRepository(entry)}
             oncontext={(row, x, y) => void repoContext(row, x, y)}
@@ -4211,7 +4347,6 @@ ${event.error}`,
           />
         </Panel>
       </div>
-      {/if}
       {#if shown.repositories && shown.worktrees}
       <Splitter
         direction="horizontal"
@@ -4226,9 +4361,8 @@ ${event.error}`,
         onreset={() => layout.resetOne("worktreesHeight")}
       />
       {/if}
-      {#if shown.worktrees}
       <div
-        class="pane worktrees-pane"
+        hidden={!shown.worktrees} class="pane worktrees-pane"
         class:grow={!shown.repositories}
         style:flex={shown.repositories ? `0 1 ${fractions.worktreesHeight * leftColumnHeight}px` : undefined}
         role="region"
@@ -4286,9 +4420,7 @@ ${event.error}`,
           />
         </Panel>
       </div>
-      {/if}
       </div>
-      {/if}
       {#if reposColumn && shown.refs}
       <Splitter
         direction="horizontal"
@@ -4300,8 +4432,8 @@ ${event.error}`,
         onreset={() => layout.resetOne("repositories")}
       />
       {/if}
-      {#if shown.refs}
-      <div class="pane grow" role="region"
+
+      <div hidden={!shown.refs} class="pane grow" role="region"
         aria-label={PANEL_TITLES.refs}
         onpointerdown={() => (focused = "refs")}>
         <Panel
@@ -4335,10 +4467,7 @@ ${event.error}`,
           />
         </Panel>
       </div>
-      {/if}
     </div>
-    {/if}
-
     {#if leftColumn && (topRow || shown.diff)}
     <Splitter
       direction="vertical"
@@ -4350,23 +4479,21 @@ ${event.error}`,
       onreset={() => layout.resetOne("leftColumn")}
     />
     {/if}
-
-    {#if topRow || shown.diff}
     <div
-      class="right-area"
+      hidden={!(topRow || shown.diff)} class="right-area"
+      class:diff-beside={diffBeside}
+      bind:clientWidth={rightAreaWidth}
       style:min-width={shown.graph ? (filesColumn ? `calc(${graphMin} + var(--files-column-min) + var(--w-splitter))` : graphMin) : undefined}
       bind:clientHeight={rightAreaHeight}
     >
-      {#if topRow}
       <div
-        class="top-row"
+        hidden={!topRow} class="top-row"
         bind:clientWidth={topRowWidth}
         style:flex={shown.diff ? `0 0 ${fractions.topRow * 100}%` : "1 1 auto"}
         style:min-height={shown.graph ? GRAPH_PANEL_MIN_HEIGHT : undefined}
       >
-        {#if shown.graph}
         <div
-          class="pane"
+          hidden={!shown.graph} class="pane"
           class:grow={!shown.files}
           style:flex={shown.files ? `0 1 ${fractions.graph * 100}%` : undefined}
           style:min-width={graphMin}
@@ -4416,7 +4543,6 @@ ${event.error}`,
             />
           </Panel>
         </div>
-        {/if}
         {#if shown.graph && filesColumn}
         <Splitter
           direction="vertical"
@@ -4428,18 +4554,18 @@ ${event.error}`,
           onreset={() => layout.resetOne("graph")}
         />
         {/if}
-        {#if filesColumn}
+
         <!-- Basis 0, not auto: the table inside (Show directories drops the Path column) must not
              move the split with the Graph panel. -->
         <div
-          class="files-column"
+          hidden={!filesColumn} class="files-column"
+          bind:this={filesColumnEl}
           bind:clientHeight={filesColumnHeight}
           class:grow={!shown.graph}
           style:flex={shown.graph ? `1 1 0` : undefined}
         >
-        {#if shown.files}
         <div
-          class="pane"
+          hidden={!shown.files} class="pane"
           class:grow={!(shown.commit && onWorkingTree)}
           style:flex={shown.commit && onWorkingTree ? "1 1 0" : undefined}
           role="region"
@@ -4480,8 +4606,6 @@ ${event.error}`,
             />
           </Panel>
         </div>
-        {/if}
-
         {#if shown.files && shown.commit && onWorkingTree}
         <Splitter
           direction="horizontal"
@@ -4497,8 +4621,7 @@ ${event.error}`,
         />
         {/if}
 
-        {#if shown.commit && onWorkingTree}
-        <div class="pane commit-pane" role="region"
+        <div hidden={!(shown.commit && onWorkingTree)} class="pane commit-pane" role="region"
           class:grow={!shown.files}
           style:flex={shown.files ? `0 1 ${fractions.commitHeight * rightAreaHeight}px` : undefined}
           aria-label={PANEL_TITLES.commit}
@@ -4513,33 +4636,20 @@ ${event.error}`,
             <CommitPanel {scope} {template} prefix={commitPrefix} oncommit={commitStaged} />
           </Panel>
         </div>
-        {/if}
         </div>
-        {/if}
       </div>
-      {/if}
-
       {#if topRow && shown.diff}
       <Splitter
-        direction="horizontal"
+        direction={diffBeside ? "vertical" : "horizontal"}
         value={fractions.topRow}
         label="Resize diff panel"
-        extent={rightAreaHeight}
-        onchange={(d) =>
-          layout.set(
-            "topRow",
-            capFraction(
-              floorFraction(fractions.topRow + d, rightAreaHeight, shown.graph ? GRAPH_PANEL_MIN_HEIGHT_PX : 0),
-              rightAreaHeight,
-              DIFF_PANEL_MIN_HEIGHT_PX,
-            ),
-          )}
+        extent={diffBeside ? rightAreaWidth : rightAreaHeight}
+        onchange={resizeDiff}
         onreset={() => layout.resetOne("topRow")}
       />
       {/if}
 
-      {#if shown.diff}
-      <div class="pane grow" role="region"
+      <div hidden={!shown.diff} class="pane grow" role="region"
         aria-label={PANEL_TITLES.diff}
         onpointerdown={() => (focused = "diff")}>
         <Panel title="Diff" surface="editor" active={focused === "diff"} view={panelState} stale={stale.has("diff")}>
@@ -4575,10 +4685,8 @@ ${event.error}`,
           </DiffPanel>
         </Panel>
       </div>
-      {/if}
     </div>
-    {/if}
-  </div>
+    </div>
 
   {#if output.open}
     <div class="output-dock">
@@ -5020,6 +5128,10 @@ ${event.error}`,
 </div>
 
 <style>
+  .workspace [hidden] {
+    display: none;
+  }
+
   .graph-skipped {
     margin: 0;
     padding: var(--sp-2) var(--sp-4);
@@ -5125,6 +5237,14 @@ ${event.error}`,
 
   .right-area {
     flex: 1 1 0;
+  }
+
+  .right-area.diff-beside {
+    flex-direction: row;
+  }
+
+  .diff-beside > .top-row {
+    min-width: min-content;
   }
 
   .top-row {

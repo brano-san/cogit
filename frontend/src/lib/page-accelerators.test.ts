@@ -26,6 +26,25 @@ const press = (key: string, code: string, over: Partial<KeyboardEvent> = {}) =>
 
 // Ctrl+K lived only in the WebView2 hook: under Linux no menu item had it and nothing ran.
 describe("pageCommand", () => {
+  it("cycles tabs with the alternate keys and leaves unmodified paging and tab focus alone", () => {
+    const tabs = [
+      binding("tab-next", "Ctrl+Tab", true),
+      binding("tab-previous", "Ctrl+Shift+Tab", true),
+      binding("tab-next-alternate", "Ctrl+PageDown", false),
+      binding("tab-previous-alternate", "Ctrl+PageUp", false),
+    ];
+    for (const mac of [true, false]) {
+      const platform = { windows: false, mac };
+      const keys = effective(tabs, {}, mac);
+      for (const [key, id] of [["PageDown", "tab-next-alternate"], ["PageUp", "tab-previous-alternate"]] as const) {
+        expect(pageCommand(press(key, key), tabs, keys, platform)).toBe(id);
+        expect(pageCommand(press(key, key, { ctrlKey: false }), tabs, keys, platform)).toBeNull();
+      }
+      expect(pageCommand(press("Tab", "Tab"), tabs, keys, platform)).toBeNull();
+      expect(pageCommand(press("PageDown", "PageDown", { ctrlKey: false, metaKey: true }), tabs, keys, platform)).toBeNull();
+    }
+  });
+
   it("runs a command that is not on the menu bar", () => {
     expect(pageCommand(press("k", "KeyK"), bindings, keys, linux)).toBe("commit-window");
     expect(pageCommand(press("F5", "F5", { ctrlKey: false }), bindings, keys, linux)).toBe("refresh");

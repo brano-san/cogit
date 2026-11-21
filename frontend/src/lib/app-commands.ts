@@ -3,6 +3,7 @@ import type { PaletteCommand } from "./palette";
 import { PANELS, type PanelId } from "./perspectives";
 import { abortAction, type Banner } from "./repo-state";
 import { reasonOf, type ToolbarFacts } from "./toolbar";
+import { WINDOW_LAYOUT_CHOICES, type WindowLayout } from "./window-layout";
 
 /** The palette's own commands, in the order it lists them; the native menu runs the same
     entries by id, and the toolbar's buttons of the same id share their action. Bisect and
@@ -20,6 +21,11 @@ export const PANEL_TITLES: Record<PanelId, string> = {
 
 export type FlowKind = "feature" | "release" | "hotfix";
 const FLOW_KINDS: readonly FlowKind[] = ["feature", "release", "hotfix"];
+
+export function tabAlternate(id: string): "tab-next" | "tab-previous" | undefined {
+  if (id === "tab-next-alternate") return "tab-next";
+  if (id === "tab-previous-alternate") return "tab-previous";
+}
 
 /** Window ▸ Size: answered in Rust (`window_place::SIZE_PRESETS`), which owns the geometry. */
 export const WINDOW_SIZES: readonly { id: string; title: string }[] = [
@@ -67,6 +73,9 @@ export type AppCommandId =
   | "refresh"
   | "branch"
   | "reset-layout"
+  | "window-layout-reset"
+  | "tab-next"
+  | "tab-previous"
   | "overlap"
   | "avatars"
   | "hooks"
@@ -106,6 +115,7 @@ export type AppCommandActions = Record<AppCommandId, () => unknown> & {
   flowStart: (kind: FlowKind) => void;
   togglePanel: (panel: PanelId) => void;
   windowSize: (id: string) => void;
+  windowLayout: (id: WindowLayout) => void;
 };
 
 /** What the rules read; data only, so they can be tested without the app. */
@@ -130,6 +140,8 @@ export interface AppCommandFacts {
   logPath: boolean;
   banner: Banner | null;
   openCount: number;
+  canCycleTabs: boolean;
+  windowLayout: WindowLayout;
 }
 
 const SELECT_COMMIT = "Select a commit first";
@@ -141,6 +153,7 @@ export function appCommands(facts: AppCommandFacts, run: AppCommandActions): Pal
   const toolbar = (id: string) => reasonOf(id, facts.toolbar);
   const noCommit = facts.commitOid ? undefined : SELECT_COMMIT;
   const notOnHead = facts.onHead ? undefined : "Not on the current branch";
+  const noOtherTab = facts.canCycleTabs ? undefined : "No other repository tab";
 
   return [
     { id: "open", title: "Open Repository…", run: run.open },
@@ -263,7 +276,12 @@ export function appCommands(facts: AppCommandFacts, run: AppCommandActions): Pal
     { id: "close", title: "Close Repository", unavailable: noRepo, run: run.close },
     { id: "refresh", title: "Refresh", unavailable: noRepo, run: run.refresh },
     { id: "branch", title: "New Branch…", unavailable: noRepo, run: run.branch },
-    { id: "reset-layout", title: "Reset Perspective", run: run["reset-layout"] },
+    {
+      id: "reset-layout",
+      title: "Reset Perspective",
+      unavailable: facts.windowLayout === "standard" ? undefined : "Select a Standard layout perspective first",
+      run: run["reset-layout"],
+    },
     {
       id: "overlap",
       title: "Toggle Commit Overlap Column",
@@ -360,6 +378,15 @@ export function appCommands(facts: AppCommandFacts, run: AppCommandActions): Pal
       title: `Toggle ${PANEL_TITLES[panel]} Panel`,
       run: () => run.togglePanel(panel),
     })),
+    ...WINDOW_LAYOUT_CHOICES.map(([id, label]) => ({
+      id: `window-layout-${id}`,
+      title: `Switch to ${label} Layout`,
+      checked: facts.windowLayout === id,
+      run: () => run.windowLayout(id),
+    })),
+    { id: "window-layout-reset", title: "Reset Layout", run: run["window-layout-reset"] },
+    { id: "tab-next", title: "Next Repository Tab", unavailable: noOtherTab, run: run["tab-next"] },
+    { id: "tab-previous", title: "Previous Repository Tab", unavailable: noOtherTab, run: run["tab-previous"] },
     ...WINDOW_SIZES.map((size) => ({
       id: size.id,
       title: `Window Size: ${size.title}`,

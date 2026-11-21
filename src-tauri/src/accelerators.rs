@@ -125,6 +125,9 @@ fn virtual_key(name: &str) -> Option<u16> {
         "UP" => return Some(VK_UP),
         "RIGHT" => return Some(VK_RIGHT),
         "DOWN" => return Some(VK_DOWN),
+        "TAB" => return Some(0x09),
+        "PAGEUP" => return Some(0x21),
+        "PAGEDOWN" => return Some(0x22),
         _ => {}
     }
 

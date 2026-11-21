@@ -29,9 +29,16 @@
 
     onmodulecontext,
   }: Props = $props();
+
+  let list: RepositoryList | undefined = $state();
+
+  export function reveal(root: string) {
+    return list?.reveal(root);
+  }
 </script>
 
 <RepositoryList
+  bind:this={list}
   {filter}
   {onselect}
   {oncontext}

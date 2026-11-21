@@ -1,12 +1,11 @@
 <script lang="ts">
-  import Icon from "$components/common/Icon.svelte";
+  import RepositoryMarks from "$components/repo-tree/RepositoryMarks.svelte";
   import Disclosure from "$components/common/Disclosure.svelte";
-  import FileStateIcon from "$components/common/FileStateIcon.svelte";
   import KindIcon from "$components/common/KindIcon.svelte";
   import { EMPTY_SELECTION, markRow, type FileSelection } from "$lib/multi-select";
   import { registerSelectAll } from "$lib/select-all";
   import { MISSING_REPOSITORY } from "$lib/repo-labels";
-  import { canPull, freshOverview, moduleSync, rowSync, syncTooltip, type RowSync } from "$lib/repo-sync";
+  import { freshOverview, moduleSync, rowSync } from "$lib/repo-sync";
   import { repoPulse } from "$stores/repo-pulse.svelte";
   import { sparseTooltip } from "$lib/sparse";
   import { repoMenuRow } from "$stores/menu-row.svelte";
@@ -24,7 +23,7 @@
   import { submodules } from "$stores/submodules.svelte";
   import { moduleForest } from "$stores/module-forest.svelte";
   import { moduleMemory } from "$stores/module-memory.svelte";
-  import { UNGROUPED, backendRows, rowKey } from "$lib/repo-groups";
+  import { BACKEND, UNGROUPED, backendRows, rowKey } from "$lib/repo-groups";
   import { NO_FILTER_FOLDS, shownFolds, toggleFilterFold } from "$lib/tree";
   import type { RepoOverview } from "$lib/ipc";
   import { folderName, listedRepos, type ListedRepo } from "$lib/repo-list";
@@ -37,7 +36,7 @@
   import { rowStarts, striped } from "$lib/graph-geometry";
   import { settings } from "$stores/settings.svelte";
   import { TypeAhead, moveFocus } from "$lib/list-keys";
-  import { untrack } from "svelte";
+  import { tick, untrack } from "svelte";
   import { backendLabels } from "$lib/ipc/repo-rows";
   import { moduleTitle } from "$lib/module-tree";
   import { ON_MAC, primary } from "$lib/platform";
@@ -202,6 +201,18 @@
   );
 
   let wrapper: HTMLDivElement | undefined = $state();
+  export async function reveal(root: string) {
+    for (let at: string | undefined = repoGroups.groups.of[root]; at !== undefined; at = repoGroups.groups.under[at]) {
+      if (repoGroups.collapsed.has(at)) repoGroups.collapse(at);
+    }
+    const backend = BACKEND + backends.get(root);
+    if (repoGroups.collapsed.has(backend)) repoGroups.collapse(backend);
+    await tick();
+    const row = wrapper?.querySelector<HTMLElement>(`[data-key-row="${CSS.escape(root)}"]`);
+    row?.focus();
+    row?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+
   const typing = new TypeAhead();
 
   /** 11 §10: the arrows and typing move the focus; Enter on a row opens it. Selecting on
@@ -227,24 +238,6 @@
 </script>
 
 <!-- Push and pull sit on the corners of the icon; uncommitted changes fill it red (R-353). -->
-{#snippet repoMarks(sync: RowSync, kind: "repository" | "submodule" = "repository")}
-  {@const tip = syncTooltip(sync)}
-  <span class="repo-icon">
-    <KindIcon {kind} title={tip || undefined} changed={sync.dirty === true} />
-    {#if sync.conflicted}<FileStateIcon state="conflicted" overlayOnly label="Unresolved merge conflicts" />{/if}
-    {#if sync.ahead > 0}
-      <Icon name="ahead" class="arrow push" label="Commits to push" />
-    {/if}
-    {#if sync.unknown}
-      <span class="arrow unknown" role="img" aria-label="Unknown whether there is anything to pull"
-        >?</span
-      >
-    {:else if canPull(sync)}
-      <Icon name="behind" class="arrow pull" label="Commits to pull" />
-    {/if}
-  </span>
-{/snippet}
-
 {#snippet topDisclosure(root: string, owned: boolean, closed = false)}
   {@const open = owned ? !submodules.folded : moduleMemory.isOpen(root)}
   <Disclosure
@@ -312,7 +305,7 @@
           toggle(node);
         }}
       />
-      {@render repoMarks(sync, "submodule")}
+      <RepositoryMarks {sync} kind="submodule" />
       <span class="modpath truncate shrink-last"
         >{#if folder}<span class="dir">{folder}/</span>{/if}<span class="modname">{parts.name}</span></span
       >
@@ -425,7 +418,7 @@
         }}
       >
         {@render topDisclosure(entry.root, submodules.owner?.valueOf() === entry.repo.valueOf())}
-        {@render repoMarks(sync)}
+        <RepositoryMarks {sync} />
         <span class="name truncate shrink-last">{listed.name}</span>
         {#if listed.pinned}<span class="pin" title="Pinned to the top of its group">⊤</span>{/if}
         {#if worktrees.ownerRoot === entry.root && repository.current}
@@ -463,7 +456,7 @@
             }}
           >
             {@render topDisclosure(listed.root, false, true)}
-            {@render repoMarks(sync)}
+            <RepositoryMarks {sync} />
             <span class="name truncate shrink-last">{listed.name}</span>
             {#if listed.pinned}<span class="pin" title="Pinned to the top of its group">⊤</span>{/if}
             {#if sync.missing}<span class="gone" title={MISSING_REPOSITORY}>missing</span>{/if}
@@ -652,24 +645,10 @@
   /* A corner each, so any two show at once: pull (or `?`) top left, push top right, the
      conflict badge bottom right. The arrows reach past the icon's edges; the margins keep
      them off the disclosure triangle and the name. */
-  .repo-icon {
     /* Larger than the 14 px of other kinds: the state badge is a quarter of its box and
        at 8 px a conflict's circle and exclamation mark ran together. 20 px of badge box
        gives a 10 px badge; the row (--h-row-dense) holds the 16 px icon, as SmartGit's (R-792). */
-    --kind-icon: 16px;
-    --file-icon: 20px;
-    --sync-arrow: 12px;
-    position: relative;
-    display: inline-flex;
-    flex: none;
-    margin: 0 3px;
-  }
-
   /* The badge is scaled by 1.375, off the pixel grid its crisp edges were drawn for. */
-  .repo-icon :global(.icon) {
-    shape-rendering: geometricPrecision;
-  }
-
   /* On the corners, with a halo of whatever is behind the row, so they sit on the icon's
      edge without covering it, on a striped, hovered or selected row as on a plain one. */
   .row {
@@ -687,41 +666,6 @@
 
   .row.selected:not(.menu) {
     --mark-halo: var(--state-selected);
-  }
-
-  .repo-icon :global(.arrow) {
-    position: absolute;
-    width: var(--sync-arrow);
-    height: var(--sync-arrow);
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.6;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    filter: drop-shadow(0 0 1px var(--mark-halo, var(--surface-panel))) drop-shadow(0 0 1px var(--mark-halo, var(--surface-panel)));
-  }
-
-  .repo-icon :global(.arrow.push) {
-    top: -3px;
-    right: -5px;
-    color: var(--indicator-push);
-  }
-
-  .repo-icon :global(.arrow.pull) {
-    top: -3px;
-    left: -5px;
-    color: var(--indicator-pull);
-  }
-
-  .repo-icon :global(.arrow.unknown) {
-    top: -4px;
-    left: -4px;
-    width: auto;
-    height: auto;
-    color: var(--indicator-unknown);
-    font-size: var(--sync-arrow);
-    font-weight: 700;
-    line-height: 1;
   }
 
   .branch {

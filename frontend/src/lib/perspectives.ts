@@ -126,12 +126,12 @@ function isPanel(value: unknown): value is PanelId {
   return PANELS.includes(value as PanelId);
 }
 
-function fractions(stored: unknown): LayoutFractions {
+function fractions(stored: unknown, defaults = DEFAULT_LAYOUT): LayoutFractions {
   const source = (typeof stored === "object" && stored !== null ? stored : {}) as Record<
     string,
     unknown
   >;
-  const merged = { ...DEFAULT_LAYOUT };
+  const merged = { ...defaults };
   for (const key of Object.keys(DEFAULT_LAYOUT) as (keyof LayoutFractions)[]) {
     if (typeof source[key] === "number") merged[key] = clampFraction(source[key]);
   }
@@ -142,11 +142,14 @@ function fractions(stored: unknown): LayoutFractions {
   return merged;
 }
 
-function perspective(stored: unknown, fallback: Perspective): Perspective {
-  if (typeof stored !== "object" || stored === null) return { ...fallback };
+export function mergePerspective(stored: unknown, fallback: Perspective): Perspective {
+  if (typeof stored !== "object" || stored === null) return structuredClone(fallback);
   const source = stored as { fractions?: unknown; hidden?: unknown };
-  const hidden = Array.isArray(source.hidden) ? source.hidden.filter(isPanel) : fallback.hidden;
-  return { fractions: fractions(source.fractions), hidden: [...hidden] };
+  const hidden = Array.isArray(source.hidden) ? [...new Set(source.hidden.filter(isPanel))] : fallback.hidden;
+  return {
+    fractions: fractions(source.fractions, fallback.fractions),
+    hidden: [...(hidden.length === PANELS.length ? fallback.hidden : hidden)],
+  };
 }
 
 /** Accepts v1 too — bare fractions — so an upgrade keeps the layout the user tuned. */
@@ -162,7 +165,7 @@ export function mergePerspectives(stored: unknown): Record<PerspectiveId, Perspe
   }
 
   return {
-    main: perspective(source.main, DEFAULT_PERSPECTIVES.main),
-    review: perspective(source.review, DEFAULT_PERSPECTIVES.review),
+    main: mergePerspective(source.main, DEFAULT_PERSPECTIVES.main),
+    review: mergePerspective(source.review, DEFAULT_PERSPECTIVES.review),
   };
 }
