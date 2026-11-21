@@ -144,8 +144,8 @@ pub use history::{CommitRow, CommitText, Names};
 pub use hook_run::HookRun;
 pub use hooks::{Hook, HookOverview, HookSource, HookState, is_hook_name};
 pub use host_key::{
-    HOST_KEY_ASK_LIMIT, HostKeyAsker, HostKeyQuestion, SshPrompt, ask_host_keys, host_key_summary,
-    read_prompt,
+    HOST_KEY_ASK_LIMIT, HostKeyAsker, HostKeyQuestion, RepositoryAskpass, SshPrompt, ask_host_keys,
+    host_key_summary, read_prompt, repository_ssh,
 };
 pub use housekeeping::{GcPrune, MaintenanceTask};
 pub use ignore_files::{IgnoreDraft, IgnoreFile, IgnoreHit, IgnorePreview, IgnoreScope};

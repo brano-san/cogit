@@ -27,12 +27,17 @@ export const commands = {
 	 *  beside the page; the dev server has none.
 	 */
 	openThirdPartyLicences: (frontend: string | null) => typedError<null, GitError>(__TAURI_INVOKE("open_third_party_licences", { frontend })),
-	openRepository: (path: string) => typedError<RepoSummary, GitError>(__TAURI_INVOKE("open_repository", { path })),
+	openRepository: (path: string, key: {
+	host: string,
+	keyPath: string,
+	passphrase: string,
+	remember: boolean,
+} | null) => typedError<RepoSummary, GitError>(__TAURI_INVOKE("open_repository", { path, key })),
 	/**
 	 *  The panels' re-read of the repository they show: by id, so it never lists a submodule
 	 *  or worktree opened from a tree (R-543).
 	 */
-	rereadRepository: (repo: RepoId) => typedError<RepoSummary, GitError>(__TAURI_INVOKE("reread_repository", { repo })),
+	rereadRepository: (repo: RepoId, background: boolean | null) => typedError<RepoSummary, GitError>(__TAURI_INVOKE("reread_repository", { repo, background })),
 	/**
 	 *  The walk and its layout stay in Rust; the channel only says how far it got and the
 	 *  rows go out by `graph_window` (R-193). Dropping the channel cancels the walk.
@@ -3277,6 +3282,13 @@ export type SplitPreview = {
 export type SshKeys = {
 	dir: string,
 	keys: string[],
+};
+
+export type SshRepositoryKey = {
+	host: string,
+	keyPath: string,
+	passphrase: string,
+	remember: boolean,
 };
 
 /**

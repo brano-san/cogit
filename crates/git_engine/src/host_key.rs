@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::io::{BufRead as _, BufReader, Read as _, Write as _};
 use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
-use std::sync::{Arc, OnceLock, PoisonError, RwLock};
+use std::sync::{Arc, LazyLock, Mutex, OnceLock, PoisonError, RwLock};
 use std::time::Duration;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
@@ -27,6 +28,7 @@ pub const HOST_KEY_ASK_LIMIT: Duration = Duration::from_secs(120);
 
 const ENDPOINT_VAR: &str = "COGIT_HOST_KEY_ENDPOINT";
 const TOKEN_VAR: &str = "COGIT_HOST_KEY_TOKEN";
+pub(crate) const REPOSITORY_ASKPASS: &str = "COGIT_REPOSITORY_ASKPASS";
 const MAX_REQUEST: u64 = 16 * 1024;
 
 pub(crate) const ASKING_SSH: &str =
@@ -44,7 +46,7 @@ const CHANGED: &[&str] = &[
 static ASKER: RwLock<Option<HostKeyAsker>> = RwLock::new(None);
 static DESK: OnceLock<Option<Desk>> = OnceLock::new();
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize)]
 struct Desk {
     endpoint: String,
     token: String,
@@ -54,6 +56,47 @@ struct Desk {
 struct Asked {
     token: String,
     question: HostKeyQuestion,
+}
+
+#[derive(Serialize, Deserialize)]
+struct RepositoryPrompt {
+    token: String,
+    prompt: String,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum Incoming {
+    Host(Asked),
+    Repository(RepositoryPrompt),
+}
+
+#[derive(Clone)]
+struct Login {
+    interactive: bool,
+    passphrase: Option<String>,
+}
+
+static LOGINS: LazyLock<Mutex<HashMap<String, Login>>> = LazyLock::new(Mutex::default);
+
+pub struct RepositoryAskpass {
+    file: tempfile::NamedTempFile,
+    token: String,
+}
+
+impl std::fmt::Debug for RepositoryAskpass {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RepositoryAskpass").finish_non_exhaustive()
+    }
+}
+
+impl Drop for RepositoryAskpass {
+    fn drop(&mut self) {
+        LOGINS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(&self.token);
+    }
 }
 
 #[must_use]
@@ -164,9 +207,7 @@ fn desk() -> Option<&'static Desk> {
 fn open_desk() -> std::io::Result<Desk> {
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))?;
     let endpoint = listener.local_addr()?.to_string();
-    let mut bytes = [0u8; 32];
-    getrandom::fill(&mut bytes).map_err(|err| std::io::Error::other(err.to_string()))?;
-    let token: String = bytes.iter().map(|byte| format!("{byte:02x}")).collect();
+    let token = new_token()?;
     let expected = token.clone();
     std::thread::Builder::new()
         .name("host-key-desk".into())
@@ -183,6 +224,12 @@ fn open_desk() -> std::io::Result<Desk> {
             }
         })?;
     Ok(Desk { endpoint, token })
+}
+
+fn new_token() -> std::io::Result<String> {
+    let mut bytes = [0u8; 32];
+    getrandom::fill(&mut bytes).map_err(|err| std::io::Error::other(err.to_string()))?;
+    Ok(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
 }
 
 fn same(a: &str, b: &str) -> bool {
@@ -205,8 +252,39 @@ fn serve(stream: &TcpStream, token: &str, asker: Option<HostKeyAsker>) {
     {
         return;
     }
-    let asked: Asked = match serde_json::from_str(&line) {
-        Ok(asked) => asked,
+    let asked = match serde_json::from_str(&line) {
+        Ok(Incoming::Host(asked)) => asked,
+        Ok(Incoming::Repository(request)) => {
+            let login = LOGINS
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .get(&request.token)
+                .cloned();
+            let Some(login) = login else { return };
+            let answer = match read_prompt(&request.prompt) {
+                SshPrompt::UnknownHost(question)
+                    if login.interactive && ask(stream, asker, &question) =>
+                {
+                    Some("yes\n".to_owned())
+                }
+                SshPrompt::Other
+                    if request
+                        .prompt
+                        .to_ascii_lowercase()
+                        .starts_with("enter passphrase for key ") =>
+                {
+                    login.passphrase.map(|pass| format!("{pass}\n"))
+                }
+                _ => None,
+            };
+            let mut writer = stream;
+            if let Err(err) = writer.set_nonblocking(false).and_then(|()| {
+                serde_json::to_writer(&mut writer, &answer).map_err(std::io::Error::other)
+            }) {
+                tracing::error!(error = ?err, context = "answering the SSH repository prompt");
+            }
+            return;
+        }
         Err(err) => {
             tracing::error!(error = ?err, context = "a host key question");
             return;
@@ -216,7 +294,18 @@ fn serve(stream: &TcpStream, token: &str, asker: Option<HostKeyAsker>) {
         tracing::warn!("a host key question without the token");
         return;
     }
-    let question = asked.question;
+    let accepted = ask(stream, asker, &asked.question);
+    let answer: &[u8] = if accepted { b"yes\n" } else { b"no\n" };
+    let mut writer = stream;
+    if let Err(err) = writer
+        .set_nonblocking(false)
+        .and_then(|()| writer.write_all(answer))
+    {
+        tracing::error!(error = ?err, context = "answering a host key question");
+    }
+}
+
+fn ask(stream: &TcpStream, asker: Option<HostKeyAsker>, question: &HostKeyQuestion) -> bool {
     let accepted = match asker {
         Some(ask) if stream.set_nonblocking(true).is_ok() => {
             let gone = || {
@@ -227,7 +316,7 @@ fn serve(stream: &TcpStream, token: &str, asker: Option<HostKeyAsker>) {
                     Err(err) => err.kind() != std::io::ErrorKind::WouldBlock,
                 }
             };
-            ask(&question, &gone)
+            ask(question, &gone)
         }
         _ => false,
     };
@@ -238,14 +327,7 @@ fn serve(stream: &TcpStream, token: &str, asker: Option<HostKeyAsker>) {
         accepted,
         "ssh host key question"
     );
-    let answer: &[u8] = if accepted { b"yes\n" } else { b"no\n" };
-    let mut writer = stream;
-    if let Err(err) = writer
-        .set_nonblocking(false)
-        .and_then(|()| writer.write_all(answer))
-    {
-        tracing::error!(error = ?err, context = "answering a host key question");
-    }
+    accepted
 }
 
 pub(crate) fn ask_app(question: &HostKeyQuestion) -> bool {
@@ -299,6 +381,95 @@ pub(crate) fn user_ssh(own_ssh_command: bool) -> (Option<&'static str>, Vec<(Str
     }
     env.extend(helper);
     ((!own_ssh_command).then_some(ASKING_SSH), env)
+}
+
+pub fn repository_ssh(
+    command: &mut std::process::Command,
+    credential: Option<&crate::Credential>,
+    background: bool,
+) -> std::io::Result<Option<RepositoryAskpass>> {
+    for (name, _) in std::env::vars_os() {
+        if name.to_string_lossy().starts_with("COGIT_CREDENTIAL_") {
+            command.env_remove(name);
+        }
+    }
+    command
+        .env_remove("COGIT_SSH_PASSPHRASE")
+        .env_remove(ENDPOINT_VAR)
+        .env_remove(TOKEN_VAR)
+        .env_remove(REPOSITORY_ASKPASS)
+        .env_remove(crate::pulse::ASKPASS_REFUSAL_VAR);
+    command.args(["-o", "ConnectTimeout=20", "-o", "ServerAliveInterval=15"]);
+    if let Some(key) = credential.and_then(|credential| credential.key.as_deref()) {
+        command
+            .arg("-i")
+            .arg(key)
+            .args(["-o", "IdentitiesOnly=yes"]);
+    }
+    if background {
+        command.args(["-o", "StrictHostKeyChecking=yes"]);
+        if !credential.is_some_and(|key| key.key.is_some() && !key.secret.is_empty()) {
+            command.args(["-o", "BatchMode=yes"]);
+            return Ok(None);
+        }
+    } else {
+        command.args(["-o", "StrictHostKeyChecking=ask"]);
+    }
+    let endpoint = desk()
+        .ok_or_else(|| std::io::Error::other("Cogit could not start its SSH askpass service."))?
+        .endpoint
+        .clone();
+    let token = new_token()?;
+    let mut file = tempfile::NamedTempFile::new()?;
+    serde_json::to_writer(
+        &mut file,
+        &Desk {
+            endpoint,
+            token: token.clone(),
+        },
+    )?;
+    file.flush()?;
+    let session = RepositoryAskpass { file, token };
+    command
+        .env("SSH_ASKPASS", std::env::current_exe()?)
+        .env("SSH_ASKPASS_REQUIRE", "force")
+        .env(REPOSITORY_ASKPASS, session.file.path());
+    LOGINS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .insert(
+            session.token.clone(),
+            Login {
+                interactive: !background,
+                passphrase: credential
+                    .filter(|key| key.key.is_some() && !key.secret.is_empty())
+                    .map(|key| key.secret.clone()),
+            },
+        );
+    Ok(Some(session))
+}
+
+pub(crate) fn repository_answer(file: &std::path::Path, prompt: &str) -> Option<String> {
+    let desk: Desk =
+        serde_json::from_reader(std::fs::File::open(file).ok()?.take(MAX_REQUEST)).ok()?;
+    let address = desk.endpoint.parse::<SocketAddr>().ok()?;
+    if !address.ip().is_loopback() {
+        return None;
+    }
+    let mut stream = TcpStream::connect_timeout(&address, Duration::from_secs(5)).ok()?;
+    stream
+        .set_read_timeout(Some(HOST_KEY_ASK_LIMIT + Duration::from_secs(30)))
+        .ok()?;
+    serde_json::to_writer(
+        &mut stream,
+        &RepositoryPrompt {
+            token: desk.token,
+            prompt: prompt.into(),
+        },
+    )
+    .ok()?;
+    stream.write_all(b"\n").ok()?;
+    serde_json::from_reader(stream.take(MAX_REQUEST)).ok()?
 }
 
 #[must_use]
@@ -457,5 +628,61 @@ mod tests {
                 .contains("not accepted")
         );
         assert_eq!(host_key_summary("fatal: repository not found"), None);
+    }
+
+    #[test]
+    fn a_repository_login_keeps_secrets_out_of_the_ssh_environment_and_revokes_askpass() {
+        let credential = crate::Credential {
+            key: Some("/keys/my key".into()),
+            secret: "session-passphrase".into(),
+            username: None,
+        };
+        for background in [false, true] {
+            let mut command = std::process::Command::new("ssh");
+            let session = repository_ssh(&mut command, Some(&credential), background)
+                .unwrap()
+                .unwrap();
+            let args: Vec<_> = command
+                .get_args()
+                .map(|arg| arg.to_string_lossy())
+                .collect();
+            let values: Vec<_> = command
+                .get_envs()
+                .filter_map(|(_, value)| value)
+                .map(|v| v.to_string_lossy())
+                .collect();
+            assert!(args.iter().any(|arg| arg == "/keys/my key"));
+            assert!(args.iter().any(|arg| arg
+                == if background {
+                    "StrictHostKeyChecking=yes"
+                } else {
+                    "StrictHostKeyChecking=ask"
+                }));
+            assert!(args.iter().chain(&values).all(
+                |value| !value.contains(&credential.secret) && !value.contains(&session.token)
+            ));
+            let file = session.file.path();
+            assert!(
+                !std::fs::read_to_string(file)
+                    .unwrap()
+                    .contains(&credential.secret)
+            );
+            assert_eq!(
+                repository_answer(file, "Enter passphrase for key '/keys/my key': ").as_deref(),
+                Some("session-passphrase\n")
+            );
+            assert!(repository_answer(file, "git@host's password: ").is_none());
+            assert!(repository_answer(file, IDENTIFICATION_CHANGED).is_none());
+            if background {
+                assert!(repository_answer(file, GITHUB_9).is_none());
+            }
+            let retained = tempfile::NamedTempFile::new().unwrap();
+            std::fs::copy(file, retained.path()).unwrap();
+            drop(session);
+            assert!(
+                repository_answer(retained.path(), "Enter passphrase for key '/keys/my key': ")
+                    .is_none()
+            );
+        }
     }
 }

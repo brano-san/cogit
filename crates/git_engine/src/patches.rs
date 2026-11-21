@@ -9,6 +9,24 @@ pub struct PatchFile {
     pub bytes: Vec<u8>,
 }
 
+impl PatchFile {
+    pub fn write_to(&self, directory: &std::path::Path) -> Result<std::path::PathBuf> {
+        use std::io::Write as _;
+        let options = gix::validate::path::component::Options {
+            protect_windows: cfg!(windows),
+            protect_ntfs: cfg!(windows),
+            protect_hfs: cfg!(target_os = "macos"),
+        };
+        gix::validate::path::component(self.name.as_bytes().into(), None, options)
+            .map_err(|err| GitError::InvalidState(format!("Invalid patch filename: {err}")))?;
+        let target = directory.join(&self.name);
+        let mut file = tempfile::NamedTempFile::new_in(directory)?;
+        file.write_all(&self.bytes)?;
+        file.persist(&target).map_err(|err| err.error)?;
+        Ok(target)
+    }
+}
+
 /// `apply` to the working tree, `apply --3way` to the index too, `am --3way` for commits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -257,6 +275,23 @@ pub fn parse_numstat(out: &str) -> Vec<PatchStat> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn saving_a_patch_keeps_the_server_filename_inside_the_selected_folder() {
+        let directory = tempfile::tempdir().unwrap();
+        let folder = directory.path().join("patches");
+        std::fs::create_dir(&folder).unwrap();
+        let patch = |name: &str| PatchFile {
+            name: name.to_owned(),
+            bytes: b"patch".to_vec(),
+        };
+        for name in ["../elsewhere", "/other/file", "./", ".git"] {
+            assert!(patch(name).write_to(&folder).is_err(), "{name}");
+        }
+        assert!(!directory.path().join("elsewhere").exists());
+        let saved = patch("0001-change.patch").write_to(&folder).unwrap();
+        assert_eq!(std::fs::read(saved).unwrap(), b"patch");
+    }
 
     #[test]
     fn numstat_reads_counts_binaries_and_renames() {

@@ -247,6 +247,17 @@ pub fn run_as_helper() -> Option<i32> {
         return Some(0);
     }
     let passphrase = std::env::var(SSH_PASSPHRASE_VAR).ok();
+    if let Some(file) = std::env::var_os(crate::host_key::REPOSITORY_ASKPASS) {
+        let answer = args
+            .first()
+            .and_then(|prompt| crate::host_key::repository_answer(file.as_ref(), prompt));
+        return Some(if let Some(answer) = answer {
+            let _ = std::io::stdout().write_all(answer.as_bytes());
+            0
+        } else {
+            1
+        });
+    }
     if passphrase.is_none() && std::env::var_os(crate::pulse::ASKPASS_REFUSAL_VAR).is_none() {
         return None;
     }
