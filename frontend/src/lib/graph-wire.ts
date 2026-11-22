@@ -20,7 +20,7 @@ export interface GraphBlock {
   entry(row: number): GraphEntry;
 }
 
-const VERSION = 2;
+const VERSION = 3;
 const KINDS: readonly GraphRow["kind"][] = ["normal", "merge", "root", "workingTree"];
 const SPANS: readonly Segment["span"][] = ["top", "bottom", "through"];
 const utf8 = new TextDecoder();
@@ -41,8 +41,10 @@ export function decodeBase64Window(text: string): GraphBlock | null {
     of a graph that was replaced before it was asked for. */
 export function decodeWindow(buffer: ArrayBuffer): GraphBlock | null {
   if (buffer.byteLength === 0) return null;
-  const [version, start, rows, total, complete, segments, textBytes, oidBytes] = new Uint32Array(buffer, 0, 8);
+  const [version, start, rows, total, windowFlags, segments, textBytes, oidBytes] = new Uint32Array(buffer, 0, 8);
   if (version !== VERSION) throw new Error(`graph window format ${version}, expected ${VERSION}`);
+  const hasCommitter = (windowFlags! & 2) !== 0;
+  const fields = hasCommitter ? 4 : 3;
 
   let at = 32;
   function take<T>(Kind: View<T> & { BYTES_PER_ELEMENT: number }, length: number): T {
@@ -54,7 +56,7 @@ export function decodeWindow(buffer: ArrayBuffer): GraphBlock | null {
   const firstSegment = take(Uint32Array, rows! + 1);
   const firstLink = take(Uint32Array, rows! + 1);
   const links = firstLink[rows!]!;
-  const textAt = take(Uint32Array, rows! * 3 + 1);
+  const textAt = take(Uint32Array, rows! * fields + 1);
   const zone = take(Int32Array, rows!);
   const lane = take(Uint16Array, rows!);
   const width = take(Uint16Array, rows!);
@@ -70,7 +72,7 @@ export function decodeWindow(buffer: ArrayBuffer): GraphBlock | null {
   const text = take(Uint8Array, textBytes!);
 
   const field = (row: number, which: number) =>
-    utf8.decode(text.subarray(textAt[row * 3 + which], textAt[row * 3 + which + 1]));
+    utf8.decode(text.subarray(textAt[row * fields + which], textAt[row * fields + which + 1]));
   const oid = (row: number) => utf8.decode(oids.subarray(row * oidBytes!, (row + 1) * oidBytes!));
   const decoded: GraphEntry[] = [];
   // Hex ids are ASCII: one decode of the whole column, sliced at fixed width.
@@ -79,7 +81,7 @@ export function decodeWindow(buffer: ArrayBuffer): GraphBlock | null {
   return {
     start: start!,
     total: total!,
-    complete: complete === 1,
+    complete: (windowFlags! & 1) !== 0,
     length: rows!,
     oid,
     find(wanted) {
@@ -115,6 +117,7 @@ export function decodeWindow(buffer: ArrayBuffer): GraphBlock | null {
           summary: field(row, 0),
           authorName: field(row, 1),
           authorEmail: field(row, 2),
+          committerIdentity: hasCommitter ? field(row, 3) || undefined : undefined,
           timestamp: time[row]!,
           tzOffsetMinutes: zone[row]!,
         },

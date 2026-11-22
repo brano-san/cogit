@@ -1,4 +1,4 @@
-import type { Author, AvatarRow } from "$lib/ipc";
+import type { Author, AvatarRow, Trailer } from "$lib/ipc";
 
 /** The same normalisation Rust hashes with, so both sides agree on who is who. */
 export function keyOf(email: string): string {
@@ -8,6 +8,29 @@ export function keyOf(email: string): string {
 export interface Commitish {
   authorName: string;
   authorEmail: string;
+}
+
+export function avatarTooltip(
+  name: string,
+  email: string,
+  committer?: string | null,
+  trailers?: readonly Trailer[],
+): string {
+  const author = name && email ? `${name} <${email}>` : name || email;
+  const lines = author ? [author] : [];
+  if (committer) lines.push(`Committed by ${committer}`);
+  if (trailers?.length) {
+    const seen = new Set([author.toLowerCase(), committer?.toLowerCase()]);
+    for (const trailer of trailers) {
+      if (trailer.key.toLowerCase() !== "co-authored-by") continue;
+      const identity = trailer.value.trim();
+      const key = identity.toLowerCase();
+      if (!identity || seen.has(key)) continue;
+      seen.add(key);
+      lines.push(`Co-authored by ${identity}`);
+    }
+  }
+  return lines.join("\n");
 }
 
 /** One entry per author, in the order the rows appear: the top of the window first. */

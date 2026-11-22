@@ -165,12 +165,17 @@ impl RepoHandle {
         let mut lost = Vec::with_capacity(dated.len());
         for (_, id) in dated {
             if let Ok(details) = self.commit_details_with(&id.to_string(), &mailmap) {
+                let committer_identity = crate::history::distinct_committer(
+                    (&details.author.name, &details.author.email),
+                    (&details.committer.name, &details.committer.email),
+                );
                 lost.push(CommitRow {
                     oid: details.oid,
                     parents: details.parents,
                     summary: details.summary,
                     author_name: details.author.name,
                     author_email: details.author.email,
+                    committer_identity,
                     timestamp: details.author.timestamp,
                     tz_offset_minutes: details.author.tz_offset_minutes,
                 });

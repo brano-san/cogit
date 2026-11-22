@@ -5,7 +5,7 @@
 #![allow(clippy::unwrap_used, clippy::print_stdout)]
 
 use app_state::graph_overlay::{GraphPaintRequest, PaintTip};
-use app_state::{AppState, DEFAULT_CHUNK_SIZE};
+use app_state::{AppState, DEFAULT_CHUNK_SIZE, graph_wire};
 use git_engine::{CommitQuery, WorktreeView};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
@@ -14,6 +14,54 @@ use std::time::{Duration, Instant};
 fn median(mut samples: Vec<Duration>) -> Duration {
     samples.sort();
     samples[samples.len() / 2]
+}
+
+#[test]
+#[ignore = "needs COGIT_BENCH_REPO"]
+fn graph_window_committer_wire_size() {
+    let Ok(path) = std::env::var("COGIT_BENCH_REPO") else {
+        return;
+    };
+    let state = AppState::new();
+    let repo = state.open_repository(Path::new(&path)).unwrap().repo;
+    let generation = state.begin_graph();
+    state
+        .build_graph(
+            repo,
+            &CommitQuery::default(),
+            generation,
+            DEFAULT_CHUNK_SIZE,
+            |_| true,
+        )
+        .unwrap();
+    let mut window = state.graph_window(repo, generation, 0, 128).unwrap();
+    let rows = window.commits.len();
+    let distinct = window
+        .commits
+        .iter()
+        .filter(|c| c.committer_identity.is_some())
+        .count();
+    let with_identity = graph_wire::encode(&window).len();
+    for commit in &mut window.commits {
+        commit.committer_identity = None;
+    }
+    let author_only = graph_wire::encode(&window).len();
+    println!(
+        "{rows} rows, {distinct} distinct committers: {author_only} → {with_identity} bytes; base64 {} → {} bytes",
+        author_only.div_ceil(3) * 4,
+        with_identity.div_ceil(3) * 4,
+    );
+    if distinct == 0
+        && let Some(first) = window.commits.first_mut()
+    {
+        first.committer_identity = Some("Jane Doe <jane@example.com>".to_owned());
+        let mixed = graph_wire::encode(&window).len();
+        println!(
+            "{rows} rows, 1 synthetic distinct committer: {author_only} → {mixed} bytes; base64 {} → {} bytes",
+            author_only.div_ceil(3) * 4,
+            mixed.div_ceil(3) * 4,
+        );
+    }
 }
 
 fn tips(path: &str) -> Vec<PaintTip> {

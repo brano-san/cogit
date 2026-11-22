@@ -43,10 +43,17 @@ describe("graph window format", () => {
     const row = decodeWindow(golden())!.entry(1);
 
     expect(row.commit.summary).toBe("Übersicht — 修正");
+    expect(row.commit.committerIdentity).toBe("Élodie <elodie@example.com>");
     expect(row.commit.tzOffsetMinutes).toBe(-300);
     expect(row.layout).toMatchObject({ row: 41, lane: 1, color: 3, kind: "root", primary: false });
     expect(row.layout.segments).toEqual([{ from: 1, to: 1, span: "top", primary: false, color: 1, arrow: true }]);
     expect(row.layout.links).toEqual([{ segment: 0, oid: "c".repeat(40) }]);
+  });
+
+  it("reads a complete header-only window", () => {
+    const empty = new Uint32Array([3, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]);
+
+    expect(decodeWindow(empty.buffer)).toMatchObject({ complete: true, length: 0 });
   });
 
   it("decodes a row once, however often it is asked for", () => {

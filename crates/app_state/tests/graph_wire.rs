@@ -18,6 +18,7 @@ fn commit(oid: char, summary: &str, name: &str, timestamp: i64, zone: i32) -> Co
         summary: summary.to_owned(),
         author_name: name.to_owned(),
         author_email: format!("{}@example.com", name.to_lowercase()),
+        committer_identity: None,
         timestamp,
         tz_offset_minutes: zone,
     }
@@ -35,13 +36,15 @@ fn segment(from: u16, to: u16, span: Span, primary: bool, arrow: bool) -> Segmen
 }
 
 fn sample() -> GraphWindow {
+    let mut other = commit('b', "Übersicht — 修正", "Bo", 1_600_000_000, -300);
+    other.committer_identity = Some("Élodie <elodie@example.com>".to_owned());
     GraphWindow {
         start: 40,
         total: 1000,
         complete: false,
         commits: vec![
             commit('a', "Merge branch 'feature'", "Ann", 1_700_000_000, 180),
-            commit('b', "Übersicht — 修正", "Bo", 1_600_000_000, -300),
+            other,
         ],
         rows: vec![
             GraphRow {
@@ -103,13 +106,32 @@ fn the_buffer_is_as_long_as_its_columns() {
     let text: usize = window
         .commits
         .iter()
-        .map(|c| c.summary.len() + c.author_name.len() + c.author_email.len())
+        .map(|c| {
+            c.summary.len()
+                + c.author_name.len()
+                + c.author_email.len()
+                + c.committer_identity.as_deref().map_or(0, str::len)
+        })
         .sum();
     let links = 1;
-    let columns = rows * (8 + 4 + 4 + 4 + 2 + 2 + 1 + 1 + 40) + 4 + 4 + (rows * 3 + 1) * 4;
+    let columns = rows * (8 + 4 + 4 + 4 + 2 + 2 + 1 + 1 + 40) + 4 + 4 + (rows * 4 + 1) * 4;
     assert_eq!(
         bytes.len(),
         32 + columns + segments * (2 + 2 + 1 + 1) + links * (2 + 40) + text
+    );
+}
+
+#[test]
+fn author_only_windows_keep_the_v2_size() {
+    let mut window = sample();
+    let mixed = graph_wire::encode(&window);
+    let committer = window.commits[1].committer_identity.take().unwrap();
+    let author_only = graph_wire::encode(&window);
+
+    assert_eq!(author_only.len(), 337);
+    assert_eq!(
+        mixed.len() - author_only.len(),
+        4 * window.rows.len() + committer.len()
     );
 }
 
@@ -142,6 +164,18 @@ fn the_wire_window_is_the_encoded_window_in_base64() {
 #[test]
 fn the_wire_window_reads_texts_and_carried_rows_as_the_window_does() {
     let f = test_fixtures::linear(6).unwrap();
+    f.git_at(
+        9,
+        &[
+            "commit",
+            "--allow-empty",
+            "--author",
+            "Jane Doe <jane@example.com>",
+            "-m",
+            "Different committer",
+        ],
+    )
+    .unwrap();
     let state = AppState::new();
     let repo = state.open_repository(f.path()).unwrap().repo;
     for query in [
@@ -157,10 +191,19 @@ fn the_wire_window_reads_texts_and_carried_rows_as_the_window_does() {
             .build_graph(repo, &query, generation, 100, |_| true)
             .unwrap();
         // Texts unread: the wire reads them.
-        let wire = state.graph_window_wire(repo, generation, 0, 6);
-        let window = state.graph_window(repo, generation, 0, 6).unwrap();
-        assert_eq!(window.commits.len(), 6);
+        let wire = state.graph_window_wire(repo, generation, 0, 7);
+        let window = state.graph_window(repo, generation, 0, 7).unwrap();
+        assert_eq!(window.commits.len(), 7);
         assert!(window.commits.iter().all(|c| !c.summary.is_empty()));
+        assert_eq!(
+            window.commits[0].committer_identity.as_deref(),
+            Some("Cogit Fixture <fixture@cogit.test>")
+        );
+        assert!(
+            window.commits[1..]
+                .iter()
+                .all(|c| c.committer_identity.is_none())
+        );
         assert_eq!(wire, diff_engine::base64(&graph_wire::encode(&window)));
     }
 }

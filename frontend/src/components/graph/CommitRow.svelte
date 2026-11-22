@@ -2,6 +2,8 @@
   import HereMark from "$components/graph/HereMark.svelte";
   import { repository } from "$stores/repository.svelte";
   import Avatar from "$components/common/Avatar.svelte";
+  import { avatarTooltip } from "$lib/avatars";
+  import type { Trailer } from "$lib/ipc";
   import FoldToggle from "$components/graph/FoldToggle.svelte";
   import RefCapsule from "$components/graph/RefCapsule.svelte";
   import { capsules, dateTooltip, refLabelKey, shortOid, type RefLabel } from "$lib/format";
@@ -36,6 +38,7 @@
     timeFormat: GraphTimeFormat;
     author?: boolean;
     avatar?: boolean;
+    trailers?: readonly Trailer[];
     /** What relative times count from. */
     now: number;
     clipX: number;
@@ -55,6 +58,7 @@
     timeFormat,
     author = true,
     avatar = true,
+    trailers,
     now,
     clipX,
     onrefmenu,
@@ -139,7 +143,11 @@
     <span class="author truncate" style:max-width="{COLUMN_WIDTH.author}px">{author ? entry.commit.authorName : ""}</span>
   {:else if cell === "avatar"}
     {#if avatar}
-      <Avatar name={entry.commit.authorName} email={entry.commit.authorEmail} />
+      <Avatar
+        name={entry.commit.authorName}
+        email={entry.commit.authorEmail}
+        tooltip={avatarTooltip(entry.commit.authorName, entry.commit.authorEmail, entry.commit.committerIdentity, trailers)}
+      />
     {:else if avatars.enabled}
       <span class="no-avatar" style:width="{COLUMN_WIDTH.avatar}px"></span>
     {/if}

@@ -10,6 +10,9 @@ pub struct CommitRow {
     pub summary: String,
     pub author_name: String,
     pub author_email: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[specta(optional)]
+    pub committer_identity: Option<String>,
     /// specta refuses `i64`; Unix seconds stay far below 2^53, so a number is exact.
     #[specta(type = specta_typescript::Number)]
     pub timestamp: i64,
@@ -17,17 +20,18 @@ pub struct CommitRow {
 }
 
 /// The part of a row read from the commit object itself; the graph reads it for the rows
-/// on screen only (R-302). A history has far fewer authors than commits: name and address
-/// are shared through [`Names`].
+/// on screen only (R-302). A history has far fewer identities than commits: author names,
+/// addresses and distinct committer identities are shared through [`Names`].
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CommitText {
     pub summary: String,
     pub author_name: std::sync::Arc<str>,
     pub author_email: std::sync::Arc<str>,
+    pub committer_identity: Option<std::sync::Arc<str>>,
     pub tz_offset_minutes: i32,
 }
 
-/// Author names and addresses as read, one allocation each however many commits carry them.
+/// Identity strings as read, one allocation each however many commits carry them.
 #[derive(Debug, Default)]
 pub struct Names {
     set: std::collections::HashSet<std::sync::Arc<str>>,
@@ -46,10 +50,13 @@ impl Names {
         new
     }
 
-    /// `text`'s name and address swapped for the shared copies.
+    /// `text`'s identities swapped for the shared copies.
     pub fn share(&mut self, text: &mut CommitText) {
         text.author_name = self.intern(&text.author_name);
         text.author_email = self.intern(&text.author_email);
+        if let Some(identity) = &mut text.committer_identity {
+            *identity = self.intern(identity);
+        }
     }
 
     /// Roughly what it holds, for a cache that counts bytes.
@@ -60,6 +67,17 @@ impl Names {
 }
 
 const SECONDS_PER_MINUTE: i32 = 60;
+
+pub(crate) fn distinct_committer(author: (&str, &str), committer: (&str, &str)) -> Option<String> {
+    if author == committer {
+        return None;
+    }
+    match committer {
+        ("", "") => None,
+        (text, "") | ("", text) => Some(text.to_owned()),
+        (name, email) => Some(format!("{name} <{email}>")),
+    }
+}
 
 impl RepoHandle {
     /// The commit a merge stopped on conflicts is taking in, peeled; the first of an octopus.
@@ -233,21 +251,36 @@ impl RepoHandle {
         let author = commit
             .author()
             .map_err(|err| GitError::Internal(format!("cannot read commit author: {err}")))?;
-        let time = commit
+        let committer = commit
+            .committer()
+            .map_err(|err| GitError::Internal(format!("cannot read committer: {err}")))?;
+        let time = committer
             .time()
             .map_err(|err| GitError::Internal(format!("cannot read commit time: {err}")))?;
 
-        // Read in place: only a name or address never seen before is copied.
         let (name, email) = (
             crate::search::lossy(author.name),
             crate::search::lossy(author.email),
         );
         let (author_name, author_email) = mailmap.canonical(&name, &email);
+        let committer_identity = if author.name == committer.name && author.email == committer.email
+        {
+            None
+        } else {
+            let name = crate::search::lossy(committer.name);
+            let email = crate::search::lossy(committer.email);
+            distinct_committer(
+                (author_name, author_email),
+                mailmap.canonical(&name, &email),
+            )
+            .map(|identity| names.intern(&identity))
+        };
 
         let text = CommitText {
             summary: message.summary().to_string(),
             author_name: names.intern(author_name),
             author_email: names.intern(author_email),
+            committer_identity,
             tz_offset_minutes: time.offset / SECONDS_PER_MINUTE,
         };
         Ok((text, time.seconds))

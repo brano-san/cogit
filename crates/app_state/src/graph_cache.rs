@@ -96,6 +96,7 @@ impl Node {
             summary: text.summary,
             author_name: text.author_name.to_string(),
             author_email: text.author_email.to_string(),
+            committer_identity: text.committer_identity.as_deref().map(str::to_owned),
             timestamp: self.time,
             tz_offset_minutes: text.tz_offset_minutes,
         }
@@ -136,11 +137,12 @@ impl crate::graph_wire::WireCommit for WireNode<'_> {
         self.text.tz_offset_minutes
     }
 
-    fn texts(&self) -> [&str; 3] {
+    fn texts(&self) -> [&str; 4] {
         [
             &self.text.summary,
             &self.text.author_name,
             &self.text.author_email,
+            self.text.committer_identity.as_deref().unwrap_or_default(),
         ]
     }
 
@@ -619,7 +621,11 @@ fn evicted<K: Copy + Eq>(graphs: &[(K, usize, u64)], keep: K, budget: usize) -> 
 }
 
 fn carried_bytes(text: &CommitText) -> usize {
-    size_of::<CommitText>() + text.summary.len() + text.author_name.len() + text.author_email.len()
+    size_of::<CommitText>()
+        + text.summary.len()
+        + text.author_name.len()
+        + text.author_email.len()
+        + text.committer_identity.as_deref().map_or(0, str::len)
 }
 
 fn row_bytes(row: &GraphRow) -> usize {

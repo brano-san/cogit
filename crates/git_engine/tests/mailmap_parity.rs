@@ -179,6 +179,25 @@ fn graph_rows_show_the_authors_git_log_shows() {
 }
 
 #[test]
+fn graph_rows_include_only_a_distinct_committer_after_mailmap() {
+    let m = mapped();
+    let mut rows = BTreeMap::new();
+    open(&m)
+        .search_commits(&CommitQuery::default(), 100, |chunk| {
+            for row in chunk {
+                rows.insert(row.oid, row.committer_identity);
+            }
+            true
+        })
+        .unwrap();
+
+    for (oid, (author, committer)) in git_log(&m) {
+        let expected = (author != committer).then(|| format!("{} <{}>", committer.0, committer.1));
+        assert_eq!(rows[&oid], expected, "committer of {oid}");
+    }
+}
+
+#[test]
 fn commit_details_show_the_author_and_committer_git_log_shows() {
     let m = mapped();
     let repo = open(&m);

@@ -212,11 +212,13 @@
   let hovered: ReturnType<typeof setTimeout> | undefined;
 
   /** `id` is the repository `oid` was read from; asked only while it is still the one open. */
-  export function prefetch(id: RepoId, oid: string | null | undefined) {
+  export function prefetch(id: RepoId, oid: string | null | undefined, ondetails?: (details: CommitDetails) => void) {
     clearTimeout(hovered);
     if (!oid || id !== repoId()) return;
     hovered = setTimeout(() => {
-      if (id === repoId()) void factsOf(id, oid, true).catch(() => {});
+      if (id === repoId()) {
+        void factsOf(id, oid, true).then(({ details }) => ondetails?.(details)).catch(() => {});
+      }
     }, 80);
   }
 

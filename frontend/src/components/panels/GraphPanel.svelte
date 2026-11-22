@@ -3,7 +3,8 @@
   import GraphFilterFields from "$components/graph/GraphFilterFields.svelte";
   import StateBanner from "$components/layout/StateBanner.svelte";
   import type { Banner, BannerAction } from "$lib/repo-state";
-  import type { RebaseProgress, RepoId } from "$lib/ipc";
+  import type { RebaseProgress } from "$lib/ipc";
+  import type { ComponentProps } from "svelte";
   import { panelView } from "$lib/repo-phase";
   import { repository } from "$stores/repository.svelte";
   import { settings } from "$stores/settings.svelte";
@@ -15,7 +16,7 @@
     ondrop: (source: string, target: string, x: number, y: number) => void;
     oncontext: (oid: string, x: number, y: number) => void;
     ongroupcontext?: (oids: string[], x: number, y: number) => void;
-    onhover?: (repo: RepoId, oid: string) => void;
+    onhover?: ComponentProps<typeof CommitList>["onhover"];
     /** A merge, rebase or detached HEAD is said above the history (#22). */
     banner: Banner | null;
     busy: boolean;

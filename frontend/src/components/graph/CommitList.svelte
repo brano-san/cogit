@@ -63,7 +63,7 @@
   import { workingTreeChanged, workingTreeLabel } from "$lib/repo-state";
   import { bisectOf } from "$lib/bisect";
   import { bisectLooks, dotToken, rowToken } from "$lib/bisect-looks";
-  import { reportTiming, type RebaseProgress, type RepoId } from "$lib/ipc";
+  import { reportTiming, type CommitDetails, type RebaseProgress, type RepoId } from "$lib/ipc";
   import { avatars } from "$stores/avatars.svelte";
   import { commit as selection } from "$stores/commit.svelte";
   import { compareView } from "$stores/compare-view.svelte";
@@ -106,7 +106,7 @@
     /** Right-click on one of several selected commits: the menu of the group. */
     ongroupcontext?: (oids: string[], x: number, y: number) => void;
     /** With the repository the row was read from: never a commit of the last one (R-300). */
-    onhover?: (repo: RepoId, oid: string) => void;
+    onhover?: (repo: RepoId, oid: string, ondetails: (details: CommitDetails) => void) => void;
     onworktreecontext?: (x: number, y: number) => void;
     /** A step a running rebase has left, by its place in `rebase.todo`. */
     ontodocontext?: (step: number, x: number, y: number) => void;
@@ -244,9 +244,17 @@
   /** Answers "why did the panel below take so long?" in the log the user sends back. */
   const measure = measurer((label, ms, detail) => void reportTiming(label, ms, detail));
 
+  let hoverDetails = $state.raw<{ repo: RepoId; oid: string; trailers: CommitDetails["trailers"] } | null>(null);
+  let hoverRequest = 0;
+
   function hover(oid: string) {
     const repo = graph.rowsRepo;
-    if (repo) onhover?.(repo, oid);
+    const request = ++hoverRequest;
+    if (repo) onhover?.(repo, oid, (details) => {
+      if (request === hoverRequest && graph.rowsRepo === repo) {
+        hoverDetails = { repo, oid: details.oid, trailers: details.trailers };
+      }
+    });
   }
 
   async function pick(repo: RepoId, oid: string | null) {
@@ -915,6 +923,9 @@
 
         {#each visible as item (item.entry.commit.oid)}
           {@const look = looks.get(item.entry.commit.oid)}
+          {@const trailers = hoverDetails && hoverDetails.repo === graph.rowsRepo && hoverDetails.oid === item.entry.commit.oid
+            ? hoverDetails.trailers
+            : undefined}
           <div
             class="row"
             data-ref={ondrop ? `commit:${item.entry.commit.oid}` : undefined}
@@ -941,6 +952,7 @@
               {timeFormat}
               author={item.author}
               avatar={item.avatar}
+              {trailers}
               {now}
               {clipX}
               onrefmenu={onrefcontext && ((label, event) => refMenu(label, item.entry.commit.oid, event))}

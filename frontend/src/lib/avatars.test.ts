@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authorsOf, initialsOf, mergeRows } from "./avatars";
+import { authorsOf, avatarTooltip, initialsOf, mergeRows } from "./avatars";
 import type { AvatarRow } from "$lib/ipc";
 
 const row = (email: string, image: string | null = null): AvatarRow => ({
@@ -7,6 +7,44 @@ const row = (email: string, image: string | null = null): AvatarRow => ({
   initials: "XX",
   color: "#123456",
   image,
+});
+
+describe("avatarTooltip", () => {
+  it("shows the author name and email together", () => {
+    expect(avatarTooltip("Jane Doe", "jane@example.com")).toBe("Jane Doe <jane@example.com>");
+  });
+
+  it("shows a different committer on the next line", () => {
+    expect(avatarTooltip("Jane Doe", "jane@example.com", "René Smith <rene@example.com>")).toBe(
+      "Jane Doe <jane@example.com>\nCommitted by René Smith <rene@example.com>",
+    );
+  });
+
+  it("uses the fields that are present", () => {
+    expect(avatarTooltip("Jane Doe", "")).toBe("Jane Doe");
+    expect(avatarTooltip("", "jane@example.com")).toBe("jane@example.com");
+    expect(avatarTooltip("", "", "René Smith")).toBe("Committed by René Smith");
+  });
+
+  it("shows each distinct co-author on a separate line", () => {
+    const trailers = [
+      { key: "Co-authored-by", value: " Jane Doe <JANE@example.com> " },
+      { key: "Co-authored-by", value: "René Smith <rene@example.com>" },
+      { key: "Reviewed-by", value: "Reviewer <reviewer@example.com>" },
+      { key: "Co-authored-by", value: "Grace Hopper <grace@example.com>" },
+      { key: "CO-AUTHORED-BY", value: "Grace Hopper <GRACE@example.com>" },
+      { key: "co-authored-by", value: "Ada Lovelace <ada@example.com>" },
+      { key: "Co-authored-by", value: "  " },
+    ];
+    expect(avatarTooltip("Jane Doe", "jane@example.com", "René Smith <rene@example.com>", trailers)).toBe(
+      [
+        "Jane Doe <jane@example.com>",
+        "Committed by René Smith <rene@example.com>",
+        "Co-authored by Grace Hopper <grace@example.com>",
+        "Co-authored by Ada Lovelace <ada@example.com>",
+      ].join("\n"),
+    );
+  });
 });
 
 describe("authorsOf", () => {

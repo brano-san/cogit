@@ -8,9 +8,10 @@
     name: string;
     email: string;
     size?: number;
+    tooltip?: string;
   }
 
-  let { name, email, size = 16 }: Props = $props();
+  let { name, email, size = 16, tooltip }: Props = $props();
 
   const face = $derived(avatars.look(email));
   const letters = $derived(face?.initials || initialsOf(name, email));
@@ -22,7 +23,7 @@
     style:--avatar-size="{size}px"
     style:background={face?.image ? "transparent" : (face?.color ?? "var(--surface-raised)")}
     style:color={face?.color ? "var(--fg-on-accent-solid)" : "var(--text-secondary)"}
-    title={email}
+    data-tip={tooltip ?? email}
   >
     {#if face?.image}
       <img src={face.image} alt="" width={size} height={size} />

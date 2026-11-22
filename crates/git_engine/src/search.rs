@@ -175,6 +175,7 @@ impl GraphCommit {
             summary: self.text.summary,
             author_name: self.text.author_name.to_string(),
             author_email: self.text.author_email.to_string(),
+            committer_identity: self.text.committer_identity.as_deref().map(str::to_owned),
             timestamp: self.time,
             tz_offset_minutes: self.text.tz_offset_minutes,
         }

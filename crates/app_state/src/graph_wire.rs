@@ -4,11 +4,11 @@
 //!
 //! | what | type | count |
 //! |---|---|---|
-//! | header: version, start, rows, total, complete, segments, text bytes, oid bytes | u32 | 8 |
+//! | header: version, start, rows, total, window flags (complete, has committer), segments, text bytes, oid bytes | u32 | 8 |
 //! | commit time, Unix seconds | f64 | rows |
 //! | first segment of each row, then the end | u32 | rows + 1 |
 //! | first long link of each row, then the end | u32 | rows + 1 |
-//! | text offsets: summary, author name, author email of each row, then the end | u32 | 3 × rows + 1 |
+//! | text offsets: summary, author name, author email and optional committer identity of each row, then the end | u32 | 3 or 4 × rows + 1 |
 //! | time zone offset, minutes | i32 | rows |
 //! | node lane, row width | u16 | rows each |
 //! | segment from, segment to | u16 | segments each |
@@ -23,15 +23,15 @@ use crate::GraphWindow;
 use git_engine::CommitRow;
 use graph_engine::{GraphRow, NodeKind, Span};
 
-pub const WIRE_VERSION: u32 = 2;
+pub const WIRE_VERSION: u32 = 3;
 
 /// What the wire takes of a commit: a row a window carries, or a laid-out node with its
 /// text, written straight from the cache without a `CommitRow` in between.
 pub(crate) trait WireCommit {
     fn timestamp(&self) -> i64;
     fn tz_offset_minutes(&self) -> i32;
-    /// Summary, author name, author email.
-    fn texts(&self) -> [&str; 3];
+    /// Summary, author name, author email, distinct committer identity.
+    fn texts(&self) -> [&str; 4];
     fn oid_len(&self) -> usize;
     /// The id in hex, `oid_bytes` long: padded with `0` when shorter.
     fn write_oid(&self, out: &mut Vec<u8>, oid_bytes: usize);
@@ -46,8 +46,13 @@ impl WireCommit for CommitRow {
         self.tz_offset_minutes
     }
 
-    fn texts(&self) -> [&str; 3] {
-        [&self.summary, &self.author_name, &self.author_email]
+    fn texts(&self) -> [&str; 4] {
+        [
+            &self.summary,
+            &self.author_name,
+            &self.author_email,
+            self.committer_identity.as_deref().unwrap_or_default(),
+        ]
     }
 
     fn oid_len(&self) -> usize {
@@ -85,20 +90,22 @@ pub(crate) fn encode_rows<C: WireCommit>(
 ) -> Vec<u8> {
     let segments: usize = rows.iter().map(|row| row.segments.len()).sum();
     let oid_bytes = commits.first().map_or(0, WireCommit::oid_len);
+    let has_committer = commits.iter().any(|c| !c.texts()[3].is_empty());
+    let fields = if has_committer { 4 } else { 3 };
     let text: usize = commits
         .iter()
         .map(|c| c.texts().iter().map(|t| t.len()).sum::<usize>())
         .sum();
 
     let mut out = Vec::with_capacity(
-        32 + rows.len() * (8 + 4 + 12 + 4 + 4 + 2 + oid_bytes) + segments * 6 + text + 8,
+        32 + rows.len() * (8 + 4 + fields * 4 + 4 + 4 + 2 + oid_bytes) + segments * 6 + text + 8,
     );
     for value in [
         WIRE_VERSION,
         start,
         count(rows.len()),
         total,
-        u32::from(complete),
+        u32::from(complete) | (u32::from(has_committer) << 1),
         count(segments),
         count(text),
         count(oid_bytes),
@@ -125,7 +132,7 @@ pub(crate) fn encode_rows<C: WireCommit>(
     out.extend_from_slice(&count(first_link).to_le_bytes());
     let mut offset = 0;
     for commit in commits {
-        for field in commit.texts() {
+        for field in commit.texts().into_iter().take(fields) {
             out.extend_from_slice(&count(offset).to_le_bytes());
             offset += field.len();
         }

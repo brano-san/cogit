@@ -4703,7 +4703,7 @@ ${event.error}`,
               ondrop={onRefDrop}
               oncontext={(oid, x, y) => void commitContext(oid, x, y)}
               ongroupcontext={(oids, x, y) => void selectionActions?.commitsContext(oids, x, y)}
-              onhover={(id, oid) => refActions?.prefetch(id, oid)}
+              onhover={(id, oid, ondetails) => refActions?.prefetch(id, oid, ondetails)}
               {banner}
               busy={repository.busy}
               onbanneraction={runBannerAction}
