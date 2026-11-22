@@ -5,7 +5,7 @@ use std::io::{BufRead, Read as _, Write};
 use std::process::Command;
 use std::sync::OnceLock;
 
-const BOOTSTRAP: &str = include_str!("ssh_bootstrap.sh");
+const BOOTSTRAP: &str = concat!("{\n", include_str!("ssh_bootstrap.sh"), "}\n");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 static DIGEST: OnceLock<String> = OnceLock::new();
 
@@ -59,9 +59,10 @@ pub(crate) fn command(
     }
     let checksum = DIGEST.get_or_init(|| digest(bytes));
     let length = bytes.len();
-    command.arg("--").arg(&host.hostname).arg(format!(
-        "sh -c '{BOOTSTRAP}' cogit-agent {VERSION} {checksum} {length}"
-    ));
+    command
+        .arg("--")
+        .arg(&host.hostname)
+        .arg(format!("exec /bin/sh -s -- {VERSION} {checksum} {length}"));
     Ok(command)
 }
 
@@ -81,6 +82,8 @@ pub(crate) fn bootstrap(
     input: &mut impl Write,
     bytes: &[u8],
 ) -> Result<(), GitError> {
+    input.write_all(BOOTSTRAP.as_bytes())?;
+    input.flush()?;
     let platform = line(output)?;
     if platform != "Linux x86_64" {
         return Err(GitError::Unavailable(format!(
@@ -107,6 +110,19 @@ mod tests {
     use std::io::Cursor;
 
     #[test]
+    fn the_remote_command_has_no_newlines_or_single_quotes() {
+        let host = SshHost {
+            user: None,
+            hostname: "fixture.invalid".into(),
+            port: None,
+        };
+        let command = command(&host, b"agent", None, true, &mut None).unwrap();
+        let remote = command.get_args().last().unwrap().to_str().unwrap();
+        assert!(!remote.contains(['\r', '\n', '\'']), "{remote:?}");
+        assert!(remote.starts_with("exec /bin/sh -s -- "), "{remote:?}");
+    }
+
+    #[test]
     fn an_unsupported_server_never_receives_an_agent() {
         for platform in [
             "Linux aarch64",
@@ -119,7 +135,7 @@ mod tests {
             let failure =
                 bootstrap(&mut Cursor::new(response), &mut received, b"agent").unwrap_err();
             assert!(failure.to_string().contains("Linux x86_64"));
-            assert!(received.is_empty());
+            assert_eq!(received, BOOTSTRAP.as_bytes());
         }
     }
 
@@ -128,7 +144,7 @@ mod tests {
         let mut received = Vec::new();
         let mut response = Cursor::new(b"Linux x86_64\nready\nprotocol");
         bootstrap(&mut response, &mut received, b"agent").unwrap();
-        assert!(received.is_empty());
+        assert_eq!(received, BOOTSTRAP.as_bytes());
         assert_eq!(response.fill_buf().unwrap(), b"protocol");
     }
 
@@ -141,7 +157,10 @@ mod tests {
             b"agent",
         )
         .unwrap();
-        assert_eq!(received, b"agent");
+        assert_eq!(
+            received.strip_prefix(BOOTSTRAP.as_bytes()),
+            Some(b"agent".as_slice())
+        );
         assert!(
             bootstrap(
                 &mut Cursor::new(b"Linux x86_64\nupload\n"),
@@ -159,20 +178,20 @@ mod tests {
     #[cfg(target_os = "linux")]
     #[test]
     fn the_install_script_checks_the_cached_and_incoming_binary() {
+        use std::io::{BufReader, Read as _};
         use std::process::Stdio;
         let home = tempfile::tempdir().unwrap();
-        let bytes = b"printf launched";
+        let bytes = b"#!/bin/sh\nprintf launched\ncat\n";
         let installed = home
             .path()
             .join(".cache/cogit/agent")
             .join(VERSION)
             .join("cogit-agent");
         let run = |payload: &[u8]| {
-            let mut child = Command::new("sh")
+            let mut child = Command::new("/bin/sh")
                 .args([
-                    "-c",
-                    &format!("uname() {{ echo Linux x86_64; }}\n{BOOTSTRAP}"),
-                    "test",
+                    "-s",
+                    "--",
                     VERSION,
                     &digest(bytes),
                     &bytes.len().to_string(),
@@ -183,23 +202,42 @@ mod tests {
                 .stderr(Stdio::piped())
                 .spawn()
                 .unwrap();
-            child.stdin.take().unwrap().write_all(payload).unwrap();
-            child.wait_with_output().unwrap()
+            let mut input = child.stdin.take().unwrap();
+            let mut output = BufReader::new(child.stdout.take().unwrap());
+            input
+                .write_all(b"uname() { echo Linux x86_64; }\n")
+                .unwrap();
+            let setup = bootstrap(&mut output, &mut input, payload);
+            if setup.is_ok() {
+                input.write_all(b"protocol").unwrap();
+            }
+            drop(input);
+            let mut session = Vec::new();
+            output.read_to_end(&mut session).unwrap();
+            (setup, session, child.wait_with_output().unwrap())
         };
-        let first = run(bytes);
+        let (setup, first, installed_process) = run(bytes);
+        setup.unwrap();
         assert!(
-            first.status.success(),
+            installed_process.status.success(),
             "{}",
-            String::from_utf8_lossy(&first.stderr)
+            String::from_utf8_lossy(&installed_process.stderr)
         );
-        assert_eq!(first.stdout, b"Linux x86_64\nupload\nready\nlaunched");
+        assert_eq!(first, b"launchedprotocol");
         assert_eq!(std::fs::read(&installed).unwrap(), bytes);
-        assert_eq!(run(&[]).stdout, b"Linux x86_64\nready\nlaunched");
+        let (setup, cached, _) = run(bytes);
+        setup.unwrap();
+        assert_eq!(cached, first);
         std::fs::write(&installed, b"bad cache").unwrap();
-        let rejected = run(b"bad upload");
+        let corrupt = vec![b'x'; bytes.len()];
+        let (setup, _, rejected) = run(&corrupt);
+        assert!(setup.is_err());
         assert!(!rejected.status.success());
         assert!(String::from_utf8_lossy(&rejected.stderr).contains("SHA-256"));
         assert_eq!(std::fs::read(&installed).unwrap(), b"bad cache");
-        assert_eq!(run(bytes).stdout, first.stdout);
+        let (setup, repaired, _) = run(bytes);
+        setup.unwrap();
+        assert_eq!(repaired, first);
+        assert_eq!(std::fs::read(&installed).unwrap(), bytes);
     }
 }

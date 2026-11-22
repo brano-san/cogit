@@ -42,6 +42,9 @@ fn fake_ssh(args: &[String]) -> ExitCode {
         assert!(args.windows(2).any(|pair| pair == sequence), "{args:?}");
     }
     assert!(args.iter().any(|arg| arg == "-T"));
+    let remote_command = args.last().unwrap();
+    assert!(remote_command.starts_with("exec /bin/sh -s -- "));
+    assert!(!remote_command.contains(['\r', '\n', '\'']));
     let shell = if cfg!(windows) {
         app_state::terminal::bash_of(app_state::desktop::find_git_bash().as_deref())
     } else {
@@ -61,7 +64,7 @@ fn fake_ssh(args: &[String]) -> ExitCode {
             r#"export HOME="$(pwd)" PATH="$(pwd)/bin:/usr/bin:$PATH"; exec sh -c "$1""#,
             "ssh",
         ])
-        .arg(args.last().unwrap())
+        .arg(remote_command)
         .status()
         .unwrap();
     ExitCode::from(done.code().and_then(|c| u8::try_from(c).ok()).unwrap_or(1))
@@ -255,6 +258,7 @@ fn ssh_repositories() {
                 amend: false,
                 signoff: false,
                 no_verify: false,
+                strip_comments: false,
             },
         )
         .unwrap();
