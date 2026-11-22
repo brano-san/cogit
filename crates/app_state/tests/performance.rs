@@ -193,30 +193,44 @@ fn fifty_thousand_commits_meet_the_product_promise() {
 /// The walk takes parents and dates from the commit-graph file when there is one (R-302).
 #[test]
 fn fifty_thousand_commits_with_a_commit_graph_are_laid_out_in_the_budget() {
+    let creating = Instant::now();
     let f = test_fixtures::stress(50_000).unwrap();
+    let fixture = creating.elapsed();
+    let writing = Instant::now();
+    f.git(&["config", "core.commitGraph", "true"]).unwrap();
     f.git(&["commit-graph", "write", "--reachable"]).unwrap();
+    let commit_graph = writing.elapsed();
+    let opening = Instant::now();
     let state = AppState::new();
     let repo = state.open_repository(f.path()).unwrap().repo;
+    let open = opening.elapsed();
 
     let generation = state.begin_graph();
+    let mut query = CommitQuery::default();
+    query.view.smart_order = true;
     let started = Instant::now();
     let mut rows = 0;
+    let mut first = None;
     state
-        .build_graph(
-            repo,
-            &CommitQuery::default(),
-            generation,
-            DEFAULT_CHUNK_SIZE,
-            |p| {
-                rows = p.total;
-                true
-            },
-        )
+        .build_graph(repo, &query, generation, DEFAULT_CHUNK_SIZE, |p| {
+            rows = p.total;
+            if first.is_none() && p.total >= 128 {
+                let laid = started.elapsed();
+                let window = Instant::now();
+                let shown = state.graph_window(repo, generation, 0, 128).unwrap();
+                first = Some((p.total, laid, window.elapsed()));
+                assert_eq!(shown.commits[0].summary, "commit 49999");
+            }
+            true
+        })
         .unwrap();
-    let walked = started.elapsed();
-    let window = Instant::now();
-    let shown = state.graph_window(repo, generation, 0, 128).unwrap();
-    let first_window = window.elapsed();
+    let elapsed = started.elapsed();
+    let (first_rows, first_layout, first_window) = first.unwrap();
+    let walked = elapsed.saturating_sub(first_window);
+    println!("50k setup: fixture {fixture:?}, commit-graph write {commit_graph:?}, open {open:?}");
+    println!(
+        "50k layout: first {first_layout:?} ({first_rows} rows), window {first_window:?}, full {walked:?}"
+    );
     // Far down, straight away: what a jump costs before the texts are read ahead (R-303).
     let cold = Instant::now();
     state.graph_window(repo, generation, 40_000, 128).unwrap();
@@ -234,12 +248,17 @@ fn fifty_thousand_commits_with_a_commit_graph_are_laid_out_in_the_budget() {
     let warm = warm.elapsed();
 
     assert_eq!(rows, 50_000);
-    assert_eq!(shown.commits[0].summary, "commit 49999");
+    assert!(first_rows < rows);
     assert_eq!(state.graph_texts_read(repo), 50_000);
     report(
         "50k + commit-graph: laid out",
         walked,
         Duration::from_millis(500),
+    );
+    report(
+        "50k + commit-graph: first screen",
+        first_layout + first_window,
+        Duration::from_millis(300),
     );
     report(
         "50k + commit-graph: first window",
