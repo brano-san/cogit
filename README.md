@@ -22,9 +22,6 @@
   <img src="https://img.shields.io/badge/Git-2.45%2B-brightgreen?logo=git&logoColor=white" alt="Git 2.45+">
 </p>
 
-> **Status: early development.** The application shell runs; Git functionality is being
-> built module by module.
-
 ## Supported platforms
 
 | Platform | Status | Needs |
@@ -51,20 +48,20 @@ Three commitments shape every design decision:
 - **No masked errors.** When a Git command fails you see the command, the exit code and
   the complete `stdout` and `stderr` — including the pull-request link and the
   pre-receive hook message.
-- **Nothing destructive without a way back.** Every history-rewriting or working-tree
-  operation is recorded before it runs, and can be undone.
+- **Recovery for destructive operations.** The operation journal records changes and
+  offers Undo for operations with a supported recovery path.
 
 ## Architecture in one paragraph
 
-Business logic lives in `crates/` as six independent libraries that know nothing about
-Tauri, so they test in seconds without a GUI. `src-tauri/` is a thin routing layer.
+Business logic lives in `crates/`, where libraries can be tested without Tauri or a GUI.
+`src-tauri/` is a thin routing layer.
 `frontend/` is a Svelte 5 SPA. Reads use `gix`; writes go through the system `git`, which
 already handles hooks, credentials and merge strategies correctly.
 
 
 ## Building
 
-Requires Rust 1.99+, Node 22.12+, Git 2.45+, and a C++ toolchain
+Requires Rust 1.99+, Node 24+, Git 2.45+, and a C++ toolchain
 (MSVC on Windows, Xcode Command Line Tools on macOS; `scripts/wsl/setup-linux.sh` installs everything on Ubuntu 22.04+).
 
 ```bash
