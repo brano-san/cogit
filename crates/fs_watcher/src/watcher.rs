@@ -101,6 +101,7 @@ impl RepoWatcher {
     ) -> Result<Self, WatchError> {
         let paused = Arc::new(AtomicBool::new(false));
         let alive = Arc::new(AtomicBool::new(true));
+        let canonical_git_dir = canonical_watch_path(git_dir);
         let route = Route {
             root: root.to_path_buf(),
             git_dir: git_dir.to_path_buf(),
@@ -108,6 +109,13 @@ impl RepoWatcher {
             paused: Arc::clone(&paused),
             silence: silence.clone(),
             alive: Arc::clone(&alive),
+            canonical_root: canonical_watch_path(root),
+            canonical_common_dir: if common_dir == git_dir {
+                canonical_git_dir.clone()
+            } else {
+                canonical_watch_path(common_dir)
+            },
+            canonical_git_dir,
         };
 
         let (tx, rx) = mpsc::channel::<notify::Result<Event>>();
@@ -123,21 +131,14 @@ impl RepoWatcher {
             path: root.display().to_string(),
             source,
         })?;
-        std::thread::Builder::new()
-            .name("fs-watcher-debounce".into())
-            .spawn(move || {
-                debounce(&rx, &route, Duration::from_millis(DEBOUNCE_MS), &on_change);
-            })
-            .map_err(|error| WatchError::Start {
-                path: root.display().to_string(),
-                source: notify::Error::io(error),
-            })?;
-
         // The INV-06 noise is filtered when routing, not by narrowing the watch.
         //
         // A root that cannot be watched (the inotify limit, a folder nobody may read) must
         // not take the git directory down with it: refs, HEAD and the index are still heard.
-        let degraded = watch_root(&mut debouncer, root).err().map(|error| {
+        let watched_root = route.watched_root();
+        let git_dir = route.canonical_git_dir.as_deref().unwrap_or(git_dir);
+        let common_dir = route.canonical_common_dir.as_deref().unwrap_or(common_dir);
+        let degraded = watch_root(&mut debouncer, watched_root).err().map(|error| {
             tracing::warn!(%error, root = %root.display(), "the working tree is not watched");
             error.to_string()
         });
@@ -145,7 +146,7 @@ impl RepoWatcher {
         // and a linked worktree's are elsewhere. A watch of its own inside the root would
         // hold a folder open there, and Windows refuses to rename or move a folder with a
         // handle open anywhere below it (R-438). Without the root watch they are needed.
-        let outside = |path: &Path| degraded.is_some() || !path.starts_with(root);
+        let outside = |path: &Path| degraded.is_some() || !path.starts_with(watched_root);
         if outside(git_dir) {
             watch(&mut debouncer, git_dir, RecursiveMode::NonRecursive)?;
         }
@@ -176,6 +177,16 @@ impl RepoWatcher {
         {
             watch(&mut debouncer, &path, RecursiveMode::Recursive)?;
         }
+
+        std::thread::Builder::new()
+            .name("fs-watcher-debounce".into())
+            .spawn(move || {
+                debounce(&rx, &route, Duration::from_millis(DEBOUNCE_MS), &on_change);
+            })
+            .map_err(|error| WatchError::Start {
+                path: root.display().to_string(),
+                source: notify::Error::io(error),
+            })?;
 
         Ok(Self {
             paused,
@@ -261,7 +272,7 @@ fn debounce(
             };
         }
         // Windows says nothing when it drops the watch of a folder that went away.
-        if removed && route.alive.load(Ordering::Relaxed) && !route.root.is_dir() {
+        if removed && route.alive.load(Ordering::Relaxed) && !route.watched_root().is_dir() {
             route.alive.store(false, Ordering::Relaxed);
             everything(&mut seen);
         }
@@ -320,9 +331,16 @@ struct Route {
     paused: Arc<AtomicBool>,
     silence: Silence,
     alive: Arc<AtomicBool>,
+    canonical_root: Option<PathBuf>,
+    canonical_git_dir: Option<PathBuf>,
+    canonical_common_dir: Option<PathBuf>,
 }
 
 impl Route {
+    fn watched_root(&self) -> &Path {
+        self.canonical_root.as_deref().unwrap_or(&self.root)
+    }
+
     fn is_quiet(&self) -> bool {
         self.silence.is_quiet()
     }
@@ -335,15 +353,20 @@ impl Route {
     /// `dtv_device` came from (problem 5). Noise is dropped as events arrive, so a window
     /// keeps at most one entry per kind, however large the burst.
     fn absorb(&self, received: notify::Result<Event>, seen: &mut Vec<(ChangeKind, PathBuf)>) {
+        if !self.alive.load(Ordering::Relaxed) {
+            return;
+        }
         if let Ok(event) = &received
             && matches!(
                 event.kind,
                 EventKind::Remove(_) | EventKind::Modify(notify::event::ModifyKind::Name(_))
             )
-            && event
-                .paths
-                .iter()
-                .any(|path| *path == self.root || *path == self.git_dir)
+            && event.paths.iter().any(|path| {
+                path == &self.root
+                    || Some(path) == self.canonical_root.as_ref()
+                    || path == &self.git_dir
+                    || Some(path) == self.canonical_git_dir.as_ref()
+            })
         {
             self.alive.store(false, Ordering::Relaxed);
             return everything(seen);
@@ -365,17 +388,16 @@ impl Route {
             }
         };
         for path in event.paths {
-            let Some(change) = self.classify(&path) else {
+            let Some((kind, requested_root, relative)) = self.classify(&path) else {
                 continue;
             };
             // The file is also a working-tree change; this says the authors have to be
             // read again as well.
-            let mailmap = (change.kind == ChangeKind::WorkingTree
-                && path.strip_prefix(&self.root).ok() == Some(Path::new(".mailmap")))
-            .then_some(ChangeKind::Mailmap);
-            for kind in std::iter::once(change.kind).chain(mailmap) {
+            let mailmap = (kind == ChangeKind::WorkingTree && relative == Path::new(".mailmap"))
+                .then_some(ChangeKind::Mailmap);
+            for kind in std::iter::once(kind).chain(mailmap) {
                 if !seen.iter().any(|(known, _)| *known == kind) {
-                    seen.push((kind, path.clone()));
+                    seen.push((kind, requested_root.join(relative)));
                 }
             }
         }
@@ -395,12 +417,12 @@ impl Route {
             .collect()
     }
 
-    fn classify(&self, path: &Path) -> Option<RepoChanged> {
+    fn classify<'a>(&'a self, path: &'a Path) -> Option<(ChangeKind, &'a Path, &'a Path)> {
         // The private directory first: in a linked worktree it lies inside the common one.
-        let private = path.strip_prefix(&self.git_dir).ok();
+        let private = watch_relative(path, &self.git_dir, self.canonical_git_dir.as_deref());
         let shared = private
             .is_none()
-            .then(|| path.strip_prefix(&self.common_dir).ok());
+            .then(|| watch_relative(path, &self.common_dir, self.canonical_common_dir.as_deref()));
         let relative = if let Some(inside) = private.or(shared.flatten()) {
             // Component-wise, before any string is made: `objects` is most of the events.
             if inside.starts_with("objects") {
@@ -412,18 +434,47 @@ impl Route {
             if private.is_none() && !is_shared(&relative) {
                 return None;
             }
-            return classify_git_path(&relative).map(|kind| RepoChanged { kind });
+            let requested_root = if private.is_some() {
+                &self.git_dir
+            } else {
+                &self.common_dir
+            };
+            return classify_git_path(&relative)
+                .map(|kind| (kind, requested_root.as_path(), inside));
         } else {
-            path.strip_prefix(&self.root).ok()?
+            watch_relative(path, &self.root, self.canonical_root.as_deref())?
         };
 
         if is_excluded(relative) || is_nested_git_noise(relative) {
             return None;
         }
-        Some(RepoChanged {
-            kind: ChangeKind::WorkingTree,
-        })
+        Some((ChangeKind::WorkingTree, &self.root, relative))
     }
+}
+
+#[cfg(unix)]
+fn canonical_watch_path(path: &Path) -> Option<PathBuf> {
+    path.canonicalize()
+        .inspect_err(
+            |error| tracing::warn!(%error, path = %path.display(), "could not resolve watch path"),
+        )
+        .ok()
+        .filter(|resolved| resolved.as_path() != path)
+}
+
+#[cfg(not(unix))]
+fn canonical_watch_path(_: &Path) -> Option<PathBuf> {
+    None
+}
+
+fn watch_relative<'a>(
+    path: &'a Path,
+    requested: &Path,
+    canonical: Option<&Path>,
+) -> Option<&'a Path> {
+    canonical
+        .and_then(|root| path.strip_prefix(root).ok())
+        .or_else(|| path.strip_prefix(requested).ok())
 }
 
 /// What every worktree of a repository shares, at the top of the common folder.
@@ -491,7 +542,46 @@ mod tests {
             paused: Arc::new(AtomicBool::new(false)),
             silence: Silence::default(),
             alive: Arc::new(AtomicBool::new(true)),
+            canonical_root: None,
+            canonical_git_dir: None,
+            canonical_common_dir: None,
         }
+    }
+
+    #[test]
+    fn canonical_events_are_routed_through_each_requested_directory() {
+        let mut route = route();
+        route.git_dir = PathBuf::from("C:/metadata/private");
+        route.common_dir = PathBuf::from("C:/metadata/shared");
+        let root = PathBuf::from("C:/volumes/worktree");
+        let common = PathBuf::from("C:/volumes/metadata");
+        let private = common.join("worktrees/wt");
+        route.canonical_root = Some(root.clone());
+        route.canonical_git_dir = Some(private.clone());
+        route.canonical_common_dir = Some(common.clone());
+
+        let canonical = [
+            root.join(".mailmap"),
+            private.join("HEAD"),
+            common.join("refs/heads/main"),
+            common.join("index"),
+            root.join("target/noise"),
+            root.with_extension("other").join("out-of-tree"),
+        ];
+        let mut seen = Vec::new();
+        for path in canonical {
+            route.absorb(event(EventKind::Any, path), &mut seen);
+        }
+
+        assert_eq!(
+            seen,
+            [
+                (ChangeKind::WorkingTree, route.root.join(".mailmap")),
+                (ChangeKind::Mailmap, route.root.join(".mailmap")),
+                (ChangeKind::Head, route.git_dir.join("HEAD")),
+                (ChangeKind::Refs, route.common_dir.join("refs/heads/main")),
+            ]
+        );
     }
 
     #[test]
@@ -654,6 +744,31 @@ mod tests {
     }
 
     #[test]
+    fn a_removed_root_stops_reporting_changes_to_its_replacement() {
+        let mut route = route();
+        let canonical = PathBuf::from("C:/volumes/repo");
+        route.canonical_git_dir = Some(canonical.join(".git"));
+        route.canonical_root = Some(canonical.clone());
+        let mut seen = Vec::new();
+        route.absorb(
+            event(
+                EventKind::Remove(notify::event::RemoveKind::Folder),
+                canonical.clone(),
+            ),
+            &mut seen,
+        );
+        assert!(!route.alive.load(Ordering::Relaxed));
+        seen.clear();
+
+        route.absorb(
+            event(EventKind::Any, canonical.join(".git/HEAD")),
+            &mut seen,
+        );
+
+        assert!(seen.is_empty(), "{seen:?}");
+    }
+
+    #[test]
     fn a_lost_queue_marks_everything_as_changed() {
         let route = route();
         let overflow = Event::new(EventKind::Other).set_flag(notify::event::Flag::Rescan);
@@ -712,6 +827,9 @@ mod tests {
             paused: Arc::new(AtomicBool::new(false)),
             silence: Silence::default(),
             alive: Arc::new(AtomicBool::new(true)),
+            canonical_root: None,
+            canonical_git_dir: None,
+            canonical_common_dir: None,
         };
 
         let main = [

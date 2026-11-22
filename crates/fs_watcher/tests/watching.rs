@@ -21,6 +21,10 @@ struct Harness {
 fn start() -> Harness {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path().to_path_buf();
+    start_in(dir, root)
+}
+
+fn start_in(dir: tempfile::TempDir, root: std::path::PathBuf) -> Harness {
     let git_dir = root.join(".git");
     std::fs::create_dir_all(git_dir.join("refs/heads")).unwrap();
     std::fs::create_dir_all(git_dir.join("objects")).unwrap();
@@ -81,6 +85,27 @@ fn a_change_to_head_arrives_as_a_head_event() {
         seen.iter().any(|c| c.kind == ChangeKind::Head),
         "got {seen:?}"
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_repository_opened_through_a_symlink_hears_edits_to_the_target() {
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("target-repo");
+    let link = dir.path().join("linked-repo");
+    std::fs::create_dir(&target).unwrap();
+    std::os::unix::fs::symlink(&target, &link).unwrap();
+    let harness = start_in(dir, link);
+
+    std::fs::write(target.join("file.txt"), "edited\n").unwrap();
+    std::fs::write(target.join(".git/HEAD"), "ref: refs/heads/other\n").unwrap();
+
+    let seen = collect(&harness);
+    assert!(
+        seen.iter().any(|c| c.kind == ChangeKind::WorkingTree),
+        "{seen:?}"
+    );
+    assert!(seen.iter().any(|c| c.kind == ChangeKind::Head), "{seen:?}");
 }
 
 // A lock left while Cogit is open showed no banner, and the banner of one deleted by hand

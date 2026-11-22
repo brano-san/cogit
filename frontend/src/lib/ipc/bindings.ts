@@ -634,10 +634,10 @@ export const commands = {
 	desktopInfo: () => typedError<DesktopInfo, GitError>(__TAURI_INVOKE("desktop_info")),
 	installCommandLineTool: () => typedError<null, GitError>(__TAURI_INVOKE("install_command_line_tool")),
 	/**
-	 *  The frontend's theme is dark or light, on its `bg.app` background: the menus, dialogs
+	 *  The frontend's theme is dark, light or System, on its `bg.app` background: the menus, dialogs
 	 *  and window backgrounds follow it.
 	 */
-	setNativeTheme: (dark: boolean, background: string) => __TAURI_INVOKE<void>("set_native_theme", { dark, background }),
+	setNativeTheme: (dark: boolean | null, background: string) => __TAURI_INVOKE<void>("set_native_theme", { dark, background }),
 	/**  The desktop's UI font and which of `families` are installed (`fc-list` on Linux). */
 	systemFont: (families: string[]) => typedError<SystemFont, GitError>(__TAURI_INVOKE("system_font", { families })),
 	/**  Every installed font family, sorted, for Preferences ▸ Font; empty on macOS. */
@@ -852,6 +852,15 @@ export const commands = {
 	runHook: (repo: RepoId, name: string) => typedError<HookRun, GitError>(__TAURI_INVOKE("run_hook", { repo, name })),
 	/**  Captured: a cancellable queue operation, like a hook's dry run. Detached: no queue turn. */
 	runUserCommand: (repo: RepoId, request: ToolRequest) => typedError<ToolRun, GitError>(__TAURI_INVOKE("run_user_command", { repo, request })),
+	previewUserCommand: (repo: RepoId, request: ToolRequest) => typedError<ToolPreview, GitError>(__TAURI_INVOKE("preview_user_command", { repo, request })),
+	repositoryTools: (repo: RepoId) => typedError<{
+	hash: string,
+	commands: ToolDefinition[],
+	trusted: boolean,
+} | null, GitError>(__TAURI_INVOKE("repository_tools", { repo })),
+	trustRepositoryTools: (repo: RepoId, hash: string) => typedError<null, GitError>(__TAURI_INVOKE("trust_repository_tools", { repo, hash })),
+	importToolCommands: (path: string) => typedError<ToolDefinition[], GitError>(__TAURI_INVOKE("import_tool_commands", { path })),
+	exportToolCommands: (path: string, commands: ToolDefinition[]) => typedError<null, GitError>(__TAURI_INVOKE("export_tool_commands", { path, commands })),
 	rollbackTo: (repo: RepoId, rev: string, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("rollback_to", { repo, rev, paths })),
 	isPublished: (repo: RepoId, rev: string) => typedError<boolean, GitError>(__TAURI_INVOKE("is_published", { repo, rev })),
 	/**
@@ -1364,6 +1373,7 @@ export type CommitRequest = {
 	message: string,
 	amend: boolean,
 	noVerify: boolean,
+	stripComments?: boolean,
 	signoff?: boolean,
 	/**  Empty means everything staged; a list narrows the commit to those paths (T6.8). */
 	only?: string[],
@@ -3014,6 +3024,11 @@ export type RepoWritten = {
 	repo: RepoId,
 };
 
+export type RepositoryTool = {
+	hash: string,
+	index: number,
+};
+
 export type RerereStatus = {
 	enabled: boolean,
 	/**  Conflicted paths rerere resolved from a recorded resolution. */
@@ -3511,6 +3526,38 @@ export type ToolContext = {
 	file: string | null,
 	commit: string | null,
 	branch: string | null,
+	files?: string[],
+	line?: number | null,
+};
+
+export type ToolDefinition = {
+	id?: string,
+	name?: string,
+	program?: string,
+	args?: string,
+	cwd?: string,
+	places?: string[],
+	detached?: boolean,
+	confirm?: boolean,
+	refresh?: boolean,
+	patterns?: string,
+	shortcut?: string,
+	output?: ToolOutput,
+	replaceMessage?: boolean,
+};
+
+export type ToolFile = {
+	hash: string,
+	commands: ToolDefinition[],
+	trusted: boolean,
+};
+
+export type ToolOutput = "panel" | "notification" | "message" | "silent";
+
+export type ToolPreview = {
+	line: string,
+	cwd: string,
+	confirmation: string,
 };
 
 export type ToolRequest = {
@@ -3521,12 +3568,17 @@ export type ToolRequest = {
 	/**  Started and left to run, output unseen (a GUI tool); else captured into the journal. */
 	detached: boolean,
 	context: ToolContext,
+	confirmation?: string | null,
+	confirm?: boolean,
+	source?: RepositoryTool | null,
+	output?: ToolOutput,
 };
 
 export type ToolRun = {
 	record: number,
 	/**  `None` when the user stopped it; a detached run that started is `0`. */
 	exitCode: number | null,
+	presentation: string | null,
 };
 
 export type Trailer = {
