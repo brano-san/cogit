@@ -446,6 +446,11 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::hooks::use_hooks_path,
             commands::hooks::run_hook,
             commands::tools::run_user_command,
+            commands::tools::preview_user_command,
+            commands::tools::repository_tools,
+            commands::tools::trust_repository_tools,
+            commands::tools::import_tool_commands,
+            commands::tools::export_tool_commands,
             commands::rollback_to,
             commands::is_published,
             commands::unpushed_commits,
@@ -624,7 +629,7 @@ pub fn run() -> anyhow::Result<()> {
             logging::install_panic_hook(&log_dir);
             // After the log exists: it records what GTK had before (R-777).
             #[cfg(target_os = "linux")]
-            native_theme::use_adwaita(gtk_theme.as_deref());
+            native_theme::initialize_gtk(gtk_theme.as_deref());
             app_state::legacy_dirs::log_outcomes(&migrated);
             webview_memory::spawn(std::process::id());
             use_git_from_settings(&config_dir);

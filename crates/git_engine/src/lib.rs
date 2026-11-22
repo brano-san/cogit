@@ -215,7 +215,7 @@ pub use submodules::{Submodule, SubmodulePointer, SubmoduleState, resolve_relati
 pub use subtrees::SubtreeOp;
 pub use tags::TagRequest;
 pub use text_search::TextFields;
-pub use user_command::UserCommand;
+pub use user_command::{ToolMetadata, UserCommand};
 pub use worktree::{WorktreeFiles, WorktreeView};
 pub use worktree_scan::{UnpushedInSubmodule, WorktreeScan, WorktreeSubmodules};
 pub use worktrees::{WorktreeBranch, WorktreeEntry, worktree_folder_problem};

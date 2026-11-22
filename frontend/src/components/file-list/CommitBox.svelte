@@ -14,7 +14,7 @@
   import { commitBox } from "$stores/commit-box.svelte";
   import { afterCommit, amends, commitBlocker, draftToSave, initialMessage, messageAfterCommit } from "$lib/commit-draft";
   import { messageSeed } from "$lib/commit-prefix";
-  import { SUBJECT_HARD, SUBJECT_SOFT, subjectOf, subjectState } from "$lib/commit-message";
+  import { SUBJECT_HARD, SUBJECT_SOFT, messageGuides, subjectLength, subjectState } from "$lib/commit-message";
   import { foreign, ON_MAC, primary } from "$lib/platform";
   import { spellField } from "$lib/spell-field.svelte";
 
@@ -97,8 +97,9 @@
     });
   }
 
-  const overflow = $derived(subjectState(message));
-  const length = $derived([...subjectOf(message)].length);
+  const guides = $derived(messageGuides(message, settings.current.messageGuides, settings.current.messageSubjectColumn, settings.current.messageBodyColumn));
+  const overflow = $derived(guides ? (guides.subjectOver ? "long" : "ok") : subjectState(message));
+  const length = $derived(subjectLength(message));
   const amending = $derived(amends({ amend, unborn }));
   // Ticked in a repository that had commits, it would sit there disabled and ticked.
   $effect(() => {
@@ -153,6 +154,7 @@
       focus: () => field?.focus(),
       generate,
       generating: () => ai.active,
+      draft: () => ({ key: draftKey, text: message, write: (text) => { ai.cancel(); message = text; } }),
       submit: async (withAmend) => {
         if (withAmend) {
           // Commit with Amend before the first commit: there is nothing to amend.
@@ -218,6 +220,8 @@
     aria-busy={ai.streaming}
     readonly={ai.streaming}
     spellcheck="false"
+    class:commit-message-guides={guides !== null}
+    style:background-position={guides?.position}
     {@attach spellField(() => message)}
   ></textarea>
 
@@ -231,7 +235,9 @@
   <div class="bar">
     <span
       class="count {overflow}"
-      title="Length of the subject line (the first line): {length} characters. Keep it under {SUBJECT_SOFT}; past {SUBJECT_HARD} tools cut it off."
+      title={guides
+         ? `Subject length: ${length} characters. Guide: ${settings.current.messageSubjectColumn}.`
+         : `Length of the subject line (the first line): ${length} characters. Keep it under ${SUBJECT_SOFT}; past ${SUBJECT_HARD} tools cut it off.`}
       >Subject <span class="tabular">{length}</span></span
     >
     <span class="option"
@@ -288,7 +294,7 @@
     resize: none;
     padding: var(--sp-3);
     line-height: var(--lh-code);
-    background: var(--surface-input);
+    background-color: var(--surface-input);
     color: var(--text-primary);
     border: 1px solid var(--field-border);
     border-radius: var(--r-sm);
@@ -360,7 +366,7 @@
     margin-left: auto;
     height: 22px;
     padding: 0 var(--sp-5);
-    background: var(--surface-input);
+    background-color: var(--surface-input);
     color: var(--text-primary);
     border: 1px solid var(--field-border);
     border-radius: var(--r-sm);

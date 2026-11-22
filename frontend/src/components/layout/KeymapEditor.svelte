@@ -1,16 +1,18 @@
 <script lang="ts">
   import Icon from "$components/common/Icon.svelte";
-  import { claimable, conflicts, effective, fixedMacCommand, prettyKeys, recordKeys, type Keymap } from "$lib/keymap";
+  import { canonicalShortcut, claimable, conflicts, effective, fixedMacCommand, prettyKeys, recordKeys, type Keymap } from "$lib/keymap";
+  import type { UserCommand } from "$lib/user-commands";
   import { ON_MAC } from "$lib/platform";
   import { captureKeys, type KeyBinding } from "$lib/ipc";
 
   interface Props {
     bindings: readonly KeyBinding[];
     overrides: Keymap;
+    toolCommands?: readonly UserCommand[];
     onchange: (next: Keymap) => void;
   }
 
-  let { bindings, overrides, onchange }: Props = $props();
+  let { bindings, overrides, toolCommands = [], onchange }: Props = $props();
 
   let capturing = $state<string | null>(null);
   /** Why the last key pressed while capturing was not taken. */
@@ -26,7 +28,17 @@
 
   const onMac = ON_MAC;
   const keys = $derived(effective(bindings, overrides));
-  const clashes = $derived(conflicts(bindings, overrides));
+  const clashes = $derived.by(() => {
+    const found = conflicts(bindings, overrides);
+    for (const binding of bindings) {
+      const bound = keys[binding.id];
+      if (!bound) continue;
+      const chord = canonicalShortcut(bound, onMac);
+      const tools = toolCommands.filter((tool) => tool.shortcut && canonicalShortcut(tool.shortcut, onMac) === chord);
+      if (tools.length) found[binding.id] = [...(found[binding.id] ?? []), ...tools.map((tool) => tool.name)];
+    }
+    return found;
+  });
   const shown = $derived(
     bindings.filter(
       (binding) =>

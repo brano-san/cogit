@@ -21,6 +21,8 @@
   interface Props {
     onstage: (keys: ReadonlySet<string>, reverse: boolean) => void;
     onblame: () => void;
+    onlinecontext?: (line: number, side: "left" | "right", event: MouseEvent) => void;
+    onlinepick?: (line: number | null) => void;
     onwhitespace: (mode: Whitespace) => void;
     onexpand: (whole: boolean) => void;
     onresolve: (side: ConflictSide) => void;
@@ -38,6 +40,8 @@
     oninitsubmodule,
     onstage,
     onblame,
+    onlinecontext,
+    onlinepick,
     onwhitespace,
     onexpand,
     onresolve,
@@ -132,6 +136,8 @@
     hunkButtons={false}
     onstage={(keys, reverse) => onstage(keys, reverse)}
     {onblame}
+    {onlinecontext}
+    {onlinepick}
     whitespace={diff.whitespace}
     onwhitespace={(mode) => onwhitespace(mode)}
     onexpand={(whole) => onexpand(whole)}

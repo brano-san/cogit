@@ -1232,6 +1232,26 @@ export async function runUserCommand(repo: RepoId, request: import("./bindings")
   return unwrap(await commands.runUserCommand(repo, request));
 }
 
+export async function previewUserCommand(repo: RepoId, request: import("./bindings").ToolRequest) {
+  return unwrap(await commands.previewUserCommand(repo, request));
+}
+
+export async function repositoryTools(repo: RepoId) {
+  return unwrap(await commands.repositoryTools(repo));
+}
+
+export async function trustRepositoryTools(repo: RepoId, hash: string) {
+  return unwrap(await commands.trustRepositoryTools(repo, hash));
+}
+
+export async function importToolCommands(path: string) {
+  return unwrap(await commands.importToolCommands(path));
+}
+
+export async function exportToolCommands(path: string, selection: import("./bindings").ToolDefinition[]) {
+  return unwrap(await commands.exportToolCommands(path, selection));
+}
+
 export async function runHook(repo: RepoId, name: string) {
   return unwrap(await commands.runHook(repo, name));
 }

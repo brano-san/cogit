@@ -5,6 +5,7 @@ export interface CommitField {
   focus(): void;
   generate(): Promise<void>;
   generating(): boolean;
+  draft?(): { key: string; text: string; write: (text: string) => void };
   /** Commits if the box is ready to; `amend` ticks Amend first. */
   submit(amend: boolean): Promise<void>;
 }
@@ -16,6 +17,10 @@ class CommitBoxStore {
 
   get generating(): boolean {
     return this.#field?.generating() ?? false;
+  }
+
+  currentDraft() {
+    return this.#field?.draft?.() ?? null;
   }
 
   /** Returns the detach; a box that has gone is never reached through. */

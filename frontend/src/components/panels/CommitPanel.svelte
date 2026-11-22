@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { commitDraftKey } from "$lib/commit-draft";
   import CommitBox from "$components/file-list/CommitBox.svelte";
   import { repository } from "$stores/repository.svelte";
   import { worktree } from "$stores/worktree.svelte";
@@ -22,6 +23,6 @@
   stagedCount={worktree.staged.length}
   busy={worktree.loading}
   unborn={repository.current?.head.kind === "unborn"}
-  draftKey={`cogit:draft:${repository.current?.root ?? ""}`}
+  draftKey={commitDraftKey(repository.current?.root ?? "")}
   {oncommit}
 />

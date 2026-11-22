@@ -205,6 +205,8 @@ impl AppState {
 }
 
 routed! {
+    fn tool_metadata(global_pattern: &str, issue: bool) -> Result<git_engine::ToolMetadata, GitError> = local_tool_metadata;
+    fn repository_tool_file() -> Result<Option<crate::user_commands::ToolFile>, GitError> = local_repository_tool_file;
     fn preset_statuses(presets: &[(git_engine::Preset, bool)]) -> Result<Vec<crate::PresetStatus>, GitError> = local_preset_statuses;
     fn merge_sides(path: &str) -> Result<crate::solver::MergeSides, GitError> = local_merge_sides;
     fn merge_tool_config() -> Result<git_engine::MergeToolConfig, GitError> = local_merge_tool_config;

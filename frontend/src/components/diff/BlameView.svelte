@@ -14,9 +14,10 @@
     onpick: (at: number) => void;
     /** A double click on an annotation: show the commit that wrote those lines. */
     onopen?: (at: number) => void;
+    onlinecontext?: (line: BlameLine, event: MouseEvent) => void;
   }
 
-  let { lines, cursor, highlighted, onpick, onopen }: Props = $props();
+  let { lines, cursor, highlighted, onpick, onopen, onlinecontext }: Props = $props();
 </script>
 
 <VirtualList items={lines} rowHeight={ROW_HEIGHT} buffer={12} label="Blame" reveal={cursor}>
@@ -31,6 +32,7 @@
       tabindex="-1"
       aria-selected={at === cursor}
       onclick={() => onpick(at)}
+      oncontextmenu={(event) => onlinecontext?.(line, event)}
     >
       {#if startsBlock(lines, at)}
         <!-- svelte-ignore a11y_no_static_element_interactions -->

@@ -296,12 +296,13 @@
       if (token !== asked) return;
       const bisect = bisectCommitMenu(repository.current?.state, oid);
       const head = repository.current?.head;
-      const tools = userTools.submenu("commit", id, {
+      const tools = await userTools.menus("commit", id, {
         file: null,
         commit: details?.oid ?? oid,
         branch: head?.kind === "branch" ? head.name : null,
       }, desktopBlock);
-      await show({ ...blank(), oid, details, facts }, withTools(graphCommitMenu(facts, bisect), tools), x, y);
+      if (token !== asked) return;
+      await show({ ...blank(), oid, details, facts }, withTools(graphCommitMenu(facts, bisect), ...tools), x, y);
     } catch (err) {
       errors.report(err, "Could not open the commit menu");
     }

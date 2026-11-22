@@ -22,11 +22,13 @@
   import { blameWindow as blame } from "$stores/blame-window.svelte";
   import { followSettings } from "$lib/settings-sync";
   import { settings } from "$stores/settings.svelte";
+  import { userTools } from "$stores/user-tools.svelte";
 
   const request = parseBlame(window.location.search);
 
   // No browser menu (R-127), Esc / Ctrl+W close, and the window's own menu bar reaches here.
   $effect(() => installChildWindow(window));
+  $effect(() => userTools.relayLineMenus());
   // What Preferences changes in the main window reaches this one too (F-335).
   $effect(() => followSettings(() => void settings.reload()));
   $effect(() =>
@@ -128,6 +130,7 @@
           {highlighted}
           onpick={(at) => blame.moveTo(at)}
           onopen={showCommit}
+          onlinecontext={(line, event) => void userTools.lineMenu(request.repo, { file: request.path, commit: line.oid, branch: null, line: line.line }, event)}
         />
       {/if}
     </div>

@@ -23,6 +23,8 @@
   import { NO_FILTER_FOLDS, shownFolds, toggle, toggleFilterFold, type TreeNode } from "$lib/tree";
   import { protectedNames, staleChoices } from "$lib/push-dialog";
   import { patternProblem } from "$lib/commit-prefix";
+  import { formatDatePattern, MAX_DATE_PATTERN_LENGTH } from "$lib/format";
+  import { MAX_GUIDE_COLUMN, validGuideColumn } from "$lib/commit-message";
   import { needsRestart, THEMES, type Settings } from "$lib/settings";
   import { diffFontChoices, fontChoices, uiFontChoices, zoomChoices } from "$lib/ui-metrics";
   import { uiMetricsStore } from "$stores/ui-metrics.svelte";
@@ -33,7 +35,7 @@
   import { credentials } from "$stores/credentials.svelte";
   import { hosting } from "$stores/hosting.svelte";
   import { providerLabel, serverOf } from "$lib/hosting";
-  import type { Keymap } from "$lib/keymap";
+  import { effective, type Keymap } from "$lib/keymap";
   import type { KeyBinding } from "$lib/ipc";
   import KeymapEditor from "$components/layout/KeymapEditor.svelte";
   import GraphField from "$components/layout/GraphField.svelte";
@@ -93,6 +95,7 @@
     ["smart", "Yesterday · Tuesday · 09-09-26"],
     ["relative", "3 days ago"],
     ["both", "Yesterday · 1 day ago"],
+    ["custom", "Custom"],
   ] as const;
 
   const ALGORITHMS = [
@@ -232,6 +235,17 @@
     externalEditorArgs: '"${file}"',
     commitPrefixTemplate: "$1: ",
   } as const;
+
+  let invalidDatePattern = $state<string | null>(null);
+  const datePreview = $derived(formatDatePattern(Date.UTC(2026, 8, 9, 12, 35, 8) / 1000, 90, invalidDatePattern ?? draft.datePattern));
+
+  function updateDatePattern(pattern: string) {
+    if (formatDatePattern(0, 0, pattern) === null) invalidDatePattern = pattern;
+    else {
+      invalidDatePattern = null;
+      set("datePattern", pattern);
+    }
+  }
 
   function set<K extends keyof Settings>(key: K, next: Settings[K]) {
     draft = { ...draft, [key]: next };
@@ -377,7 +391,7 @@
               </div>
             {:else if field.key === "theme"}
               <div class="row">
-                <span id="f-theme">{field.label}</span>
+                {@render caption(field)}
                 <Select
                   value={draft.theme}
                   options={THEMES}
@@ -415,6 +429,26 @@
                       <span class="mono">{example}</span>
                     </Radio>
                   {/each}
+                </div>
+              </div>
+            {:else if field.key === "datePattern"}
+              <div class="row">
+                {@render caption(field)}
+                <div class="options">
+                  <input
+                    type="text"
+                    class="text mono"
+                    aria-label={field.label}
+                    aria-invalid={datePreview === null}
+                    maxlength={MAX_DATE_PATTERN_LENGTH}
+                    value={invalidDatePattern ?? draft.datePattern}
+                    oninput={(e) => updateDatePattern(e.currentTarget.value)}
+                  />
+                  {#if datePreview === null}
+                    <span class="verdict bad" role="alert"><Icon name="error" /> Enter a valid date pattern.</span>
+                  {:else}
+                    <span class="mono" aria-live="polite">{datePreview}</span>
+                  {/if}
                 </div>
               </div>
             {:else if field.key === "backgroundFetchMinutes"}
@@ -550,6 +584,49 @@
                   placeholder={ARGUMENTS[key]}
                   value={draft[key]}
                   oninput={(e) => set(key, e.currentTarget.value)}
+                />
+              </div>
+            {:else if field.key === "fileDoubleClick"}
+              <div class="row">
+                {@render caption(field)}
+                <Select value={draft.fileDoubleClick} options={[["open", "Open File"], ["stage", "Stage / Unstage"]] as const} label={field.label} onchange={(next) => set("fileDoubleClick", next)} />
+              </div>
+            {:else if field.key === "filterCase"}
+              <div class="row">
+                {@render caption(field)}
+                <Select value={draft.filterCase} options={[["ignore", "Ignore Case"], ["match", "Match Case"], ["smart", "Smart Case"]] as const} label={field.label} onchange={(next) => set("filterCase", next)} />
+              </div>
+            {:else if field.key === "messageGuides"}
+              <div class="row check">
+                <Checkbox checked={draft.messageGuides} onchange={(checked) => set("messageGuides", checked)} label={field.label} title={field.hint} />
+              </div>
+            {:else if field.key === "messageSubjectColumn" || field.key === "messageBodyColumn"}
+              {@const key = field.key}
+              <label class="row">
+                {@render caption(field)}
+                <input
+                  type="number"
+                  class="text"
+                  aria-label={field.label}
+                  min="1"
+                  max={MAX_GUIDE_COLUMN}
+                  disabled={!draft.messageGuides}
+                  value={draft[key]}
+                  onchange={(e) => {
+                    const next = e.currentTarget.valueAsNumber;
+                    if (validGuideColumn(next)) set(key, next);
+                    else e.currentTarget.value = String(draft[key]);
+                  }}
+                />
+              </label>
+            {:else if field.key === "commitComments"}
+              <div class="row">
+                {@render caption(field)}
+                <Select
+                  value={draft.commitComments}
+                  options={[["keep", "Keep"], ["strip", "Strip on Commit"]] as const}
+                  label={field.label}
+                  onchange={(next) => set("commitComments", next)}
                 />
               </div>
             {:else if field.key === "commitPrefixPattern"}
@@ -760,7 +837,12 @@
             {:else if field.key === "network"}
               <NetworkSettings />
             {:else if field.key === "userCommands"}
-              <UserCommandsEditor commands={draft.userCommands} onchange={(next) => set("userCommands", next)} />
+              <UserCommandsEditor
+                commands={draft.userCommands}
+                builtins={effective(bindings, draftKeys)}
+                bindingLabels={Object.fromEntries(bindings.map((binding) => [binding.id, binding.label]))}
+                onchange={(next) => set("userCommands", next)}
+              />
             {:else if field.key === "toolbar"}
               <ToolbarEditor
                 layout={toolbarLayout}
@@ -771,6 +853,7 @@
             {:else if field.key === "keymap"}
               <KeymapEditor
                 {bindings}
+                toolCommands={draft.userCommands}
                 overrides={draftKeys}
                 onchange={(next) => {
                   // Applied as it is chosen, like every other field here (R-122).
@@ -935,6 +1018,7 @@
           changeToolbar(DEFAULT_LAYOUT);
           return;
         }
+        if (active === "graph") invalidDatePattern = null;
         draft = restoreCategory(draft, active);
         draftKeys = restoreKeys(draftKeys, active);
         onapply(draft, draftKeys);

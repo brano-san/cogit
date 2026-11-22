@@ -144,7 +144,7 @@ const BY_HAND: [&str; 18] = [
     "save_config_file",
 ];
 
-const ON_WINDOWS: [(&str, &str); 19] = [
+const ON_WINDOWS: [(&str, &str); 22] = [
     (
         "refresh_repository",
         "rebinds the desktop ID and delegates the reread to its backend",
@@ -159,6 +159,18 @@ const ON_WINDOWS: [(&str, &str); 19] = [
     (
         "run_user_command",
         "the user's own program, run on Windows with Windows paths (F-954)",
+    ),
+    (
+        "preview_user_command",
+        "expands desktop paths; Git metadata is routed",
+    ),
+    (
+        "repository_tools",
+        "reads desktop trust settings; the command file is routed",
+    ),
+    (
+        "trust_repository_tools",
+        "writes desktop trust settings against a routed file hash",
     ),
     // The patch is made by routed `format_patches` / `worktree_patch`; only the file the
     // user chose, or the text for the clipboard, is on the Windows side (F-948).
@@ -475,6 +487,7 @@ fn a_repository_in_wsl_opens_through_its_agent() {
                 message: "first".to_owned(),
                 amend: false,
                 no_verify: false,
+                strip_comments: false,
                 signoff: false,
                 only: Vec::new(),
             },

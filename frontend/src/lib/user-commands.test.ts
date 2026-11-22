@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import { merge } from "./settings";
 import {
   commandProblem,
+  commandMatchesFiles,
+  mergeToolCommands,
+  toolShortcutProblem,
+  toolShortcuts,
+  repositoryToolShortcuts,
+  commitToolOutput,
   knownUserCommands,
   MAX_USER_COMMANDS,
   missingFor,
@@ -15,9 +21,11 @@ import {
   type UserCommand,
 } from "./user-commands";
 import { item } from "./context-menu";
+import { pageCommand } from "./page-accelerators";
 
 function command(patch: Partial<UserCommand> = {}): UserCommand {
   return {
+    ...newUserCommand([]),
     id: "t",
     name: "Tool",
     program: "tool.exe",
@@ -72,8 +80,69 @@ describe("placeholders", () => {
 
   it("knows which placeholders a context cannot fill", () => {
     const all = command({ args: "${repo} ${relfile} ${shortcommit} ${branch}" });
-    expect(missingFor(all, NOTHING)).toEqual(["relfile", "shortcommit", "branch"]);
+    expect(missingFor(all, NOTHING)).toEqual(["relfile", "shortcommit"]);
     expect(missingFor(all, { file: "a.txt", commit: "abc", branch: "main" })).toEqual([]);
+  });
+});
+
+describe("extended commands", () => {
+  it("matches every selected path against basename or recursive path patterns with desktop case rules", () => {
+    const selected = ["icons/Logo.PNG", "docs/guide.md", "docs/a/b.md"];
+    const tool = command({ patterns: "*.png; docs/**/*.md" });
+    expect(commandMatchesFiles(tool, selected, "windows")).toBe(true);
+    expect(commandMatchesFiles(tool, selected, "mac")).toBe(true);
+    expect(commandMatchesFiles(tool, selected, "linux")).toBe(false);
+    expect(commandMatchesFiles(tool, [...selected, "other/note.md"], "mac")).toBe(false);
+    expect(commandMatchesFiles(command(), selected, "linux")).toBe(true);
+    expect(toolsSubmenu([tool], "file", { ...NOTHING, file: "x.txt", files: ["x.txt"] })).toBeNull();
+  });
+
+  it("suffixes imported names and keeps distinct command IDs", () => {
+    const original = [command(), command({ name: "Tool (2)", id: "other" })];
+    const merged = mergeToolCommands(original, [command(), command({ id: "next", name: "tool" })]);
+    expect(merged.map((tool) => tool.name)).toEqual(["Tool", "Tool (2)", "Tool (3)", "tool (4)"]);
+    expect(new Set(merged.map((tool) => tool.id)).size).toBe(4);
+  });
+
+  it("guards built-in and user shortcut conflicts and protects native Mac shortcuts", () => {
+    const one = command({ shortcut: "CmdOrCtrl+Alt+U" });
+    expect(toolShortcutProblem(one, [one], { first: "Alt+Ctrl+u" }, false)).toContain("first");
+    expect(toolShortcutProblem(one, [one, command({ id: "second", name: "Other", shortcut: one.shortcut })], {}, false)).toContain("Other");
+    expect(toolShortcutProblem(command({ shortcut: "Cmd+Q" }), [], {}, true)).toContain("macOS");
+    expect(toolShortcutProblem(one, [one], {}, false)).toBeNull();
+  });
+
+  it("gives menu and palette the recorded key and resolves it through page dispatch", () => {
+    const one = command({ shortcut: "CmdOrCtrl+Alt+U" });
+    const keys = toolShortcuts([one], {});
+    const [row] = toolPaletteCommands([one], NOTHING, () => {}, null, keys);
+    expect(row?.shortcut).toBe("Ctrl+Alt+U");
+    expect(toolsSubmenu([one], "repository", NOTHING, null, keys)?.children?.[0]?.accelerator).toBe(one.shortcut);
+    const binding = { id: row!.id, label: one.name, section: "Tools", defaultAccelerator: null, onBar: false };
+    const press = { key: "u", code: "KeyU", ctrlKey: true, altKey: true, metaKey: false, shiftKey: false };
+    expect(pageCommand(press, [binding], keys, { windows: false, mac: false })).toBe(row?.id);
+    expect(toolShortcuts([one], { operation: one.shortcut })).toEqual({});
+  });
+
+  it("shows repository commands separately and marks untrusted commands for review", () => {
+    const shared = command({ name: "Repository lint", source: { hash: "digest", index: 0 }, shortcut: "CmdOrCtrl+Alt+U" });
+    const menu = toolsSubmenu([shared], "repository", NOTHING, null, {}, true, false);
+    expect(menu).toMatchObject({ label: "Repository commands", children: [{ label: "Repository lint (review trust…)" }] });
+    expect(toolPaletteCommands([shared], NOTHING, () => {}, null, {}, false)[0]?.title)
+      .toBe("Repository commands: Repository lint (review trust…)");
+    expect(toolsSubmenu([shared], "repository", NOTHING, "SSH repository", {}, true, false)?.children?.[0]?.enabled).toBe(false);
+    const own = command({ shortcut: shared.shortcut });
+    expect(repositoryToolShortcuts([shared], [own], {})).toEqual({});
+    expect(toolPaletteCommands([shared], NOTHING, () => {}, null, {}, true)[0]?.title).toContain("shortcut unavailable");
+    expect(toolPaletteCommands([shared], NOTHING, () => {}, null, repositoryToolShortcuts([shared], [], {}), true)[0]?.shortcut)
+      .toBe("Ctrl+Alt+U");
+  });
+
+  it("appends output by default and preserves a draft when replacement is declined", () => {
+    expect(commitToolOutput("Draft", "New\r\ntext\n", false, false)).toBe("Draft\nNew\ntext");
+    expect(commitToolOutput("Draft", "New\n", true, false)).toBe("Draft");
+    expect(commitToolOutput("Draft", "New\n", true, true)).toBe("New");
+    expect(commitToolOutput("", "New\n", true, false)).toBe("New");
   });
 });
 
@@ -136,6 +205,7 @@ describe("settings", () => {
     ]);
     expect(kept).toEqual([
       {
+        ...newUserCommand([]),
         id: "a",
         name: "Lint",
         program: "npm",
@@ -147,6 +217,7 @@ describe("settings", () => {
         refresh: true,
       },
       {
+        ...newUserCommand([]),
         id: "a-2",
         name: "Gitk",
         program: "gitk",

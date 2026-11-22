@@ -172,8 +172,16 @@ export function recordKeys(press: KeyPress, onMac: boolean): Recorded | null {
   if (onMac && (keys === "CmdOrCtrl+Tab" || keys === "CmdOrCtrl+Shift+Tab")) {
     return { refused: `${shown} is the system's` };
   }
-  const reserved = RESERVED[keys] ?? (onMac && nativeMacShortcut(keys) ? "is kept for the macOS menu" : undefined);
-  return reserved ? { refused: `${shown} ${reserved}` } : { keys };
+  const reserved = shortcutRefusal(keys, onMac);
+  return reserved ? { refused: reserved } : { keys };
+}
+
+export function shortcutRefusal(keys: string, onMac: boolean): string | null {
+  const chord = canonicalShortcut(keys, onMac);
+  const reserved = Object.keys(RESERVED).find((entry) => canonicalShortcut(entry, onMac) === chord);
+  const reason = (onMac && nativeMacShortcut(keys) ? "is kept for the macOS menu" : undefined)
+    ?? (reserved === undefined ? undefined : RESERVED[reserved]);
+  return reason === undefined ? null : `${prettyKeys(keys, onMac)} ${reason}`;
 }
 
 const MAC_MODIFIERS: Record<string, string> = { ctrl: "⌃", alt: "⌥", shift: "⇧", cmd: "⌘" };
@@ -196,7 +204,8 @@ function partsOf(keys: string, onMac: boolean) {
 /** `Shift+CmdOrCtrl+k` and `CmdOrCtrl+Shift+K` are one chord. */
 export function canonicalShortcut(keys: string, onMac: boolean): string {
   const { key, modifiers } = partsOf(keys, onMac);
-  return [...new Set(modifiers.sort()), key.toLowerCase()].join("+");
+  const normalized = key.toLowerCase();
+  return [...new Set(modifiers.sort()), normalized === "return" ? "enter" : normalized].join("+");
 }
 
 const MAC_KEYS: Record<string, string> = {

@@ -53,7 +53,7 @@
   import { suppressBrowserFind } from "$lib/browser-find";
   import { suppressBrowserNavigation } from "$lib/browser-navigation";
   import { findModuleRow, isModulePath, onOpenModule } from "$lib/module-open";
-  import { commitRoute, editRoute, openRoute, type FileRoute } from "$lib/file-edit";
+  import { commitRoute, editRoute, workingFileDoubleClick, type FileRoute } from "$lib/file-edit";
   import { onPushHead } from "$lib/push-head";
   import { onTreeChange } from "$lib/tree-sync";
   import { emptyStateVisible, footerRepository, panelView } from "$lib/repo-phase";
@@ -163,7 +163,8 @@
   import * as fileMenus from "$lib/ipc/file-menus";
   import { desktop } from "$stores/desktop.svelte";
   import { groupChoices, parseRepoCommand, repoMenu } from "$lib/repo-menu";
-  import { toolPaletteCommands, withTools } from "$lib/user-commands";
+  import { commitToolOutput, repositoryToolShortcuts, toolPaletteCommands, toolShortcuts, withTools, type UserCommand } from "$lib/user-commands";
+  import { commitDraftKey } from "$lib/commit-draft";
   import { userTools } from "$stores/user-tools.svelte";
   import { listedName, listedRepos, type ListedRepo } from "$lib/repo-list";
   import { TODO_PREFIX, editedSteps, movedSteps, todoMenu } from "$lib/rebase-todo";
@@ -674,10 +675,15 @@
   });
   /** HEAD's branch for `${branch}` of a user command; null on a detached HEAD (F-954). */
   const toolBranch = $derived(headBranch(repo?.head));
-  /** What a user command picked in the palette runs on: the selected commit, the open diff's file. */
-  const toolContext = $derived<import("$lib/ipc").ToolContext | null>(
-    repo ? { file: diff.path, commit: commit.oid, branch: toolBranch } : null,
-  );
+  const sharedToolFile = $derived(repo ? userTools.files.get(repo.repo) : null);
+  const sharedTools = $derived(userTools.commandsIn(sharedToolFile));
+  $effect(() => {
+    const id = repo?.repo;
+    if (id) void userTools.load(id);
+  });
+  $effect(() => {
+    if (paletteOpen && repo) void userTools.load(repo.repo);
+  });
   const lastUndo = $derived(safety.lastFor(repo?.repo ?? null));
   /** One field for every panel that depends on an open repository. The panel decides
       from it both what its header counts and what its body says (R-119). */
@@ -690,7 +696,7 @@
   const tracked = $derived(repository.localBranches.find((b) => b.isHead));
   /** The staged rows the Files list shows; null until it has said. */
   let shownStaged = $state.raw<string[] | null>(null);
-  const scope = $derived(commitScope(worktree.staged, fileMask, shownStaged));
+  const scope = $derived(commitScope(worktree.staged, fileMask, shownStaged, settings.current.filterCase));
   /** The subject of a commit the graph has loaded: the bisect banner names its commits. */
   function loadedSubject(oid: string): string | null {
     const at = graph.loadedIndexOf(oid);
@@ -889,6 +895,16 @@
 
   /** What Remote ▸ LFS ▸ Lock and Submodule act on: the ticked files, or the one in Diff. */
   const pickedFiles = $derived(markedFiles.length > 0 ? markedFiles : diff.path ? [diff.path] : []);
+  let toolLine = $state.raw<{ repo: RepoId; file: string; spec: typeof diff.shownSpec; line: number } | null>(null);
+  const toolContext = $derived<import("$lib/ipc").ToolContext | null>(
+    repo ? {
+      file: diff.path ?? pickedFiles[0] ?? null,
+      commit: commit.oid,
+      branch: toolBranch,
+      files: pickedFiles,
+      line: focused === "diff" && toolLine?.repo === repo.repo && toolLine.file === diff.path && toolLine.spec === diff.shownSpec ? toolLine.line : null,
+    } : null,
+  );
   const remoteActions = remoteOps.actions({
     files: () => pickedFiles,
     changed: afterRefChange,
@@ -899,6 +915,11 @@
 
   /** The palette shows each command's keys as the menu has them (11 §12, rule 5). */
   const menuKeys = $derived(effective(settings.bindings, settings.keymap));
+  const personalToolKeys = $derived(settings.bindings.length ? toolShortcuts(settings.current.userCommands, menuKeys) : {});
+  const repositoryToolKeys = $derived(settings.bindings.length && sharedToolFile?.trusted
+    ? repositoryToolShortcuts(sharedTools, settings.current.userCommands, menuKeys) : {});
+  const userToolKeys = $derived({ ...personalToolKeys, ...repositoryToolKeys });
+  const userToolBindings = $derived(Object.keys(userToolKeys).map((id) => ({ id, label: id, section: "Tools", defaultAccelerator: null, onBar: false })));
   const alternateTabBindings = $derived(settings.bindings.filter((entry) => tabAlternate(entry.id)));
   $effect(() => setMenuKeys(menuKeys));
 
@@ -1053,9 +1074,8 @@
       actions,
     ),
     ...bisectCommands(repo?.state, (action) => bisectActions?.command(action)),
-    ...toolPaletteCommands(settings.current.userCommands, toolContext, (command) => {
-      if (repo && toolContext) void userTools.run(command, repo.repo, toolContext);
-    }, activeDesktopBlock),
+    ...toolPaletteCommands(settings.current.userCommands, toolContext, runPaletteTool, activeDesktopBlock, personalToolKeys),
+    ...toolPaletteCommands(sharedTools, toolContext, runPaletteTool, activeDesktopBlock, repositoryToolKeys, sharedToolFile?.trusted),
     ...remoteCommands(
       {
         repository: repo !== null,
@@ -1128,6 +1148,10 @@
     command.run();
   }
 
+  function runPaletteTool(command: UserCommand) {
+    if (repo && toolContext) void userTools.run(command, repo.repo, toolContext);
+  }
+
   // Accords that appear in the native menu are owned by it: handling them here too
   // would run the command twice for one keypress.
   /** True while the keystroke belongs to whatever the user is typing in. */
@@ -1143,9 +1167,11 @@
   }
 
   function runPageShortcut(event: KeyboardEvent, tabOnly = false): boolean {
-    if (modals.any || event.defaultPrevented || ON_WINDOWS) return false;
+    if (modals.any || event.defaultPrevented) return false;
+    const userTool = tabOnly || event.repeat ? null : pageCommand(event, userToolBindings, userToolKeys, { windows: false, mac: ON_MAC });
+    if (ON_WINDOWS && userTool === null) return false;
     const bindings = tabOnly ? alternateTabBindings : settings.bindings;
-    const command = pageCommand(event, bindings, menuKeys, { windows: false, mac: ON_MAC });
+    const command = userTool ?? pageCommand(event, bindings, menuKeys, { windows: false, mac: ON_MAC });
     if (command === null) return false;
     event.preventDefault();
     if (tabOnly) event.stopPropagation();
@@ -1156,11 +1182,12 @@
   function onkeydown(event: KeyboardEvent) {
     // A dialog, the palette and Find Object close on their own Esc; nothing behind a modal
     // answers a key (11 §1).
-    if (modals.any || foreign(event, ON_MAC)) return;
+    if (modals.any) return;
 
     // A menu key the native menu does not hold here (Ctrl+K, F5 off Windows): the same path a
     // menu click takes. A field or panel that took the key first keeps it.
     if (runPageShortcut(event)) return;
+    if (foreign(event, ON_MAC)) return;
 
     // F6 walks the panels. Ctrl+Tab is left to the window: the menu agent owns the
     // accelerators, and browsers and hosts both claim that pair (issue 15). A diff with the
@@ -2160,8 +2187,14 @@ ${event.error}`,
   }
 
   /** Double-click or Enter on a Working Tree row: the side of the list it is in. */
-  function openRow(path: string, side: "worktree" | "index") {
-    follow(path, openRoute(rowFile(path), side));
+  function openRow(path: string, side: "worktree" | "index", doubleClick: boolean) {
+    const mode = doubleClick ? settings.current.fileDoubleClick : "open";
+    const changed = mode === "stage" && (side === "index" ? worktree.staged : worktree.unstaged)
+      .some((file) => file.path === path);
+    const action = workingFileDoubleClick(rowFile(path), side, mode, changed);
+    if (action.kind === "stage") return void stage([path]);
+    if (action.kind === "unstage") return void unstage([path]);
+    follow(path, action);
   }
 
   /** Double-click opens the file in its own window, which survives a webview reload. A
@@ -2723,6 +2756,51 @@ ${event.error}`,
     await afterMutation();
   });
 
+  async function insertToolMessage(id: RepoId, stdout: string, replace: boolean) {
+    if (!commitToolOutput("", stdout, false, false)) return;
+    const target = repository.openRepos.find((entry) => entry.repo === id);
+    if (!target) {
+      notices.inform("Commit message is unavailable", "The repository was closed. The command output is in the log.");
+      return;
+    }
+    const key = commitDraftKey(target.root);
+    if (repository.current?.repo === id) await commitBox.focus();
+    const read = () => {
+      const field = repository.current?.repo === id ? commitBox.currentDraft() : null;
+      if (field?.key === key) return field;
+      return { text: localStorage.getItem(key) ?? "", write: (message: string) => localStorage.setItem(key, message) };
+    };
+    const original = read().text;
+    const ask = replace && original !== "";
+    if (ask && !await confirmation.ask({
+      title: "Replace Commit Message",
+      message: `Replace the current commit message for ${target.name} with the command output?`,
+      confirm: "Replace",
+      warning: true,
+    })) return;
+    const draft = read();
+    if (replace && draft.text !== original) {
+      notices.inform("Commit message changed", "The command output is in the log.");
+      return;
+    }
+    draft.write(commitToolOutput(draft.text, stdout, replace, ask));
+  }
+
+  userTools.onMessage(insertToolMessage);
+  $effect(() => userTools.receiveLineMenus());
+
+  function diffLineContext(line: number, _side: "left" | "right", event: MouseEvent) {
+    const id = repository.current?.repo;
+    const file = diff.shownPath;
+    if (id && file) void userTools.lineMenu(id, { file, commit: commit.oid, branch: null, line }, event);
+  }
+
+  function pickToolLine(line: number | null) {
+    const id = repository.current?.repo;
+    const file = diff.shownPath;
+    toolLine = id && file && line !== null ? { repo: id, file, spec: diff.shownSpec, line } : null;
+  }
+
   /** `section` is the list the row sits in: "Staged" is the index, the rest the working
       tree (#40). A commit's files get their own menu (#41). */
   async function fileContext(
@@ -2752,8 +2830,8 @@ ${event.error}`,
         onDisk: true,
         fileManager: info.fileManager,
       });
-      const tools = userTools.submenu("file", id, { file: path, commit: commit.oid, branch: toolBranch }, block);
-      await popupContextMenu(withTools(items, tools), x, y).catch(() => {});
+      const tools = await userTools.menus("file", id, { file: path, files: paths, commit: commit.oid, branch: toolBranch }, block);
+      if (repository.current?.repo === id) await popupContextMenu(withTools(items, ...tools), x, y).catch(() => {});
       return;
     }
 
@@ -2773,8 +2851,8 @@ ${event.error}`,
       editBlocked: refusal(editRoute(rowFile(path), rowPlace(path))),
       modeChanged: paths.some((each) => worktree.unstaged.some((file) => file.path === each && file.modeChange !== null)),
     });
-    const tools = userTools.submenu("file", id, { file: path, commit: null, branch: toolBranch }, block);
-    await popupContextMenu(withTools(items, tools), x, y).catch(() => {});
+    const tools = await userTools.menus("file", id, { file: path, files: paths, commit: null, branch: toolBranch }, block);
+    if (repository.current?.repo === id) await popupContextMenu(withTools(items, ...tools), x, y).catch(() => {});
   }
 
   function runFileCommand(id: string): boolean {
@@ -3183,12 +3261,12 @@ ${event.error}`,
       info,
       menuKeys,
     );
-    const tools = userTools.submenu("repository", row.overview?.repo ?? null, {
+    const tools = await userTools.menus("repository", row.overview?.repo ?? null, {
       file: null,
       commit: null,
       branch: active ? toolBranch : (row.overview?.branch ?? null),
     }, block);
-    await popupContextMenu(withTools(items, tools), x, y).catch(() => {});
+    await popupContextMenu(withTools(items, ...tools), x, y).catch(() => {});
   }
 
   /** A submodule node: the same menu, with the four list-only items explained away. */
@@ -4750,6 +4828,8 @@ ${event.error}`,
         <Panel title="Diff" surface="editor" active={focused === "diff"} view={panelState} stale={stale.has("diff")}>
           <DiffPanel
             active={focused === "diff"}
+            onlinecontext={diffLineContext}
+            onlinepick={pickToolLine}
             oninitsubmodule={(path) => void initSubmoduleAt(path)}
             onstage={(keys, reverse) => void stageLines(keys, reverse)}
             onblame={() => void showBlame()}
@@ -4810,7 +4890,7 @@ ${event.error}`,
 
   {#if paletteOpen}
     <CommandPalette
-      commands={withShortcuts(palette, menuKeys, ON_MAC)}
+      commands={withShortcuts(palette, { ...menuKeys, ...userToolKeys }, ON_MAC)}
       recent={recentCommands}
       onrun={runCommand}
       onclose={() => (paletteOpen = false)}

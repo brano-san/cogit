@@ -107,6 +107,8 @@
     /** Stages (or, `reverse`, unstages) the lines of a block, by line key. */
     onstage?: (keys: ReadonlySet<string>, reverse: boolean) => void;
     onblame?: () => void;
+    onlinecontext?: (line: number, side: PaneSide, event: MouseEvent) => void;
+    onlinepick?: (line: number | null) => void;
     whitespace?: import("$lib/ipc").Whitespace;
     onwhitespace?: (mode: import("$lib/ipc").Whitespace) => void;
     /** Show more of the file around the hunks; `whole` opens all of it (T7.3). */
@@ -133,6 +135,8 @@
     hunkButtons = true,
     onstage,
     onblame,
+    onlinecontext,
+    onlinepick,
     whitespace = "none",
     onwhitespace,
     onexpand,
@@ -1134,6 +1138,22 @@
   }
 
   const captionsShown = $derived(captions ?? (diffStore.spec ? sideCaptions(diffStore.spec) : null));
+
+  function lineAt(event: MouseEvent): { line: number; side: PaneSide } | null {
+    if (!(event.target instanceof Element)) return null;
+    const hit = event.target.closest<HTMLElement>("[data-tool-line]");
+    const line = Number(hit?.dataset.toolLine);
+    if (line > 0) return { line, side: hit?.dataset.toolSide === "left" ? "left" : "right" };
+    if (!editor || !event.target.closest(".cm-line")) return null;
+    const pos = editor.view.posAtCoords({ x: event.clientX, y: event.clientY });
+    return pos === null ? null : { line: editor.doc.lineAt(pos).number, side: "right" };
+  }
+
+  function lineContext(event: MouseEvent) {
+    if (!onlinecontext) return;
+    const hit = lineAt(event);
+    if (hit) onlinecontext(hit.line, hit.side, event);
+  }
 </script>
 
 <svelte:window onkeydowncapture={onkeydown} />
@@ -1176,6 +1196,8 @@
         style:top="{at.top(index)}px"
         style:height={wrap ? `${at.height(index)}px` : undefined}
         data-line={side === "right" ? row.line : undefined}
+        data-tool-line={row.line}
+        data-tool-side={side}
       >
         {#if wrap}
           <div class="cells" data-wrap={index}>{@render paneCells(side, row, index, tone)}</div>
@@ -1189,8 +1211,8 @@
 {/snippet}
 
 {#snippet unifiedCells(row: UnifiedLine, index: number, tone: string)}
-  <span class="num {tone}">{row.old ?? ""}</span>
-  <span class="num {tone}">{row.new ?? ""}</span>
+  <span class="num {tone}" data-tool-line={row.old ?? undefined} data-tool-side="left">{row.old ?? ""}</span>
+  <span class="num {tone}" data-tool-line={row.new ?? undefined} data-tool-side="right">{row.new ?? ""}</span>
   <span class="sign {tone}">{row.type === "delete" ? "−" : row.type === "insert" ? "+" : ""}</span>
   <span class="code mono {tone}"
     ><span class="text"
@@ -1213,6 +1235,8 @@
     style:top="{geo.unified.top(index)}px"
     style:height={wrap ? `${geo.unified.height(index)}px` : undefined}
     data-line={row.type === "delete" ? undefined : (row.new ?? undefined)}
+    data-tool-line={row.new ?? row.old ?? undefined}
+    data-tool-side={row.new == null ? "left" : "right"}
   >
     {#if wrap}
       <div class="cells" data-wrap={index}>{@render unifiedCells(row, index, tone)}</div>
@@ -1222,7 +1246,10 @@
   </div>
 {/snippet}
 
-<div class="diff" onwheelcapture={release} onpointerdowncapture={release} onkeydowncapture={release}>
+<div class="diff" role="group" aria-label="File diff" onwheelcapture={release} onpointerdowncapture={(event) => {
+  release(event);
+  if (onlinepick) onlinepick(lineAt(event)?.line ?? null);
+}} onkeydowncapture={release} oncontextmenu={lineContext}>
   <div class="bar">
     {#if showPath}<span class="path mono truncate">{path}{dirty ? " *" : ""}</span>{:else}<span class="grow"></span>{/if}
     {#if diff.kind === "text"}

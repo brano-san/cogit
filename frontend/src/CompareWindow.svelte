@@ -21,6 +21,7 @@
   import { diff } from "$stores/diff.svelte";
   import { followSettings } from "$lib/settings-sync";
   import { settings } from "$stores/settings.svelte";
+  import { userTools } from "$stores/user-tools.svelte";
 
   const request = parseCompare(window.location.search);
 
@@ -29,6 +30,7 @@
 
   // No browser menu (R-127), and Esc / Ctrl+W close the window.
   $effect(() => installChildWindow(window));
+  $effect(() => userTools.relayLineMenus());
   // What Preferences changes in the main window reaches this one too (F-335).
   $effect(() => followSettings(() => void settings.reload()));
 
@@ -103,6 +105,16 @@
     if (path) void runMutation(mutation, () => diff.stageLines(keys, reverse), [path], false);
   }
 
+  function lineContext(line: number, side: "left" | "right", event: MouseEvent) {
+    if (!request || !diff.shownPath) return;
+    const spec = diff.shownSpec ?? request.spec;
+    let commit = null;
+    if (spec.kind === "commitVsParent") commit = side === "left" ? parent ?? null : spec.oid;
+    if (spec.kind === "commitVsWorkTree" && side === "left") commit = spec.oid;
+    if (spec.kind === "commitVsCommit") commit = side === "left" ? spec.a : spec.b;
+    void userTools.lineMenu(request.repo, { file: diff.shownPath, commit, branch: null, line }, event);
+  }
+
   // The file is gone from both sides (Discard removed it): nothing left to compare, and the
   // window stops asking for it. The note shows for the moment the close takes.
   $effect(() => {
@@ -170,6 +182,7 @@
         showPath={false}
         {captions}
         onstage={stageLines}
+        onlinecontext={lineContext}
         whitespace={diff.whitespace}
         onwhitespace={(mode) => void diff.setWhitespace(request.repo, mode)}
       />

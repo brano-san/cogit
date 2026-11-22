@@ -104,3 +104,6 @@ export function commitBlocker(box: CommitBoxState, noFiles = "Stage the changes 
 export function canCommit(box: CommitBoxState): boolean {
   return commitBlocker(box) === null;
 }
+export function commitDraftKey(root: string): string {
+  return `cogit:draft:${root}`;
+}
