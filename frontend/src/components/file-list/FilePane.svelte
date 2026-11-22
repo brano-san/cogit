@@ -200,7 +200,7 @@
           >
             <span class="cell name">
               <FileStateIcon
-                base={file.mode === "submodule" ? "submodule" : "file"}
+                mode={file.mode}
                 state={fileState(file, sideOfRow(file.indexState, side)).icon}
               />
               <span class="truncate shrink-last" title={absolutePath(file.path)}>{fileName(file.path)}</span>

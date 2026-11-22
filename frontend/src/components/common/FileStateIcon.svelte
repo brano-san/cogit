@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { IconState } from "$lib/file-state";
   import { GLYPHS, type Glyph } from "$lib/icons";
+  import type { FileEntry } from "$lib/ipc";
 
   /** The 16x16 icon of a file or a submodule in a state: the base on the 1 px grid (strokes on
       half pixels, so they stay one sharp pixel at 100 and 200 % scale) and an 8x8 overlay in the
@@ -8,14 +9,14 @@
       overlay, to lay it over another icon. */
   interface Props {
     state: IconState;
-    base?: "file" | "submodule";
+    mode?: FileEntry["mode"];
     overlayOnly?: boolean;
     label?: string;
   }
 
-  let { state, base = "file", overlayOnly = false, label }: Props = $props();
+  let { state, mode, overlayOnly = false, label }: Props = $props();
 
-  const shape: Glyph = $derived(GLYPHS[base]);
+  const shape: Glyph = $derived(GLYPHS[mode === "submodule" ? "repository" : "file"]);
 </script>
 
 <svg

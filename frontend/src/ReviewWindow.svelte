@@ -237,7 +237,7 @@
                     title={file.oldPath ? `${state.tooltip}: ${file.oldPath} → ${file.path}` : `${state.tooltip}: ${file.path}`}
                     onclick={() => review.select(file.path)}
                   >
-                    <FileStateIcon base={file.mode === "submodule" ? "submodule" : "file"} state={state.icon} />
+                    <FileStateIcon mode={file.mode} state={state.icon} />
                     {#if file.oldPath}<span class="muted truncate old">{file.oldPath} →</span>{/if}
                     <span class="truncate grow">{file.path}</span>
                     <span class="tabular muted counts">{counts(file)}</span>

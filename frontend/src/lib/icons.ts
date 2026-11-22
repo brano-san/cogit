@@ -37,7 +37,6 @@ export const GLYPHS = {
   folder: g16(FOLDER),
   folderPlus: g16(FOLDER, "M8 6.5v5M5.5 9h5"),
   repository: g16(DISKS),
-  submodule: g16([1.5, 6.5, 11.5].map((y) => disk(5.5, y, 9)).join(""), "M2.5 1.5V12.5H5.5"),
   scanRepositories: g16(
     `${disk(1.5, 1.5, 9)}${disk(1.5, 6.5, 5)}${disk(1.5, 11.5, 5)}`,
     `${ring(11, 10.5, 3)}M13.2 12.7 15 14.5`,

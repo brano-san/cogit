@@ -37,6 +37,11 @@ function markupTexts(source: string): string[] {
 }
 
 describe("icons", () => {
+  it("uses the repository glyph for submodules without a dedicated glyph", () => {
+    expect(GLYPHS).toHaveProperty("repository");
+    expect(GLYPHS).not.toHaveProperty("submodule");
+  });
+
   it("gives every glyph a shape of its own", () => {
     const owners = new Map<string, string>();
     const shared: string[] = [];

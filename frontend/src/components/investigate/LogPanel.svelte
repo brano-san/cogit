@@ -80,7 +80,7 @@
           ondblclick={() =>
             void session.navigate({ path: file.path, rev: session.location.rev, line: null })}
         >
-          <FileStateIcon base={file.mode === "submodule" ? "submodule" : "file"} state={state.icon} />
+          <FileStateIcon mode={file.mode} state={state.icon} />
           <span class="mono truncate">{file.path}</span>
           {#if file.oldPath}<span class="muted truncate">from {file.oldPath}</span>{/if}
           <span class="muted state truncate" title={state.tooltip}>{state.text}</span>

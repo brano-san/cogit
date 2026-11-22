@@ -411,7 +411,7 @@ export const commands = {
 	cherryPick: (repo: RepoId, commits: string[]) => typedError<null, GitError>(__TAURI_INVOKE("cherry_pick", { repo, commits })),
 	revert: (repo: RepoId, commits: string[]) => typedError<null, GitError>(__TAURI_INVOKE("revert", { repo, commits })),
 	/**  Every lost commit, newest first, in chunks; the answer is how many were sent. */
-	lostCommits: (repo: RepoId, onChunk: Channel<CommitRow[]>) => typedError<number, GitError>(__TAURI_INVOKE("lost_commits", { repo, onChunk })),
+	lostCommits: (repo: RepoId, onChunk: Channel<CommitRow_Deserialize[]>) => typedError<number, GitError>(__TAURI_INVOKE("lost_commits", { repo, onChunk })),
 	/**
 	 *  Each row not cached costs a `head`, a `branches` and a `status`, so it leaves the
 	 *  async workers that carry IPC.
@@ -454,7 +454,7 @@ export const commands = {
 	/**  The commits that made line `line` of `path` at `rev` what it is, newest first. */
 	lineHistory: (repo: RepoId, path: string, rev: string, line: number) => typedError<LineVersion[], GitError>(__TAURI_INVOKE("line_history", { repo, path, rev, line })),
 	/**  The versions of `path` up to `rev`: the commits that changed it, newest first. */
-	fileRevisions: (repo: RepoId, path: string, rev: string) => typedError<CommitRow[], GitError>(__TAURI_INVOKE("file_revisions", { repo, path, rev })),
+	fileRevisions: (repo: RepoId, path: string, rev: string) => typedError<CommitRow_Serialize[], GitError>(__TAURI_INVOKE("file_revisions", { repo, path, rev })),
 	remoteUrl: (repo: RepoId, name: string) => typedError<string | null, GitError>(__TAURI_INVOKE("remote_url", { repo, name })),
 	refDates: (repo: RepoId) => typedError<RefDate[], GitError>(__TAURI_INVOKE("ref_dates", { repo })),
 	otherRefs: (repo: RepoId) => typedError<OtherRef[], GitError>(__TAURI_INVOKE("other_refs", { repo })),
@@ -1379,13 +1379,29 @@ export type CommitRequest = {
 	only?: string[],
 };
 
-export type CommitRow = {
+export type CommitRow = CommitRow_Serialize | CommitRow_Deserialize;
+
+export type CommitRow_Deserialize = {
 	oid: string,
 	/**  Git order: the first parent is the mainline, which lane allocation relies on. */
 	parents: string[],
 	summary: string,
 	authorName: string,
 	authorEmail: string,
+	committerIdentity?: string | null,
+	/**  specta refuses `i64`; Unix seconds stay far below 2^53, so a number is exact. */
+	timestamp: number,
+	tzOffsetMinutes: number,
+};
+
+export type CommitRow_Serialize = {
+	oid: string,
+	/**  Git order: the first parent is the mainline, which lane allocation relies on. */
+	parents: string[],
+	summary: string,
+	authorName: string,
+	authorEmail: string,
+	committerIdentity?: string | null,
 	/**  specta refuses `i64`; Unix seconds stay far below 2^53, so a number is exact. */
 	timestamp: number,
 	tzOffsetMinutes: number,
@@ -1822,8 +1838,8 @@ export type FileEntry_Deserialize = {
 	oldPath?: string | null,
 	status: FileStatus,
 	/**
-	 *  What the entry is. A changed submodule is drawn with the submodule icon, the same
-	 *  one the Repositories panel uses, not as a file (doc/12-risks.md, R-143).
+	 *  What the entry is. A changed submodule is drawn with the repository icon
+	 *  (doc/12-risks.md, R-143).
 	 */
 	mode: FileMode,
 	/**  The new mode, only when it differs from the old one. */
@@ -1841,8 +1857,8 @@ export type FileEntry_Serialize = {
 	oldPath?: string | null,
 	status: FileStatus,
 	/**
-	 *  What the entry is. A changed submodule is drawn with the submodule icon, the same
-	 *  one the Repositories panel uses, not as a file (doc/12-risks.md, R-143).
+	 *  What the entry is. A changed submodule is drawn with the repository icon
+	 *  (doc/12-risks.md, R-143).
 	 */
 	mode: FileMode,
 	/**  The new mode, only when it differs from the old one. */

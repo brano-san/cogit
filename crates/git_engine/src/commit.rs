@@ -156,8 +156,8 @@ pub struct FileEntry {
     #[specta(optional)]
     pub old_path: Option<String>,
     pub status: FileStatus,
-    /// What the entry is. A changed submodule is drawn with the submodule icon, the same
-    /// one the Repositories panel uses, not as a file (doc/12-risks.md, R-143).
+    /// What the entry is. A changed submodule is drawn with the repository icon
+    /// (doc/12-risks.md, R-143).
     pub mode: FileMode,
     /// The new mode, only when it differs from the old one.
     #[serde(default, skip_serializing_if = "Option::is_none")]

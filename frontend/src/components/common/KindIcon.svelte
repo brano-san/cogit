@@ -35,7 +35,7 @@
 
   const GLYPH_OF: Record<Kind, GlyphName> = {
     repository: "repository",
-    submodule: "submodule",
+    submodule: "repository",
     worktree: "worktree",
     group: "folder",
     file: "file",
