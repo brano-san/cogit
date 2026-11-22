@@ -60,7 +60,12 @@ mod tests {
         capture.set_modal(true);
 
         assert_eq!(claimed(&capture, "CmdOrCtrl+Enter"), None);
-        assert_eq!(claimed(&capture, "Alt+X").as_deref(), Some("exit"));
+        let exit = if cfg!(target_os = "macos") {
+            "CmdOrCtrl+Q"
+        } else {
+            "Alt+X"
+        };
+        assert_eq!(claimed(&capture, exit).as_deref(), Some("exit"));
 
         capture.set_modal(false);
         assert_eq!(
