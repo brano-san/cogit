@@ -33,7 +33,7 @@ export const GRAPH_COLUMNS = ["hash", "author", "avatar", "time"] as const;
 export type GraphColumn = (typeof GRAPH_COLUMNS)[number];
 export type GraphTimeFormat = "relative" | "date" | "dateTime" | "custom";
 export type GraphDensity = "compact" | "normal" | "comfortable";
-/** Smart (R-979), `--topo-order` (R-766) or `--date-order`. */
+/** Smart (R-980), `--topo-order` (R-766) or `--date-order`. */
 export type GraphSort = "smart" | "topological" | "date";
 
 export interface Settings {
