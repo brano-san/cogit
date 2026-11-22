@@ -234,11 +234,13 @@ fn several_branches_are_judged_in_one_pass_and_the_cache_spares_git_the_second_t
     f.commit_staged(10, "squash dev").unwrap();
     let repo = open(&f);
     let tips = [id(&f, "dev"), id(&f, "picked"), id(&f, "old")];
+    let head = id(&f, "HEAD");
     let mut cache = git_engine::MergeCache::default();
+    git_engine::git_version().unwrap();
 
     let before = git_engine::children::spawned();
     let first = repo
-        .merge_kinds(id(&f, "HEAD"), &tips, 100, &mut cache, &|| false)
+        .merge_kinds(head, &tips, 100, &mut cache, &|| false)
         .unwrap();
     let spawned = git_engine::children::spawned() - before;
     assert_eq!(
@@ -256,7 +258,7 @@ fn several_branches_are_judged_in_one_pass_and_the_cache_spares_git_the_second_t
 
     let before = git_engine::children::spawned();
     let again = repo
-        .merge_kinds(id(&f, "HEAD"), &tips, 100, &mut cache, &|| false)
+        .merge_kinds(head, &tips, 100, &mut cache, &|| false)
         .unwrap();
     assert_eq!(again, first);
     assert_eq!(git_engine::children::spawned(), before);

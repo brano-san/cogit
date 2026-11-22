@@ -113,6 +113,7 @@ fn without_remote_branches_nothing_protects_and_a_bad_revision_still_fails() {
 fn without_a_commit_graph_one_click_starts_one_git() {
     let (f, base) = diverged();
     let repo = open(&f);
+    git_engine::git_version().unwrap();
 
     let before = git_engine::children::spawned();
     assert!(repo.is_published(&base).unwrap());
