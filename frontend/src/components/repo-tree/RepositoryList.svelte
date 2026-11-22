@@ -1,11 +1,11 @@
 <script lang="ts">
   import RepositoryMarks from "$components/repo-tree/RepositoryMarks.svelte";
   import Disclosure from "$components/common/Disclosure.svelte";
-  import KindIcon from "$components/common/KindIcon.svelte";
+  import KindIcon, { type Kind } from "$components/common/KindIcon.svelte";
   import { EMPTY_SELECTION, markRow, type FileSelection } from "$lib/multi-select";
   import { registerSelectAll } from "$lib/select-all";
   import { MISSING_REPOSITORY } from "$lib/repo-labels";
-  import { freshOverview, moduleSync, rowSync } from "$lib/repo-sync";
+  import { freshOverview, moduleSync, rowSync, type RowSync } from "$lib/repo-sync";
   import { repoPulse } from "$stores/repo-pulse.svelte";
   import { sparseTooltip } from "$lib/sparse";
   import { repoMenuRow } from "$stores/menu-row.svelte";
@@ -243,6 +243,16 @@
   };
 </script>
 
+{#snippet nodeIcon(kind: Kind, sync?: RowSync)}
+  <span class="node-icon">
+    {#if sync && (kind === "repository" || kind === "submodule")}
+      <RepositoryMarks {sync} {kind} gutter={false} />
+    {:else}
+      <KindIcon {kind} />
+    {/if}
+  </span>
+{/snippet}
+
 <!-- Push and pull sit on the corners of the icon; uncommitted changes fill it red (R-353). -->
 {#snippet topDisclosure(root: string, owned: boolean, closed = false)}
   {@const open = owned ? !submodules.folded : moduleMemory.isOpen(root)}
@@ -311,7 +321,7 @@
           toggle(node);
         }}
       />
-      <RepositoryMarks {sync} kind="submodule" />
+      {@render nodeIcon("submodule", sync)}
       <span class="modpath truncate shrink-last"
         >{#if folder}<span class="dir">{folder}/</span>{/if}<span class="modname">{parts.name}</span></span
       >
@@ -372,7 +382,7 @@
           }}
         >
           <Disclosure open={row.open} />
-          <KindIcon kind="group" />
+          {@render nodeIcon("group")}
           <span class="truncate">{row.name} ({row.count})</span>
         </div>
       {:else}
@@ -427,7 +437,7 @@
         }}
       >
         {@render topDisclosure(entry.root, submodules.owner?.valueOf() === entry.repo.valueOf())}
-        <RepositoryMarks {sync} />
+        {@render nodeIcon("repository", sync)}
         <span class="name truncate shrink-last">{listed.name}</span>
         {#if listed.pinned}<span class="pin" title="Pinned to the top of its group">⊤</span>{/if}
         {#if worktrees.ownerRoot === entry.root && repository.current}
@@ -466,7 +476,7 @@
             }}
           >
             {@render topDisclosure(listed.root, false, true)}
-            <RepositoryMarks {sync} />
+            {@render nodeIcon("repository", sync)}
             <span class="name truncate shrink-last">{listed.name}</span>
             {#if sshHost(backends.get(listed.root))}<span class="branch truncate shrink-first">not connected</span>{/if}
             {#if listed.pinned}<span class="pin" title="Pinned to the top of its group">⊤</span>{/if}
@@ -481,6 +491,7 @@
     {#each cloneWizard.underway as target (target)}
       <div class="row closed" title="{target} — cloning" style:padding-left="var(--tree-base)">
         <Disclosure empty open={false} label="Cloning" />
+        {@render nodeIcon("repository")}
         <span class="name truncate shrink-last">{folderName(target)}</span>
         <span class="op">cloning…</span>
       </div>
@@ -490,7 +501,16 @@
 <style>
   .wrapper {
     --tree-gap: var(--sp-3);
+    --node-icon-gutter: calc(var(--tree-gap) / 2);
+    --tree-next: calc(var(--panel-icon) + 2 * var(--node-icon-gutter));
     padding: var(--sp-2) 0;
+  }
+
+  .node-icon {
+    --kind-icon: var(--panel-icon);
+    display: inline-flex;
+    flex: none;
+    padding-inline: var(--node-icon-gutter);
   }
 
   /* One path, cut on the right like every list (R-243): `import/SignalGenerator200` is read
@@ -563,7 +583,8 @@
 
 
 
-  .row {
+  .row,
+  .group {
     display: flex;
     align-items: center;
     gap: var(--tree-gap);
@@ -596,16 +617,6 @@
     background: var(--state-hover);
     outline: 1px solid var(--state-focus-ring);
     outline-offset: -1px;
-  }
-
-  .group {
-    display: flex;
-    align-items: center;
-    gap: var(--tree-gap);
-    height: var(--h-row-dense);
-    padding: 0 var(--sp-5);
-    font-size: var(--fs-dense);
-    white-space: nowrap;
   }
 
   .group:hover {

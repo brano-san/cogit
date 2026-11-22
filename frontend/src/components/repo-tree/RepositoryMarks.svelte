@@ -4,10 +4,14 @@
   import KindIcon from "$components/common/KindIcon.svelte";
   import { canPull, syncTooltip, type RowSync } from "$lib/repo-sync";
 
-  let { sync, kind = "repository" }: { sync: RowSync; kind?: "repository" | "submodule" } = $props();
+  let {
+    sync,
+    kind = "repository",
+    gutter = true,
+  }: { sync: RowSync; kind?: "repository" | "submodule"; gutter?: boolean } = $props();
 </script>
 
-<span class="repo-icon">
+<span class="repo-icon" class:gutter>
   <KindIcon {kind} title={syncTooltip(sync) || undefined} changed={sync.dirty === true} />
   {#if sync.conflicted}<FileStateIcon state="conflicted" overlayOnly label="Unresolved merge conflicts" />{/if}
   {#if sync.ahead > 0}
@@ -25,13 +29,16 @@
 <style>
   .repo-icon {
     --mark-halo: inherit;
-    --kind-icon: 16px;
+    --kind-icon: var(--panel-icon);
     --file-icon: 20px;
     --sync-arrow: 12px;
     position: relative;
     display: inline-flex;
     flex: none;
-    margin: 0 3px;
+  }
+
+  .gutter {
+    margin-inline: calc(var(--sp-3) / 2);
   }
 
   .repo-icon :global(.icon) {
