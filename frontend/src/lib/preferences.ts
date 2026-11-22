@@ -318,8 +318,8 @@ export const CATEGORIES: Category[] = [
           {
             key: "graphSort",
             label: "Sort commits",
-            hint: "Topological: a branch's commits stay together. By date: commits of parallel branches interleave.",
-            keywords: ["order", "sort", "topological", "topo-order", "date-order", "date", "chronological"],
+            hint: "Smart follows the newest ready commit and keeps merged branches together. Topological follows Git's graph order. By date interleaves parallel branches.",
+            keywords: ["order", "sort", "smart", "topological", "topo-order", "date-order", "date", "chronological"],
           },
           {
             key: "graphColoring",

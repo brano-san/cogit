@@ -614,7 +614,7 @@ describe("the rows of the repository left", () => {
 // does not change (R-51).
 describe("a view changed while a filter is on", () => {
   const view = graph.view;
-  const folding = { firstParent: false, collapseMerged: true, expanded: ["m"] };
+  const folding = { ...view, collapseMerged: true, expanded: ["m"] };
 
   it("walks nothing until the filter is cleared, which takes the view", async () => {
     await loaded(A, ["a", "b"]);

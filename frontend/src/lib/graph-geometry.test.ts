@@ -769,4 +769,9 @@ describe("a line drawn on across the Working Tree row", () => {
     const above = [{ from: 1, to: 0, span: "bottom" as const }];
     expect(throughWorkingTree(row, 0, above, 0)).toBe(top + GRAPH.rowHeight / 2);
   });
+
+  it("keeps the trunk whole when a side line also turns into its column", () => {
+    const above = [{ from: 1, to: 0, span: "bottom" as const }, { from: 0, to: 0, span: "through" as const }];
+    expect(throughWorkingTree(row, 0, above, 0)).toBe(top);
+  });
 });

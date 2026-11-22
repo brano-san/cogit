@@ -154,6 +154,36 @@ function record(over: Partial<GraphScene> = {}): Recorder {
 }
 
 describe("paintGraph", () => {
+  it("draws the normal Working Tree edge as a solid secondary stroke below its dot", () => {
+    const { log, dashes } = record({ rows: [], focusLane: null });
+    const gray = log.indexOf("strokeStyle var(--graph-line)");
+    expect(log[gray + 2]).toBe("stroke M26 7;L26 31");
+    expect(gray).toBeLessThan(log.findIndex((entry) => entry.startsWith("arc ")));
+    expect(dashes).toEqual([]);
+  });
+
+  it.each([1, 1.25, 1.5, 2])("uses the same device-pixel centers at %sx", (ratio) => {
+    const rows = [
+      { listRow: 0, layout: { ...LAYOUTS[1]!, segments: [seg(0, 0, "through", true), seg(1, 0, "bottom")] } },
+      { listRow: 1, layout: { ...LAYOUTS[0]!, segments: [seg(0, 0, "top", true)] } },
+    ];
+    const log = record({
+      rows, scrollTop: 0, coloring: "default", focusLane: null, headLane: null, workingTree: null,
+      grid: { ratio, x: 1, y: 1 },
+    }).log;
+    const curve = log.find((entry) => entry.startsWith("stroke M") && entry.includes("C"))!;
+    const main = log.findIndex((entry) => entry === "strokeStyle var(--graph-main)");
+    const vertical = log[main + 2]!;
+    const ring = log.filter((entry) => entry.startsWith("arc "))[1]!;
+    const x = ring.slice(4).split(",")[0]!;
+    expect(curve).toMatch(new RegExp(` ${x.replace(".", "\\.")} [\\d.]+$`));
+    expect(vertical).toContain(`M${x} `);
+    expect(log.indexOf(curve)).toBeLessThan(main);
+    expect(main).toBeLessThan(log.indexOf(ring));
+    const width = Math.round(Number(log[main + 1]!.slice("lineWidth ".length)) * ratio);
+    expect(Number(x) * ratio + 1 - width / 2).toBeCloseTo(Math.round(Number(x) * ratio + 1 - width / 2), 1);
+  });
+
   it("draws one path per look, layer by layer", () => {
     const drawn = record();
     const strokes = drawn.log.filter((line) => line.startsWith("stroke M"));

@@ -296,17 +296,22 @@ impl<'a> CommitReader<'a> {
     }
 
     pub(crate) fn read(&self, id: ObjectId) -> Option<(i64, Parents)> {
+        self.read_with_level(id)
+            .map(|(time, parents, _)| (time, parents))
+    }
+
+    pub(crate) fn read_with_level(&self, id: ObjectId) -> Option<(i64, Parents, u32)> {
         if let Some(graph) = &self.graph
             && let Some(at) = graph.lookup(id)
         {
             let commit = graph.commit_at(at);
-            let time = i64::try_from(commit.committer_timestamp()).unwrap_or(i64::MAX);
             let parents: std::result::Result<Parents, _> = commit
                 .iter_parents()
                 .map(|parent| parent.map(|at| graph.id_at(at).to_owned()))
                 .collect();
             if let Ok(parents) = parents {
-                return Some((time, parents));
+                let time = i64::try_from(commit.committer_timestamp()).unwrap_or(i64::MAX);
+                return Some((time, parents, commit.generation()));
             }
         }
         let commit = self
@@ -321,6 +326,7 @@ impl<'a> CommitReader<'a> {
         Some((
             time.seconds,
             commit.parent_ids().map(gix::Id::detach).collect(),
+            u32::MAX,
         ))
     }
 }

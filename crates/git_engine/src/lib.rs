@@ -74,6 +74,7 @@ mod runner;
 mod search;
 mod shared;
 mod side_modes;
+mod smart_order;
 mod solver;
 mod sparse;
 mod split_commit;

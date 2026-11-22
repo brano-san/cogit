@@ -66,7 +66,8 @@ describe("graphView", () => {
 
   it("asks for date order only when chosen, topological by default", () => {
     expect(graphView(GRAPH_MODE_DEFAULTS)).not.toHaveProperty("dateOrder");
-    expect(graphView(GRAPH_MODE_DEFAULTS, new Set(), true)).toMatchObject({ dateOrder: true });
+    expect(graphView(GRAPH_MODE_DEFAULTS, new Set(), "date")).toMatchObject({ dateOrder: true });
+    expect(graphView(GRAPH_MODE_DEFAULTS, new Set(), "smart")).toMatchObject({ smartOrder: true });
   });
 });
 
@@ -91,9 +92,12 @@ describe("viewReloads", () => {
   });
 
   it("walks again for another order, filtered or not: a filtered list keeps the graph's order", () => {
-    const dated = graphView(GRAPH_MODE_DEFAULTS, new Set(), true);
+    const dated = graphView(GRAPH_MODE_DEFAULTS, new Set(), "date");
+    const smart = graphView(GRAPH_MODE_DEFAULTS, new Set(), "smart");
     expect(viewReloads(plain, dated, true)).toBe(true);
     expect(viewReloads(plain, dated, false)).toBe(true);
+    expect(viewReloads(plain, smart, true)).toBe(true);
+    expect(viewReloads(plain, smart, false)).toBe(true);
   });
 
   it("walks the whole history again for anything but the lines", () => {

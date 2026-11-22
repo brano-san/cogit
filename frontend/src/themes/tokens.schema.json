@@ -219,7 +219,7 @@
     },
     "graph.lane.neutral": {
       "type": "color",
-      "description": "Unticked branches: the lines and nodes of the graph that have no branch color. Lanes 0-7 are for ticked branches only."
+      "description": "Muted lines and nodes for unticked branches and the Working Tree edge. Lanes 0-7 are for ticked branches only."
     },
     "graph.workingTree.clean": {
       "type": "color",

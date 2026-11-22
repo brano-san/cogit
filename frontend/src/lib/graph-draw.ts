@@ -4,6 +4,8 @@ import {
   nodeSizes,
   type PixelGrid,
   arrowStub,
+  graphStrokeWidth,
+  gridLaneX,
   laneX,
   nodeCentre,
   nodeFillInto,
@@ -14,7 +16,7 @@ import {
   transition,
   type Curve,
 } from "$lib/graph-geometry";
-import { LAYERS, nodeStroke, opaqueInk, segmentStroke, type RowPaint } from "$lib/graph-style";
+import { LAYERS, LINE_LAYERS, nodeStroke, opaqueInk, segmentStroke, type RowPaint } from "$lib/graph-style";
 import type { GraphColoring } from "$lib/graph-coloring";
 import type { GraphRow, Segment } from "$lib/ipc";
 
@@ -95,7 +97,15 @@ function inkOf(colour: string, alpha: number, panel: string): string {
   return ink;
 }
 
-const DASH = [3, 3];
+function pathFor(layer: number, style: string, width: number): Path2D {
+  const buckets = scratch.layers[layer]!;
+  for (const bucket of buckets) {
+    if (bucket.style === style && bucket.width === width) return bucket.path;
+  }
+  const path = new Path2D();
+  buckets.push({ style, width, path });
+  return path;
+}
 
 /** Paints `scene` on a context already scaled to CSS pixels and cleared. `token` resolves a
     CSS custom property to a colour, and is asked on every frame: it caches (`tokenColor`). */
@@ -119,8 +129,9 @@ export function paintGraph(context: CanvasRenderingContext2D, scene: GraphScene,
     grid = CSS_GRID,
   } = scene;
   const sizes = nodeSizes(grid.ratio);
-  const main = token("--graph-main");
   const line = token("--graph-line");
+  const normalWidth = graphStrokeWidth(GRAPH.lineWidth, grid.ratio);
+  const mainWidth = graphStrokeWidth(GRAPH.mainLineWidth, grid.ratio);
   const options = { accentLit: coloring === "mergeable", branchOnly: coloring === "branch", focusLane };
   const panel = token("--bg-editor");
   const ink = (name: string, alpha: number) => inkOf(token(name) || line, alpha, panel);
@@ -130,6 +141,7 @@ export function paintGraph(context: CanvasRenderingContext2D, scene: GraphScene,
   context.beginPath();
   context.rect(0, 0, edge, height);
   context.clip();
+  context.lineCap = "butt";
 
   // A merge in progress: its Working Tree row is drawn after the rows, as one of them.
   const count = rows.length + (workingTreeLayout ? 1 : 0);
@@ -151,30 +163,22 @@ export function paintGraph(context: CanvasRenderingContext2D, scene: GraphScene,
     near.below = segmentsAt.get(row.listRow + 1);
     for (let index = 0; index < segments.length; index++) {
       const segment = segments[index]!;
+      const curve = segment.arrow ? null : segmentCurve(segment, row.listRow, scrollTop, near, into, grid);
+      if (!segment.arrow && !curve) continue;
       const look = segmentStroke(segment, index, row.paint, options);
-      const style = ink(look.token, look.alpha);
-      const buckets = layers[look.layer]!;
-      let bucket: Bucket | undefined;
-      for (const known of buckets) {
-        if (known.style === style && known.width === look.width) {
-          bucket = known;
-          break;
-        }
-      }
-      if (!bucket) {
-        bucket = { style, width: look.width, path: new Path2D() };
-        buckets.push(bucket);
-      }
-      const { path } = bucket;
-      const curve = segment.arrow ? null : segmentCurve(segment, row.listRow, scrollTop, near, into);
+      const path = pathFor(look.layer, ink(look.token, look.alpha), look.width === GRAPH.lineWidth ? normalWidth : mainWidth);
       // Across the Working Tree row to where the line in HEAD's row starts.
       if (curve && !workingTreeLayout && headerRow > 0 && row.listRow === headRow && segment.span !== "bottom") {
-        const x = laneX(segment.from);
-        path.moveTo(x, throughWorkingTree(headerRow, scrollTop, segmentsAt.get(headerRow - 1), segment.from));
-        path.lineTo(x, Math.min(curve.y1, curve.y2));
+        const x = gridLaneX(segment.from, grid);
+        const start = throughWorkingTree(headerRow, scrollTop, segmentsAt.get(headerRow - 1), segment.from, grid);
+        const end = Math.min(curve.y1, curve.y2);
+        if (start < end) {
+          path.moveTo(x, start);
+          path.lineTo(x, end);
+        }
       }
       if (segment.arrow) {
-        const stub = arrowStub(segment, row.listRow, scrollTop);
+        const stub = arrowStub(segment, row.listRow, scrollTop, grid);
         path.moveTo(stub.x1, stub.y1);
         path.lineTo(stub.x2, stub.y2);
         path.moveTo(stub.left.x, stub.left.y);
@@ -186,6 +190,18 @@ export function paintGraph(context: CanvasRenderingContext2D, scene: GraphScene,
         else path.bezierCurveTo(curve.cx1, curve.cy1, curve.cx2, curve.cy2, curve.x2, curve.y2);
       }
     }
+  }
+  if (!workingTreeLayout && headLane !== null && headRow !== null && scrollTop < GRAPH.rowHeight * headRow) {
+    const top = nodeCentre(headerLane ?? headLane, headerRow, scrollTop, grid);
+    const foot = nodeCentre(headLane, headRow, scrollTop, grid);
+    const path = pathFor(LINE_LAYERS.grey, line, normalWidth);
+    path.moveTo(top.x, top.y);
+    if (top.x !== foot.x) {
+      const end = rowY(headerRow + 1, scrollTop, grid);
+      const turn = transition(top, foot.x, "down", end);
+      path.bezierCurveTo(turn.cx1, turn.cy1, turn.cx2, turn.cy2, turn.x2, turn.y2);
+    }
+    path.lineTo(foot.x, foot.y);
   }
   near.above = undefined;
   near.below = undefined;
@@ -199,27 +215,8 @@ export function paintGraph(context: CanvasRenderingContext2D, scene: GraphScene,
     // The scratch keeps no path, nor the rows it was drawn from, past the frame.
     buckets.length = 0;
   }
-
-  if (!workingTreeLayout && headLane !== null && headRow !== null && scrollTop < GRAPH.rowHeight * headRow) {
-    const top = nodeCentre(headerLane ?? headLane, headerRow, scrollTop);
-    const foot = nodeCentre(headLane, headRow, scrollTop);
-    context.save();
-    context.setLineDash(DASH);
-    context.strokeStyle = main;
-    context.lineWidth = GRAPH.lineWidth;
-    context.beginPath();
-    context.moveTo(top.x, top.y);
-    if (top.x !== foot.x) {
-      const turn = transition(top, foot.x, "down");
-      context.bezierCurveTo(turn.cx1, turn.cy1, turn.cx2, turn.cy2, turn.x2, turn.y2);
-    }
-    context.lineTo(foot.x, foot.y);
-    context.stroke();
-    context.restore();
-  }
-  // Over the dashed line's end, so the line starts at the dot's edge.
   if (workingTree !== null) {
-    const { x, y } = nodeCentre(headerLane ?? headLane ?? 0, headerRow, scrollTop);
+    const { x, y } = nodeCentre(headerLane ?? headLane ?? 0, headerRow, scrollTop, grid);
     context.beginPath();
     context.arc(x, y, sizes.dotRadius, 0, Math.PI * 2);
     context.fillStyle = token(workingTree === "clean" ? "--graph-working-tree-clean" : "--graph-working-tree-changed");
@@ -235,12 +232,8 @@ export function paintGraph(context: CanvasRenderingContext2D, scene: GraphScene,
   for (const row of rows) {
     const local = !row.stash && row.unpushed === true;
     nodeFillInto(behind, row.listRow, selectedRows, hoverRow, stripes, row.bisect?.tint ?? null);
-    // `nodeCentre` and `nodeSquare`, without their objects, on a device-pixel corner.
-    // On the line's own centre: the drawing's origin and scroll are whole device pixels
-    // already, so at a whole ratio this is on the grid with its lines; at 125 % a ring
-    // snapped apart from them sat beside them.
-    const x = laneX(row.layout.lane);
-    const y = rowY(row.listRow, scrollTop);
+    const x = gridLaneX(row.layout.lane, grid);
+    const y = rowY(row.listRow, scrollTop, grid);
     context.beginPath();
     if (row.stash) {
       const size = sizes.ringRadius * 2;

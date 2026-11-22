@@ -38,6 +38,7 @@
   ] as const;
 
   const SORTS = [
+    ["smart", "Smart (branches stay together)"],
     ["topological", "Topological"],
     ["date", "By date"],
   ] as const;

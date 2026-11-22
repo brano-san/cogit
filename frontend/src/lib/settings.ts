@@ -33,8 +33,8 @@ export const GRAPH_COLUMNS = ["hash", "author", "avatar", "time"] as const;
 export type GraphColumn = (typeof GRAPH_COLUMNS)[number];
 export type GraphTimeFormat = "relative" | "date" | "dateTime" | "custom";
 export type GraphDensity = "compact" | "normal" | "comfortable";
-/** `--topo-order` or `--date-order` (R-766). */
-export type GraphSort = "topological" | "date";
+/** Smart (R-979), `--topo-order` (R-766) or `--date-order`. */
+export type GraphSort = "smart" | "topological" | "date";
 
 export interface Settings {
   theme: Theme;
@@ -177,7 +177,7 @@ export interface Settings {
 }
 
 /** 1: a stored graph `date` became `dateTime` (R-370). */
-export const SETTINGS_VERSION = 4;
+export const SETTINGS_VERSION = 5;
 /** Kept in the file but never shown in Preferences. */
 export const INTERNAL_SETTINGS: readonly (keyof Settings)[] = ["settingsVersion", "firstRunDone", "activeLayout"];
 
@@ -244,7 +244,7 @@ export const DEFAULT_SETTINGS: Settings = {
   graphHighlightChecked: true,
   graphColoring: "default",
   graphFirstParent: false,
-  graphSort: "topological",
+  graphSort: "smart",
   graphAncestry: false,
   graphCollapseMerged: false,
   graphSelectedRefsOnly: false,
@@ -284,7 +284,7 @@ const ENUMS: Partial<Record<keyof Settings, readonly string[]>> = {
   graphTimeFormat: ["relative", "date", "dateTime", "custom"],
   graphDensity: ["compact", "normal", "comfortable"],
   graphColoring: GRAPH_COLORINGS,
-  graphSort: ["topological", "date"],
+  graphSort: ["smart", "topological", "date"],
   activeLayout: WINDOW_LAYOUT_CHOICES.map(([id]) => id),
   startupPerspective: ["main", "review"],
 };
@@ -402,6 +402,7 @@ export function merge(stored: Partial<Settings> | null | undefined): Settings {
   merged.graphTimeFormat = migratedTimeFormat(record) ?? merged.graphTimeFormat;
   if (storedVersion(record) < 2) merged.autoUpdate = true;
   if (storedVersion(record) < 3) merged.firstRunDone = true;
+  if (storedVersion(record) < 5 && merged.graphSort === "topological") merged.graphSort = "smart";
   merged.settingsVersion = SETTINGS_VERSION;
   merged.graphColoring = migratedColoring(record) ?? merged.graphColoring;
   return merged;

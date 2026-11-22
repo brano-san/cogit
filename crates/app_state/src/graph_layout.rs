@@ -208,12 +208,11 @@ fn mainline_of(
         .flatten()
 }
 
-/// A merge stopped on conflicts is drawn as if it were done (07 §4): right above HEAD a node
+/// A merge in progress is drawn as if it were done (07 §4): above both parents a node
 /// for the working tree, with HEAD and MERGE_HEAD for parents, goes through the layout like
 /// a commit. Its row is taken out of the list, which keeps one row per commit, and drawn as
 /// the Working Tree row.
 struct WorkingTree {
-    head: git_engine::ObjectId,
     parents: git_engine::Parents,
     /// The node's own id: the null id, which no commit has.
     oid: git_engine::ObjectId,
@@ -251,7 +250,6 @@ impl WorkingTree {
             parents.truncate(1);
         }
         Some(Self {
-            head,
             parents,
             oid,
             oid_hex: oid.to_string(),
@@ -263,7 +261,9 @@ impl WorkingTree {
 
     fn insert(&mut self, nodes: &mut Vec<graph_engine::CommitNode<git_engine::ObjectId>>) {
         let at = if self.row.is_none() {
-            nodes.iter().position(|node| node.oid == self.head)
+            nodes
+                .iter()
+                .position(|node| self.parents.contains(&node.oid))
         } else {
             None
         };

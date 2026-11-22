@@ -15,7 +15,7 @@
     scrollTop: number;
     width: number;
     height: number;
-    /** HEAD's list row and column: the dashed line from the Working Tree row ends there (T4.5). */
+    /** HEAD's list row and column: the line from the Working Tree row ends there (T4.5). */
     headRow?: number | null;
     headLane?: number | null;
     /** Where the Working Tree row is: the top, or right above HEAD when HEAD is further down. */
@@ -24,7 +24,7 @@
     /** The Working Tree row's dot: green when clean, red when changed; none while unknown. */
     workingTree?: "clean" | "changed" | null;
     /** A merge in progress: the Working Tree row as the layout placed it, with its lines to
-        HEAD and to the merged commit (07 §4). Drawn instead of the dashed line to HEAD. */
+        HEAD and to the merged commit (07 §4). Drawn instead of the normal Working Tree edge. */
     workingTreeLayout?: GraphRow | null;
     /** A ring is filled with what is behind it: a stripe, a hovered or a selected row. */
     selectedRows?: readonly number[];
@@ -90,7 +90,6 @@
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.setTransform(ratio, 0, 0, ratio, off.x, off.y);
     context.imageSmoothingEnabled = true;
-    context.lineCap = "round";
     context.lineJoin = "round";
 
     paintGraph(

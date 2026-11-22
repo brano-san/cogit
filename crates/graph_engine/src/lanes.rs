@@ -194,7 +194,9 @@ fn place<I: CommitId>(node: &CommitNode<I>, cursor: &mut LayoutCursor<I>) -> Gra
     let mut cut_later = Vec::new();
     for parent in node.parents.iter().skip(1).filter(|parent| shown(parent)) {
         if let Some(lane) = cursor.lanes.iter().find(|lane| waits_for(lane, parent)) {
-            leaving.push(lane.id);
+            if !leaving.contains(&lane.id) {
+                leaving.push(lane.id);
+            }
             continue;
         }
         // A line already on its way costs nothing more; only a new one is worth cutting.

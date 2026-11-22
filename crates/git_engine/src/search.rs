@@ -1,6 +1,7 @@
 use rayon::prelude::*;
 
 use crate::graph_walk::{ByTime, CommitReader, CutParents, Horizon, Reuse, WalkedHistory};
+use crate::smart_order::SmartOrder;
 use crate::text_search::{TextMatch, contains_lowered};
 use crate::topo::{
     LOOKAHEAD, in_date_order, in_graph_order, in_graph_order_streamed, merged_after_head,
@@ -55,6 +56,7 @@ pub struct GraphView {
     pub filtered_graph: bool,
     /// `--date-order` instead of the default `--topo-order` (R-766).
     pub date_order: bool,
+    pub smart_order: bool,
 }
 
 /// Commits a name or content search tests at once, and the share one thread takes (R-625).
@@ -281,6 +283,44 @@ impl RepoHandle {
         if !tips.is_empty() {
             let head = self.first_of(&tips);
             let reader = CommitReader::new(&self.repo);
+            // A filtered list shows matches from every line, the merged ones too (#26).
+            let first_parent = query.view.first_parent && !query.filters_rows();
+            let shallow = self.shallow_commits();
+            let merging = head.zip(self.merge_head()).filter(|_| !first_parent);
+            let leveled = !query.view.date_order
+                && merging.is_none()
+                && shallow.is_empty()
+                && reader.has_sound_levels();
+            let rows = Rows {
+                record,
+                text,
+                passed,
+            };
+            if query.view.smart_order && !query.view.date_order {
+                let read = |id| {
+                    let found = reuse
+                        .and_then(|reuse| reuse.read(&id))
+                        .map(|(time, parents)| {
+                            (time, parents, reader.level(&id).unwrap_or(u32::MAX))
+                        })
+                        .or_else(|| reader.read_with_level(id));
+                    if let Some(cut) = cut {
+                        if found.is_none() {
+                            cut.insert(id);
+                        }
+                        if shallow.binary_search(&id).is_ok() {
+                            cut.insert_shallow(id);
+                        }
+                    }
+                    found.map(|(time, parents, level)| {
+                        (time, parents, if leveled { level } else { u32::MAX })
+                    })
+                };
+                let ordered =
+                    SmartOrder::new(tips, read, head, first_parent, shallow.clone(), merging);
+                self.stream_rows(query, chunk_size, ordered, rows, on_chunk)?;
+                return Ok(skipped);
+            }
             let read = |id| {
                 let found = reuse
                     .and_then(|reuse| reuse.read(&id))
@@ -292,15 +332,7 @@ impl RepoHandle {
                 }
                 found
             };
-            // A filtered list shows matches from every line, the merged ones too (#26).
-            let first_parent = query.view.first_parent && !query.filters_rows();
-            let shallow = self.shallow_commits();
-            let merging = head.zip(self.merge_head()).filter(|_| !first_parent);
             let horizon = Horizon::default();
-            let leveled = !query.view.date_order
-                && merging.is_none()
-                && shallow.is_empty()
-                && reader.has_sound_levels();
             let levels = leveled.then(|| (|id: &gix::ObjectId| reader.level(id), horizon.clone()));
             let walk = ByTime::leveled(tips, read, levels, first_parent, shallow.clone()).inspect(
                 |(id, _, _)| {
@@ -312,11 +344,6 @@ impl RepoHandle {
                 },
             );
             let settled = |id: &gix::ObjectId| horizon.settles(reader.level(id));
-            let rows = Rows {
-                record,
-                text,
-                passed,
-            };
             // A filtered list keeps the graph's order: it only leaves rows out.
             let ordered: Box<dyn Iterator<Item = _>> = match (merging, query.view.date_order) {
                 (Some((head, merge)), true) => Box::new(

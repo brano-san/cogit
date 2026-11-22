@@ -40,12 +40,13 @@ gix, imara-diff, keyring, similar, Svelte 5, Tauri v2 broke APIs in 2025–26; t
 
 ## Graph (authoritative; sync `07-graph-rendering.md` in same commit)
 
+- Smart is the UI default: newest ready by commit time (smaller id on ties), then ready non-first parents of a merge in parent order, depth-first while each next commit is ready. HEAD keeps priority when it is a ready tip. Topological and By date remain available. Smart and Topological stream with sound commit-graph generation numbers.
 - Lanes top-down, compact (SmartGit): lines side by side, no empty columns; a column is a line's for one gap between rows. The top commit's first-parent chain holds column 0; a commit's line goes on to its first parent. A line moves left in the gap where a column left of it frees.
 - A new line (second parent: right of the node; tip: right beside the line its first parent already has, else right of column 0's chain) goes past the lines ending no later than it: short lines near, longer ones step aside a column and come back. Lengths known within the long-link window (`longLinkRows`, default 40). HEAD, branch kind, current branch pick no lane.
 - Lines to one commit merge as soon as both exist: the right one turns into the left one in the gap under the node that made the second.
-- Working Tree row right above HEAD, its edge to HEAD secondary (like a second parent): HEAD's lane if no line enters HEAD from above, else first free lane right of it.
-- Merge in progress: drawn as done. `MERGE_HEAD` is walked with HEAD; the Working Tree is a layout node with parents HEAD and `MERGE_HEAD`, its row taken out of the list and drawn as the Working Tree row.
-- A line changes column only in a gap: one curve from a row's center to the next row's center, slanted out, upright into the column; out of a node, into a node and passing alike (`transition`, mirror images). At a row's center every line is vertical; only the node sits in its column. No gaps between a ring and its lines.
+- Working Tree row right above HEAD, with a solid secondary edge: HEAD's lane if no line enters HEAD from above, else first free lane right of it.
+- Merge in progress: drawn as done. Walk HEAD and `MERGE_HEAD`. Lay out the Working Tree above both parents and draw its row separately.
+- A line changes column only in a gap: one center-to-center curve, slanted out, upright into the column (`transition`, mirror images). At a row's center every passing line is vertical; only the node sits in its column. Rings, dots, straight lines and curve ends share the device-pixel center of their column; odd device-pixel widths use half-pixel centers. Use butt caps. A shared stem is drawn once, with the continuing line's emphasis. Draw muted/gray lines, branch colors, the main line, then nodes. No gaps between a ring and its lines.
 - Monochrome default: main line (HEAD's first parents, else `master`, then `main`) bright, rest gray. Branches ticked in Branches get own color from tip down first parents to join point; history already on main line keeps default.
 - Color/emphasis = paint over finished layout (`graph_engine::paint`); never alters layout.
 

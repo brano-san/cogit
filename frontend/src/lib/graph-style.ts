@@ -69,7 +69,7 @@ export interface Stroke {
 }
 
 export const LAYERS = 5;
-const LAYER = { dim: 0, grey: 1, colour: 2, main: 3, focus: 4 } as const;
+export const LINE_LAYERS = { dim: 0, grey: 1, colour: 2, focus: 3, main: 4 } as const;
 
 /** Every stroke there is, made once: a frame asks for one per line and per ring, and they
     are a few dozen looks. Shared, so callers never change one. */
@@ -119,7 +119,11 @@ function stroke(
     token,
     fixedWidth ? width : focused ? FOCUS_LINE_WIDTH : primary ? GRAPH.mainLineWidth : width,
     dim ? DIM_ALPHA : 1,
-    dim ? LAYER.dim : focused ? LAYER.focus : primary ? LAYER.main : slot > 0 ? LAYER.colour : LAYER.grey,
+    dim ? LINE_LAYERS.dim
+      : primary ? LINE_LAYERS.main
+      : focused ? LINE_LAYERS.focus
+      : token !== "--graph-line" ? LINE_LAYERS.colour
+      : LINE_LAYERS.grey,
   );
 }
 

@@ -129,8 +129,8 @@
     collapseMerged?: boolean;
     /** A filtered list keeps lines between its matches (`graphWhileFiltering`). */
     filteredGraph?: boolean;
-    /** `--date-order` instead of `--topo-order` (`graphSort`). */
-    sortByDate?: boolean;
+    /** Commit order chosen in Graph & History (`graphSort`). */
+    sort?: import("$lib/settings").GraphSort;
     /** Labels only for refs ticked in Branches (`graphSelectedRefsOnly`). */
     selectedRefsOnly?: boolean;
     /** A ticked branch brings its upstream along (`graphIncludeTracked`). */
@@ -167,7 +167,7 @@
     ancestry = GRAPH_MODE_DEFAULTS.ancestry,
     collapseMerged = GRAPH_MODE_DEFAULTS.collapseMerged,
     filteredGraph = GRAPH_MODE_DEFAULTS.filteredGraph,
-    sortByDate = false,
+    sort = "smart",
     selectedRefsOnly = false,
     includeTracked = false,
     workingTreeAlways = true,
@@ -201,7 +201,7 @@
     untrack(() => void notedCommitsStore.refresh(repo));
   });
   $effect(() => {
-    const view = graphView(modes, graphFolds.expanded, sortByDate);
+    const view = graphView(modes, graphFolds.expanded, sort);
     untrack(() => graph.setView(view));
   });
 
@@ -318,7 +318,7 @@
     const now = headerRows;
     const moved = now - headerRowsSeen;
     headerRowsSeen = now;
-    const above = untrack(() => (headIndex ?? 0) * rowHeight < readScroll());
+    const above = untrack(() => wtAt * rowHeight < readScroll());
     if (moved !== 0 && scroller && above) writeScroll(readScroll() + moved * rowHeight);
   });
   const commitCount = $derived(graph.total);
@@ -377,8 +377,10 @@
   });
   const far = $derived(headFar?.key === headKey ? headFar : null);
   const headIndex = $derived(headNear ?? far?.row ?? null);
-  /** HEAD under other commits: the header rows go right above it, not at the top. */
-  const wtAt = $derived(workingTreeRow && headIndex !== null ? headIndex : 0);
+  /** A merge in progress: the layout placed the Working Tree row itself (07 §4). */
+  const treeLayout = $derived(workingTreeRow && virtualRows.length === 0 ? graph.workingTreeRow : null);
+  /** The Working Tree goes above HEAD, or above both parents while a merge is in progress. */
+  const wtAt = $derived(workingTreeRow ? (treeLayout?.row ?? headIndex ?? 0) : 0);
   const head = $derived(
     headNode(
       headIndex,
@@ -390,8 +392,6 @@
   /** The Working Tree row and the rebase rows start where HEAD's line is, or beside the
       lines passing HEAD's row on their way down. */
   const headLane = $derived(head?.lane ?? null);
-  /** A merge in progress: the layout placed the Working Tree row itself (07 §4). */
-  const treeLayout = $derived(workingTreeRow && virtualRows.length === 0 ? graph.workingTreeRow : null);
   const headerLane = $derived(
     treeLayout
       ? treeLayout.lane

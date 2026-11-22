@@ -176,6 +176,13 @@ describe("graph display settings (#23)", () => {
     expect(merge({ theme: "light" }).graphTimeFormat).toBe("dateTime");
   });
 
+  it("uses Smart for fresh profiles and migrates the old graph default once", () => {
+    expect(merge(null).graphSort).toBe("smart");
+    expect(merge({ graphSort: "topological", settingsVersion: 4 }).graphSort).toBe("smart");
+    expect(merge({ graphSort: "date", settingsVersion: 4 }).graphSort).toBe("date");
+    expect(merge({ graphSort: "topological", settingsVersion: SETTINGS_VERSION }).graphSort).toBe("topological");
+  });
+
   it("turns the start-up update check on once, then keeps it off when unticked after", () => {
     expect(DEFAULT_SETTINGS.autoUpdate).toBe(true);
     expect(merge({ autoUpdate: false, settingsVersion: 1 }).autoUpdate).toBe(true);

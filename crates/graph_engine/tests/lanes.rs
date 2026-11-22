@@ -52,6 +52,13 @@ fn a_linear_history_is_one_lane_of_vertical_segments() {
 }
 
 #[test]
+fn a_repeated_parent_shares_one_outgoing_segment() {
+    let rows = run(&[("b", &["a", "a"]), ("a", &[])], Some("b"));
+    assert_eq!(segs(&rows[0], Span::Bottom), [(0, 0)]);
+    assert!(rows[0].segments[0].primary);
+}
+
+#[test]
 fn a_branch_merged_back_joins_the_main_line_as_soon_as_both_wait_for_its_fork() {
     let rows = run(
         &[

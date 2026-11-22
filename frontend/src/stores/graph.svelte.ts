@@ -17,6 +17,7 @@ import { unpushed } from "$stores/unpushed.svelte";
 import { GRAPH_MODE_DEFAULTS, graphView, viewReloads, walkedView } from "$lib/graph-modes";
 import { LONG_LINK_ROWS } from "$lib/graph-row";
 import { isEmptyQuery, sameQuery } from "$lib/query";
+import { DEFAULT_SETTINGS } from "$lib/settings";
 
 export type { GraphEntry };
 
@@ -79,7 +80,7 @@ class GraphStore {
   visibleRefs = $state.raw<string[] | null>(null);
 
   /** Graph modes that decide which commits are shown (#26), folded into every load. */
-  view = $state.raw<GraphView>(graphView(GRAPH_MODE_DEFAULTS));
+  view = $state.raw<GraphView>(graphView(GRAPH_MODE_DEFAULTS, undefined, DEFAULT_SETTINGS.graphSort));
   /** Links longer than this many rows are drawn as two stubs (R-330); 0 draws them whole.
       Folded into every load, like the refs. */
   longLinkRows = $state(LONG_LINK_ROWS);

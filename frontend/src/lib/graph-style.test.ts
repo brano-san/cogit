@@ -149,10 +149,11 @@ describe("the branch of the chosen commit", () => {
   const paint = { nodeLane: 7, nodeStyle: 0, segmentLanes: [7, 2], segmentStyles: [0, 0] };
   const focus = { focusLane: 7 };
 
-  it("is drawn on top of everything, no wider than the main line so its dots stay visible", () => {
+  it("is drawn above other side branches, with the main line on top", () => {
     const focused = segmentStroke(segment(false), 0, paint, focus);
     expect(focused).toMatchObject({ token: "--graph-focus", width: FOCUS_LINE_WIDTH });
-    expect(focused.layer).toBe(LAYERS - 1);
+    expect(focused.layer).toBe(LAYERS - 2);
+    expect(segmentStroke(segment(true), 0, undefined, focus).layer).toBe(LAYERS - 1);
     expect(FOCUS_LINE_WIDTH).toBe(GRAPH.mainLineWidth);
     expect(segmentStroke(segment(false), 1, paint, focus)).toMatchObject({ token: "--graph-line" });
   });

@@ -646,6 +646,104 @@ fn without_a_merge_there_is_no_working_tree_row() {
 }
 
 #[test]
+fn smart_order_places_the_screenshot_history_together_in_both_walks() {
+    let f = test_fixtures::linear(1).unwrap();
+    let root = f.oid("HEAD").unwrap();
+    let tree = f.oid("HEAD^{tree}").unwrap();
+    let commit = |name: &str, time, parents: &[&str]| {
+        let mut args = vec!["commit-tree", &tree, "-m", name];
+        for parent in parents {
+            args.extend(["-p", parent]);
+        }
+        f.git_at(time, &args).unwrap().trim().to_owned()
+    };
+    let side_16254 = commit("16254", 14 * 60 + 3, &[&root]);
+    let l = commit("L", 14 * 60 + 3, &[&root, &side_16254]);
+    let i = commit("I", 19 * 60 + 1, &[&l]);
+    let g = commit("G", 19 * 60 + 1, &[&l, &i]);
+    let k = commit("K", 15 * 60 + 27, &[&l]);
+    let j = commit("J", 1440 + 12 * 60 + 19, &[&k]);
+    let e = commit("E", 1440 + 12 * 60 + 21, &[&j, &g]);
+    let f_side = commit("F", 1440 + 12 * 60 + 43, &[&g]);
+    let c = commit("C", 1440 + 12 * 60 + 43, &[&g, &f_side]);
+    let b = commit("B", 1440 + 12 * 60 + 45, &[&c]);
+    let a = commit("A", 1440 + 15 * 60 + 51, &[&e]);
+    for (reference, oid) in [
+        ("refs/heads/main", &g),
+        ("refs/remotes/origin/master", &b),
+        ("refs/remotes/origin/feature", &a),
+        ("refs/heads/feature", &e),
+    ] {
+        f.git(&["update-ref", reference, oid]).unwrap();
+    }
+    let query: git_engine::CommitQuery =
+        serde_json::from_value(serde_json::json!({"view": {"smartOrder": true}})).unwrap();
+    for indexed in [false, true] {
+        if indexed {
+            f.git(&["commit-graph", "write", "--reachable"]).unwrap();
+        }
+        let state = AppState::new();
+        let repo = state.open_repository(f.path()).unwrap().repo;
+        let generation = state.begin_graph();
+        state
+            .build_graph(repo, &query, generation, 2, |_| true)
+            .unwrap();
+        let wire = state.graph_window_wire(repo, generation, 0, 11);
+        let window = state.graph_window(repo, generation, 0, 11).unwrap();
+        assert_eq!(
+            wire,
+            diff_engine::base64(&app_state::graph_wire::encode(&window))
+        );
+        let commits = &window.commits;
+        let mut rows: Vec<_> = commits
+            .iter()
+            .map(|commit| commit.summary.as_str())
+            .collect();
+        let head = commits.iter().position(|commit| commit.oid == g).unwrap();
+        rows.insert(head, "WT");
+        assert_eq!(
+            rows,
+            [
+                "A", "B", "C", "F", "E", "WT", "G", "I", "J", "K", "L", "16254"
+            ]
+        );
+    }
+}
+
+#[test]
+fn smart_order_places_the_working_tree_above_a_merge_of_a_descendant() {
+    let f = test_fixtures::linear(1).unwrap();
+    let head = f.oid("HEAD").unwrap();
+    f.git(&["switch", "-q", "-c", "side"]).unwrap();
+    let side = f.commit_file(10, "side.txt", "side\n").unwrap();
+    f.git(&["switch", "-q", "main"]).unwrap();
+    f.git(&["merge", "--no-ff", "--no-commit", "side"]).unwrap();
+
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let mut query = visible(&["HEAD"]);
+    query.view.smart_order = true;
+    let generation = state.begin_graph();
+    state
+        .build_graph(repo, &query, generation, 1, |_| true)
+        .unwrap();
+    let window = state.graph_window(repo, generation, 0, 2).unwrap();
+    assert_eq!(
+        window.commits.iter().map(|c| &c.oid).collect::<Vec<_>>(),
+        [&side, &head]
+    );
+    let tree = state.graph_working_tree(repo, generation).unwrap();
+    assert_eq!(tree.row, 0);
+    assert_eq!(
+        tree.segments
+            .iter()
+            .filter(|s| s.span == graph_engine::Span::Bottom)
+            .count(),
+        2
+    );
+}
+
+#[test]
 fn the_working_tree_row_of_a_merge_comes_out_when_rows_are_held_back_too() {
     let f = test_fixtures::conflicted().unwrap();
     let state = AppState::new();
@@ -680,9 +778,10 @@ fn a_merge_of_a_newer_branch_keeps_its_commit_below_the_working_tree() {
     let state = AppState::new();
     let repo = state.open_repository(f.path()).unwrap().repo;
 
-    for date_order in [false, true] {
+    for (date_order, smart_order) in [(false, false), (true, false), (false, true)] {
         let mut query = visible(&["HEAD", "refs/heads/feature", "refs/heads/other"]);
         query.view.date_order = date_order;
+        query.view.smart_order = smart_order;
         let generation = state.begin_graph();
         state
             .build_graph(repo, &query, generation, 100, |_| true)
@@ -690,7 +789,10 @@ fn a_merge_of_a_newer_branch_keeps_its_commit_below_the_working_tree() {
         let window = state.graph_window(repo, generation, 0, u32::MAX).unwrap();
         let at = |oid: &str| window.commits.iter().position(|c| c.oid == oid).unwrap();
 
-        assert!(at(&head) < at(&merged), "date order {date_order}");
+        assert!(
+            at(&head) < at(&merged),
+            "date {date_order}, smart {smart_order}"
+        );
     }
 }
 

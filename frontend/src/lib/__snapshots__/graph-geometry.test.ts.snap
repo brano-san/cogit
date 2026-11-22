@@ -6,9 +6,9 @@ exports[`mini graphs, as drawn > a commit forked from above and merged from belo
     null,
   ],
   [
-    "M10 36C18 24 26 24 26 12",
+    "M10 36C16 27 26 21 26 12",
     "M10 36V48",
-    "M10 36C18 48 26 48 26 60",
+    "M10 36C16 45 26 51 26 60",
   ],
   [
     "M10 48V72",
@@ -17,7 +17,7 @@ exports[`mini graphs, as drawn > a commit forked from above and merged from belo
   ],
   [
     "M10 72V84",
-    "M10 84C18 72 26 72 26 60",
+    "M10 84C16 75 26 69 26 60",
   ],
 ]
 `;
@@ -27,7 +27,7 @@ exports[`mini graphs, as drawn > a merge across two columns 1`] = `
   [
     "M26 0V24",
     "M10 12V24",
-    "M10 12C26 24 42 24 42 36",
+    "M10 12C22 21 42 27 42 36",
   ],
   [
     "M10 24V48",
@@ -42,9 +42,9 @@ exports[`mini graphs, as drawn > an octopus 1`] = `
 [
   [
     "M10 12V24",
-    "M10 12C18 24 26 24 26 36",
-    "M10 12C26 24 42 24 42 36",
-    "M10 12C34 24 58 24 58 36",
+    "M10 12C16 21 26 27 26 36",
+    "M10 12C22 21 42 27 42 36",
+    "M10 12C28 21 58 27 58 36",
   ],
   [
     "M10 24V48",
@@ -65,8 +65,8 @@ exports[`mini graphs, as drawn > branches leaving to the left and to the right 1
     null,
   ],
   [
-    "M26 60C18 48 10 48 10 36",
-    "M26 60C34 48 42 48 42 36",
+    "M26 60C20 51 10 45 10 36",
+    "M26 60C32 51 42 45 42 36",
     "M26 60V72",
   ],
 ]

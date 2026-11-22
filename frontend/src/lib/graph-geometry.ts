@@ -140,14 +140,37 @@ export function laneX(lane: number): number {
   return GRAPH.leftPad + GRAPH.laneWidth * lane;
 }
 
-export function rowY(row: number, scrollTop: number): number {
-  return row * GRAPH.rowHeight + GRAPH.rowHeight / 2 - scrollTop;
+function snap(value: number, ratio: number, offset: number, phase = 0): number {
+  return (Math.round(value * ratio + offset - phase) + phase - offset) / ratio;
+}
+
+export function linePixels(ratio: number): number {
+  return Math.max(1, Math.round(GRAPH.lineWidth * ratio));
+}
+
+export function graphStrokeWidth(width: number, ratio: number): number {
+  const normal = linePixels(ratio);
+  const extra = Math.max(0, Math.round((width * ratio - normal) / 2) * 2);
+  return (normal + extra) / ratio;
+}
+
+export function gridLaneX(lane: number, grid?: PixelGrid): number {
+  const x = laneX(lane);
+  return grid ? snap(x, grid.ratio, grid.x, (linePixels(grid.ratio) % 2) / 2) : x;
+}
+
+function gridY(y: number, grid?: PixelGrid): number {
+  return grid ? snap(y, grid.ratio, grid.y) : y;
+}
+
+export function rowY(row: number, scrollTop: number, grid?: PixelGrid): number {
+  return gridY(row * GRAPH.rowHeight + GRAPH.rowHeight / 2 - scrollTop, grid);
 }
 
 /** Where a commit sits. Lines end here and the dot is drawn here, from one function, so
     they cannot be half a pixel apart again. */
-export function nodeCentre(lane: number, row: number, scrollTop: number) {
-  return { x: laneX(lane), y: rowY(row, scrollTop) };
+export function nodeCentre(lane: number, row: number, scrollTop: number, grid?: PixelGrid) {
+  return { x: gridLaneX(lane, grid), y: rowY(row, scrollTop, grid) };
 }
 
 /** A stash is drawn as a square, on the centre a ring would have. */
@@ -226,29 +249,28 @@ export interface Curve {
 
 /** Where along the chord the curve leaves the node, and how far up the column it rounds
     into it: a slant out of the ring, upright at the far end (SmartGit's `<`). */
-const TURN = 0.5;
+const TURN = 0.375;
 
 /** A line changing column at a node, in one shape for a branch leaving its parent upwards
     and a merge going down to its second parent: from the node's centre to the centre of
     the next row in column `toX`. The two are mirror images, as are left and right. */
-export function transition(node: { x: number; y: number }, toX: number, direction: "up" | "down"): Curve {
-  return turn(node.x, node.y, toX, direction, emptyCurve());
+export function transition(node: { x: number; y: number }, toX: number, direction: "up" | "down", toY?: number): Curve {
+  return turn(node.x, node.y, toX, toY ?? node.y + (direction === "down" ? GRAPH.rowHeight : -GRAPH.rowHeight), emptyCurve());
 }
 
 const emptyCurve = (): Curve => ({ x1: 0, y1: 0, cx1: 0, cy1: 0, cx2: 0, cy2: 0, x2: 0, y2: 0 });
 
 /** `transition` from (`x`, `y`), written into `out`. */
-function turn(x: number, y: number, toX: number, direction: "up" | "down", out: Curve): Curve {
-  const dy = direction === "down" ? GRAPH.rowHeight : -GRAPH.rowHeight;
-  const y2 = y + dy;
+function turn(x: number, y: number, toX: number, toY: number, out: Curve): Curve {
+  const dy = toY - y;
   out.x1 = x;
   out.y1 = y;
   out.cx1 = x + (toX - x) * TURN;
   out.cy1 = y + dy * TURN;
   out.cx2 = toX;
-  out.cy2 = y2 - dy * TURN;
+  out.cy2 = toY - dy * TURN;
   out.x2 = toX;
-  out.y2 = y2;
+  out.y2 = toY;
   return out;
 }
 
@@ -284,26 +306,29 @@ export function segmentCurve(
   { above, below }: { above?: readonly Drawn[]; below?: readonly Drawn[] } = {},
   /** Written into and returned instead of a new curve: the canvas reuses one per frame. */
   out?: Curve,
+  grid?: PixelGrid,
 ): Curve | null {
-  const top = listRow * GRAPH.rowHeight - scrollTop;
-  const centre = top + GRAPH.rowHeight / 2;
-  const bottom = top + GRAPH.rowHeight;
+  const top = gridY(listRow * GRAPH.rowHeight - scrollTop, grid);
+  const centre = rowY(listRow, scrollTop, grid);
+  const bottom = gridY((listRow + 1) * GRAPH.rowHeight - scrollTop, grid);
   if (segment.from !== segment.to && segment.span !== "through") {
     if (segment.span === "bottom") {
       const next = turnsUp(below, segment.to);
-      return turn(laneX(segment.from), centre, laneX(next ? next.to : segment.to), "down", out ?? emptyCurve());
+      return turn(gridLaneX(segment.from, grid), centre, gridLaneX(next?.to ?? segment.to, grid),
+        rowY(listRow + 1, scrollTop, grid), out ?? emptyCurve());
     }
     // Two turns in a row, out of one node and into the next: the row above draws it whole.
     if (arrivesTurning(above, segment.from)) return null;
-    return turn(laneX(segment.to), centre, laneX(segment.from), "up", out ?? emptyCurve());
+    return turn(gridLaneX(segment.to, grid), centre, gridLaneX(segment.from, grid),
+      rowY(listRow - 1, scrollTop, grid), out ?? emptyCurve());
   }
   let y1 = segment.span === "bottom" ? centre : top;
   let y2 = segment.span === "top" ? centre : bottom;
   if (y1 === top && arrivesTurning(above, segment.from)) y1 = centre;
   if (y2 === bottom && turnsUp(below, segment.to)) y2 = centre;
   if (y1 >= y2) return null;
-  const x1 = laneX(segment.from);
-  const x2 = laneX(segment.to);
+  const x1 = gridLaneX(segment.from, grid);
+  const x2 = gridLaneX(segment.to, grid);
   const middle = (y1 + y2) / 2;
   if (!out) return { x1, y1, cx1: x1, cy1: middle, cx2: x2, cy2: middle, x2, y2 };
   out.x1 = x1;
@@ -324,9 +349,10 @@ export function throughWorkingTree(
   scrollTop: number,
   above: readonly Drawn[] | undefined,
   lane: number,
+  grid?: PixelGrid,
 ): number {
   const top = headerRow * GRAPH.rowHeight - scrollTop;
-  return turnsDown(above, lane) ? top + GRAPH.rowHeight / 2 : top;
+  return gridY(arrivesTurning(above, lane) ? top + GRAPH.rowHeight / 2 : top, grid);
 }
 
 /** The curve as an SVG path, for `Path2D` and for snapshots. */
@@ -345,8 +371,9 @@ export function arrowStub(
   segment: { from: number; to: number; span?: "top" | "bottom" | "through" },
   listRow: number,
   scrollTop: number,
+  grid?: PixelGrid,
 ) {
-  const { x, y } = nodeCentre(segment.from, listRow, scrollTop);
+  const { x, y } = nodeCentre(segment.from, listRow, scrollTop, grid);
   const lean = segment.to > segment.from ? Math.SQRT1_2 : 0;
   const down = lean > 0 ? Math.SQRT1_2 : 1;
   const up = segment.span === "top";
@@ -431,7 +458,7 @@ export function workingTreeLane(
   return lane;
 }
 
-/** HEAD's ring, where the dashed line from the Working Tree row ends (07 §4). It is not
+/** HEAD's ring, where the line from the Working Tree row ends (07 §4). It is not
     always the first commit: HEAD comes under whatever of its descendants is shown (R-164). */
 export function headNode(
   headRow: number | null,
