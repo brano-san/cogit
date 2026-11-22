@@ -597,3 +597,10 @@ input.tick-box:disabled {
   text-decoration: underline wavy var(--status-danger);
   text-decoration-skip-ink: none;
 }
+
+textarea.commit-message-guides {
+  background-image: linear-gradient(var(--border), var(--border)), linear-gradient(var(--border), var(--border));
+  background-size: 1px 100%;
+  background-repeat: no-repeat;
+  background-origin: content-box;
+}

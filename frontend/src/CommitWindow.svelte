@@ -59,6 +59,7 @@
   import { requestPush } from "$lib/push-head";
   import { placePopup, type Box, type Placed } from "$lib/popup-place";
   import { followSettings } from "$lib/settings-sync";
+  import { messageGuides } from "$lib/commit-message";
   import { spellField } from "$lib/spell-field.svelte";
   import type { ConfirmRequest } from "$stores/confirm.svelte";
   import { notices } from "$stores/notices.svelte";
@@ -355,6 +356,7 @@
 
   const date = (details: CommitDetails) =>
     settings.formatDate(details.author.timestamp, details.author.tzOffsetMinutes);
+  const guides = $derived(messageGuides(message, settings.current.messageGuides, settings.current.messageSubjectColumn, settings.current.messageBodyColumn));
 </script>
 
 <svelte:window onfocus={() => void reread()} {onkeydown} onresize={() => (menuAt = null)} />
@@ -452,6 +454,9 @@
 
       <div class="label-row">
         <span class="label">Commit Message</span>
+        {#if guides?.subjectOver}
+          <span class="subject-warning" title="The first line exceeds the configured subject column.">Subject exceeds {settings.current.messageSubjectColumn} characters</span>
+        {/if}
         <button type="button" class="select" aria-haspopup="menu" onclick={openMenu}>
           Select <Caret open={menuAt !== null} />
         </button>
@@ -461,6 +466,8 @@
         bind:value={message}
         aria-label="Commit message"
         spellcheck="false"
+        class:commit-message-guides={guides !== null}
+        style:background-position={guides?.position}
         {@attach spellField(() => message)}
       ></textarea>
 
@@ -791,6 +798,11 @@
     font-weight: 600;
   }
 
+  .subject-warning {
+    color: var(--status-warning);
+    font-size: var(--fs-small);
+  }
+
   textarea {
     display: block;
     flex: 2 1 0;
@@ -799,7 +811,7 @@
     min-height: 90px;
     resize: none;
     padding: var(--sp-3);
-    background: var(--surface-input);
+    background-color: var(--surface-input);
     color: var(--text-primary);
     border: 1px solid var(--field-border);
     border-radius: var(--r-sm);
@@ -834,7 +846,7 @@
   .select {
     height: 24px;
     padding: 0 var(--sp-5);
-    background: var(--surface-input);
+    background-color: var(--surface-input);
     color: var(--text-primary);
     border: 1px solid var(--field-border);
     border-radius: var(--r-sm);

@@ -34,6 +34,7 @@
   import { worktrees } from "$stores/worktrees.svelte";
   import { pointerDrag } from "$lib/pointer-drag";
   import { rowStarts, striped } from "$lib/graph-geometry";
+  import { containsFilter } from "$lib/filter-case";
   import { settings } from "$stores/settings.svelte";
   import { TypeAhead, moveFocus } from "$lib/list-keys";
   import { tick, untrack } from "svelte";
@@ -86,10 +87,9 @@
   });
 
   const active = $derived(repository.current?.repo);
+  const matchesFilter = $derived(containsFilter(filter, settings.current.filterCase));
   const entries = $derived(
-    listedRepos(repository.openRepos, repoList.list).filter((entry) =>
-      `${entry.name} ${entry.root}`.toLowerCase().includes(filter.trim().toLowerCase()),
-    ),
+    listedRepos(repository.openRepos, repoList.list).filter((entry) => matchesFilter(`${entry.name} ${entry.root}`)),
   );
   const order = $derived(entries.map((entry) => entry.root));
   const byRoot = $derived(new Map(entries.map((entry) => [entry.root, entry])));

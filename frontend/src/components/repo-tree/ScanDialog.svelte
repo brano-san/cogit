@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { containsFilter } from "$lib/filter-case";
+  import { settings } from "$stores/settings.svelte";
   import Checkbox from "$components/common/Checkbox.svelte";
   import Dialog from "$components/common/Dialog.svelte";
   import Disclosure from "$components/common/Disclosure.svelte";
@@ -27,13 +29,8 @@
     folded = next;
   }
 
-  const shown = $derived(
-    scan.hits.filter(
-      (hit) =>
-        filter.trim() === "" ||
-        `${hit.name} ${hit.root}`.toLowerCase().includes(filter.trim().toLowerCase()),
-    ),
-  );
+  const matchesFilter = $derived(containsFilter(filter, settings.current.filterCase));
+  const shown = $derived(scan.hits.filter((hit) => matchesFilter(`${hit.name} ${hit.root}`)));
   const sections = $derived(scanSections(shown, layout, scan.folder ?? ""));
   const chosen = $derived(scan.selected);
   const shownOpenable = $derived(shown.filter((hit) => !hit.alreadyOpen));

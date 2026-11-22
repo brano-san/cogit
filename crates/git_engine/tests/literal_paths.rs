@@ -72,6 +72,7 @@ fn committing_only_a_file_commits_only_that_file() {
             message: "only the bracket".to_owned(),
             amend: false,
             no_verify: false,
+            strip_comments: false,
             signoff: false,
             only: vec!["test[1].txt".to_owned()],
         })
@@ -109,6 +110,7 @@ fn committing_only_thousands_of_files_fits_the_command_line() {
             message: "many".to_owned(),
             amend: false,
             no_verify: false,
+            strip_comments: false,
             signoff: false,
             only: names,
         })

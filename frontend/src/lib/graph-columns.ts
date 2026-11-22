@@ -1,4 +1,4 @@
-import { relativeDate, smartDate } from "$lib/format";
+import { atCommitOffset, DEFAULT_DATE_PATTERN, formatDatePattern, relativeDate, smartDate } from "$lib/format";
 import { GRAPH_COLUMNS, type GraphColumn, type GraphTimeFormat } from "$lib/settings";
 
 export const COLUMN_LABELS: Record<GraphColumn, string> = {
@@ -56,10 +56,15 @@ export function graphTime(
   offsetMinutes: number,
   now: number,
   format: GraphTimeFormat,
+  pattern = DEFAULT_DATE_PATTERN,
 ): string {
+  if (format === "custom") {
+    const formatted = formatDatePattern(timestamp, offsetMinutes, pattern);
+    if (formatted !== null) return formatted;
+  }
   if (format === "relative") return relativeDate(timestamp, offsetMinutes, now);
   if (format === "date") return smartDate(timestamp, offsetMinutes, now);
   const date = smartDate(timestamp, offsetMinutes, now, true);
-  const shifted = new Date((timestamp + offsetMinutes * 60) * 1000);
+  const shifted = atCommitOffset(timestamp, offsetMinutes);
   return `${date} ${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}`;
 }

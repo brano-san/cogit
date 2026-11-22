@@ -19,19 +19,21 @@ class TimeColumn {
   }
 
   /** CSS pixels of text, without the padding the cell adds from tokens. */
-  width(format: GraphTimeFormat): number {
+  width(format: GraphTimeFormat, pattern?: string): number {
     void this.#fonts;
     // A font or size from Preferences writes new metrics, and the column is measured again.
     void uiMetricsStore.current;
     const font = this.#font();
     if (!font) return timeWidth(format);
-    const key = `${format}|${font}`;
+    const key = `${format}|${font}|${pattern ?? ""}`;
     const known = this.#cache.get(key);
     if (known !== undefined) return known;
     const context = (this.#canvas ??= document.createElement("canvas").getContext("2d"));
     if (!context) return timeWidth(format);
     context.font = font;
-    const width = measuredTimeWidth(format, Math.floor(Date.now() / 1000), (text) => context.measureText(text).width);
+    const measure = (text: string) => context.measureText(text).width;
+    const width = measuredTimeWidth(format, Math.floor(Date.now() / 1000), measure, pattern);
+    if (this.#cache.size >= 32) this.#cache.clear();
     this.#cache.set(key, width);
     return width;
   }

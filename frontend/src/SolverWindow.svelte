@@ -40,6 +40,7 @@
     toolFollowUp,
     toolPrompt,
     type ResolveChoice,
+    solverAutoAdvance,
     type ResolveClose,
   } from "$lib/solver-flow";
   import { LAYOUTS, bandConnectors, panesOf, scrollMarks, type SolverLayout } from "$lib/solver-geometry";
@@ -311,8 +312,8 @@
     made.take(id, action);
     if (!advance) return;
     queueMicrotask(() => {
-      const next = nextHunk(made.snapshot.unresolved, id, 1);
-      if (next !== null && next !== id) made.goTo(next);
+      const next = solverAutoAdvance(made.snapshot.unresolved, id);
+      if (next !== null) made.goTo(next);
     });
   }
 

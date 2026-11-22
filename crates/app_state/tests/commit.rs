@@ -51,6 +51,7 @@ fn the_refs_after_a_commit_show_the_new_head_without_reopening() {
                 message: "add fresh.txt".to_owned(),
                 amend: false,
                 no_verify: false,
+                strip_comments: false,
                 signoff: false,
                 only: Vec::new(),
             },

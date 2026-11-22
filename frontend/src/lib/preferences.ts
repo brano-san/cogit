@@ -106,6 +106,15 @@ export const CATEGORIES: Category[] = [
     parent: "commands",
     groups: [
       {
+        title: "Commit Message",
+        fields: [
+          { key: "messageGuides", label: "Message guides", hint: "Show column guides in the commit message field.", keywords: ["subject", "body", "ruler"] },
+          { key: "messageSubjectColumn", label: "Subject column", dependsOn: "messageGuides", hint: "Warn when the first line exceeds this column.", keywords: ["length", "ruler"] },
+          { key: "messageBodyColumn", label: "Body column", dependsOn: "messageGuides", hint: "Mark the suggested width of the message body.", keywords: ["length", "ruler"] },
+          { key: "commitComments", label: "Comment lines", hint: "Strip lines that start with the Git comment prefix. The default prefix is #.", keywords: ["cleanup", "commentChar", "template"] },
+        ],
+      },
+      {
         title: "Message prefix from the branch",
         fields: [
           {
@@ -221,7 +230,7 @@ export const CATEGORIES: Category[] = [
       {
         title: "Appearance",
         fields: [
-          { key: "theme", label: "Theme", keywords: ["dark", "light", "grey", "gray"] },
+          { key: "theme", label: "Theme", hint: "System follows the operating system's light or dark appearance.", keywords: ["system", "dark", "light", "grey", "gray"] },
           { key: "showRepositoryTabs", label: "Show repository tabs", keywords: ["tab bar", "repositories", "window"] },
           {
             key: "fontFamily",
@@ -426,6 +435,12 @@ export const CATEGORIES: Category[] = [
             hint: "The graph's own time column is set under Columns above.",
             keywords: ["relative", "weekday", "yesterday", "time"],
           },
+          {
+            key: "datePattern",
+            label: "Custom date pattern",
+            hint: "Used wherever Custom is selected. Tokens: YYYY, YY, MM, DD, HH, mm, ss, Z (UTC offset). Put words in single quotes.",
+            keywords: ["date", "time", "format", "pattern", "preview", "timestamp"],
+          },
         ],
       },
     ],
@@ -467,6 +482,13 @@ export const CATEGORIES: Category[] = [
     title: "Behavior",
     parent: "ui",
     groups: [
+      {
+        title: "Lists",
+        fields: [
+          { key: "fileDoubleClick", label: "Double-click a working file", hint: "Open the file window, or stage an unstaged change and unstage a staged change. Enter always opens the file.", keywords: ["files", "stage", "unstage", "diff", "mouse"] },
+          { key: "filterCase", label: "Name filter case", hint: "Smart Case matches capitalization when the filter contains an uppercase letter.", keywords: ["files", "repositories", "filter", "case", "search"] },
+        ],
+      },
       {
         title: "Startup",
         fields: [

@@ -218,19 +218,64 @@ export function capsules(
   return { shown: labels.slice(0, Math.max(room, 0)), hidden: labels.slice(Math.max(room, 0)) };
 }
 
-export function dateTooltip(timestamp: number, offsetMinutes: number): string {
-  const shifted = new Date((timestamp + offsetMinutes * 60) * 1000);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const sign = offsetMinutes < 0 ? "-" : "+";
-  const total = Math.abs(offsetMinutes);
-  return (
-    `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}` +
-    ` ${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}:${pad(shifted.getUTCSeconds())}` +
-    ` ${sign}${pad(Math.floor(total / 60))}:${pad(total % 60)}`
-  );
+export function atCommitOffset(timestamp: number, offsetMinutes: number): Date {
+  return new Date((timestamp + offsetMinutes * 60) * 1000);
 }
 
-export type DateMode = "smart" | "relative" | "both";
+function offsetLabel(offsetMinutes: number): string {
+  const sign = offsetMinutes < 0 ? "-" : "+";
+  const total = Math.abs(offsetMinutes);
+  return `${sign}${padDate(Math.floor(total / 60))}:${padDate(total % 60)}`;
+}
+
+const padDate = (n: number) => String(n).padStart(2, "0");
+
+export const DEFAULT_DATE_PATTERN = "YYYY-MM-DD HH:mm";
+export const MAX_DATE_PATTERN_LENGTH = 80;
+
+const DATE_TOKENS = {
+  YYYY: (date: Date) => String(date.getUTCFullYear()).padStart(4, "0"),
+  YY: (date: Date) => padDate(date.getUTCFullYear() % 100),
+  MM: (date: Date) => padDate(date.getUTCMonth() + 1),
+  DD: (date: Date) => padDate(date.getUTCDate()),
+  HH: (date: Date) => padDate(date.getUTCHours()),
+  mm: (date: Date) => padDate(date.getUTCMinutes()),
+  ss: (date: Date) => padDate(date.getUTCSeconds()),
+  Z: (_date: Date, offset: number) => offsetLabel(offset),
+};
+
+type DateToken = keyof typeof DATE_TOKENS;
+
+function isDateToken(part: string): part is DateToken {
+  return Object.hasOwn(DATE_TOKENS, part);
+}
+
+function datePatternParts(pattern: string): string[] | null {
+  if (pattern.length > MAX_DATE_PATTERN_LENGTH || /[\p{C}]/u.test(pattern)) return null;
+  const parts = pattern.match(/YYYY|YY|MM|DD|HH|mm|ss|Z|'[^']*'|[^'\p{L}]/gu);
+  return parts && parts.join("") === pattern && parts.some(isDateToken) ? parts : null;
+}
+
+export function validDatePattern(value: unknown): value is string {
+  return typeof value === "string" && datePatternParts(value) !== null;
+}
+
+export function formatDatePattern(timestamp: number, offsetMinutes: number, pattern: string): string | null {
+  const parts = datePatternParts(pattern);
+  if (parts === null) return null;
+  const date = atCommitOffset(timestamp, offsetMinutes);
+  return parts.map((part) =>
+    isDateToken(part) ? DATE_TOKENS[part](date, offsetMinutes) : part.startsWith("'") ? part.slice(1, -1) : part,
+  ).join("");
+}
+
+export function dateTooltip(timestamp: number, offsetMinutes: number): string {
+  const shifted = atCommitOffset(timestamp, offsetMinutes);
+  return `${shifted.getUTCFullYear()}-${DATE_TOKENS.MM(shifted)}-${DATE_TOKENS.DD(shifted)}` +
+    ` ${DATE_TOKENS.HH(shifted)}:${DATE_TOKENS.mm(shifted)}:${DATE_TOKENS.ss(shifted)} ${offsetLabel(offsetMinutes)}`;
+}
+
+export type DateMode = "smart" | "relative" | "both" | "custom";
 
 const WEEKDAYS = [
   "Sunday",
@@ -251,7 +296,7 @@ function dayNumber(timestamp: number, offsetMinutes: number): number {
 /** `DD-MM-YY` (`DD-MM-YYYY` with `fullYear`): the form for anything the weekday can no
     longer place. */
 export function shortDate(timestamp: number, offsetMinutes: number, fullYear = false): string {
-  const shifted = new Date((timestamp + offsetMinutes * 60) * 1000);
+  const shifted = atCommitOffset(timestamp, offsetMinutes);
   const pad = (n: number) => String(n).padStart(2, "0");
   const year = shifted.getUTCFullYear();
   return `${pad(shifted.getUTCDate())}-${pad(shifted.getUTCMonth() + 1)}-${
@@ -271,7 +316,7 @@ export function smartDate(
   if (elapsed === 0) return "Today";
   if (elapsed === 1) return "Yesterday";
   if (elapsed > 1 && elapsed < 7) {
-    const shifted = new Date((timestamp + offsetMinutes * 60) * 1000);
+    const shifted = atCommitOffset(timestamp, offsetMinutes);
     return WEEKDAYS[shifted.getUTCDay()] ?? shortDate(timestamp, offsetMinutes, fullYear);
   }
   return shortDate(timestamp, offsetMinutes, fullYear);
@@ -282,10 +327,15 @@ export function displayDate(
   offsetMinutes: number,
   now: number,
   mode: DateMode,
+  pattern = DEFAULT_DATE_PATTERN,
 ): string {
+  if (mode === "custom") {
+    const formatted = formatDatePattern(timestamp, offsetMinutes, pattern);
+    if (formatted !== null) return formatted;
+  }
   const smart = smartDate(timestamp, offsetMinutes, now);
   const elapsed = relativeDate(timestamp, offsetMinutes, now);
-  if (mode === "smart") return smart;
+  if (mode === "smart" || mode === "custom") return smart;
   if (mode === "relative") return elapsed;
   return `${smart} · ${elapsed}`;
 }

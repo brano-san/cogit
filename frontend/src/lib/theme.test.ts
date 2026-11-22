@@ -11,9 +11,9 @@ import {
   validValue,
   type ThemeFile,
 } from "./theme";
-import type { Theme } from "./settings";
+import type { FixedTheme } from "./settings";
 
-const IDS = Object.keys(THEME_FILES) as Theme[];
+const IDS = Object.keys(THEME_FILES) as FixedTheme[];
 const names = Object.keys(SCHEMA).sort();
 
 function luminance(hex: string): number {
@@ -83,7 +83,7 @@ describe("theme files", () => {
   const WORDS = ["diff.changed.word", "diff.add.word", "diff.del.word"];
   // add.line and del.line are not asserted: their syntax pairs fail on light and light gray (R-629).
   const LINES = ["diff.changed.line"];
-  const ratios = (id: Theme, fgs: string[], bgs: string[]) => {
+  const ratios = (id: FixedTheme, fgs: string[], bgs: string[]) => {
     const { tokens } = THEME_FILES[id];
     const bad: string[] = [];
     for (const fg of fgs)
@@ -143,7 +143,7 @@ describe("token names", () => {
   });
 });
 
-function withoutTokens(id: Theme, ...missing: string[]): Record<Theme, ThemeFile> {
+function withoutTokens(id: FixedTheme, ...missing: string[]): Record<FixedTheme, ThemeFile> {
   const tokens = { ...THEME_FILES[id].tokens };
   for (const name of missing) delete tokens[name];
   return { ...THEME_FILES, [id]: { ...THEME_FILES[id], tokens } };

@@ -12,6 +12,7 @@ fn request(message: &str) -> CommitRequest {
         message: message.to_owned(),
         amend: false,
         no_verify: false,
+        strip_comments: false,
         signoff: false,
         only: Vec::new(),
     }
@@ -165,6 +166,7 @@ fn amend_replaces_the_previous_commit_instead_of_adding_one() {
             message: "commit 2, reworded".to_owned(),
             amend: true,
             no_verify: false,
+            strip_comments: false,
             signoff: false,
             only: Vec::new(),
         })
@@ -190,6 +192,7 @@ fn amend_can_add_staged_changes_to_the_previous_commit() {
             message: "commit 0".to_owned(),
             amend: true,
             no_verify: false,
+            strip_comments: false,
             signoff: false,
             only: Vec::new(),
         })
@@ -239,6 +242,7 @@ fn no_verify_skips_a_hook_that_would_reject_the_commit() {
             message: "allowed".to_owned(),
             amend: false,
             no_verify: true,
+            strip_comments: false,
             signoff: false,
             only: Vec::new(),
         })
@@ -259,6 +263,7 @@ fn committing_only_named_paths_leaves_the_rest_staged() {
         message: "only one".to_owned(),
         amend: false,
         no_verify: false,
+        strip_comments: false,
         signoff: false,
         only: vec!["one.txt".to_owned()],
     })
@@ -594,4 +599,44 @@ fn a_merge_in_progress_is_not_committed_in_part() {
 
     assert!(repo.commit(&partial).is_err());
     assert!(repo.merge_head().is_some());
+}
+
+#[test]
+fn strip_comments_uses_the_repository_prefix_at_the_start_of_a_line() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["config", "core.commentChar", ";"]).unwrap();
+    std::fs::write(f.path().join("new.txt"), "new\n").unwrap();
+    f.git(&["add", "new.txt"]).unwrap();
+
+    let repo = open(&f);
+    let oid = repo
+        .commit(&CommitRequest {
+            strip_comments: true,
+            ..request("Subject\r\n\r\n; omit\r\n#123 keep\r\n  ; keep indentation\r\n")
+        })
+        .unwrap();
+    assert_eq!(
+        repo.commit_message(&oid).unwrap(),
+        "Subject\n\n#123 keep\n  ; keep indentation\n"
+    );
+}
+
+#[test]
+fn strip_comments_refuses_an_empty_message_without_committing() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::write(f.path().join("new.txt"), "new\n").unwrap();
+    f.git(&["add", "new.txt"]).unwrap();
+    let result = open(&f).commit(&CommitRequest {
+        strip_comments: true,
+        ..request("# omit\n# omit this too\n")
+    });
+
+    assert!(matches!(result, Err(git_engine::GitError::InvalidState(_))));
+}
+
+#[test]
+fn a_request_from_an_older_client_keeps_comments() {
+    let request: CommitRequest =
+        serde_json::from_str(r#"{"message":"Subject","amend":false,"noVerify":false}"#).unwrap();
+    assert!(!request.strip_comments);
 }

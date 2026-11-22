@@ -1,5 +1,11 @@
 import type { MergeToolOutcome } from "./ipc";
+import { nextHunk } from "./solver-model";
 import { saveResolution } from "./merge-save";
+
+export function solverAutoAdvance(unresolved: readonly number[], resolved: number): number | null {
+  const next = nextHunk(unresolved, resolved, 1);
+  return next === resolved ? null : next;
+}
 
 export interface SaveSteps {
   /** Conflicts still undecided: saving them writes conflict markers. */

@@ -32,7 +32,7 @@ class SettingsStore {
   }
 
   formatDate(timestamp: number, offsetMinutes: number): string {
-    return displayDate(timestamp, offsetMinutes, Date.now() / 1000, this.current.dateFormat);
+    return displayDate(timestamp, offsetMinutes, Date.now() / 1000, this.current.dateFormat, this.current.datePattern);
   }
 
   /** The graph's time column, which has its own format (R-370). */

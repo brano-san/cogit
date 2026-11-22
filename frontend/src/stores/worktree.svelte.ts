@@ -1,6 +1,7 @@
 import { untrack } from "svelte";
 import { backendView } from "$lib/file-view";
 import { stagesEverything } from "$lib/stage-all";
+import { settings } from "$stores/settings.svelte";
 import { filesView } from "$stores/files-view.svelte";
 import {
   type CogitError,
@@ -133,7 +134,9 @@ class WorktreeStore {
     only: string[] = [],
     signoff = false,
   ): Promise<void> {
-    await this.mutate(repo, () => createCommit(repo, { message, amend, noVerify, only, signoff }));
+    await this.mutate(repo, () => createCommit(repo, {
+      message, amend, noVerify, only, signoff, stripComments: settings.current.commitComments === "strip",
+    }));
   }
 
   restore(repo: RepoId): boolean {

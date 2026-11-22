@@ -8,6 +8,8 @@ pub struct CommitRequest {
     pub amend: bool,
     pub no_verify: bool,
     #[serde(default)]
+    pub strip_comments: bool,
+    #[serde(default)]
     pub signoff: bool,
     /// Empty means everything staged; a list narrows the commit to those paths (T6.8).
     #[serde(default)]
@@ -16,11 +18,20 @@ pub struct CommitRequest {
 
 impl RepoHandle {
     pub fn commit(&self, request: &CommitRequest) -> Result<String> {
-        let message = match self.message_seed()? {
-            Some(template) => {
-                without_template_hints(&request.message, &template, &self.comment_prefix())
+        let message = if request.strip_comments {
+            let prefix = self.comment_prefix();
+            request
+                .message
+                .split_inclusive('\n')
+                .filter(|line| !line.starts_with(&prefix))
+                .collect()
+        } else {
+            match self.message_seed()? {
+                Some(template) => {
+                    without_template_hints(&request.message, &template, &self.comment_prefix())
+                }
+                None => request.message.clone(),
             }
-            None => request.message.clone(),
         };
         if message.trim().is_empty() {
             return Err(GitError::InvalidState(

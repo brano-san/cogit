@@ -1,28 +1,45 @@
-//! What still draws itself natively follows the Cogit theme, not the system's: the menu bar,
-//! drop-down and context menus, the title bar on Windows, GTK dialogs on Linux.
+//! Native menus, title bars and dialogs follow either the chosen Cogit theme or the system.
 //!
 //! Under WSLg there is no desktop environment, so GTK always takes light Adwaita; the file
 //! chooser and the menus would be white in a dark theme (doc/06-design-system.md, "Native
-//! theme"). On Linux the theme is GTK's built-in Adwaita, whatever the desktop's (R-777).
+//! theme"). Fixed Cogit themes on Linux use GTK's built-in Adwaita (R-777).
 
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicU8, AtomicU32, Ordering};
 
 use tauri::window::Color;
 use tauri::{AppHandle, Manager as _, Runtime, Theme};
 
-/// The theme of the last `apply`; dark until the page says otherwise, as `tauri.conf.json`.
-static DARK: AtomicBool = AtomicBool::new(true);
+static THEME: AtomicU8 = AtomicU8::new(0);
 
 /// The window background of the last `apply`, `0xRRGGBB`; `tauri.conf.json`'s until then.
 static BACKGROUND: AtomicU32 = AtomicU32::new(0x0f_11_15);
 
-/// Dark for the dark themes, light for the light ones. `dark` comes from the theme's family.
+/// The native preference is dark, light or the system default.
 /// Every open window follows at once (`gtk-application-prefer-dark-theme` on Linux).
 /// `background` is the theme's `bg.app`: GTK's menu bar is transparent over the window's
 /// background, which stayed the dark one of `tauri.conf.json` in a light theme (R-777).
-pub fn apply<R: Runtime>(app: &AppHandle<R>, dark: bool, background: &str) {
-    DARK.store(dark, Ordering::Relaxed);
-    app.set_theme(Some(current()));
+pub fn apply<R: Runtime>(app: &AppHandle<R>, dark: Option<bool>, background: &str) {
+    let theme = dark.map_or(0, |dark| if dark { 2 } else { 1 });
+    if THEME.swap(theme, Ordering::Relaxed) != theme {
+        #[cfg(not(target_os = "linux"))]
+        app.set_theme(current());
+        #[cfg(target_os = "linux")]
+        if let Err(err) = app.run_on_main_thread(move || apply_gtk_theme(dark)) {
+            tracing::error!(error = ?err, context = "GTK color scheme");
+        }
+        #[cfg(target_os = "windows")]
+        for window in app.webview_windows().values() {
+            if let Err(err) = window.set_theme(current()) {
+                tracing::error!(error = ?err, context = "window theme");
+            }
+        }
+    }
+    #[cfg(target_os = "windows")]
+    if dark.is_none() {
+        for window in app.webview_windows().values() {
+            crate::webview2::follow_system_theme(window);
+        }
+    }
     let Some(rgb) = parse_rgb(background) else {
         tracing::warn!(
             background,
@@ -69,11 +86,23 @@ pub fn take_gtk_theme() -> Option<String> {
     Some(theme)
 }
 
-/// On the main thread, once GTK runs. prefer-dark only switches a theme that has both
-/// variants, and a desktop's may be dark only (`Yaru-dark`, a KDE color scheme): the menus
-/// stayed black in a light Cogit theme. Adwaita is built into GTK and always has both.
 #[cfg(target_os = "linux")]
-pub fn use_adwaita(taken: Option<&str>) {
+fn apply_gtk_theme(dark: Option<bool>) {
+    use gtk::prelude::GtkSettingsExt;
+    let Some(settings) = gtk::Settings::default() else {
+        return;
+    };
+    if let Some(dark) = dark {
+        settings.set_gtk_theme_name(Some("Adwaita"));
+        settings.set_gtk_application_prefer_dark_theme(dark);
+    } else {
+        settings.reset_property("gtk-theme-name");
+        settings.reset_property("gtk-application-prefer-dark-theme");
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub fn initialize_gtk(taken: Option<&str>) {
     use gtk::prelude::GtkSettingsExt;
     let Some(settings) = gtk::Settings::default() else {
         tracing::warn!("no GTK settings: the native theme follows the desktop");
@@ -83,9 +112,8 @@ pub fn use_adwaita(taken: Option<&str>) {
         gtk_theme_env = taken.unwrap_or("-"),
         theme_name = settings.gtk_theme_name().as_deref().unwrap_or("-"),
         prefer_dark = settings.is_gtk_application_prefer_dark_theme(),
-        "native theme: what GTK had, before Adwaita"
+        "native theme: GTK settings at startup"
     );
-    settings.set_gtk_theme_name(Some("Adwaita"));
     // WSLg has no settings daemon: GTK's own default leaves the header bar only Close.
     if under_wsl() {
         settings.set_gtk_decoration_layout(Some("menu:minimize,maximize,close"));
@@ -131,13 +159,22 @@ fn paint_title_bars(rgb: u32) {
     });
 }
 
+pub fn set_window_theme<R: Runtime>(window: &tauri::WebviewWindow<R>) -> tauri::Result<()> {
+    let theme = current();
+    #[cfg(target_os = "linux")]
+    if theme.is_none() {
+        return Ok(());
+    }
+    window.set_theme(theme)
+}
+
 /// For a window being built: it opens in the theme the others already have.
 #[must_use]
-pub fn current() -> Theme {
-    if DARK.load(Ordering::Relaxed) {
-        Theme::Dark
-    } else {
-        Theme::Light
+pub fn current() -> Option<Theme> {
+    match THEME.load(Ordering::Relaxed) {
+        2 => Some(Theme::Dark),
+        1 => Some(Theme::Light),
+        _ => None,
     }
 }
 

@@ -12,6 +12,7 @@
   import type { ListContext } from "$lib/file-switches";
   import Caret from "$components/common/Caret.svelte";
   import { COLUMN_LABELS, DEFAULT_COLUMN_WIDTHS, gridColumns, nextSort, tableWidth, shownColumns, onceForList, sortRows, type ColumnKey } from "$lib/file-columns";
+  import { settings } from "$stores/settings.svelte";
   import { filesView } from "$stores/files-view.svelte";
   import { remoteOps } from "$stores/remote-ops.svelte";
   import { repository } from "$stores/repository.svelte";
@@ -74,7 +75,7 @@
     onselect?: (path: string) => void;
     /** Double-click: open the file in its own window (T2.5). */
     /** Double-click or Enter, with the side of the list the row is in. */
-    onopen?: (path: string, side: StateSide) => void;
+    onopen?: (path: string, side: StateSide, doubleClick: boolean) => void;
     /** Right-click, with the title of the list the row is in (Staged means the index) and
         the rows it shows, the ones the list adds itself among them. */
     oncontext?: (path: string, event: MouseEvent, section?: string, rows?: readonly FileEntry[]) => void;
@@ -190,7 +191,7 @@
   const active = $derived(view ?? DEFAULT_VIEW);
   /** What the rows are gated by; the toolbar keeps showing the switches as they are. */
   const gates = $derived(unchanged ? { ...active, unchanged: true } : active);
-  const pattern = $derived(compile(applied, active.regex));
+  const pattern = $derived(compile(applied, active.regex, settings.current.filterCase));
   const query = $derived(contents ? contentQuery(gates, applied) : null);
   /** Until the first answer, a content search shows nothing rather than name matches. */
   const hits = $derived(query === null ? null : (contents?.hits ?? NO_HITS));
@@ -468,7 +469,7 @@
                 marked={marks.bySection.get(group.index) ?? NO_MARKS}
                 onclick={(path, event) => clicked(group, path, event)}
                 onmark={(path) => mark(group, path)}
-                onopen={onopen && ((path) => onopen(path, group.side))}
+                onopen={onopen && ((path, doubleClick) => onopen(path, group.side, doubleClick))}
                 oncontext={oncontext && ((path, event) => rightClicked(group, path, event))}
               />
             </div>
@@ -489,7 +490,7 @@
                   marked={marks.bySection.get(group.index) ?? NO_MARKS}
                   onclick={(path, event) => clicked(group, path, event)}
                   onmark={(path) => mark(group, path)}
-                  onopen={onopen && ((path) => onopen(path, group.side))}
+                  onopen={onopen && ((path, doubleClick) => onopen(path, group.side, doubleClick))}
                   oncontext={oncontext && ((path, event) => rightClicked(group, path, event))}
                 />
               </div>

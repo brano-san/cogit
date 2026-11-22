@@ -1,4 +1,5 @@
 import { fileState, sideOfRow, type StateSide } from "./file-state";
+import { containsFilter, ignoreFilterCase, type FilterCase } from "./filter-case";
 import { fileName, globToRegExp } from "./files";
 import type { ListFile } from "./file-view";
 
@@ -17,13 +18,13 @@ export interface Pattern {
   pathIncludesName?: boolean;
 }
 
-export function compile(text: string, regex: boolean): Pattern {
+export function compile(text: string, regex: boolean, mode: FilterCase = "ignore"): Pattern {
   const needle = text.trim();
   if (needle === "") return { test: null, broken: false };
 
   if (regex) {
     try {
-      const expression = new RegExp(needle, "i");
+      const expression = new RegExp(needle, ignoreFilterCase(needle, mode) ? "i" : "");
       return { test: (subject) => expression.test(subject), broken: false };
     } catch {
       // A half-typed expression is the normal state of a search box, not an error.
@@ -31,13 +32,13 @@ export function compile(text: string, regex: boolean): Pattern {
     }
   }
 
-  const lower = needle.toLowerCase();
   // A mask like `*.rs` (F-010) matches a whole name or path, not a piece of one.
-  if (/[*?]/.test(lower)) {
-    const glob = globToRegExp(lower);
-    return { test: (subject) => glob.test(subject.toLowerCase()), broken: false };
+  if (/[*?]/.test(needle)) {
+    const folded = ignoreFilterCase(needle, mode);
+    const glob = globToRegExp(folded ? needle.toLowerCase() : needle);
+    return { test: (subject) => glob.test(folded ? subject.toLowerCase() : subject), broken: false };
   }
-  return { test: (subject) => subject.toLowerCase().includes(lower), broken: false, pathIncludesName: true };
+  return { test: containsFilter(needle, mode), broken: false, pathIncludesName: true };
 }
 
 /** Everything the row shows, so the filter sees what the eye sees. Each part is tested on

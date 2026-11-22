@@ -12,7 +12,6 @@
         "minHeight": 640,
         "resizable": true,
         "center": true,
-        "theme": "Dark",
         "backgroundColor": "#0f1115",
         "visible": false,
         "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port=9333"

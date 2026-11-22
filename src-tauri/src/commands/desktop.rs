@@ -28,11 +28,11 @@ pub async fn install_command_line_tool() -> Result<(), GitError> {
     .await
 }
 
-/// The frontend's theme is dark or light, on its `bg.app` background: the menus, dialogs
+/// The frontend's theme is dark, light or System, on its `bg.app` background: the menus, dialogs
 /// and window backgrounds follow it.
 #[tauri::command]
 #[specta::specta]
-pub async fn set_native_theme(app: tauri::AppHandle, dark: bool, background: String) {
+pub async fn set_native_theme(app: tauri::AppHandle, dark: Option<bool>, background: String) {
     crate::native_theme::apply(&app, dark, &background);
 }
 

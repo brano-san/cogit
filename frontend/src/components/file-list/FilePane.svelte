@@ -33,7 +33,7 @@
     /** A click, or the arrows (11 §10): Shift extends the ticked range. */
     onclick: (path: string, event: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) => void;
     onmark: (path: string) => void;
-    onopen?: (path: string) => void;
+    onopen?: (path: string, doubleClick: boolean) => void;
     oncontext?: (path: string, event: MouseEvent) => void;
   }
 
@@ -181,17 +181,17 @@
               onclick(file.path, event);
             }}
             onkeydown={(event) => {
-              // Enter is the double click: the file in its own window, a conflict in the Solver.
+              // Enter opens the file in its own window, a conflict in the Solver.
               if (event.key === "Enter" && onopen) {
                 event.preventDefault();
-                onopen(file.path);
+                onopen(file.path, false);
                 return;
               }
               if (event.key !== " ") return;
               event.preventDefault();
               onmark(file.path);
             }}
-            ondblclick={() => onopen?.(file.path)}
+            ondblclick={() => onopen?.(file.path, true)}
             oncontextmenu={(event) => {
               if (!oncontext) return;
               event.preventDefault();

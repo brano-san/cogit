@@ -15,9 +15,9 @@ use webview2_com::AcceleratorKeyPressedEventHandler;
 use webview2_com::Microsoft::Web::WebView2::Win32::{
     COREWEBVIEW2_KEY_EVENT_KIND, COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN,
     COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW,
-    COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL, GetAvailableCoreWebView2BrowserVersionString,
-    ICoreWebView2_19, ICoreWebView2Settings3, ICoreWebView2Settings4, ICoreWebView2Settings5,
-    ICoreWebView2Settings6,
+    COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL, COREWEBVIEW2_PREFERRED_COLOR_SCHEME_AUTO,
+    GetAvailableCoreWebView2BrowserVersionString, ICoreWebView2_13, ICoreWebView2_19,
+    ICoreWebView2Settings3, ICoreWebView2Settings4, ICoreWebView2Settings5, ICoreWebView2Settings6,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetKeyState, VIRTUAL_KEY, VK_CONTROL, VK_MENU, VK_RMENU, VK_SHIFT,
@@ -44,6 +44,24 @@ pub fn browser_version() -> Option<String> {
     (!text.is_empty()).then_some(text)
 }
 
+pub fn follow_system_theme<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) {
+    let reached = window.with_webview(|platform| {
+        let result = unsafe {
+            platform.controller().CoreWebView2().and_then(|core| {
+                core.cast::<ICoreWebView2_13>()?
+                    .Profile()?
+                    .SetPreferredColorScheme(COREWEBVIEW2_PREFERRED_COLOR_SCHEME_AUTO)
+            })
+        };
+        if let Err(err) = result {
+            tracing::warn!(error = %err, "cannot follow the Windows color scheme in WebView2");
+        }
+    });
+    if let Err(err) = reached {
+        tracing::warn!(error = %err, "cannot reach WebView2 to set the color scheme");
+    }
+}
+
 /// Turns the webview from a browser into an application surface, once per window (main and
 /// every child). Host level, so it holds before any page script runs and cannot be undone by
 /// a page that fails to load: page-level `preventDefault` stays only as a second line.
@@ -60,6 +78,9 @@ pub fn browser_version() -> Option<String> {
 ///
 /// A setting an old runtime lacks is logged and skipped; the others still apply.
 pub fn harden<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) {
+    if crate::native_theme::current().is_none() {
+        follow_system_theme(window);
+    }
     let installed = window.with_webview(|platform| {
         let core = match unsafe { platform.controller().CoreWebView2() } {
             Ok(core) => core,

@@ -104,7 +104,7 @@ impl<R: tauri::Runtime> Spare<R> {
     ) -> tauri::Result<()> {
         let Self { window, answer } = self;
         window.set_title(title)?;
-        window.set_theme(Some(crate::native_theme::current()))?;
+        crate::native_theme::set_window_theme(&window)?;
         window.set_background_color(Some(crate::native_theme::background()))?;
         #[cfg(target_os = "macos")]
         app.state::<crate::menu::macos_window::WindowMenus<R>>()

@@ -1,4 +1,7 @@
-import type { DateMode } from "$lib/format";
+import { SUBJECT_HARD, SUBJECT_SOFT, validGuideColumn } from "$lib/commit-message";
+import { DEFAULT_DATE_PATTERN, validDatePattern, type DateMode } from "$lib/format";
+import type { FileDoubleClickMode } from "$lib/file-edit";
+import type { FilterCase } from "$lib/filter-case";
 import type { AiConfig, Algorithm, Whitespace } from "$lib/ipc";
 import { knownAiConfig } from "$lib/ai-config";
 import { LANE_WIDTH } from "$lib/graph-geometry";
@@ -10,8 +13,9 @@ import { WINDOW_LAYOUT_CHOICES, type WindowLayout } from "$lib/window-layout";
 import type { PerspectiveId } from "$lib/perspectives";
 import { GRAPH_COLORINGS, migratedColoring, type GraphColoring } from "$lib/graph-coloring";
 
-/** Lightest first, by the panels' background; the grey ones sit between the extremes (#24). */
+/** Fixed themes run from lightest to darkest by panel background (#24). */
 export const THEMES = [
+  ["system", "System"],
   ["light", "Light"],
   ["lightGrey", "Light gray"],
   ["darkGrey", "Dark gray"],
@@ -22,11 +26,12 @@ export const THEMES = [
 export type DiffLayout = "aligned" | "compact";
 
 export type Theme = (typeof THEMES)[number][0];
+export type FixedTheme = Exclude<Theme, "system">;
 
 /** The commit list's optional columns; the subject and the ref capsules always show. */
 export const GRAPH_COLUMNS = ["hash", "author", "avatar", "time"] as const;
 export type GraphColumn = (typeof GRAPH_COLUMNS)[number];
-export type GraphTimeFormat = "relative" | "date" | "dateTime";
+export type GraphTimeFormat = "relative" | "date" | "dateTime" | "custom";
 export type GraphDensity = "compact" | "normal" | "comfortable";
 /** `--topo-order` or `--date-order` (R-766). */
 export type GraphSort = "topological" | "date";
@@ -42,6 +47,9 @@ export interface Settings {
   /** The webview's zoom: Ctrl+= / Ctrl+- / Ctrl+0. */
   uiZoom: number;
   dateFormat: DateMode;
+  datePattern: string;
+  fileDoubleClick: FileDoubleClickMode;
+  filterCase: FilterCase;
   algorithm: Algorithm;
   contextLines: number;
   ignoreWhitespace: Whitespace;
@@ -78,6 +86,10 @@ export interface Settings {
       $1…$9 (F-943). Repository ▸ Settings can override both. Empty pattern: no prefix. */
   commitPrefixPattern: string;
   commitPrefixTemplate: string;
+  messageGuides: boolean;
+  messageSubjectColumn: number;
+  messageBodyColumn: number;
+  commitComments: "keep" | "strip";
   ai: AiConfig | null;
   logLevel: "error" | "warn" | "info" | "debug" | "trace";
   /** On by default: a face per row is what the commit list is read by, and the request
@@ -165,17 +177,20 @@ export interface Settings {
 }
 
 /** 1: a stored graph `date` became `dateTime` (R-370). */
-export const SETTINGS_VERSION = 3;
+export const SETTINGS_VERSION = 4;
 /** Kept in the file but never shown in Preferences. */
 export const INTERNAL_SETTINGS: readonly (keyof Settings)[] = ["settingsVersion", "firstRunDone", "activeLayout"];
 
 export const DEFAULT_SETTINGS: Settings = {
-  theme: "dark",
+  theme: "system",
   fontFamily: "",
   uiFontSize: 14,
   diffFontSize: 14,
   uiZoom: 1,
   dateFormat: "smart",
+  datePattern: DEFAULT_DATE_PATTERN,
+  fileDoubleClick: "open",
+  filterCase: "ignore",
   algorithm: "histogram",
   contextLines: 3,
   ignoreWhitespace: "none",
@@ -197,6 +212,10 @@ export const DEFAULT_SETTINGS: Settings = {
   userCommands: [],
   commitPrefixPattern: "",
   commitPrefixTemplate: "$1: ",
+  messageGuides: false,
+  messageSubjectColumn: SUBJECT_SOFT,
+  messageBodyColumn: SUBJECT_HARD,
+  commitComments: "keep",
   ai: null,
   logLevel: "info",
   avatars: "gravatar",
@@ -253,13 +272,16 @@ const RESTART_REQUIRED: readonly (keyof Settings)[] = ["logLevel"];
 
 const ENUMS: Partial<Record<keyof Settings, readonly string[]>> = {
   theme: THEMES.map(([id]) => id),
-  dateFormat: ["smart", "relative", "both"],
+  fileDoubleClick: ["open", "stage"],
+  filterCase: ["ignore", "match", "smart"],
+  commitComments: ["keep", "strip"],
+  dateFormat: ["smart", "relative", "both", "custom"],
   algorithm: ["histogram", "myers"],
   ignoreWhitespace: ["none", "trailing", "all"],
   diffLayout: ["aligned", "compact"],
   logLevel: ["error", "warn", "info", "debug", "trace"],
   avatars: ["ask", "gravatar", "off"],
-  graphTimeFormat: ["relative", "date", "dateTime"],
+  graphTimeFormat: ["relative", "date", "dateTime", "custom"],
   graphDensity: ["compact", "normal", "comfortable"],
   graphColoring: GRAPH_COLORINGS,
   graphSort: ["topological", "date"],
@@ -282,6 +304,9 @@ export const LONG_LINK_ROWS_MAX = 1000;
 
 /** Unlike `RANGES`, a value outside these is not clamped: it falls back to the default. */
 const CHECKS: Partial<Record<keyof Settings, (value: unknown) => boolean>> = {
+  datePattern: validDatePattern,
+  messageSubjectColumn: validGuideColumn,
+  messageBodyColumn: validGuideColumn,
   graphLongLinkRows: (value) =>
     Number.isInteger(value) && (value as number) >= 0 && (value as number) <= LONG_LINK_ROWS_MAX,
 };
@@ -326,6 +351,7 @@ export function merge(stored: Partial<Settings> | null | undefined): Settings {
   };
   if (typeof stored !== "object" || stored === null) return merged;
   const record = stored as Record<string, unknown>;
+  if (storedVersion(record) < 4) merged.theme = "dark";
 
   for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]) {
     const value = record[key];

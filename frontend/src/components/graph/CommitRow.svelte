@@ -73,7 +73,8 @@
   const detachedHere = $derived(
     repository.current?.head.kind === "detached" && repository.current.head.oid === entry.commit.oid,
   );
-  const timeColumn = $derived(timeColumnStore.width(timeFormat));
+  const datePattern = $derived(timeFormat === "custom" ? settings.current.datePattern : undefined);
+  const timeColumn = $derived(timeColumnStore.width(timeFormat, datePattern));
   const hashColumn = $derived(timeColumnStore.hashWidth());
   const signature = $derived(signatures.statuses.get(entry.commit.oid));
   const badge = $derived(signatureBadge(signature?.status));
@@ -148,7 +149,7 @@
       class:last={at === cells.length - 1}
       style:flex-basis="calc({timeColumn}px + var(--sp-2))"
       title={dateTooltip(entry.commit.timestamp, entry.commit.tzOffsetMinutes)}
-      >{graphTime(entry.commit.timestamp, entry.commit.tzOffsetMinutes, now, timeFormat)}</span
+      >{graphTime(entry.commit.timestamp, entry.commit.tzOffsetMinutes, now, timeFormat, datePattern)}</span
     >
   {:else if cell === "overlap"}
     {@const row = overlap.rowOf(entry.commit.oid, selection.oid)}

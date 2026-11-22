@@ -4,7 +4,7 @@ import lightGray from "../themes/light-gray.json";
 import darkGray from "../themes/dark-gray.json";
 import graphite from "../themes/graphite.json";
 import dark from "../themes/dark.json";
-import type { Theme } from "./settings";
+import type { FixedTheme, Theme } from "./settings";
 
 /** The color layer: `themes/*.json` are the only place a color literal may live. A token is
     a dotted name (`diff.add.word`); it becomes the custom property `--diff-add-word`.
@@ -22,7 +22,7 @@ export interface ThemeFile {
 
 export const SCHEMA = schemaFile.tokens as Record<string, { type: TokenType; description: string }>;
 
-export const THEME_FILES: Record<Theme, ThemeFile> = {
+export const THEME_FILES: Record<FixedTheme, ThemeFile> = {
   light: light as ThemeFile,
   lightGrey: lightGray as ThemeFile,
   darkGrey: darkGray as ThemeFile,
@@ -31,7 +31,7 @@ export const THEME_FILES: Record<Theme, ThemeFile> = {
 };
 
 /** What a family falls back to. */
-const BASE: Record<ThemeFile["family"], Theme> = { light: "light", dark: "dark" };
+const BASE: Record<ThemeFile["family"], FixedTheme> = { light: "light", dark: "dark" };
 
 export { THEME_CACHE_KEY } from "./theme-cache";
 
@@ -60,9 +60,9 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 /** The tokens of `theme`: its own file, a missing or malformed one taken from the base theme
     of its family (with a warning), then the user's `user-theme.json` over the top. */
 export function resolveTheme(
-  theme: Theme,
+  theme: FixedTheme,
   user?: unknown,
-  files: Record<Theme, ThemeFile> = THEME_FILES,
+  files: Record<FixedTheme, ThemeFile> = THEME_FILES,
   schema: Record<string, { type: TokenType }> = SCHEMA,
 ): Resolved {
   const warnings: string[] = [];
@@ -128,7 +128,7 @@ export interface ThemeRoot {
 }
 
 /** Inline custom properties on `:root`: a swap is these lines again, no reload. */
-export function applyVariables(root: ThemeRoot, theme: Theme, vars: Record<string, string>): void {
+export function applyVariables(root: ThemeRoot, theme: FixedTheme, vars: Record<string, string>): void {
   root.dataset["theme"] = theme;
   // The chosen theme, never the OS preference: native form controls, scrollbars and the
   // default canvas of the web view (WebView2 and WebKitGTK alike) follow it.
@@ -137,11 +137,11 @@ export function applyVariables(root: ThemeRoot, theme: Theme, vars: Record<strin
 }
 
 export function isTheme(value: unknown): value is Theme {
-  return typeof value === "string" && Object.hasOwn(THEME_FILES, value);
+  return value === "system" || (typeof value === "string" && Object.hasOwn(THEME_FILES, value));
 }
 
 /** Whether a theme is dark, for what the app does not draw itself: the native toolkit
     (`GtkSettings` prefer-dark) and the web view's `color-scheme`. Family, not name. */
-export function isDarkTheme(theme: Theme, files: Record<Theme, ThemeFile> = THEME_FILES): boolean {
+export function isDarkTheme(theme: FixedTheme, files: Record<FixedTheme, ThemeFile> = THEME_FILES): boolean {
   return files[theme].family === "dark";
 }

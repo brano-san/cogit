@@ -15,6 +15,21 @@ export interface RowFile {
   mode: FileMode;
 }
 
+export type FileDoubleClickMode = "open" | "stage";
+
+export function workingFileDoubleClick(
+  file: RowFile,
+  side: "worktree" | "index",
+  mode: FileDoubleClickMode,
+  changed: boolean,
+): FileRoute | { kind: "stage" } | { kind: "unstage" } {
+  const route = openRoute(file, side);
+  if (mode === "stage" && changed && file.status !== "sparse" && route.kind === "compare") {
+    return { kind: side === "index" ? "unstage" : "stage" };
+  }
+  return route;
+}
+
 export interface RowPlace {
   /** The file differs from the index on disk (it is in Unstaged). */
   unstaged: boolean;

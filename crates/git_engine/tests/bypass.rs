@@ -12,6 +12,7 @@ fn request(message: &str, no_verify: bool) -> CommitRequest {
         message: message.to_owned(),
         amend: false,
         no_verify,
+        strip_comments: false,
         signoff: false,
         only: Vec::new(),
     }

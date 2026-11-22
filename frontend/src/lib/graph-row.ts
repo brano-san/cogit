@@ -29,18 +29,18 @@ export const COLUMN_WIDTH = { author: 140, avatar: 16, hash: 48, overlap: 74 } a
 
 /** Every shape a format writes, for measuring the widest: now, minutes and hours ago, each
     day of the last week, a month ago, last year with two-digit day, month and hour. */
-export function timeSamples(format: GraphTimeFormat, now: number): string[] {
+export function timeSamples(format: GraphTimeFormat, now: number, pattern?: string): string[] {
   const day = 86_400;
   const spans = [0, 59, 3_540, 18_000, day, 2 * day, 3 * day, 4 * day, 5 * day, 6 * day, 7 * day, 20 * day, 45 * day];
   const today = new Date(now * 1000);
   const old = Date.UTC(today.getUTCFullYear() - 1, 11, 28, 23, 58) / 1000;
   const years = Date.UTC(today.getUTCFullYear() - 12, 11, 28, 23, 58) / 1000;
-  return [...spans.map((ago) => now - ago), old, years].map((when) => graphTime(when, 0, now, format));
+  return [...spans.map((ago) => now - ago), old, years].map((when) => graphTime(when, 0, now, format, pattern));
 }
 
 /** The widest of `timeSamples` as `measure` sees it, whole pixels. */
-export function measuredTimeWidth(format: GraphTimeFormat, now: number, measure: (text: string) => number): number {
-  return Math.ceil(Math.max(...timeSamples(format, now).map(measure)));
+export function measuredTimeWidth(format: GraphTimeFormat, now: number, measure: (text: string) => number, pattern?: string): number {
+  return Math.ceil(Math.max(...timeSamples(format, now, pattern).map(measure)));
 }
 
 /** Where nothing can measure text (a test, a headless run): the widths measured once by hand. */
@@ -50,6 +50,7 @@ export function timeWidth(format: GraphTimeFormat): number {
       return 74;
     case "relative":
       return 84;
+    case "custom":
     case "dateTime":
       return 110;
   }

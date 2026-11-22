@@ -34,6 +34,7 @@
     ["relative", "3 days ago"],
     ["date", "Yesterday · Tuesday · 09-09-26"],
     ["dateTime", "Yesterday 14:05 · 09-09-2026 14:05"],
+    ["custom", "Custom"],
   ] as const;
 
   const SORTS = [

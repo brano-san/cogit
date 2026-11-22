@@ -1,3 +1,4 @@
+import { containsFilter, ignoreFilterCase, type FilterCase } from "./filter-case";
 
 /** What the tooltip adds for a row of the one working-tree list (#32). */
 export function indexNote(state: "staged" | "partly" | undefined): string {
@@ -16,16 +17,16 @@ export function matchesMask(path: string, mask: string): boolean {
 }
 
 /** One matcher per filter change, shared by every file in a commit scope. */
-export function compileMask(mask: string): (path: string) => boolean {
-  const pattern = mask.trim().toLowerCase();
-  if (pattern === "") return () => true;
-
-  if (!pattern.includes("*") && !pattern.includes("?")) {
-    return (path) => path.toLowerCase().includes(pattern);
-  }
-  const expression = globToRegExp(pattern);
+export function compileMask(mask: string, mode: FilterCase = "ignore"): (path: string) => boolean {
+  const pattern = mask.trim();
+  if (!pattern.includes("*") && !pattern.includes("?")) return containsFilter(pattern, mode);
+  const folded = ignoreFilterCase(pattern, mode);
+  const expression = globToRegExp(folded ? pattern.toLowerCase() : pattern);
   const fullPath = pattern.includes("/");
-  return (path) => expression.test((fullPath ? path : fileName(path)).toLowerCase());
+  return (path) => {
+    const subject = fullPath ? path : fileName(path);
+    return expression.test(folded ? subject.toLowerCase() : subject);
+  };
 }
 
 export function globToRegExp(pattern: string): RegExp {

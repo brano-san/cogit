@@ -116,8 +116,13 @@ describe("needsRestart", () => {
 });
 
 describe("themes", () => {
-  it("offers five, from the lightest to the darkest panels (#24)", () => {
-    expect(THEMES.map(([id]) => id)).toEqual(["light", "lightGrey", "darkGrey", "graphite", "dark"]);
+  it("offers System and keeps the fixed themes in order", () => {
+    expect(THEMES.map(([id]) => id)).toEqual(["system", "light", "lightGrey", "darkGrey", "graphite", "dark"]);
+  });
+
+  it("defaults to System on a new install and preserves the Dark fallback of older files", () => {
+    expect(merge(undefined).theme).toBe("system");
+    expect(merge({ settingsVersion: 3 }).theme).toBe("dark");
   });
 
   it("keeps every one of them from a stored file", () => {
@@ -125,7 +130,7 @@ describe("themes", () => {
   });
 
   it("gives every theme its own file in themes/", () => {
-    expect(Object.keys(THEME_FILES)).toEqual(THEMES.map(([id]) => id));
+    expect(Object.keys(THEME_FILES)).toEqual(THEMES.map(([id]) => id).filter((id) => id !== "system"));
   });
 });
 

@@ -5,7 +5,7 @@ import { fileURLToPath, URL } from "node:url";
 import { resolve } from "node:path";
 import fs from "node:fs";
 import { createRequire } from "node:module";
-import { THEME_CACHE_KEY } from "./src/lib/theme-cache";
+import { SYSTEM_THEME_QUERY, THEME_CACHE_KEY } from "./src/lib/theme-cache";
 import {
   THIRD_PARTY_FILE,
   bundledRoots,
@@ -30,7 +30,7 @@ function bootTheme(): Plugin {
           return `:root[data-theme="${id}"]{color-scheme:${family};--boot-bg:${tokens["bg.app"]};--boot-fg:${tokens["fg.primary"]}}`;
         })
         .join("");
-      const script = `try{var t=localStorage.getItem("${THEME_CACHE_KEY}");if(t)document.documentElement.dataset.theme=t}catch(e){}`;
+      const script = `var t;try{t=localStorage.getItem("${THEME_CACHE_KEY}")}catch(e){}document.documentElement.dataset.theme=t&&t!=="system"?t:matchMedia("${SYSTEM_THEME_QUERY}").matches?"dark":"light";`;
       return [
         { tag: "style", children: css, injectTo: "head" },
         { tag: "script", children: script, injectTo: "head" },

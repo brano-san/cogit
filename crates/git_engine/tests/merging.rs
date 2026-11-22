@@ -195,6 +195,7 @@ fn the_squash_message_is_gone_once_the_squash_is_committed() {
         message: "squash dev".to_owned(),
         amend: false,
         no_verify: false,
+        strip_comments: false,
         signoff: false,
         only: Vec::new(),
     })
@@ -217,6 +218,7 @@ fn a_stopped_merge_seeds_its_message_and_the_conflict_hints_stay_out() {
         message: seed,
         amend: false,
         no_verify: false,
+        strip_comments: false,
         signoff: false,
         only: Vec::new(),
     })

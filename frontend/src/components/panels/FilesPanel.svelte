@@ -36,7 +36,7 @@
     onopencompare: (path: string) => void;
     onopenwindow: (path: string) => void;
     /** Double-click or Enter on a Working Tree row: Unstaged or Staged, whatever Diff shows. */
-    onopenrow: (path: string, side: "worktree" | "index") => void;
+    onopenrow: (path: string, side: "worktree" | "index", doubleClick: boolean) => void;
     /** Double-click or Enter on a row of a past commit. */
     onopenpast: (path: string) => void;
     onmask: (mask: string) => void;
@@ -293,7 +293,8 @@
         "The working tree is clean.",
       )}
       selected={diff.path}
-      onopen={(path, side) => onopenrow(path, separate ? (side === "index" ? "index" : "worktree") : mergedSide(path, unstagedRows))}
+      onopen={(path, side, doubleClick) =>
+        onopenrow(path, separate ? (side === "index" ? "index" : "worktree") : mergedSide(path, unstagedRows), doubleClick)}
       unchanged={everyFile}
       onmask={(text) => {
         mask = text;

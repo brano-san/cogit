@@ -237,7 +237,7 @@ pub(crate) fn hidden_builder<'a, R: tauri::Runtime>(
 ) -> WebviewWindowBuilder<'a, R, tauri::AppHandle<R>> {
     let mut builder = WebviewWindowBuilder::new(app, label, WebviewUrl::App(url.into()))
         .visible(false)
-        .theme(Some(crate::native_theme::current()))
+        .theme(crate::native_theme::current())
         .background_color(crate::native_theme::background());
     // WebView2 refuses a second environment on the same profile with other arguments.
     #[cfg(windows)]
@@ -483,7 +483,7 @@ mod tests {
             .iter()
             .find(|window| is_main(&window.label))
             .unwrap();
-        assert_eq!(main.theme, Some(crate::native_theme::current()));
+        assert_eq!(main.theme, crate::native_theme::current());
     }
 
     #[test]
