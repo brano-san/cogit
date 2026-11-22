@@ -46,6 +46,9 @@ impl HostKeyDesk {
         gone: &dyn Fn() -> bool,
         limit: Duration,
     ) -> bool {
+        if gone() {
+            return false;
+        }
         let id = self.next.fetch_add(1, Ordering::Relaxed);
         let (answer, answered) = mpsc::channel();
         self.waiting.lock().insert(

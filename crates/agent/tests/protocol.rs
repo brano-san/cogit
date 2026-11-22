@@ -59,6 +59,19 @@ fn the_handshake_names_the_agent_version() {
 }
 
 #[test]
+fn a_withdrawn_question_round_trips_with_its_id() {
+    let frame = FromAgent::WithdrawAsk { id: 42 };
+    assert_eq!(
+        serde_json::to_value(&frame).unwrap(),
+        json!({ "frame": "withdrawAsk", "body": { "id": 42 } })
+    );
+    let mut bytes = Vec::new();
+    write_frame(&mut bytes, &frame).unwrap();
+    let read: Option<FromAgent> = read_frame(&mut bytes.as_slice()).unwrap();
+    assert!(matches!(read, Some(FromAgent::WithdrawAsk { id: 42 })));
+}
+
+#[test]
 fn ten_parallel_calls_get_their_own_answers() {
     let all_in = Arc::new(Barrier::new(10));
     let (client, _server) = pair(Box::new(move |request, _| {
@@ -319,7 +332,7 @@ fn a_call_asks_the_window_and_waits_for_its_answer() {
         wires.client_in,
         wires.client_out,
         |_| {},
-        |question| json!({ "heard": question }),
+        |question, _| json!({ "heard": question }),
     )
     .unwrap();
     assert_eq!(

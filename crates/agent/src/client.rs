@@ -5,7 +5,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError, Sender};
 use std::time::Duration;
 
@@ -35,6 +35,7 @@ enum Message {
 #[derive(Default)]
 struct Waiting {
     calls: HashMap<u64, Sender<Message>>,
+    asks: HashMap<u64, Arc<AtomicBool>>,
     gone: Option<String>,
 }
 
@@ -74,7 +75,7 @@ impl Client {
         W: Write + Send + 'static,
         E: Fn(Value) + Send + 'static,
     {
-        Self::connect_with(input, output, on_event, |_| Value::Null)
+        Self::connect_with(input, output, on_event, |_, _| Value::Null)
     }
 
     pub fn connect_with<R, W, E, A>(
@@ -87,7 +88,7 @@ impl Client {
         R: Read + Send + 'static,
         W: Write + Send + 'static,
         E: Fn(Value) + Send + 'static,
-        A: Fn(Value) -> Value + Send + Sync + 'static,
+        A: Fn(Value, &dyn Fn() -> bool) -> Value + Send + Sync + 'static,
     {
         let hello = ToAgent::Hello {
             protocol: PROTOCOL,
@@ -116,18 +117,27 @@ impl Client {
         std::thread::Builder::new()
             .name("agent-replies".into())
             .spawn(move || {
-                deliver_replies(&mut input, &replies, &on_event, &|id, question| {
-                    let (answers, on_ask) = (answers.clone(), on_ask.clone());
-                    std::thread::spawn(move || {
-                        let answer = ToAgent::Answer {
-                            id,
-                            answer: on_ask(question),
-                        };
-                        if let Err(err) = write_frame(&mut *answers.lock(), &answer) {
-                            tracing::error!(error = ?err, id, context = "answer to the agent");
-                        }
-                    });
-                });
+                deliver_replies(
+                    &mut input,
+                    &replies,
+                    &on_event,
+                    &|id, question, withdrawn| {
+                        let (answers, on_ask, waiting) =
+                            (answers.clone(), on_ask.clone(), replies.clone());
+                        std::thread::spawn(move || {
+                            let answer = on_ask(question, &|| withdrawn.load(Ordering::Acquire));
+                            let still_waiting = waiting.lock().asks.remove(&id).is_some();
+                            if still_waiting
+                                && let Err(err) = write_frame(
+                                    &mut *answers.lock(),
+                                    &ToAgent::Answer { id, answer },
+                                )
+                            {
+                                tracing::error!(error = ?err, id, context = "answer to the agent");
+                            }
+                        });
+                    },
+                );
             })
             .map_err(|err| AgentError::Handshake(err.to_string()))?;
         Ok(Self {
@@ -209,7 +219,7 @@ fn deliver_replies<R: Read>(
     input: &mut R,
     waiting: &Mutex<Waiting>,
     on_event: &dyn Fn(Value),
-    on_ask: &dyn Fn(u64, Value),
+    on_ask: &dyn Fn(u64, Value, Arc<AtomicBool>),
 ) {
     let reason = loop {
         match read_frame(input) {
@@ -224,7 +234,22 @@ fn deliver_replies<R: Read>(
                 }
             }
             Ok(Some(FromAgent::Event { event })) => on_event(event),
-            Ok(Some(FromAgent::Ask { id, question })) => on_ask(id, question),
+            Ok(Some(FromAgent::Ask { id, question })) => {
+                let withdrawn = Arc::new(AtomicBool::new(false));
+                {
+                    let mut waiting = waiting.lock();
+                    if waiting.gone.is_some() {
+                        continue;
+                    }
+                    waiting.asks.insert(id, withdrawn.clone());
+                }
+                on_ask(id, question, withdrawn);
+            }
+            Ok(Some(FromAgent::WithdrawAsk { id })) => {
+                if let Some(withdrawn) = waiting.lock().asks.remove(&id) {
+                    withdrawn.store(true, Ordering::Release);
+                }
+            }
             Ok(Some(other)) => break format!("unexpected frame {other:?}"),
             Ok(None) => break "the agent closed its output".to_owned(),
             Err(err) => break err.to_string(),
@@ -238,4 +263,7 @@ fn fail_all(waiting: &Mutex<Waiting>, reason: &str) {
     let mut waiting = waiting.lock();
     waiting.gone.get_or_insert_with(|| reason.to_owned());
     waiting.calls.clear();
+    for (_, withdrawn) in waiting.asks.drain() {
+        withdrawn.store(true, Ordering::Release);
+    }
 }

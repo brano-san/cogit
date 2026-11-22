@@ -6,7 +6,7 @@ use serde_json::value::RawValue;
 pub type Json = Box<RawValue>;
 use std::io::{self, Read, Write};
 
-pub const PROTOCOL: u32 = 4;
+pub const PROTOCOL: u32 = 5;
 
 const LARGEST_FRAME: u32 = 256 * 1024 * 1024;
 
@@ -53,6 +53,9 @@ pub enum FromAgent {
     Ask {
         id: u64,
         question: Value,
+    },
+    WithdrawAsk {
+        id: u64,
     },
 }
 

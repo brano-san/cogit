@@ -1,9 +1,10 @@
 #![allow(clippy::unwrap_used, clippy::print_stdout)]
 
-use app_state::{AppEvent, AppState};
+use app_state::{AppEvent, AppState, OperationKind};
 use git_engine::{GitError, NetworkStop, RepoHandle};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
 
 const NEW_HOST: &str = "The authenticity of host 'h.example (192.0.2.1)' can't be established.\nED25519 key fingerprint is SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU.\nThis key is not known by any other names.\nAre you sure you want to continue connecting (yes/no/[fingerprint])? ";
 const CHANGED: &str = "Warning: the ED25519 host key for 'h.example' differs from the key for the IP address '192.0.2.9'\nOffending key for IP in /home/ann/.ssh/known_hosts:5\nAre you sure you want to continue connecting (yes/no)? ";
@@ -110,14 +111,70 @@ fn a_repository_in_the_agent_asks_the_window() {
     assert_eq!(asks.load(Ordering::SeqCst), 1);
 }
 
+fn stopping_an_agent_fetch_withdraws_the_host_key_question() {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_time()
+        .build()
+        .unwrap();
+    runtime.block_on(async {
+        let state = Arc::new(AppState::new());
+        let mut heard = state.subscribe();
+        let f = remote_asking(NEW_HOST);
+        let agent = app_state::Host::Loopback(env!("CARGO_BIN_EXE_cogit-agent").into());
+        let repo = state.open_repository_on(&agent, f.path()).unwrap().repo;
+        let permit = state.enqueue(repo, OperationKind::Fetch, "Fetching").await;
+        let running = state.network_stop(permit.id());
+        let (completed, result) = std::sync::mpsc::channel();
+        {
+            let (state, stop) = (Arc::clone(&state), running.token());
+            std::thread::spawn(move || {
+                let _ = completed.send(state.fetch(repo, "origin", &stop, None, |_| {}));
+            });
+        }
+
+        let id = tokio::time::timeout(test_fixtures::scaled(Duration::from_secs(15)), async {
+            loop {
+                if let AppEvent::HostKeyAsked(ask) = heard.recv().await.unwrap() {
+                    break ask.id;
+                }
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("the agent never asked the window"));
+
+        assert!(state.cancel_network(permit.id()));
+        tokio::time::timeout(Duration::from_secs(3), async {
+            loop {
+                if let AppEvent::HostKeyWithdrawn { id: withdrawn } = heard.recv().await.unwrap() {
+                    assert_eq!(withdrawn, id);
+                    break;
+                }
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("Stop did not withdraw the host key question"));
+        assert!(state.host_key_questions().is_empty());
+        let fetched = result.recv_timeout(Duration::from_secs(10)).unwrap();
+        permit.finish(fetched.is_ok());
+        assert!(
+            matches!(fetched, Err(GitError::Cancelled(_))),
+            "{fetched:?}"
+        );
+    });
+}
+
 fn main() {
     if let Some(code) = git_engine::run_as_helper() {
         std::process::exit(code);
     }
-    let tests: [(&str, fn()); 4] = [
+    let tests: [(&str, fn()); 5] = [
         (
             "a_repository_in_the_agent_asks_the_window",
             a_repository_in_the_agent_asks_the_window,
+        ),
+        (
+            "stopping_an_agent_fetch_withdraws_the_host_key_question",
+            stopping_an_agent_fetch_withdraws_the_host_key_question,
         ),
         (
             "a_new_host_key_is_accepted_only_by_the_user",

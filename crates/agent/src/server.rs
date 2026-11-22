@@ -7,6 +7,7 @@ use std::io::{self, Read, Write};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
+use std::time::Duration;
 
 type Outbox = Arc<Mutex<dyn Write + Send>>;
 
@@ -34,6 +35,31 @@ impl Events {
 
     #[must_use]
     pub fn ask(&self, question: Value) -> Option<Value> {
+        let (_, answered) = self.start_ask(question)?;
+        answered.recv().ok()
+    }
+
+    #[must_use]
+    pub fn ask_until(&self, question: Value, gone: &dyn Fn() -> bool) -> Option<Value> {
+        if gone() {
+            return None;
+        }
+        let (id, answered) = self.start_ask(question)?;
+        while !gone() {
+            match answered.recv_timeout(Duration::from_millis(100)) {
+                Ok(answer) => return Some(answer),
+                Err(mpsc::RecvTimeoutError::Disconnected) => return None,
+                Err(mpsc::RecvTimeoutError::Timeout) => {}
+            }
+        }
+        self.1.waiting.lock().remove(&id);
+        if let Err(err) = send(&self.0, &FromAgent::WithdrawAsk { id }) {
+            tracing::error!(error = ?err, id, context = "withdrawing an agent question");
+        }
+        None
+    }
+
+    fn start_ask(&self, question: Value) -> Option<(u64, mpsc::Receiver<Value>)> {
         let id = self.1.next.fetch_add(1, Ordering::Relaxed);
         let (answer, answered) = mpsc::channel();
         self.1.waiting.lock().insert(id, answer);
@@ -42,7 +68,7 @@ impl Events {
             self.1.waiting.lock().remove(&id);
             return None;
         }
-        answered.recv().ok()
+        Some((id, answered))
     }
 }
 

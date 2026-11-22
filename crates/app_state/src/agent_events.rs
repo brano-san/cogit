@@ -39,7 +39,10 @@ pub(crate) fn ask_window<T: serde::de::DeserializeOwned>(
     window: &agent::Events,
     question: &Question,
 ) -> Option<T> {
-    let answer = window.ask(to_json(question))?;
+    window.ask(to_json(question)).and_then(read_answer)
+}
+
+fn read_answer<T: serde::de::DeserializeOwned>(answer: Value) -> Option<T> {
     serde_json::from_value(answer)
         .inspect_err(|err| tracing::error!(error = ?err, context = "the window's answer"))
         .ok()
@@ -50,6 +53,7 @@ pub(crate) fn answer_agent(
     passwords: &crate::credentials::Passwords,
     host_keys: &crate::host_keys::HostKeyDesk,
     question: Value,
+    withdrawn: &dyn Fn() -> bool,
 ) -> Value {
     if matches!(host, Host::Ssh { .. }) {
         return Value::Null;
@@ -66,7 +70,7 @@ pub(crate) fn answer_agent(
             Value::Null
         }
         Ok(Question::HostKey { question }) => {
-            to_json(&host_keys.ask(&question, &|| false, git_engine::HOST_KEY_ASK_LIMIT))
+            to_json(&host_keys.ask(&question, withdrawn, git_engine::HOST_KEY_ASK_LIMIT))
         }
         Err(err) => {
             tracing::error!(error = ?err, context = "a question of the agent");
@@ -81,14 +85,14 @@ pub fn forward_agent_events(state: Arc<AppState>, events: agent::Events) {
     }
     if !crate::ssh_transport::inside_agent() {
         let window = events.clone();
-        git_engine::ask_host_keys(Arc::new(move |question, _| {
-            ask_window::<bool>(
-                &window,
-                &Question::HostKey {
-                    question: question.clone(),
-                },
-            )
-            .unwrap_or(false)
+        git_engine::ask_host_keys(Arc::new(move |question, gone| {
+            let question = Question::HostKey {
+                question: question.clone(),
+            };
+            window
+                .ask_until(to_json(&question), gone)
+                .and_then(read_answer::<bool>)
+                .unwrap_or(false)
         }));
     }
     let commands = events.clone();
@@ -199,6 +203,7 @@ mod tests {
                 &state.passwords,
                 &state.host_keys,
                 to_json(&question),
+                &|| false,
             )
         };
         let url = "https://example.test/repo";

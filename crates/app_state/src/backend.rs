@@ -326,7 +326,7 @@ impl Agent {
         host: &Host,
         login: &AgentLogin<'_>,
         on_event: impl Fn(Value) + Send + Clone + 'static,
-        on_ask: impl Fn(Value) -> Value + Send + Sync + Clone + 'static,
+        on_ask: impl Fn(Value, &dyn Fn() -> bool) -> Value + Send + Sync + Clone + 'static,
         on_lost: impl FnOnce(String) + Send + 'static,
     ) -> Result<Self, GitError> {
         let (client, spawned) =
@@ -350,7 +350,7 @@ impl Agent {
         host: &Host,
         login: &AgentLogin<'_>,
         on_event: impl Fn(Value) + Send + 'static,
-        on_ask: impl Fn(Value) -> Value + Send + Sync + 'static,
+        on_ask: impl Fn(Value, &dyn Fn() -> bool) -> Value + Send + Sync + 'static,
     ) -> Result<(agent::Client, Spawned), Failure> {
         let mut askpass = None;
         let mut command = host
@@ -1304,8 +1304,10 @@ impl AppState {
                 host,
                 &login,
                 move |event| sink.take(event),
-                move |question| {
-                    crate::agent_events::answer_agent(&asked, &passwords, &host_keys, question)
+                move |question, withdrawn| {
+                    crate::agent_events::answer_agent(
+                        &asked, &passwords, &host_keys, question, withdrawn,
+                    )
                 },
                 move |reason| lost(BackendState::Lost { reason }),
             )
