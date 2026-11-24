@@ -118,6 +118,7 @@ export type AppCommandActions = Record<AppCommandId, () => unknown> & {
   togglePanel: (panel: PanelId) => void;
   windowSize: (id: string) => void;
   windowLayout: (id: WindowLayout) => void;
+  selectRepositoryTab: (index: number) => void;
 };
 
 /** What the rules read; data only, so they can be tested without the app. */
@@ -142,6 +143,7 @@ export interface AppCommandFacts {
   logPath: boolean;
   banner: Banner | null;
   openCount: number;
+  repositoryTabCount: number;
   canCycleTabs: boolean;
   windowLayout: WindowLayout;
 }
@@ -390,6 +392,12 @@ export function appCommands(facts: AppCommandFacts, run: AppCommandActions): Pal
     { id: "window-layout-reset", title: "Reset Layout", run: run["window-layout-reset"] },
     { id: "tab-next", title: "Next Repository Tab", unavailable: noOtherTab, run: run["tab-next"] },
     { id: "tab-previous", title: "Previous Repository Tab", unavailable: noOtherTab, run: run["tab-previous"] },
+    ...Array.from({ length: 9 }, (_, index) => ({
+      id: `tab-select-${index + 1}`,
+      title: `Select Repository Tab ${index + 1}`,
+      unavailable: index < facts.repositoryTabCount ? undefined : "No repository tab at this position",
+      run: () => run.selectRepositoryTab(index),
+    })),
     ...WINDOW_SIZES.map((size) => ({
       id: size.id,
       title: `Window Size: ${size.title}`,

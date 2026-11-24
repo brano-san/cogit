@@ -51,20 +51,28 @@ const REPOSITORY: &[Entry] = &[
 const EDIT: &[Entry] = &[Entry::Item("settings", "Preferences…", Some("CmdOrCtrl+,"))];
 
 const VIEW: &[Entry] = &[
-    Entry::Check("output", "Output", Some("CmdOrCtrl+Shift+7")),
+    Entry::Check("output", "Output", Some("CmdOrCtrl+Shift+8")),
     Entry::Check("maximize-panel", "Maximize Panel", Some("Shift+F11")),
     Entry::Separator,
     Entry::Check(
         "panel-repositories",
         "Repositories Panel",
-        Some("CmdOrCtrl+1"),
+        Some("CmdOrCtrl+Shift+1"),
     ),
-    Entry::Check("panel-refs", "References Panel", Some("CmdOrCtrl+2")),
-    Entry::Check("panel-graph", "Graph Panel", Some("CmdOrCtrl+3")),
-    Entry::Check("panel-files", "Files Panel", Some("CmdOrCtrl+4")),
-    Entry::Check("panel-commit", "Commit Message Panel", Some("CmdOrCtrl+5")),
-    Entry::Check("panel-diff", "Diff Panel", Some("CmdOrCtrl+6")),
-    Entry::Check("panel-worktrees", "Worktrees Panel", Some("CmdOrCtrl+7")),
+    Entry::Check("panel-refs", "References Panel", Some("CmdOrCtrl+Shift+2")),
+    Entry::Check("panel-graph", "Graph Panel", Some("CmdOrCtrl+Shift+3")),
+    Entry::Check("panel-files", "Files Panel", Some("CmdOrCtrl+Shift+4")),
+    Entry::Check(
+        "panel-commit",
+        "Commit Message Panel",
+        Some("CmdOrCtrl+Shift+5"),
+    ),
+    Entry::Check("panel-diff", "Diff Panel", Some("CmdOrCtrl+Shift+6")),
+    Entry::Check(
+        "panel-worktrees",
+        "Worktrees Panel",
+        Some("CmdOrCtrl+Shift+7"),
+    ),
     Entry::Separator,
     Entry::Item("zoom-in", "Zoom In", Some("CmdOrCtrl+=")),
     Entry::Item("zoom-out", "Zoom Out", Some("CmdOrCtrl+-")),
@@ -212,6 +220,20 @@ const WINDOW: &[Entry] = &[
         "tab-previous",
         "Previous Repository Tab",
         Some("Ctrl+Shift+Tab"),
+    ),
+    Entry::Nested(
+        "Select Repository Tab",
+        &[
+            Entry::Item("tab-select-1", "Tab 1", Some("CmdOrCtrl+1")),
+            Entry::Item("tab-select-2", "Tab 2", Some("CmdOrCtrl+2")),
+            Entry::Item("tab-select-3", "Tab 3", Some("CmdOrCtrl+3")),
+            Entry::Item("tab-select-4", "Tab 4", Some("CmdOrCtrl+4")),
+            Entry::Item("tab-select-5", "Tab 5", Some("CmdOrCtrl+5")),
+            Entry::Item("tab-select-6", "Tab 6", Some("CmdOrCtrl+6")),
+            Entry::Item("tab-select-7", "Tab 7", Some("CmdOrCtrl+7")),
+            Entry::Item("tab-select-8", "Tab 8", Some("CmdOrCtrl+8")),
+            Entry::Item("tab-select-9", "Tab 9", Some("CmdOrCtrl+9")),
+        ],
     ),
 ];
 
@@ -944,6 +966,38 @@ mod separator_tests {
 #[cfg(test)]
 mod nested_tests {
     use super::*;
+
+    #[test]
+    fn the_number_row_switches_tabs_and_shift_selects_view_panels() {
+        let claimed = crate::accelerators::table(default_keymap_pairs(), &HashMap::new());
+        let command = |keys: &str| {
+            let chord = crate::accelerators::parse(keys).expect("valid shortcut");
+            claimed.get(&chord).map(String::as_str)
+        };
+        for slot in 1..=9 {
+            let id = format!("tab-select-{slot}");
+            assert_eq!(command(&format!("CmdOrCtrl+{slot}")), Some(id.as_str()));
+        }
+        for (slot, panel) in [
+            "repositories",
+            "refs",
+            "graph",
+            "files",
+            "commit",
+            "diff",
+            "worktrees",
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let id = format!("panel-{panel}");
+            assert_eq!(
+                command(&format!("CmdOrCtrl+Shift+{}", slot + 1)),
+                Some(id.as_str())
+            );
+        }
+        assert_eq!(command("CmdOrCtrl+Shift+8"), Some("output"));
+    }
 
     #[test]
     fn saved_layout_and_shortcuts_round_trip_to_the_startup_menu() {

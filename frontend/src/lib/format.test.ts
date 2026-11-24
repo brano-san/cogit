@@ -358,7 +358,7 @@ describe("refLabels for branches held by worktrees", () => {
     expect(label(tree({ dirty: true }))).toMatchObject({
       text: "dev",
       worktree: { path: "C:/work/dev", state: "modified" },
-      title: "dev\nChecked out in worktree C:/work/dev (modified)",
+      title: "dev\nWorktree: C:/work/dev (modified)",
     });
     expect(label(tree({}))?.worktree?.state).toBe("clean");
     expect(label(tree({ missing: true }))?.worktree?.state).toBe("missing");

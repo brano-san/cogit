@@ -3,7 +3,7 @@
   import RepositoryMarks from "$components/repo-tree/RepositoryMarks.svelte";
   import { pointerDrag } from "$lib/pointer-drag";
   import { listedName } from "$lib/repo-list";
-  import { freshOverview, rowSync } from "$lib/repo-sync";
+  import { freshOverview, rowSync, syncTooltip } from "$lib/repo-sync";
   import { repoList } from "$stores/repo-list.svelte";
   import { repoPulse } from "$stores/repo-pulse.svelte";
   import { repository } from "$stores/repository.svelte";
@@ -47,19 +47,21 @@
       fetchFailed: repoPulse.unknown.has(root),
       remoteAhead: repoPulse.remoteAhead.has(root),
     })}
+    {@const tip = syncTooltip(sync)}
     <div class="tab" class:active={root === active} class:over={root === over} class:closed={!entry} data-drop={root}
+      data-tip={tip || root} data-tip-context={tip ? root : undefined}
       role="presentation" oncontextmenu={(event) => {
         event.preventDefault();
         oncontext(root, event.clientX, event.clientY);
       }}>
       <button class="select" type="button" role="tab" aria-selected={active === root}
-        data-drag={root} title={root} onclick={() => onselect(root)}
+        data-drag={root} onclick={() => onselect(root)}
         onmousedown={(event) => { if (event.button === 1) event.preventDefault(); }}
         onauxclick={(event) => middleClick(event, root)}>
-        <RepositoryMarks {sync} />
+        <RepositoryMarks {sync} tooltip={false} />
         <span class="truncate">{name}</span>
       </button>
-      <button class="close" type="button" title="Close {name}" aria-label="Close {name}"
+      <button class="close" type="button" aria-label="Close {name}"
         onclick={() => onclose(root)} onauxclick={(event) => middleClick(event, root)}>
         <Icon name="close" />
       </button>
@@ -111,7 +113,7 @@
     font: inherit;
   }
 
-  button:hover {
+  .tab:not(.active):hover {
     background: var(--state-hover);
     --mark-halo: var(--state-hover);
   }
@@ -135,6 +137,10 @@
     height: var(--h-button-sm);
     flex: none;
     padding: 0;
+  }
+
+  .close:hover {
+    color: var(--text-primary);
   }
 
   .close :global(svg) {

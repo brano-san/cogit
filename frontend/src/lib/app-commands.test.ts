@@ -46,6 +46,7 @@ const OPEN: AppCommandFacts = {
   logPath: true,
   banner: null,
   openCount: 1,
+  repositoryTabCount: 2,
   canCycleTabs: true,
   windowLayout: "standard",
 };
@@ -56,6 +57,7 @@ const CLOSED: AppCommandFacts = {
   toolbar: NO_FACTS,
   commitOid: null,
   openCount: 0,
+  repositoryTabCount: 0,
   canCycleTabs: false,
 };
 
@@ -63,6 +65,17 @@ const reason = (facts: AppCommandFacts, id: string) =>
   appCommands(facts, spies()).find((command) => command.id === id)?.unavailable;
 
 describe("app commands", () => {
+  it("switches to the numbered repository tab and disables unoccupied slots", () => {
+    const actions = spies();
+    const commands = appCommands(OPEN, actions);
+    const second = commands.find(({ id }) => id === "tab-select-2");
+    expect(second?.unavailable).toBeUndefined();
+    second?.run();
+    expect(actions.selectRepositoryTab).toHaveBeenCalledWith(1);
+    expect(commands.find(({ id }) => id === "tab-select-3")?.unavailable).toBe("No repository tab at this position");
+    expect(commands.find(({ id }) => id === "tab-select-9")?.unavailable).toBe("No repository tab at this position");
+  });
+
   it("marks the active layout and offers Reset Perspective only in Standard", () => {
     for (const windowLayout of ["standard", "log", "workingTree"] as const) {
       const commands = appCommands({ ...OPEN, windowLayout }, spies());
@@ -152,6 +165,9 @@ describe("app commands", () => {
       ["window-layout-reset", "Reset Layout"],
       ["tab-next", "Next Repository Tab"],
       ["tab-previous", "Previous Repository Tab"],
+      ...Array.from({ length: 9 }, (_, index) => [
+        `tab-select-${index + 1}`, `Select Repository Tab ${index + 1}`,
+      ]),
       ["window-size-1280x800", "Window Size: 1280 × 800"],
       ["window-size-1440x900", "Window Size: 1440 × 900"],
       ["window-size-1600x1000", "Window Size: 1600 × 1000"],
@@ -188,6 +204,8 @@ describe("app commands", () => {
         expect(actions.windowSize).toHaveBeenLastCalledWith(command.id);
       } else if (command.id.startsWith("window-layout-") && command.id !== "window-layout-reset") {
         expect(actions.windowLayout).toHaveBeenLastCalledWith(command.id.slice("window-layout-".length));
+      } else if (command.id.startsWith("tab-select-")) {
+        expect(actions.selectRepositoryTab).toHaveBeenLastCalledWith(Number(command.id.slice("tab-select-".length)) - 1);
       } else if (["flow-feature", "flow-release", "flow-hotfix"].includes(command.id)) {
         expect(actions.flowStart).toHaveBeenLastCalledWith(command.id.slice("flow-".length));
       } else {
@@ -209,7 +227,7 @@ describe("app commands", () => {
   });
 
   it("offers everything with a repository, a commit and a remote", () => {
-    const blocked = appCommands(OPEN, spies()).filter((command) => command.unavailable);
+    const blocked = appCommands({ ...OPEN, repositoryTabCount: 9 }, spies()).filter((command) => command.unavailable);
     // Set Up wants Git-Flow not set up yet; Abort wants an operation in progress.
     expect(blocked.map((command) => command.id)).toEqual(["flow-init", "abort"]);
   });

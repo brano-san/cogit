@@ -15,6 +15,7 @@
     hint: string | null;
     anchor: DOMRect;
     below: boolean;
+    wide: boolean;
   }
 
   let shown = $state.raw<Shown | null>(null);
@@ -43,7 +44,7 @@
     current = element;
     for (let node: Element | null = element; node; node = node.parentElement?.closest(SELECTOR) ?? null) {
       held.push(node);
-      watcher?.observe(node, { attributes: true, attributeFilter: [STASH, "data-tip"] });
+      watcher?.observe(node, { attributes: true, attributeFilter: [STASH, "data-tip", "data-tip-context"] });
     }
     timer = setTimeout(show, TIP_DELAY_MS);
   }
@@ -69,7 +70,8 @@
     const element = current;
     if (!element?.isConnected) return;
     const text = textOf(element);
-    const around = held.slice(1).map(textOf).find((each) => each !== "") ?? null;
+    const around = element.getAttribute("data-tip-context") ??
+      held.slice(1).map(textOf).find((each) => each !== "") ?? null;
     if (text === "" && around === null) {
       hide();
       return;
@@ -83,6 +85,7 @@
       hint: element.getAttribute("data-tip-hint"),
       anchor: element.getBoundingClientRect(),
       below: element.hasAttribute("data-tip-below"),
+      wide: element.closest("[data-tip-wide]") !== null,
     };
   }
 
@@ -119,12 +122,13 @@
   onkeydown={(event) => event.key === "Escape" && hide()}
   onscrollcapture={hide}
 />
-<svelte:window onblur={disarm} />
+<svelte:window onblur={disarm} onresize={disarm} />
 
 {#if shown}
   <div
     bind:this={bubble}
     class="bubble"
+    class:wide={shown.wide}
     role="tooltip"
     style:left="{placed?.left ?? 0}px"
     style:top="{placed?.top ?? 0}px"
@@ -144,7 +148,7 @@
     flex-wrap: wrap;
     gap: var(--sp-3);
     align-items: baseline;
-    max-width: 360px;
+    max-width: min(360px, calc(100vw - 8px));
     padding: var(--sp-2) var(--sp-3);
     background: var(--surface-raised);
     color: var(--text-primary);
@@ -169,6 +173,11 @@
     -webkit-line-clamp: 14;
     line-clamp: 14;
     overflow: hidden;
+  }
+
+  .bubble.wide {
+    width: max-content;
+    max-width: min(600px, calc(100vw - 8px));
   }
 
   /* What the element around it says (the row of a tag): one bubble, the pointed thing first. */

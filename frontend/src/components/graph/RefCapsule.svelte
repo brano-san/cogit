@@ -17,9 +17,15 @@
   let { label, onmenu, onactivate, commit }: Props = $props();
 
   const parts = $derived(labelParts(label));
-  const tooltip = $derived([label.title ?? label.text, commit].filter(Boolean).join("\n"));
-  /** The joined label's tooltip without its upstream line: the local part's. */
-  const localTip = $derived(tooltip.split("\n").filter((line) => line !== label.upstream).join("\n"));
+  const nameAndDetails = $derived(label.title ?? label.text);
+  /** On a joined label, its local part skips the upstream line. */
+  const localDetails = $derived(label.upstream === undefined
+    ? nameAndDetails
+    : nameAndDetails.split("\n").filter((_, index) => index !== 1).join("\n"));
+  const localTip = $derived([
+    label.kind === "stash" ? localDetails : `Name: ${localDetails}`,
+    commit,
+  ].filter(Boolean).join("\n"));
   const text = $derived(label.upstream !== undefined ? (label.name ?? "") : label.text);
 
   function menu(ref: RefLabel) {
@@ -37,7 +43,7 @@
 
 {#snippet held()}
   {#if label.worktree}
-    <span class="held"><KindIcon kind="worktree" title={localTip} /></span>
+    <span class="held"><KindIcon kind="worktree" title="" /></span>
   {/if}
 {/snippet}
 
@@ -45,9 +51,9 @@
   {#if parts.remote}
     {@const remote = parts.remote}
     <!-- The branch colour stays on the local part: the prefix in remote colours, `=` olive. -->
-    <span class="capsule {label.kind} joined" class:holds={label.worktree}>
+    <span class="capsule {label.kind} joined" class:holds={label.worktree} data-tip-wide>
       <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <span class="prefix" title={remote.text} data-ref={labelDrag(remote)} oncontextmenu={menu(remote)} ondblclick={activate(remote)}
+      <span class="prefix" title={[`Name: ${remote.text}`, commit].filter(Boolean).join("\n")} data-ref={labelDrag(remote)} oncontextmenu={menu(remote)} ondblclick={activate(remote)}
         >{label.prefix}</span
       ><!-- svelte-ignore a11y_no_static_element_interactions --><span
         class="eq"
@@ -68,7 +74,8 @@
     <span
       class="capsule {label.kind}"
       class:holds={label.worktree}
-      title={tooltip}
+      title={localTip}
+      data-tip-wide={label.kind === "stash" ? undefined : ""}
       data-ref={labelDrag(label)}
       oncontextmenu={menu(label)}
       ondblclick={activate(label)}

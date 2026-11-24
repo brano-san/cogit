@@ -25,8 +25,8 @@
   /** What a row is, drawn the same in every panel: Files, Repositories, Worktrees (R-180). */
   interface Props {
     kind: Kind;
-    /** Replaces the kind's name in the tooltip. */
-    title?: string;
+    /** Replaces the kind's name in the tooltip. Null leaves the tooltip to the parent. */
+    title?: string | null;
     /** A repository or submodule with uncommitted changes: the icon fills red (F-451). */
     changed?: boolean;
   }
@@ -50,7 +50,7 @@
 <span
   class="kind {kind}"
   class:changed
-  title={title ?? KIND_LABELS[kind]}
+  title={title === null ? undefined : title ?? KIND_LABELS[kind]}
   role="img"
   aria-label={changed ? `${KIND_LABELS[kind]} with uncommitted changes` : KIND_LABELS[kind]}
 >

@@ -145,7 +145,7 @@ export function refLabels(
     if (worktree) {
       label.worktree = worktree;
       if (lines.length === 0) lines.push(branch.name);
-      lines.push(`Checked out in worktree ${worktree.path} (${worktree.state})`);
+      lines.push(`Worktree: ${worktree.path} (${worktree.state})`);
     }
     if (lines.length === 0 && label.text !== branch.name) lines.push(branch.name);
     if (lines.length > 0) label.title = lines.join("\n");

@@ -8,11 +8,12 @@
     sync,
     kind = "repository",
     gutter = true,
-  }: { sync: RowSync; kind?: "repository" | "submodule"; gutter?: boolean } = $props();
+    tooltip = true,
+  }: { sync: RowSync; kind?: "repository" | "submodule"; gutter?: boolean; tooltip?: boolean } = $props();
 </script>
 
 <span class="repo-icon" class:gutter>
-  <KindIcon {kind} title={syncTooltip(sync) || undefined} changed={sync.dirty === true} />
+  <KindIcon {kind} title={tooltip ? syncTooltip(sync) || undefined : null} changed={sync.dirty === true} />
   {#if sync.conflicted}<FileStateIcon state="conflicted" overlayOnly label="Unresolved merge conflicts" />{/if}
   {#if sync.ahead > 0}
     <Icon name="ahead" class="arrow push" label="Commits to push" />

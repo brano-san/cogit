@@ -977,6 +977,10 @@
     "window-layout-reset": resetWindowLayout,
     "tab-next": () => cycleRepositoryTab(1),
     "tab-previous": () => cycleRepositoryTab(-1),
+    selectRepositoryTab: (index) => {
+      const root = session.repositories[index];
+      if (root) selectTab(root);
+    },
     overlap: () => overlap.toggle(),
     avatars: () =>
       void settings.apply({
@@ -1068,6 +1072,7 @@
         logPath: Boolean(info?.logPath),
         banner,
         openCount: repository.openRepos.length,
+        repositoryTabCount: session.repositories.length,
         canCycleTabs: canCycleRepositoryTabs,
         windowLayout: layout.activeLayout,
       },
