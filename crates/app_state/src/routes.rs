@@ -247,6 +247,7 @@ fn bisect_start(bad: &str, good: Option<&str>) -> Result<(), GitError> = local_b
     fn create_tag(request: &git_engine::TagRequest) -> Result<(), git_engine::GitError> = local_create_tag;
     fn delete_tag(name: &str) -> Result<(), git_engine::GitError> = local_delete_tag;
     fn run_maintenance(task: git_engine::MaintenanceTask, prune: git_engine::GcPrune) -> Result<(), GitError> = local_run_maintenance;
+    fn run_maintenance_with(task: git_engine::MaintenanceTask, options: git_engine::GcOptions, on_line: impl FnMut(&str)) -> Result<(), GitError> = local_run_maintenance_with;
     fn add_to_exclude(paths: &[String]) -> Result<(), GitError> = local_add_to_exclude;
     fn ignore_rules(paths: &[String]) -> Result<Vec<git_engine::IgnoreRule>, GitError> = local_ignore_rules;
     fn ignore_files(dir: &str) -> Result<Vec<git_engine::IgnoreFile>, GitError> = local_ignore_files;

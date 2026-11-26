@@ -35,7 +35,7 @@
 
   function pickTheme(theme: Theme) {
     choices.theme = theme;
-    themeStore.apply(theme);
+    themeStore.apply(theme, settings.themeAccents);
   }
 
   function next() {
@@ -44,7 +44,7 @@
   }
 
   function skip() {
-    themeStore.apply(before.theme);
+    themeStore.apply(before.theme, settings.themeAccents);
     onfinish(before);
   }
 </script>

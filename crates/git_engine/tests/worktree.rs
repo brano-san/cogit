@@ -199,6 +199,97 @@ fn every_untracked_file_is_a_row_of_its_own() {
 }
 
 #[test]
+fn renaming_a_directory_lists_one_change_per_file() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.commit_file(1, "before/a.txt", "identical contents\n")
+        .unwrap();
+    f.commit_file(2, "before/deep/b.txt", "identical contents\n")
+        .unwrap();
+    f.commit_file(3, "before/empty.txt", "").unwrap();
+    f.commit_file(4, "before/gone.txt", "gone\n").unwrap();
+    std::fs::remove_file(f.path().join("before/gone.txt")).unwrap();
+    std::fs::rename(f.path().join("before"), f.path().join("after")).unwrap();
+    f.write_file("after/new.txt", "brand new\n").unwrap();
+    let repo = open(&f);
+
+    let files = repo.worktree_files().unwrap();
+    assert!(files.staged.is_empty());
+    assert_eq!(
+        files
+            .unstaged
+            .iter()
+            .map(|file| (file.path.as_str(), file.old_path.as_deref(), file.status))
+            .collect::<Vec<_>>(),
+        [
+            ("after/a.txt", Some("before/a.txt"), FileStatus::Renamed),
+            (
+                "after/deep/b.txt",
+                Some("before/deep/b.txt"),
+                FileStatus::Renamed,
+            ),
+            (
+                "after/empty.txt",
+                Some("before/empty.txt"),
+                FileStatus::Renamed,
+            ),
+            ("after/new.txt", None, FileStatus::Untracked),
+            ("before/gone.txt", None, FileStatus::Deleted),
+        ]
+    );
+    assert_eq!(files.state, repo.working_state().unwrap());
+    assert_eq!(files.change_counts(), (4, 1));
+    assert_eq!(repo.change_counts().unwrap(), (4, 1));
+}
+
+#[test]
+fn a_rename_can_be_diffed_staged_and_discarded_by_its_new_name() {
+    let f = test_fixtures::linear(1).unwrap();
+    let source = "file0.txt";
+    let target = "elsewhere/renamed.txt";
+    f.write_file("elsewhere/keep.txt", "unrelated\n").unwrap();
+    std::fs::rename(f.path().join(source), f.path().join(target)).unwrap();
+    let repo = open(&f);
+    let picked = [target.to_owned()];
+
+    let (old, new) = repo
+        .diff_sides(&git_engine::DiffSpec::WorkTreeVsIndex, target)
+        .unwrap();
+    assert_eq!(old.as_deref(), Some(b"content 0\n".as_slice()));
+    assert_eq!(old, new);
+
+    repo.stage(&picked).unwrap();
+    let files = repo.worktree_files().unwrap();
+    assert_eq!(paths(&files.staged), [target]);
+    assert_eq!(files.staged[0].status, FileStatus::Renamed);
+    assert_eq!(files.staged[0].old_path.as_deref(), Some(source));
+
+    repo.unstage(&picked).unwrap();
+    repo.discard(&picked).unwrap();
+    assert!(f.path().join(source).is_file());
+    assert!(!f.path().join(target).exists());
+    assert!(f.path().join("elsewhere/keep.txt").is_file());
+}
+
+#[test]
+fn a_directory_at_the_old_name_is_not_touched_by_staging_the_new_name() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::rename(f.path().join("file0.txt"), f.path().join("moved.txt")).unwrap();
+    f.write_file("file0.txt/keep.txt", "unrelated data\n")
+        .unwrap();
+    let repo = open(&f);
+
+    let files = repo.worktree_files().unwrap();
+    assert_eq!(
+        *status_of(&files, "unstaged", "moved.txt"),
+        FileStatus::Untracked
+    );
+    repo.stage(&["moved.txt".to_owned()]).unwrap();
+
+    assert_eq!(paths(&repo.worktree_files().unwrap().staged), ["moved.txt"]);
+    assert!(f.path().join("file0.txt/keep.txt").is_file());
+}
+
+#[test]
 fn a_single_untracked_file_is_listed_by_its_name() {
     let f = test_fixtures::linear(1).unwrap();
     std::fs::write(f.path().join("loose.txt"), "x").unwrap();

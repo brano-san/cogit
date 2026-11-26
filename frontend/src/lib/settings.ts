@@ -4,7 +4,7 @@ import type { FileDoubleClickMode } from "$lib/file-edit";
 import type { FilterCase } from "$lib/filter-case";
 import type { AiConfig, Algorithm, Whitespace } from "$lib/ipc";
 import { knownAiConfig } from "$lib/ai-config";
-import { LANE_WIDTH } from "$lib/graph-geometry";
+import { LANE_WIDTH, LONG_LINK_ROWS } from "$lib/graph-geometry";
 import { DEFAULT_FILTER_FIELDS, knownFields, type FilterField } from "$lib/filter-fields";
 import { knownPatterns } from "$lib/filter-patterns";
 import { knownWords } from "$lib/spelling";
@@ -27,6 +27,7 @@ export type DiffLayout = "aligned" | "compact";
 
 export type Theme = (typeof THEMES)[number][0];
 export type FixedTheme = Exclude<Theme, "system">;
+export type ThemeAccents = Partial<Record<FixedTheme, string>>;
 
 /** The commit list's optional columns; the subject and the ref capsules always show. */
 export const GRAPH_COLUMNS = ["hash", "author", "avatar", "time"] as const;
@@ -38,6 +39,7 @@ export type GraphSort = "smart" | "topological" | "date";
 
 export interface Settings {
   theme: Theme;
+  themeAccents: ThemeAccents;
   /** The family of the whole app, the diff and code included; empty is the desktop's (R-778). */
   fontFamily: string;
   /** The UI font in CSS px; 0 follows the desktop's (`gtk-font-name`, Segoe UI 9pt). Rows scale with it. */
@@ -183,6 +185,7 @@ export const INTERNAL_SETTINGS: readonly (keyof Settings)[] = ["settingsVersion"
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: "system",
+  themeAccents: {},
   fontFamily: "",
   uiFontSize: 14,
   diffFontSize: 14,
@@ -240,7 +243,7 @@ export const DEFAULT_SETTINGS: Settings = {
   graphAvatarsChangedOnly: false,
   graphAuthorLastOnly: false,
   graphOverlap: false,
-  graphLongLinkRows: 40,
+  graphLongLinkRows: LONG_LINK_ROWS,
   graphHighlightChecked: true,
   graphColoring: "default",
   graphFirstParent: false,
@@ -320,6 +323,18 @@ function knownColumns(value: unknown): GraphColumn[] | undefined {
   return [...new Set(known)];
 }
 
+function knownThemeAccents(value: unknown): ThemeAccents {
+  const accents: ThemeAccents = {};
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return accents;
+  const entries = value as Record<string, unknown>;
+  for (const [id] of THEMES) {
+    if (id === "system") continue;
+    const color = entries[id];
+    if (typeof color === "string" && /^#[\da-f]{6}$/i.test(color)) accents[id] = color.toLowerCase();
+  }
+  return accents;
+}
+
 /** Before the graph had its own time format it followed `dateFormat`: a file written then
     keeps the graph as it looked. */
 function storedVersion(stored: Record<string, unknown>): number {
@@ -342,6 +357,7 @@ export function needsRestart(key: keyof Settings): boolean {
 export function merge(stored: Partial<Settings> | null | undefined): Settings {
   const merged = {
     ...DEFAULT_SETTINGS,
+    themeAccents: {},
     graphColumns: [...DEFAULT_SETTINGS.graphColumns],
     graphFilterFields: [...DEFAULT_SETTINGS.graphFilterFields],
     graphFilterPatterns: [...DEFAULT_SETTINGS.graphFilterPatterns],
@@ -358,6 +374,10 @@ export function merge(stored: Partial<Settings> | null | undefined): Settings {
     const fallback = DEFAULT_SETTINGS[key];
     if (key === "ai") {
       merged.ai = knownAiConfig(value);
+      continue;
+    }
+    if (key === "themeAccents") {
+      merged.themeAccents = knownThemeAccents(value);
       continue;
     }
     if (key === "graphColumns") {

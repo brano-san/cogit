@@ -1,5 +1,5 @@
 use crate::{ConflictKind, FileEntry, FileStatus, GitError, RepoHandle, Result};
-use gix::status::index_worktree::Item as WorktreeItem;
+use gix::status::index_worktree::{Item as WorktreeItem, RewriteSource};
 use gix::status::plumbing::index_as_worktree::{Change as WorktreeChange, EntryStatus};
 use gix::status::{Item, UntrackedFiles};
 use serde::Deserialize;
@@ -150,6 +150,17 @@ impl RepoHandle {
             file.status != FileStatus::Untracked || !conflicted.contains(&file.path)
         });
 
+        if files
+            .unstaged
+            .iter()
+            .any(|file| file.status == FileStatus::Deleted)
+            && files
+                .unstaged
+                .iter()
+                .any(|file| file.status == FileStatus::Untracked)
+        {
+            join_renames(&mut files.unstaged, self.worktree_renames());
+        }
         files.state = self.state_of(&files);
         files.state.status.dirty_submodules = dirty_submodules;
 
@@ -195,7 +206,7 @@ impl RepoHandle {
             .staged
             .iter()
             .chain(files.unstaged.iter())
-            .map(|file| file.path.as_str())
+            .flat_map(|file| std::iter::once(file.path.as_str()).chain(file.old_path.as_deref()))
             .collect();
 
         let mut quiet = Vec::new();
@@ -231,6 +242,122 @@ impl RepoHandle {
         files.unstaged.append(&mut quiet);
         Ok(())
     }
+
+    /// Only needed when the normal walk found both sides of a possible rename. With
+    /// rewrites enabled gix opens every untracked file, even when there are no deletions.
+    fn worktree_renames(&self) -> Vec<FileEntry> {
+        match self.read_worktree_renames() {
+            Ok(renames) => renames,
+            Err(err) => {
+                tracing::warn!(error = ?err, "cannot match worktree renames; showing the original changes");
+                Vec::new()
+            }
+        }
+    }
+
+    fn read_worktree_renames(&self) -> Result<Vec<FileEntry>> {
+        let iter = self
+            .status_platform()?
+            .untracked_files(UntrackedFiles::Files)
+            .index_worktree_submodules(None)
+            .index_worktree_rewrites(gix::diff::Rewrites {
+                percentage: None,
+                track_empty: true,
+                ..Default::default()
+            })
+            .into_index_worktree_iter(None::<gix::bstr::BString>)
+            .map_err(|err| GitError::Internal(format!("cannot read worktree renames: {err}")))?;
+        let mut renames = Vec::new();
+        for item in iter {
+            let item = item.map_err(|err| {
+                GitError::Internal(format!("cannot match worktree renames: {err}"))
+            })?;
+            let WorktreeItem::Rewrite {
+                source:
+                    RewriteSource::RewriteFromIndex {
+                        source_entry,
+                        source_rela_path,
+                        ..
+                    },
+                dirwalk_entry,
+                copy: false,
+                ..
+            } = item
+            else {
+                continue;
+            };
+            let source: &gix::bstr::BStr = source_rela_path.as_ref();
+            if !gix::path::try_from_bstr(source)
+                .is_ok_and(|path| missing_source(self.root(), &path))
+            {
+                continue;
+            }
+            let mut row = entry_of(
+                path_string(dirwalk_entry.rela_path),
+                FileStatus::Renamed,
+                mode_of(source_entry.mode),
+            );
+            row.old_path = Some(path_string(source_rela_path));
+            row.similarity = Some(100);
+            renames.push(row);
+        }
+        Ok(renames)
+    }
+}
+
+/// A restore to a nominally missing path can overwrite a directory or a parent symlink.
+fn missing_source(root: &std::path::Path, path: &std::path::Path) -> bool {
+    use std::io::ErrorKind::NotFound;
+    std::fs::symlink_metadata(root.join(path)).is_err_and(|err| err.kind() == NotFound)
+        && path
+            .ancestors()
+            .skip(1)
+            .take_while(|parent| !parent.as_os_str().is_empty())
+            .all(
+                |parent| match std::fs::symlink_metadata(root.join(parent)) {
+                    Ok(meta) => meta.is_dir(),
+                    Err(err) => err.kind() == NotFound,
+                },
+            )
+}
+
+/// Apply only pairs whose two sides the status walk saw. Keep unrelated changes and
+/// entries whose state changed between the two reads.
+fn join_renames(rows: &mut Vec<FileEntry>, renames: Vec<FileEntry>) {
+    if renames.is_empty() {
+        return;
+    }
+    let deleted: HashSet<&str> = rows
+        .iter()
+        .filter(|file| file.status == FileStatus::Deleted)
+        .map(|file| file.path.as_str())
+        .collect();
+    let untracked: HashSet<&str> = rows
+        .iter()
+        .filter(|file| file.status == FileStatus::Untracked)
+        .map(|file| file.path.as_str())
+        .collect();
+    let paired: Vec<_> = renames
+        .into_iter()
+        .filter(|file| {
+            untracked.contains(file.path.as_str())
+                && file
+                    .old_path
+                    .as_deref()
+                    .is_some_and(|old| deleted.contains(old))
+        })
+        .collect();
+    let sources: HashSet<&str> = paired
+        .iter()
+        .filter_map(|file| file.old_path.as_deref())
+        .collect();
+    let destinations: HashSet<&str> = paired.iter().map(|file| file.path.as_str()).collect();
+    rows.retain(|row| match row.status {
+        FileStatus::Deleted => !sources.contains(row.path.as_str()),
+        FileStatus::Untracked => !destinations.contains(row.path.as_str()),
+        _ => true,
+    });
+    rows.extend(paired);
 }
 
 /// Moves the bytes when they are UTF-8; `to_string` would format them into a new buffer.

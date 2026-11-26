@@ -280,7 +280,7 @@ describe("branchesBranchMenu (#33)", () => {
       "—",
       "Delete",
       "—",
-      "Copy",
+      "Copy Name",
       "—",
       "Toggle",
     ]);

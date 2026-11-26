@@ -118,8 +118,13 @@ impl RepoHandle {
         if paths.is_empty() {
             return Err(GitError::InvalidState("no file to save".to_owned()));
         }
+        let paths = if staged {
+            self.with_rename_sources(paths)?
+        } else {
+            self.with_unstaged_rename_sources(paths)?
+        };
         let mut patch = Vec::new();
-        for batch in crate::runner::command_line_batches(paths) {
+        for batch in crate::runner::command_line_batches(&paths) {
             let mut args = vec!["diff", "--binary", "--no-color", "--no-ext-diff"];
             if staged {
                 args.push("--cached");
@@ -129,7 +134,7 @@ impl RepoHandle {
             patch.extend(self.run_git_bytes_literal(&args)?);
         }
         if !staged {
-            for path in self.untracked_among(paths)? {
+            for path in self.untracked_among(&paths)? {
                 patch.extend(self.new_file_patch(&path)?);
             }
         }

@@ -15,7 +15,7 @@ import type { GraphBlock, GraphEntry } from "$lib/graph-wire";
 import { repository } from "$stores/repository.svelte";
 import { unpushed } from "$stores/unpushed.svelte";
 import { GRAPH_MODE_DEFAULTS, graphView, viewReloads, walkedView } from "$lib/graph-modes";
-import { LONG_LINK_ROWS } from "$lib/graph-row";
+import { LONG_LINK_ROWS } from "$lib/graph-geometry";
 import { isEmptyQuery, sameQuery } from "$lib/query";
 import { DEFAULT_SETTINGS } from "$lib/settings";
 

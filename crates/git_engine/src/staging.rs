@@ -3,7 +3,9 @@ use std::collections::HashSet;
 
 impl RepoHandle {
     pub fn stage(&self, paths: &[String]) -> Result<()> {
-        self.run_paths(add_command(paths.len()), paths)
+        require_paths(paths)?;
+        let paths = self.with_unstaged_rename_sources(paths)?;
+        self.run_paths(add_command(paths.len()), &paths)
     }
 
     /// What git sees as changed, the whole tree: without a path list git matches nothing
@@ -70,22 +72,54 @@ impl RepoHandle {
         Ok(all)
     }
 
+    /// A rename selected by its destination represents both sides of that change.
+    pub fn with_unstaged_rename_sources(&self, paths: &[String]) -> Result<Vec<String>> {
+        let index = self.current_index()?;
+        if paths.iter().all(|path| {
+            index.entry_by_path(path.as_str().into()).is_some()
+                || std::fs::symlink_metadata(self.root().join(path)).is_err()
+        }) {
+            return Ok(paths.to_vec());
+        }
+        let files = self.worktree_files()?;
+        let mut all = paths.to_vec();
+        let mut picked: HashSet<&str> = paths.iter().map(String::as_str).collect();
+        for file in &files.unstaged {
+            if let Some(old) = file.old_path.as_deref()
+                && picked.contains(file.path.as_str())
+                && picked.insert(old)
+            {
+                all.push(old.to_owned());
+            }
+        }
+        Ok(all)
+    }
+
     /// A tracked file comes back from the index; an untracked one is removed outright.
     pub fn discard(&self, paths: &[String]) -> Result<()> {
         require_paths(paths)?;
 
-        let untracked: HashSet<String> = self
+        let untracked: std::collections::HashMap<String, Option<String>> = self
             .worktree_files()?
             .unstaged
             .into_iter()
-            .filter(|entry| entry.status == FileStatus::Untracked)
-            .map(|entry| entry.path)
+            .filter(|entry| matches!(entry.status, FileStatus::Untracked | FileStatus::Renamed))
+            .map(|entry| (entry.path, entry.old_path))
             .collect();
 
-        let (to_clean, to_restore): (Vec<String>, Vec<String>) = paths
-            .iter()
-            .cloned()
-            .partition(|path| untracked.contains(path));
+        let mut to_clean = Vec::new();
+        let mut to_restore = Vec::new();
+        for path in paths {
+            match untracked.get(path) {
+                Some(source) => {
+                    to_clean.push(path.clone());
+                    to_restore.extend(source.iter().cloned());
+                }
+                None => to_restore.push(path.clone()),
+            }
+        }
+        to_restore.sort_unstable();
+        to_restore.dedup();
 
         if !to_restore.is_empty() {
             self.run_paths(&["restore", "--worktree"], &to_restore)?;

@@ -209,6 +209,36 @@ impl Recovery {
             _ => Vec::new(),
         }
     }
+
+    fn kept_blobs(&self) -> Vec<&str> {
+        match self {
+            Self::Files { kept } | Self::Discarded { kept, .. } | Self::Reset { kept, .. } => {
+                kept.iter().map(|(_, oid)| oid.as_str()).collect()
+            }
+            Self::StashPaths { kept, .. } => {
+                kept.iter().filter_map(|(_, oid)| oid.as_deref()).collect()
+            }
+            Self::Resolution { kept, .. } => kept.as_deref().into_iter().collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    fn required_objects(&self) -> Vec<&str> {
+        let mut objects = self.backups();
+        objects.extend(self.kept_blobs());
+        match self {
+            Self::Moved { oid, stacked, .. } => {
+                objects.push(oid);
+                objects.extend(stacked.iter().map(|each| each.oid.as_str()));
+            }
+            Self::Reset { oid, .. } => objects.push(oid),
+            Self::StashPaths { head, .. } => objects.push(head),
+            Self::StashedHunks { stash, .. } => objects.push(stash),
+            Self::Worktree { checkout, .. } => objects.push(checkout),
+            _ => {}
+        }
+        objects
+    }
 }
 
 /// What the journal shows. The means of undoing stays in `Undoable`, on this side of
@@ -229,6 +259,44 @@ pub(crate) struct Undoable {
 }
 
 impl AppState {
+    pub(crate) fn maintenance_undo_blobs(
+        &self,
+        repos: &std::collections::HashSet<RepoId>,
+    ) -> Vec<String> {
+        self.safety
+            .read()
+            .iter()
+            .filter(|held| repos.contains(&held.entry.repo))
+            .flat_map(|held| held.recovery.kept_blobs().into_iter().map(str::to_owned))
+            .collect()
+    }
+
+    pub(crate) fn expire_missing_undo(
+        &self,
+        repos: &std::collections::HashSet<RepoId>,
+        root: &std::path::Path,
+    ) {
+        let Ok(handle) = git_engine::RepoHandle::open_exact(root) else {
+            return;
+        };
+        for held in self
+            .safety
+            .write()
+            .iter_mut()
+            .filter(|held| repos.contains(&held.entry.repo) && held.entry.undoable)
+        {
+            if held
+                .recovery
+                .required_objects()
+                .into_iter()
+                .any(|oid| handle.maintenance_object_missing(oid))
+            {
+                held.entry.undoable = false;
+                held.recovery = Recovery::None;
+            }
+        }
+    }
+
     /// Lets go of a kept `oid` unless another entry of the journal (not `except`) still
     /// needs it, as two branches deleted at one commit do.
     pub(crate) fn unpin(

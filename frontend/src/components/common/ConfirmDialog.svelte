@@ -16,20 +16,26 @@
     note?: string;
     option?: string;
     choice?: ConfirmChoice;
+    checks?: readonly (readonly [string, string])[];
     alternative?: string;
-    onanswer: (yes: boolean, checked: boolean, choice?: string, alternative?: boolean) => void;
+    onanswer: (yes: boolean, checked: boolean, choice?: string, alternative?: boolean, checks?: string[]) => void;
   }
 
-  let { title, message, confirm, cancel = "Cancel", warning = false, items, fields, note, option, choice, alternative, onanswer }: Props = $props();
+  let { title, message, confirm, cancel = "Cancel", warning = false, items, fields, note, option, choice, checks, alternative, onanswer }: Props = $props();
   let checked = $state(false);
   // svelte-ignore state_referenced_locally
   let picked = $state(choice?.value);
+  let selected = $state.raw<string[]>([]);
+
+  function accept(alternate = false) {
+    onanswer(true, checked, picked, alternate, selected);
+  }
 </script>
 
 <Dialog
   {title}
   onclose={() => onanswer(false, false)}
-  onconfirm={() => onanswer(true, checked, picked)}
+  onconfirm={() => accept()}
   width={fields ? "min(500px, 90vw)" : "min(460px, 90vw)"}
 >
   <p class="message">{message}</p>
@@ -49,12 +55,27 @@
   {#if choice && picked !== undefined}
     <label class="option">
       {choice.label}
-      <Select value={picked} options={choice.options} label={choice.label} onchange={(value) => (picked = value)} />
+      <Select
+        value={picked}
+        options={choice.options}
+        label={choice.label}
+        disabled={choice.disabledBy !== undefined && selected.includes(choice.disabledBy)}
+        onchange={(value) => (picked = value)}
+      />
     </label>
   {/if}
   {#if option}
     <div class="option"><Checkbox bind:checked label={option} /></div>
   {/if}
+  {#each checks ?? [] as [id, label] (id)}
+    <div class="option">
+      <Checkbox
+        {label}
+        checked={selected.includes(id)}
+        onchange={(enabled) => (selected = enabled ? [...selected, id] : selected.filter((key) => key !== id))}
+      />
+    </div>
+  {/each}
   {#if note}
     <p class="note">
       <Icon name="warning" />
@@ -68,7 +89,7 @@
       {cancel}
     </button>
     {#if alternative}
-      <button type="button" class="btn" onclick={() => onanswer(true, checked, picked, true)}>{alternative}</button>
+      <button type="button" class="btn" onclick={() => accept(true)}>{alternative}</button>
     {/if}
     <button
       type="button"
@@ -76,7 +97,7 @@
       class:primary={!warning}
       class:warning
       data-autofocus={!warning || undefined}
-      onclick={() => onanswer(true, checked, picked)}
+      onclick={() => accept()}
     >
       {confirm}
     </button>

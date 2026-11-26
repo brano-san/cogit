@@ -1,4 +1,4 @@
-import type { GcPrune, HealthFinding, HealthIssue, MaintenanceTask } from "$lib/ipc";
+import type { GcOptions, GcPrune, HealthFinding, HealthIssue, MaintenanceTask } from "$lib/ipc";
 
 export interface HealthPlace {
   label: string;
@@ -40,7 +40,7 @@ export const MAINTENANCE: Record<string, { task: MaintenanceTask; question: stri
   [RUN_GC]: {
     task: "gc",
     question:
-      "Run git gc? It packs loose objects, prunes unreachable ones older than the age below and writes the commit-graph; below two weeks it first drops the reflog entries of commits no branch reaches, so they can be pruned too. It can take a while on a large repository.",
+      "Git packs objects, prunes old unreachable objects, and rewrites the commit graph. Choose any additional cleanup to run.",
     done: "Garbage collection finished, commit-graph written",
   },
   [WRITE_COMMIT_GRAPH]: {
@@ -79,6 +79,41 @@ export const GC_PRUNE: readonly (readonly [GcPrune, string])[] = [
   ["oneHour", "1 hour"],
   ["now", "Now"],
 ];
+
+export const GC_LOST = "lost";
+export const GC_CHECKS = [
+  ["stashes", "Clear saved stashes"],
+  [GC_LOST, "Delete lost commits now"],
+  ["backups", "Remove Cogit recovery stash backups"],
+] as const;
+
+export function gcOptions(prune: string | null, checks: readonly string[]): GcOptions {
+  return {
+    prune: GC_PRUNE.find(([key]) => key === prune)?.[0] ?? "twoWeeks",
+    clearStashes: checks.includes("stashes"),
+    clearLostCommits: checks.includes(GC_LOST),
+    clearRecoveryStashes: checks.includes("backups"),
+  };
+}
+
+export function gcWarning(options: GcOptions): string | null {
+  const warnings = [];
+  if (options.clearLostCommits) {
+    warnings.push("Git will expire unreachable reflog entries and immediately delete lost commits and other unreachable objects. Undo entries that need deleted objects will become unavailable.");
+  } else {
+    const warning = gcPruneWarning(options.prune);
+    if (warning) warnings.push(warning);
+  }
+  if (options.clearStashes) {
+    warnings.push("Every saved stash will be removed from the Stashes list.");
+  }
+  if (options.clearRecoveryStashes) {
+    warnings.push("Cogit’s recovery stashes for discarded and other uncommitted changes will lose their backup refs.");
+  } else if (options.clearLostCommits) {
+    warnings.push("Cogit recovery stashes will be kept.");
+  }
+  return warnings.length ? warnings.join("\n\n") : null;
+}
 
 export function gcPruneWarning(prune: GcPrune): string | null {
   if (prune === "twoWeeks") return null;

@@ -227,7 +227,7 @@ impl RepoHandle {
                     FileStatus::Untracked | FileStatus::Ignored | FileStatus::Sparse
                 )
             })
-            .map(|file| file.path)
+            .flat_map(|file| std::iter::once(file.path).chain(file.old_path))
             .collect())
     }
 

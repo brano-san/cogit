@@ -148,7 +148,7 @@ pub use host_key::{
     HOST_KEY_ASK_LIMIT, HostKeyAsker, HostKeyQuestion, RepositoryAskpass, SshPrompt, ask_host_keys,
     host_key_summary, read_prompt, repository_ssh,
 };
-pub use housekeeping::{GcPrune, MaintenanceTask};
+pub use housekeeping::{GcOptions, GcPrune, MaintenanceTask};
 pub use ignore_files::{IgnoreDraft, IgnoreFile, IgnoreHit, IgnorePreview, IgnoreScope};
 pub use init::{FolderKind, folder_kind, init_repository};
 pub use interactive::{TodoAction, TodoEntry, render_todo, render_todo_paused};

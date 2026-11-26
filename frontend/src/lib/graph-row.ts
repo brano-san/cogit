@@ -14,8 +14,6 @@ export const GRAPH_COLUMNS: readonly GraphColumn[] = ["author", "avatar", "time"
 export const GRAPH_TIME_FORMAT: GraphTimeFormat = "dateTime";
 export const GRAPH_DENSITY: GraphDensity = "normal";
 export const GRAPH_STRIPES = true;
-/** A little over a screen of the Graph panel at 1080p (R-330). */
-export const LONG_LINK_ROWS = 40;
 
 export const DENSITY_ROW_HEIGHT: Record<GraphDensity, number> = {
   compact: 17,

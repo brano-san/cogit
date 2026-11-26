@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import type { HealthFinding } from "$lib/ipc";
 import {
   CLEAR_COMMIT_GRAPH_LOCK,
+  GC_LOST,
   GC_PRUNE,
   MAINTENANCE,
   RUN_GC,
   WRITE_COMMIT_GRAPH,
+  gcOptions,
   gcPruneWarning,
+  gcWarning,
   groupFindings,
   maintenanceBlocker,
   placeOf,
@@ -145,6 +148,14 @@ describe("the gc expiry", () => {
     expect(gcPruneWarning("now")).toContain("every unreachable object");
     expect(gcPruneWarning("oneDay")).toContain("older than 1 day");
     expect(gcPruneWarning("now")).toContain("reflog");
+  });
+
+  it("keeps the destructive selections independent and warns about immediate pruning", () => {
+    expect(gcWarning(gcOptions("twoWeeks", []))).toBeNull();
+    const options = gcOptions("twoWeeks", [GC_LOST]);
+    expect(options).toMatchObject({ clearLostCommits: true, clearStashes: false, clearRecoveryStashes: false });
+    expect(gcWarning(options)).toContain("other unreachable objects");
+    expect(gcWarning(options)).toContain("Cogit recovery stashes will be kept");
   });
 });
 

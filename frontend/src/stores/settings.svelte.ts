@@ -127,7 +127,7 @@ class SettingsStore {
   /** The two settings that live outside the reactive graph: CSS and canvas geometry. */
   #apply(): void {
     setLaneWidth(this.current.laneWidth);
-    themeStore.apply(this.current.theme);
+    themeStore.apply(this.current.theme, this.current.themeAccents);
     uiMetricsStore.apply(this.current);
   }
 }

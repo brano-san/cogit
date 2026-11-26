@@ -3,6 +3,7 @@ import {
   SCHEMA,
   THEME_FILES,
   applyVariables,
+  applyAccent,
   cssName,
   cssVariables,
   isDarkTheme,
@@ -196,6 +197,27 @@ describe("resolveTheme", () => {
     expect(tokens["focus.ring"]).toBe("#ff000066");
     expect(tokens["bg.app"]).toBe(THEME_FILES.light.tokens["bg.app"]);
     expect(warnings).toEqual([]);
+  });
+
+  it("gives Light gray a muted teal accent for primary controls, selection and focus", () => {
+    const { tokens } = resolveTheme("lightGrey");
+    expect(tokens.accent).toBe("#286965");
+    expect(tokens["selected.bar"]).toBe(tokens.accent);
+    expect(tokens["focus.ring"]).toBe(`${tokens.accent}66`);
+    expect(new Set(IDS.map((id) => resolveTheme(id).tokens.accent)).size).toBe(IDS.length);
+  });
+
+  it.each(["lightGrey", "dark"] as const)("%s keeps accent links, toggles and primary buttons readable", (id) => {
+    for (const color of ["#ffffff", "#000000", "#bd4300", "#0086af"]) {
+      const { tokens } = resolveTheme(id);
+      const status = tokens["status.info"];
+      applyAccent(tokens, color, id);
+      expect(contrast(tokens.accent!, tokens["bg.panel"]!)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(tokens.accent!, tokens["bg.selected"]!)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(tokens["toggle.on.fg"]!, tokens["toggle.on.bg"]!)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(tokens["fg.onAccentSolid"]!, tokens["accent.solid"]!)).toBeGreaterThanOrEqual(4.5);
+      expect(tokens["status.info"]).toBe(status);
+    }
   });
 
   it("ignores user keys that are unknown, malformed or translucent where solid is required", () => {

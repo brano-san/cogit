@@ -301,7 +301,7 @@ impl RepoHandle {
                 Side::Tree(self.tree_at(b)?),
                 Renames::Trees,
             ),
-            DiffSpec::WorkTreeVsIndex => (Side::Index, Side::WorkTree, Renames::None),
+            DiffSpec::WorkTreeVsIndex => (Side::Index, Side::WorkTree, Renames::Worktree),
             DiffSpec::IndexVsHead => {
                 let old = match self.head()? {
                     crate::Head::Unborn { .. } => Side::Absent,
@@ -612,21 +612,37 @@ enum Renames {
     None,
     Trees,
     Staged,
+    Worktree,
 }
 
 impl<'repo> DiffSnapshot<'repo> {
     /// `RepoHandle::rename_source` for this spec.
     pub fn rename_source(&self, path: &str) -> Result<Option<&str>> {
-        let Side::Tree(old) = &self.old else {
-            return Ok(None);
+        let found = match (&self.old, &self.renames, self.index.as_ref()) {
+            (_, Renames::None, _) => false,
+            (Side::Tree(old), _, _) => matches!(old.lookup_entry_by_path(path), Ok(None)),
+            (Side::Index, Renames::Worktree, Some(index)) => {
+                index.entry_by_path(path.into()).is_none()
+                    && std::fs::symlink_metadata(self.handle.root().join(path)).is_ok()
+            }
+            _ => false,
         };
-        if self.renames == Renames::None || !matches!(old.lookup_entry_by_path(path), Ok(None)) {
+        if !found {
             return Ok(None);
         }
         if self.sources.get().is_none() {
-            let found = match (&self.new, &self.index) {
-                (Side::Tree(new), _) => self.handle.renames_between(old, new)?,
-                (_, Some(index)) => self.handle.staged_renames(old, index)?,
+            let found = match (&self.old, &self.new, &self.index) {
+                (Side::Tree(old), Side::Tree(new), _) => self.handle.renames_between(old, new)?,
+                (Side::Tree(old), Side::Index, Some(index)) => {
+                    self.handle.staged_renames(old, index)?
+                }
+                (Side::Index, Side::WorkTree, _) => self
+                    .handle
+                    .worktree_files()?
+                    .unstaged
+                    .into_iter()
+                    .filter_map(|file| file.old_path.map(|source| (file.path, source)))
+                    .collect(),
                 _ => HashMap::new(),
             };
             // Only `None` was seen above, and nothing else fills it.

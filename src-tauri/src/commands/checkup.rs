@@ -1,25 +1,36 @@
 //! Maintenance, ignore rules, LFS locks, signatures, rerere and range-diff.
 
-use super::{blocking, mutating};
+use super::{blocking, mutating, mutating_titled};
 use app_state::{OperationKind, RepoId};
 use git_engine::GitError;
 
-/// Asked for by the user after a confirmation; gc and commit-graph only write objects.
+/// Asked for after confirmation, with Git's progress on the status bar.
 #[tauri::command]
 #[specta::specta]
 pub async fn run_maintenance(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,
     task: git_engine::MaintenanceTask,
-    prune: git_engine::GcPrune,
+    options: git_engine::GcOptions,
+    on_progress: tauri::ipc::Channel<String>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    mutating(
+    let title = match task {
+        git_engine::MaintenanceTask::Gc => "Running Git maintenance",
+        git_engine::MaintenanceTask::CommitGraph => "Writing commit graph",
+        _ => "Removing stale Git lock",
+    };
+    mutating_titled(
         &state.state,
         repo,
         OperationKind::Other,
+        title,
         "run_maintenance",
-        move || app_state.run_maintenance(repo, task, prune),
+        move || {
+            app_state.run_maintenance_with(repo, task, options, |line| {
+                let _ = on_progress.send(line.to_owned());
+            })
+        },
     )
     .await
 }

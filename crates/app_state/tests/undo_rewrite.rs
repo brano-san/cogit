@@ -2,7 +2,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use app_state::{AppState, RepoId};
-use git_engine::GitError;
+use git_engine::{GcOptions, GitError, MaintenanceTask, ResetMode};
 
 fn open(f: &test_fixtures::Fixture) -> (AppState, RepoId) {
     let state = AppState::new();
@@ -51,6 +51,34 @@ fn a_hard_reset_is_undone() {
     state.undo_rewrite(repo).unwrap();
 
     assert_eq!(f.oid("HEAD").unwrap(), tip);
+}
+
+#[test]
+fn removing_lost_commits_makes_the_affected_undo_unavailable() {
+    let f = test_fixtures::linear(2).unwrap();
+    let lost = f.oid("HEAD").unwrap();
+    let base = f.oid("HEAD~1").unwrap();
+    let (state, repo) = open(&f);
+    state.reset_to(repo, &base, ResetMode::Hard).unwrap();
+    assert!(state.safety_log()[0].undoable);
+
+    let mut progress = Vec::new();
+    state
+        .run_maintenance_with(
+            repo,
+            MaintenanceTask::Gc,
+            GcOptions {
+                clear_lost_commits: true,
+                ..GcOptions::default()
+            },
+            |line| progress.push(line.to_owned()),
+        )
+        .unwrap();
+
+    assert!(progress.iter().any(|line| line.contains("reflog")));
+    assert!(f.git(&["cat-file", "-e", &lost]).is_err());
+    assert!(!state.safety_log()[0].undoable);
+    assert!(state.undo_rewrite_info(repo).unwrap().is_none());
 }
 
 #[test]

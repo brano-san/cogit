@@ -67,16 +67,18 @@ describe("following another window", () => {
   });
 
   it("reads the file afresh and recolours the window", async () => {
-    const root = { dataset: {} as Record<string, string>, style: { setProperty: () => {} } };
+    const vars = new Map<string, string>();
+    const root = { dataset: {} as Record<string, string>, style: { setProperty: vars.set.bind(vars) } };
     vi.stubGlobal("document", { documentElement: root });
     await settings.load();
-    stored.set("settings", { theme: "light" });
+    stored.set("settings", { theme: "light", themeAccents: { light: "#74432e" } });
 
     await settings.reload();
 
     expect(forgotten()).toBeGreaterThan(0);
     expect(settings.current.theme).toBe("light");
     expect(root.dataset.theme).toBe("light");
+    expect(vars.get("--accent")).toBe("#74432e");
     vi.unstubAllGlobals();
   });
 });

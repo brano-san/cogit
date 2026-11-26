@@ -205,8 +205,10 @@
               />
               <span class="truncate shrink-last" title={absolutePath(file.path)}>{fileName(file.path)}</span>
               {#if file.oldPath}
+                {@const oldName = fileName(file.oldPath)}
+                {@const source = oldName === fileName(file.path) ? directoryOf(file.oldPath) || "(root)" : oldName}
                 <span class="from truncate shrink-first" title="from {file.oldPath}"
-                  >← {fileName(file.oldPath)}{file.similarity !== null ? ` ${file.similarity}%` : ""}</span
+                  >← {source}{file.similarity !== null ? ` ${file.similarity}%` : ""}</span
                 >
               {/if}
             </span>

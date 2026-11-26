@@ -19,6 +19,7 @@
   import {
     GRAPH,
     HEADER_ROWS,
+    LONG_LINK_ROWS,
     centreRow,
     MAX_SCROLL_PX,
     scrollScale,
@@ -48,7 +49,6 @@
     GRAPH_DENSITY,
     GRAPH_STRIPES,
     GRAPH_TIME_FORMAT,
-    LONG_LINK_ROWS,
     rightCells,
     rowTextX,
     type GraphColumn,

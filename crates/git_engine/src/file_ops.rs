@@ -211,7 +211,20 @@ impl RepoHandle {
                 "{path} changed since the discard: Undo would write over it"
             )));
         }
-        self.write_kept(kept)
+        self.write_kept(kept)?;
+        // A discard before the first commit can restore the old path of a rename from
+        // the index. Undo takes that restored copy away because the path was absent.
+        if kept.len() < left.len() {
+            let saved: std::collections::HashSet<&str> =
+                kept.iter().map(|(path, _)| path.as_str()).collect();
+            for (path, _) in left
+                .iter()
+                .filter(|(path, left)| left.is_some() && !saved.contains(path.as_str()))
+            {
+                std::fs::remove_file(self.root().join(path))?;
+            }
+        }
+        Ok(())
     }
 
     pub(crate) fn write_kept(&self, kept: &[(String, String)]) -> Result<()> {

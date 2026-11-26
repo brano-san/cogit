@@ -4,7 +4,7 @@
 //! What is worth a warning when a repository is opened, and what the second machine
 //! needed to be told: a clone made on Linux and used from Windows (doc/12-risks.md, R-150).
 
-use git_engine::{GcPrune, HealthIssue, RepoHandle, case_sensitive};
+use git_engine::{GcOptions, GcPrune, HealthIssue, RepoHandle, case_sensitive};
 
 /// The fixtures write a fixed `.git/config` without `core.ignorecase`, which on Windows is
 /// exactly what a Linux clone looks like. `git init` itself writes the value it probed.
@@ -397,4 +397,95 @@ fn gc_now_keeps_every_stash() {
 
     let list = f.git(&["stash", "list"]).unwrap();
     assert_eq!(list.lines().count(), 3, "stashes lost by gc: {list}");
+}
+
+#[test]
+fn gc_can_remove_a_lost_branch_pin_and_keep_saved_and_recovery_stashes() {
+    let f = test_fixtures::linear(2).unwrap();
+    let lost = f.oid("HEAD").unwrap();
+    f.git(&["reset", "--quiet", "--hard", "HEAD~1"]).unwrap();
+    let repo = RepoHandle::open(f.path()).unwrap();
+    repo.pin_for_undo(&lost).unwrap();
+    f.write_file("file0.txt", "recovery data\n").unwrap();
+    let recovery = repo.backup_before_reset("fixture backup").unwrap().unwrap();
+    for n in 0..2 {
+        f.write_file("file0.txt", &format!("saved stash {n}\n"))
+            .unwrap();
+        f.git(&["stash", "--quiet"]).unwrap();
+    }
+    assert!(
+        repo.lost_commits(100)
+            .unwrap()
+            .iter()
+            .any(|row| row.oid == lost)
+    );
+    let mut lines = Vec::new();
+    repo.gc_with(
+        GcOptions {
+            clear_lost_commits: true,
+            ..GcOptions::default()
+        },
+        &[],
+        |line| lines.push(line.to_owned()),
+    )
+    .unwrap();
+    assert!(f.git(&["cat-file", "-e", &lost]).is_err());
+    f.git(&["cat-file", "-e", &recovery]).unwrap();
+    assert_eq!(f.git(&["stash", "list"]).unwrap().lines().count(), 2);
+    assert!(lines.iter().any(|line| line.contains("Packing objects")));
+    assert!(
+        lines
+            .iter()
+            .any(|line| line.contains("commit graph") && line.contains('%'))
+    );
+
+    repo.gc_with(
+        GcOptions {
+            clear_stashes: true,
+            clear_lost_commits: true,
+            clear_recovery_stashes: true,
+            ..GcOptions::default()
+        },
+        &[],
+        |_| {},
+    )
+    .unwrap();
+    assert!(f.git(&["stash", "list"]).unwrap().is_empty());
+    assert!(
+        RepoHandle::open(f.path())
+            .unwrap()
+            .lost_commits(100)
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn gc_protects_the_loose_objects_used_to_undo_an_uncommitted_file_deletion() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file("loose.txt", "undo data\n").unwrap();
+    let repo = RepoHandle::open(f.path()).unwrap();
+    let backup = repo.keep_files(&["loose.txt".to_owned()]).unwrap();
+    std::fs::remove_file(f.path().join("loose.txt")).unwrap();
+    repo.gc_with(
+        GcOptions {
+            clear_lost_commits: true,
+            ..GcOptions::default()
+        },
+        &backup,
+        |_| {},
+    )
+    .unwrap();
+    f.git(&["cat-file", "-e", &backup[0]]).unwrap();
+    assert!(
+        f.git(&["for-each-ref", "refs/cogit/maintenance"])
+            .unwrap()
+            .is_empty()
+    );
+    repo.write_back(&[("loose.txt".to_owned(), backup[0].clone())])
+        .unwrap();
+    assert_eq!(
+        std::fs::read_to_string(f.path().join("loose.txt")).unwrap(),
+        "undo data\n"
+    );
 }

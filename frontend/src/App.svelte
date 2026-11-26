@@ -299,7 +299,10 @@
     MAINTENANCE,
     RUN_GC,
     TRUST_DIRECTORY,
-    gcPruneWarning,
+    GC_CHECKS,
+    GC_LOST,
+    gcOptions,
+    gcWarning,
     maintenanceBlocker,
   } from "$lib/health";
   import { hooksNote, pendingHooks } from "$lib/pending-hooks";
@@ -375,6 +378,7 @@
   let worktreesFolded = $state(false);
   /** Network operations whose git the footer's Cancel can stop, oldest first. */
   let networkOps = $state.raw<number[]>([]);
+  let maintenanceProgress = $state.raw(new Map<symbol, string>());
   const gitMissing = new GitMissingStore({
     probe: probeGit,
     candidates: findGitCandidates,
@@ -1908,30 +1912,46 @@ ${event.error}`,
       const id = repository.current?.repo;
       if (!id) return;
       const title = action.label.replace("…", "");
-      const asked = await confirmation.askWithChoice({
+      const gc = maintenance.task === "gc";
+      const asked = await confirmation.askWithChecks({
         title,
         message: lead ? `${lead} ${maintenance.question}` : maintenance.question,
         confirm: "Run",
-        choice:
-          maintenance.task === "gc"
-            ? { label: "Prune unreachable objects older than", value: "twoWeeks", options: GC_PRUNE }
-            : undefined,
+        checks: gc ? GC_CHECKS : undefined,
+        choice: gc
+          ? { label: "Prune unreachable objects older than", value: "twoWeeks", options: GC_PRUNE, disabledBy: GC_LOST }
+          : undefined,
       });
       if (!asked.yes) return;
-      const prune = GC_PRUNE.find(([key]) => key === asked.choice)?.[0] ?? "twoWeeks";
-      const warning = maintenance.task === "gc" ? gcPruneWarning(prune) : null;
+      const options = gcOptions(asked.choice, asked.checks);
+      const warning = gc ? gcWarning(options) : null;
       if (warning && !(await confirmation.ask({ title, message: warning, confirm: "Run", warning: true }))) return;
+      const operation = Symbol();
+      let succeeded = false;
+      let reporting = true;
       try {
-        await runMaintenance(id, maintenance.task, prune);
+        await runMaintenance(id, maintenance.task, options, (line) => {
+          if (reporting) maintenanceProgress = new Map(maintenanceProgress).set(operation, line);
+        });
+        succeeded = true;
+        successToast.show(maintenance.done);
       } catch (err) {
         errors.report(err, "Maintenance failed");
-        await health.recheck();
-        return;
+      } finally {
+        reporting = false;
+        const remaining = new Map(maintenanceProgress);
+        remaining.delete(operation);
+        maintenanceProgress = remaining;
       }
-      successToast.show(maintenance.done);
-      await health.recheck();
+      if (repository.current?.repo.valueOf() !== id.valueOf()) return;
+      const refreshed = await Promise.allSettled([
+        health.recheck(),
+        ...(gc ? [stashes.refresh(id), recovery.refresh(id), safety.refresh()] : []),
+      ]);
+      const failed = refreshed.find((result) => result.status === "rejected");
+      if (failed) errors.report(failed.reason, "Could not refresh after maintenance");
       // Fixed: the warning is gone with the recheck; if the recheck could not run, close it.
-      if (notices.current?.action?.id === action.id) notices.dismiss();
+      if (succeeded && notices.current?.action?.id === action.id) notices.dismiss();
       return;
     }
     if (action.id === TRUST_DIRECTORY) {
@@ -2844,7 +2864,8 @@ ${event.error}`,
     const own = index ? worktree.staged : worktree.unstaged;
     const every = [...own, ...worktree.staged, ...worktree.unstaged, ...worktree.found];
     const statuses = paths.map((each) => every.find((file) => file.path === each)?.status ?? "modified");
-    fileTarget = { path, paths, statuses, rev: null, oldPath: null };
+    const oldPath = every.find((file) => file.path === path)?.oldPath ?? null;
+    fileTarget = { path, paths, statuses, rev: null, oldPath };
     fileSection = index ? "index" : "worktree";
     const items = worktreeFileMenu({
       section: index ? "index" : "worktree",
@@ -3353,6 +3374,9 @@ ${event.error}`,
         return true;
       case "repo-reveal":
         shell(fileMenus.revealOnDesktop(root), "Could not reveal the folder");
+        return true;
+      case "repo-copy-path":
+        shell(copyText(root), "Could not copy the path");
         return true;
       case "repo-terminal":
         shell(openInTerminal(root, settings.current.terminal), "Could not open a terminal");
@@ -5296,6 +5320,7 @@ ${event.error}`,
       bulk: networkActions?.bulkProgress(),
       network: network.running ?? undefined,
       networkProgress: network.progress ?? undefined,
+      maintenance: [...maintenanceProgress.values()].at(-1),
       hooks: runningHooks,
       opening: repository.busy,
       starting: startingBackends,

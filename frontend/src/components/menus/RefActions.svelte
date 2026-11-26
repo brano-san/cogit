@@ -1144,20 +1144,23 @@
 </script>
 
 {#if confirmation.open}
-  <ConfirmDialog
-    title={confirmation.open.title}
-    message={confirmation.open.message}
-    confirm={confirmation.open.confirm}
-    cancel={confirmation.open.cancel}
-    warning={confirmation.open.warning}
-    items={confirmation.open.items}
-    fields={confirmation.open.fields}
-    note={confirmation.open.note}
-    option={confirmation.open.option}
-    choice={confirmation.open.choice}
-    alternative={confirmation.open.alternative}
-    onanswer={(yes, checked, choice, alternative) => confirmation.answer(yes, checked, choice, alternative)}
-  />
+  {#key confirmation.open}
+    <ConfirmDialog
+      title={confirmation.open.title}
+      message={confirmation.open.message}
+      confirm={confirmation.open.confirm}
+      cancel={confirmation.open.cancel}
+      warning={confirmation.open.warning}
+      items={confirmation.open.items}
+      fields={confirmation.open.fields}
+      note={confirmation.open.note}
+      option={confirmation.open.option}
+      choice={confirmation.open.choice}
+      checks={confirmation.open.checks}
+      alternative={confirmation.open.alternative}
+      onanswer={(yes, checked, choice, alternative, checks) => confirmation.answer(yes, checked, choice, alternative, checks)}
+    />
+  {/key}
 {/if}
 
 {#if refDialogs.tag}

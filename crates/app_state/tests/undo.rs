@@ -63,6 +63,25 @@ fn discarding_an_untracked_file_is_undoable() {
 }
 
 #[test]
+fn discarding_a_worktree_rename_is_undoable_by_its_new_name() {
+    let f = test_fixtures::linear(1).unwrap();
+    let (state, repo) = open(&f);
+    let source = f.path().join("file0.txt");
+    let target = f.path().join("new-name.txt");
+    std::fs::rename(&source, &target).unwrap();
+
+    state
+        .discard_paths(repo, &["new-name.txt".to_owned()])
+        .unwrap();
+    assert!(source.is_file());
+    assert!(!target.exists());
+
+    state.undo_last(repo).unwrap();
+    assert!(!source.exists());
+    assert_eq!(std::fs::read_to_string(target).unwrap(), "content 0\n");
+}
+
+#[test]
 fn deleting_a_branch_is_undoable_and_restores_the_same_oid() {
     let f = test_fixtures::branched().unwrap();
     let (state, repo) = open(&f);
@@ -1745,6 +1764,27 @@ fn a_discard_before_the_first_commit_can_be_undone() {
 
     assert_eq!(text(&f, "added.txt"), "staged and edited\n");
     assert_eq!(text(&f, "loose.txt"), "untracked\n");
+}
+
+#[test]
+fn an_unstaged_rename_before_the_first_commit_can_be_discarded_and_undone() {
+    let f = test_fixtures::empty().unwrap();
+    f.write_file("source.txt", "staged\n").unwrap();
+    f.git(&["add", "--", "source.txt"]).unwrap();
+    let source = f.path().join("source.txt");
+    let target = f.path().join("target.txt");
+    std::fs::rename(&source, &target).unwrap();
+    let (state, repo) = open(&f);
+
+    state
+        .discard_paths(repo, &["target.txt".to_owned()])
+        .unwrap();
+    assert_eq!(std::fs::read_to_string(&source).unwrap(), "staged\n");
+    assert!(!target.exists());
+
+    state.undo_last(repo).unwrap();
+    assert!(!source.exists());
+    assert_eq!(std::fs::read_to_string(target).unwrap(), "staged\n");
 }
 
 #[test]

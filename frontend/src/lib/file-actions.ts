@@ -131,10 +131,10 @@ export function runFileMenuCommand(
       if (rev) actions.compareWithWorkTree(path, rev);
       return true;
     case "file-log":
-      actions.log(path);
+      actions.log(rev === null ? scope.oldPath ?? path : path);
       return true;
     case "file-blame":
-      actions.blame(path);
+      actions.blame(rev === null ? scope.oldPath ?? path : path);
       return true;
     case "file-investigate":
       actions.investigate(path);

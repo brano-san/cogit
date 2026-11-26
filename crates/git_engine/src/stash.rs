@@ -111,15 +111,16 @@ impl RepoHandle {
     }
 
     pub fn stash_paths(&self, paths: &[String], message: &str) -> Result<Option<String>> {
+        let paths = self.with_unstaged_rename_sources(paths)?;
         // Git hands the list on to a `git clean` of its own, on a command line: past its
         // limit the stash is made and the files stay (R-191).
-        if !crate::runner::fits_command_line(paths) {
+        if !crate::runner::fits_command_line(&paths) {
             return Err(GitError::InvalidState(format!(
                 "{} paths are too many to stash at once",
                 paths.len()
             )));
         }
-        let paths = &self.stashable(paths)?;
+        let paths = &self.stashable(&paths)?;
         if paths.is_empty() {
             return Ok(None);
         }

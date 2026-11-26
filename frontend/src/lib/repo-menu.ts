@@ -102,6 +102,7 @@ export function repoMenu(at: RepoMenuTarget, desktop: DesktopInfo, keys: Keymap)
           ),
         ]
       : []),
+    item("repo-copy-path", "Copy Path"),
     item("repo-close", "Close Repository", at.open, onlyActive("close")),
     SEPARATOR,
     offer("repo-pull", "Pull", closed, onlyActive("pull")),

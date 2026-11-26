@@ -65,6 +65,7 @@ describe("repoMenu", () => {
       "Open in Terminal",
       "Open in PowerShell",
       "Open in Git Shell",
+      "Copy Path",
       "Close Repository",
       "—",
       "Pull",
@@ -115,6 +116,7 @@ describe("repoMenu", () => {
     expect(find(menu, "repo-pull")?.enabled).toBe(false);
     expect(find(menu, "repo-push")?.enabled).toBe(false);
     expect(find(menu, "repo-open")?.enabled).toBe(true);
+    expect(find(menu, "repo-copy-path")).toMatchObject({ enabled: true, label: "Copy Path" });
   });
 
   it("shows the chords only on the repository they act on", () => {
@@ -157,6 +159,7 @@ describe("repoMenu", () => {
     const menu = repoMenu({ ...OPEN, missing: true }, WINDOWS);
     expect(find(menu, "repo-open-folder")?.enabled).toBe(false);
     expect(find(menu, "repo-reveal")?.label).toContain("missing");
+    expect(find(menu, "repo-copy-path")?.enabled).toBe(true);
     expect(find(menu, "repo-remove")?.enabled).toBe(true);
   });
 

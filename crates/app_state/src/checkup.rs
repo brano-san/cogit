@@ -10,7 +10,50 @@ impl AppState {
         task: git_engine::MaintenanceTask,
         prune: git_engine::GcPrune,
     ) -> Result<(), GitError> {
-        self.handle(repo)?.run_maintenance(task, prune)
+        self.local_run_maintenance_with(
+            repo,
+            task,
+            git_engine::GcOptions {
+                prune,
+                ..git_engine::GcOptions::default()
+            },
+            |_| {},
+        )
+    }
+
+    pub(crate) fn local_run_maintenance_with(
+        &self,
+        repo: RepoId,
+        task: git_engine::MaintenanceTask,
+        options: git_engine::GcOptions,
+        on_line: impl FnMut(&str),
+    ) -> Result<(), GitError> {
+        let handle = self.handle(repo)?;
+        if task != git_engine::MaintenanceTask::Gc {
+            return handle.run_maintenance_with(task, options, &[], on_line);
+        }
+        let lane = self.lane_of(repo);
+        let repositories: Vec<_> = self
+            .repos
+            .read()
+            .values()
+            .filter(|open| open.lane == lane)
+            .map(|open| open.id)
+            .collect();
+        let related = repositories
+            .into_iter()
+            .filter(|&id| {
+                id == repo
+                    || self
+                        .unjournaled_handle(id)
+                        .is_ok_and(|other| other.common_dir() == handle.common_dir())
+            })
+            .collect();
+        let blobs = self.maintenance_undo_blobs(&related);
+        let result = handle.run_maintenance_with(task, options, &blobs, on_line);
+        // A failure in a later step can still follow successful pruning.
+        self.expire_missing_undo(&related, handle.root());
+        result
     }
 
     pub(crate) fn local_add_to_exclude(

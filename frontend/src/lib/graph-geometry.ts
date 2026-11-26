@@ -3,6 +3,9 @@
 export const LANE_WIDTH = { default: 16, min: 12, max: 48 } as const;
 let laneWidth: number = LANE_WIDTH.default;
 
+/** Parent links longer than this many rows are drawn as paired stubs (R-330). */
+export const LONG_LINK_ROWS = 100;
+
 /** Rows of the lists that are not the graph; the graph's own follow its density (#12). */
 export const LIST_ROW_HEIGHT = 24;
 const ROW_HEIGHT = { min: 16, max: 40 } as const;

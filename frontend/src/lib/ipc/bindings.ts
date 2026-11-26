@@ -503,8 +503,8 @@ export const commands = {
 	/**  The three parts of a stash, read without applying it (T5.2). */
 	stashContents: (repo: RepoId, index: number) => typedError<StashContents_Serialize, GitError>(__TAURI_INVOKE("stash_contents", { repo, index })),
 	stashSelection: (repo: RepoId, paths: string[], message: string) => typedError<null, GitError>(__TAURI_INVOKE("stash_selection", { repo, paths, message })),
-	/**  Asked for by the user after a confirmation; gc and commit-graph only write objects. */
-	runMaintenance: (repo: RepoId, task: MaintenanceTask, prune: GcPrune) => typedError<null, GitError>(__TAURI_INVOKE("run_maintenance", { repo, task, prune })),
+	/**  Asked for after confirmation, with Git's progress on the status bar. */
+	runMaintenance: (repo: RepoId, task: MaintenanceTask, options: GcOptions, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("run_maintenance", { repo, task, options, onProgress })),
 	addToExclude: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("add_to_exclude", { repo, paths })),
 	ignoreRules: (repo: RepoId, paths: string[]) => typedError<IgnoreRule[], GitError>(__TAURI_INVOKE("ignore_rules", { repo, paths })),
 	ignoreFiles: (repo: RepoId, dir: string) => typedError<IgnoreFile[], GitError>(__TAURI_INVOKE("ignore_files", { repo, dir })),
@@ -1942,6 +1942,13 @@ export type Found = {
 };
 
 export type FoundKind = "branch" | "tag" | "commit" | "file";
+
+export type GcOptions = {
+	prune: GcPrune,
+	clearStashes: boolean,
+	clearLostCommits: boolean,
+	clearRecoveryStashes: boolean,
+};
 
 /**  How old an unreachable object must be for `git gc` to delete it; asked each time. */
 export type GcPrune = 

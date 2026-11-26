@@ -71,14 +71,16 @@ export function worktreeFileMenu(at: WorktreeFileTarget): ContextItem[] {
   const history = one && !NO_HISTORY.has(status);
   const single = one ? null : "one file only";
   const worktreeOnly = at.section === "worktree" ? null : "working tree only";
-  const flaggable = worktreeOnly ?? (untracked ? "untracked" : null);
+  const unstagedRename = at.section === "worktree" && at.statuses.includes("renamed");
+  const stageRename = unstagedRename ? "Stage the rename first" : null;
+  const flaggable = worktreeOnly ?? (untracked ? "untracked" : stageRename);
 
   return tidy([
     offer("file-open", "Open File", at.desktopBlock ?? single ?? (onDisk ? null : "not on disk")),
     offer("file-reveal", revealLabel(at.fileManager), at.desktopBlock ?? single ?? (onDisk ? null : "not on disk")),
     offer("file-changes", "Show Changes", single),
     offer("file-edit", "Edit", single ?? at.editBlocked ?? (onDisk ? null : "not on disk")),
-    offer("file-diff-tool", "Open in External Diff Tool", at.desktopBlock ?? single ?? diffToolBlocked(status)),
+    offer("file-diff-tool", "Open in External Diff Tool", at.desktopBlock ?? single ?? stageRename ?? diffToolBlocked(status)),
     offer("file-external-editor", "Open in External Editor", at.desktopBlock ?? single ?? (onDisk ? null : "not on disk")),
     item("file-log", "Log", history),
     item("file-blame", "Blame", history),
@@ -118,7 +120,7 @@ export function worktreeFileMenu(at: WorktreeFileTarget): ContextItem[] {
     item("file-why-ignored", "Why Ignored?", all("ignored")),
     item("file-edit-ignore", "Edit .gitignore…"),
     item("file-discard", "Discard…", at.unstaged && discardBlocked(at.statuses) === null, "CmdOrCtrl+Z"),
-    item("file-remove", "Remove…", !untracked),
+    item("file-remove", "Remove…", !untracked && !unstagedRename),
     item("file-delete", "Delete…", deleteBlocked(at.statuses) === null),
     SEPARATOR,
     item("file-copy-name", "Copy Name"),

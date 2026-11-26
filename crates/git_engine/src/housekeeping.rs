@@ -2,6 +2,7 @@
 //! can ask for.
 
 use crate::{GitError, HealthIssue, RepoHandle, Result};
+use std::fmt::Write as _;
 use std::io::Read;
 use unicode_normalization::UnicodeNormalization;
 
@@ -33,6 +34,15 @@ pub enum GcPrune {
     OneDay,
     OneHour,
     Now,
+}
+
+#[derive(Debug, Clone, Copy, Default, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct GcOptions {
+    pub prune: GcPrune,
+    pub clear_stashes: bool,
+    pub clear_lost_commits: bool,
+    pub clear_recovery_stashes: bool,
 }
 
 impl GcPrune {
@@ -364,37 +374,309 @@ impl RepoHandle {
     }
 
     pub fn gc(&self, prune: GcPrune) -> Result<()> {
-        match prune.reflog_expiry() {
-            Some(expiry) => self.run_git(&[
-                "-c",
-                expiry,
-                "-c",
-                "gc.refs/stash.reflogExpireUnreachable=never",
-                "gc",
-                prune.arg(),
-            ])?,
-            None => self.run_git(&["gc", prune.arg()])?,
-        };
-        self.write_commit_graph()
+        self.gc_with(
+            GcOptions {
+                prune,
+                ..GcOptions::default()
+            },
+            &[],
+            |_| {},
+        )
     }
 
-    fn write_commit_graph(&self) -> Result<()> {
-        self.run_git(&["commit-graph", "write", "--reachable", "--changed-paths"])
-            .map(drop)
+    /// Objects in the live Undo journal include blobs that Git cannot otherwise reach.
+    /// Temporary refs keep them through a repack, including when a subsequent step fails.
+    pub fn gc_with(
+        &self,
+        options: GcOptions,
+        undo_blobs: &[String],
+        mut on_line: impl FnMut(&str),
+    ) -> Result<()> {
+        self.refuse_under_commit_graph_lock()?;
+        let prune = if options.clear_lost_commits {
+            GcPrune::Now
+        } else {
+            options.prune
+        };
+        let destructive =
+            prune == GcPrune::Now || options.clear_stashes || options.clear_recovery_stashes;
+        let git_dirs = if destructive {
+            self.maintenance_git_dirs()?
+        } else {
+            Vec::new()
+        };
+        if destructive {
+            self.require_idle_for_cleanup(&git_dirs)?;
+        }
+
+        let prefix = format!("refs/cogit/maintenance/{}/", std::process::id());
+        let mut create = String::new();
+        let mut delete = String::new();
+        let mut seen = std::collections::HashSet::new();
+        for oid in undo_blobs
+            .iter()
+            .filter_map(|oid| gix::ObjectId::from_hex(oid.as_bytes()).ok())
+        {
+            if seen.insert(oid)
+                && self
+                    .repo
+                    .find_header(oid)
+                    .is_ok_and(|header| header.kind() == gix::object::Kind::Blob)
+            {
+                let _ = writeln!(create, "create {prefix}{oid} {oid}");
+                let _ = writeln!(delete, "delete {prefix}{oid} {oid}");
+            }
+        }
+        if create.is_empty() {
+            return self.gc_steps(options, prune, &git_dirs, &mut on_line);
+        }
+        let pin_args = [
+            "-c",
+            "core.logAllRefUpdates=false",
+            "update-ref",
+            "--no-deref",
+            "--stdin",
+        ];
+        self.run_git_fed(&pin_args, create.as_bytes())?;
+        let result = self.gc_steps(options, prune, &git_dirs, &mut on_line);
+        let release = self.run_git_fed(&pin_args, delete.as_bytes());
+        result.and(release.map(drop))
+    }
+
+    fn gc_steps(
+        &self,
+        options: GcOptions,
+        prune: GcPrune,
+        git_dirs: &[std::path::PathBuf],
+        on_line: &mut impl FnMut(&str),
+    ) -> Result<()> {
+        if options.clear_stashes {
+            on_line("Clearing saved stashes…");
+            self.run_git(&["stash", "clear"])?;
+        }
+        if options.clear_lost_commits || options.clear_recovery_stashes {
+            on_line("Checking Cogit recovery references…");
+            self.clear_gc_backups(options)?;
+        }
+        if options.clear_lost_commits {
+            on_line("Expiring unreachable reflog entries…");
+            self.expire_lost_reflogs(git_dirs)?;
+        }
+        on_line("Packing objects and pruning unreachable objects…");
+        let mut args = vec![
+            "-c",
+            "gc.writeCommitGraph=false",
+            "-c",
+            "gc.refs/stash.reflogExpire=never",
+            "-c",
+            "gc.refs/stash.reflogExpireUnreachable=never",
+        ];
+        if options.clear_lost_commits {
+            // The explicit pass above replaces Git's default reflog expiration for this run.
+            args.extend([
+                "-c",
+                "gc.reflogExpire=never",
+                "-c",
+                "gc.reflogExpireUnreachable=never",
+            ]);
+        } else if let Some(expiry) = prune.reflog_expiry() {
+            args.extend(["-c", expiry]);
+        }
+        args.extend(["gc", "--no-quiet", prune.arg()]);
+        self.stream_maintenance(&args, &mut *on_line)?;
+        self.write_commit_graph(on_line)
+    }
+
+    fn maintenance_git_dirs(&self) -> Result<Vec<std::path::PathBuf>> {
+        let mut dirs = vec![self.common_dir().to_owned()];
+        let worktrees = self
+            .repo
+            .worktrees()
+            .map_err(|err| GitError::Io(format!("cannot list worktrees: {err}")))?;
+        dirs.extend(worktrees.iter().map(|proxy| proxy.git_dir().to_owned()));
+        Ok(dirs)
+    }
+
+    fn require_idle_for_cleanup(&self, git_dirs: &[std::path::PathBuf]) -> Result<()> {
+        if self.common_dir().join("gc.pid").exists() {
+            return Err(GitError::InvalidState(
+                "git gc is already running or its lock is still present".to_owned(),
+            ));
+        }
+        const OPERATIONS: &[&str] = &[
+            "MERGE_HEAD",
+            "MERGE_AUTOSTASH",
+            "rebase-merge",
+            "rebase-apply",
+            "CHERRY_PICK_HEAD",
+            "REVERT_HEAD",
+            "sequencer",
+            "BISECT_START",
+        ];
+        if git_dirs
+            .iter()
+            .any(|dir| OPERATIONS.iter().any(|name| dir.join(name).exists()))
+        {
+            return Err(GitError::InvalidState(
+                "finish or abort the Git operation in progress before cleaning up".to_owned(),
+            ));
+        }
+        Ok(())
+    }
+
+    fn clear_gc_backups(&self, options: GcOptions) -> Result<()> {
+        use crate::stash::BACKUP_REFS;
+        let refs = self.read_git(&[
+            "for-each-ref",
+            "--format=%(objectname) %(refname)",
+            BACKUP_REFS,
+        ])?;
+        if refs.is_empty() {
+            return Ok(());
+        }
+        let reachable = self.reachable_from(&self.keeping_tips()?)?;
+        let mut delete = String::new();
+        for (oid, name) in refs.lines().filter_map(|line| line.split_once(' ')) {
+            if name.strip_prefix(BACKUP_REFS) != Some(oid) {
+                continue;
+            }
+            let Ok(id) = gix::ObjectId::from_hex(oid.as_bytes()) else {
+                continue;
+            };
+            let Some(commit) = self
+                .repo
+                .find_object(id)
+                .ok()
+                .and_then(|object| object.peel_to_commit().ok())
+            else {
+                continue;
+            };
+            if reachable.contains(&commit.id) {
+                continue;
+            }
+            let stash = self.is_recovery_stash(&commit);
+            if (stash && options.clear_recovery_stashes) || (!stash && options.clear_lost_commits) {
+                let _ = writeln!(delete, "delete {name} {oid}");
+            }
+        }
+        if !delete.is_empty() {
+            self.run_git_fed(&["update-ref", "--no-deref", "--stdin"], delete.as_bytes())?;
+        }
+        Ok(())
+    }
+
+    /// Git's stash index commit has the base as its sole parent. Git writes its subject
+    /// as "index on …" without translation (builtin/stash.c). The topology alone also
+    /// matches some ordinary merge commits.
+    fn is_recovery_stash(&self, commit: &gix::Commit<'_>) -> bool {
+        let mut parents = commit.parent_ids();
+        let (Some(base), Some(index)) = (parents.next(), parents.next()) else {
+            return false;
+        };
+        let Ok(index) = self.repo.find_commit(index.detach()) else {
+            return true;
+        };
+        index.parent_ids().map(gix::Id::detach).eq([base.detach()])
+            && index
+                .message_raw()
+                .map_or(true, |message| message.starts_with(b"index on "))
+    }
+
+    /// `--all` would also expire the stash history, even with the normal config exemption.
+    /// List the logs for each worktree and use explicit expiration so repository patterns
+    /// such as gc.refs/heads/*.reflogExpireUnreachable cannot retain lost commits.
+    fn expire_lost_reflogs(&self, git_dirs: &[std::path::PathBuf]) -> Result<()> {
+        for (i, dir) in git_dirs.iter().enumerate() {
+            let dir = crate::slash_path(dir);
+            let logs = self.read_git(&["--git-dir", &dir, "reflog", "list"])?;
+            let names: Vec<String> = logs
+                .lines()
+                .filter(|&name| {
+                    name != "refs/stash"
+                        && (i == 0
+                            || name == "HEAD"
+                            || ["refs/bisect/", "refs/worktree/", "refs/rewritten/"]
+                                .iter()
+                                .any(|prefix| name.starts_with(prefix)))
+                })
+                .map(str::to_owned)
+                .collect();
+            for batch in crate::runner::command_line_batches(&names) {
+                let mut args = vec![
+                    "--git-dir",
+                    &dir,
+                    "reflog",
+                    "expire",
+                    "--expire=never",
+                    "--expire-unreachable=now",
+                    "--",
+                ];
+                args.extend(batch.iter().map(String::as_str));
+                self.run_git(&args)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn stream_maintenance(&self, args: &[&str], on_line: impl FnMut(&str)) -> Result<()> {
+        let stream = crate::network::Streamed {
+            root: self.root(),
+            stop: None,
+            journal: &|entry| self.journal_entry(entry),
+        };
+        let mut git = self.base_git(args);
+        git.env("GIT_PROGRESS_DELAY", "0");
+        stream.run_local(git, args, on_line)
+    }
+
+    /// An Undo record may also store a branch name. Only literal IDs can be pruned.
+    #[must_use]
+    pub fn maintenance_object_missing(&self, revision: &str) -> bool {
+        gix::ObjectId::from_hex(revision.as_bytes()).is_ok_and(|oid| !self.repo.has_object(oid))
+    }
+
+    fn write_commit_graph(&self, mut on_line: impl FnMut(&str)) -> Result<()> {
+        on_line("Writing commit graph…");
+        self.stream_maintenance(
+            &[
+                "commit-graph",
+                "write",
+                "--reachable",
+                "--changed-paths",
+                "--progress",
+            ],
+            on_line,
+        )
     }
 
     /// `prune` matters to `Gc` only.
     pub fn run_maintenance(&self, task: MaintenanceTask, prune: GcPrune) -> Result<()> {
+        self.run_maintenance_with(
+            task,
+            GcOptions {
+                prune,
+                ..GcOptions::default()
+            },
+            &[],
+            |_| {},
+        )
+    }
+
+    pub fn run_maintenance_with(
+        &self,
+        task: MaintenanceTask,
+        options: GcOptions,
+        undo_blobs: &[String],
+        mut on_line: impl FnMut(&str),
+    ) -> Result<()> {
         match task {
-            MaintenanceTask::Gc => {
-                self.refuse_under_commit_graph_lock()?;
-                self.gc(prune)
-            }
+            MaintenanceTask::Gc => self.gc_with(options, undo_blobs, on_line),
             MaintenanceTask::CommitGraph => {
                 self.refuse_under_commit_graph_lock()?;
-                self.write_commit_graph()
+                self.write_commit_graph(on_line)
             }
             MaintenanceTask::ClearCommitGraphLock => {
+                on_line("Removing stale commit-graph locks…");
                 let stale = self.stale_commit_graph_locks();
                 if stale.is_empty() {
                     return Err(GitError::InvalidState(
@@ -409,6 +691,7 @@ impl RepoHandle {
                 Ok(())
             }
             MaintenanceTask::ClearGcLock => {
+                on_line("Removing the stale gc lock…");
                 if self.gc_lock_issue().is_none() {
                     return Err(GitError::InvalidState(
                         "gc.pid is recent or gone: a gc may still be running".to_owned(),

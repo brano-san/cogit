@@ -1,7 +1,7 @@
 <script lang="ts">
   import Icon from "$components/common/Icon.svelte";
   import EmptyState from "$components/common/EmptyState.svelte";
-  import { untrack } from "svelte";
+  import { tick, untrack } from "svelte";
   import Dialog from "$components/common/Dialog.svelte";
   import Checkbox from "$components/common/Checkbox.svelte";
   import Radio from "$components/common/Radio.svelte";
@@ -25,7 +25,8 @@
   import { patternProblem } from "$lib/commit-prefix";
   import { formatDatePattern, MAX_DATE_PATTERN_LENGTH } from "$lib/format";
   import { MAX_GUIDE_COLUMN, validGuideColumn } from "$lib/commit-message";
-  import { needsRestart, THEMES, type Settings } from "$lib/settings";
+  import { needsRestart, THEMES, type FixedTheme, type Settings } from "$lib/settings";
+  import { themeStore } from "$stores/theme.svelte";
   import { diffFontChoices, fontChoices, uiFontChoices, zoomChoices } from "$lib/ui-metrics";
   import { uiMetricsStore } from "$stores/ui-metrics.svelte";
   import { isSetting, type Field } from "$lib/preferences";
@@ -39,6 +40,8 @@
   import type { KeyBinding } from "$lib/ipc";
   import KeymapEditor from "$components/layout/KeymapEditor.svelte";
   import GraphField from "$components/layout/GraphField.svelte";
+  import SettingsSlider from "$components/layout/SettingsSlider.svelte";
+  import AccentColorDialog from "$components/layout/AccentColorDialog.svelte";
   import NetworkSettings from "$components/layout/NetworkSettings.svelte";
   import AiSettings from "$components/layout/AiSettings.svelte";
   import ToolbarEditor from "$components/layout/ToolbarEditor.svelte";
@@ -127,6 +130,10 @@
       (doc/12-risks.md, R-122). The snapshot is what `Cancel` goes back to. */
   // svelte-ignore state_referenced_locally
   let draft = $state<Settings>({ ...value });
+  let sliderReset = $state(0);
+  const accentTheme = $derived(draft.theme === "system" ? themeStore.resolved : draft.theme);
+  const accentColor = $derived(draft.themeAccents[accentTheme] ?? themeStore.defaultAccent);
+  let accentEditor = $state<{ theme: FixedTheme; color: string } | null>(null);
   /** Installed font families for Font, asked once per opening; until then only System. */
   let families = $state.raw<string[]>([]);
   fontFamilies().then(
@@ -250,6 +257,24 @@
   function set<K extends keyof Settings>(key: K, next: Settings[K]) {
     draft = { ...draft, [key]: next };
     onapply(draft, draftKeys);
+  }
+
+  function setAccent(theme: FixedTheme, color?: string) {
+    const accents = { ...draft.themeAccents };
+    if (color === undefined) delete accents[theme];
+    else accents[theme] = color;
+    set("themeAccents", accents);
+  }
+
+  async function accept() {
+    const activeField = document.activeElement;
+    if (activeField instanceof HTMLInputElement && activeField.hasAttribute("data-settings-number")) {
+      activeField.blur();
+      await tick();
+    }
+    const invalid = panes?.querySelector<HTMLInputElement>('input[data-settings-number][aria-invalid="true"]');
+    if (invalid) invalid.focus();
+    else onclose();
   }
 
   /** Reset or Reset All on the "Don't show again" list: settings in one draft change. */
@@ -399,6 +424,20 @@
                   onchange={(next) => set("theme", next)}
                 />
               </div>
+            {:else if field.key === "themeAccents"}
+              <div class="row">
+                {@render caption(field)}
+                <div class="accent-option">
+                  <button type="button" class="btn accent-choice" aria-label="Choose accent color, {accentColor}"
+                    onclick={() => (accentEditor = { theme: accentTheme, color: accentColor })}>
+                    <span class="accent-swatch" style:background={accentColor}></span>
+                    <span class="mono">{accentColor}</span>
+                  </button>
+                  <button type="button" class="btn" disabled={draft.themeAccents[accentTheme] === undefined} onclick={() => setAccent(accentTheme)}>
+                    Use Theme Default
+                  </button>
+                </div>
+              </div>
             {:else if field.key === "fontFamily"}
               <div class="row">
                 {@render caption(field)}
@@ -452,24 +491,11 @@
                 </div>
               </div>
             {:else if field.key === "backgroundFetchMinutes"}
-              <label class="row">
-                <span>{field.label}</span>
-                <span class="slider">
-                  <input
-                    type="range"
-                    min="0"
-                    max="60"
-                    step="5"
-                    value={draft.backgroundFetchMinutes}
-                    oninput={(e) => set("backgroundFetchMinutes", e.currentTarget.valueAsNumber)}
-                  />
-                  <output
-                    >{draft.backgroundFetchMinutes === 0
-                      ? "Off"
-                      : `every ${draft.backgroundFetchMinutes} min`}</output
-                  >
-                </span>
-              </label>
+              <div class="row">
+                {@render caption(field)}
+                <SettingsSlider label={field.label} min={0} max={60} unit="min" reset={sliderReset}
+                  value={draft.backgroundFetchMinutes} onchange={(next) => set("backgroundFetchMinutes", next)} />
+              </div>
             {:else if field.key === "protectedBranches"}
               <div class="row">
                 {@render caption(field)}
@@ -673,47 +699,23 @@
                 </div>
               </div>
             {:else if field.key === "contextLines"}
-              <label class="row">
-                <span>{field.label}</span>
-                <span class="slider">
-                  <input
-                    type="range"
-                    min="0"
-                    max="25"
-                    value={draft.contextLines}
-                    oninput={(e) => set("contextLines", e.currentTarget.valueAsNumber)}
-                  />
-                  <output>{draft.contextLines}</output>
-                </span>
-              </label>
+              <div class="row">
+                {@render caption(field)}
+                <SettingsSlider label={field.label} min={0} max={25} reset={sliderReset}
+                  value={draft.contextLines} onchange={(next) => set("contextLines", next)} />
+              </div>
             {:else if field.key === "diffSplit"}
-              <label class="row">
-                <span>{field.label}</span>
-                <span class="slider">
-                  <input
-                    type="range"
-                    min="20"
-                    max="80"
-                    value={Math.round(draft.diffSplit * 100)}
-                    oninput={(e) => set("diffSplit", e.currentTarget.valueAsNumber / 100)}
-                  />
-                  <output>{Math.round(draft.diffSplit * 100)} %</output>
-                </span>
-              </label>
+              <div class="row">
+                {@render caption(field)}
+                <SettingsSlider label={field.label} min={20} max={80} unit="%" reset={sliderReset}
+                  value={Math.round(draft.diffSplit * 100)} onchange={(next) => set("diffSplit", next / 100)} />
+              </div>
             {:else if field.key === "laneWidth"}
-              <label class="row">
-                <span>{field.label}</span>
-                <span class="slider">
-                  <input
-                    type="range"
-                    min={LANE_WIDTH.min}
-                    max={LANE_WIDTH.max}
-                    value={draft.laneWidth}
-                    oninput={(e) => set("laneWidth", e.currentTarget.valueAsNumber)}
-                  />
-                  <output>{draft.laneWidth}px</output>
-                </span>
-              </label>
+              <div class="row">
+                {@render caption(field)}
+                <SettingsSlider label={field.label} min={LANE_WIDTH.min} max={LANE_WIDTH.max} unit="px" reset={sliderReset}
+                  value={draft.laneWidth} onchange={(next) => set("laneWidth", next)} />
+              </div>
             {:else if field.key === "detectMoves"}
               <div class="row check">
                 <Checkbox checked={draft.detectMoves} onchange={(checked) => set("detectMoves", checked)} label={field.label} />
@@ -833,7 +835,7 @@
                 />
               </div>
             {:else if field.key.startsWith("graph")}
-              <GraphField {field} value={draft} onset={set} />
+              <GraphField {field} value={draft} onset={set} {sliderReset} />
             {:else if field.key === "network"}
               <NetworkSettings />
             {:else if field.key === "userCommands"}
@@ -1019,6 +1021,7 @@
           return;
         }
         if (active === "graph") invalidDatePattern = null;
+        sliderReset += 1;
         draft = restoreCategory(draft, active);
         draftKeys = restoreKeys(draftKeys, active);
         onapply(draft, draftKeys);
@@ -1029,9 +1032,17 @@
     <button class="btn" type="button" title="Put everything back to how it was when this opened" onclick={onrevert}>
       Cancel
     </button>
-    <button type="button" class="btn primary" onclick={onclose}>OK</button>
+    <button type="button" class="btn primary" onclick={accept}>OK</button>
   {/snippet}
 </Dialog>
+
+{#if accentEditor}
+  {@const { theme, color } = accentEditor}
+  <AccentColorDialog value={color} onclose={() => (accentEditor = null)} onselect={(next) => {
+    setAccent(theme, next);
+    accentEditor = null;
+  }} />
+{/if}
 
 {#snippet caption(field: Field)}
   <span
@@ -1282,17 +1293,24 @@
     gap: var(--sp-2);
   }
 
-  .slider {
+  .accent-option {
     display: flex;
     align-items: center;
-    gap: var(--sp-4);
-    min-width: 0;
-    max-width: 100%;
+    flex-wrap: wrap;
+    gap: var(--sp-3);
   }
 
-  .slider :global(input[type="range"]) {
-    flex: 1 1 auto;
-    min-width: 0;
+  .accent-choice {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+  }
+
+  .accent-swatch {
+    width: 16px;
+    height: 16px;
+    border: 1px solid var(--field-border);
+    border-radius: var(--r-sm);
   }
 
   .text {

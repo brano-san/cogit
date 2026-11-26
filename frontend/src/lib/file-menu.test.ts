@@ -141,6 +141,16 @@ describe("worktreeFileMenu", () => {
     expect(on(worktreeFileMenu(MODIFIED), "file-remove")).toBe(true);
   });
 
+  it("can stage, discard and export an unstaged rename", () => {
+    const menu = worktreeFileMenu({ ...MODIFIED, statuses: ["renamed"] });
+    for (const id of ["file-stage", "file-discard", "file-save-patch", "file-changes"]) {
+      expect(on(menu, id)).toBe(true);
+    }
+    for (const id of ["file-remove", "file-diff-tool", "file-assume-unchanged", "file-skip-worktree"]) {
+      expect(on(menu, id)).toBe(false);
+    }
+  });
+
   it("cannot open, reveal or delete a file that is no longer on disk", () => {
     const gone = worktreeFileMenu({ ...MODIFIED, statuses: ["deleted"] });
     expect(on(gone, "file-open")).toBe(false);

@@ -484,7 +484,17 @@ impl Streamed<'_> {
         on_line: impl FnMut(&str),
         silence: Duration,
     ) -> Result<()> {
-        let (out, _) = self.stream_git(process, args, on_line, silence)?;
+        let (out, _) = self.stream_git(process, args, on_line, Some(silence))?;
+        self.settle(out, true)
+    }
+
+    pub(crate) fn run_local(
+        &self,
+        process: std::process::Command,
+        args: &[&str],
+        on_line: impl FnMut(&str),
+    ) -> Result<()> {
+        let (out, _) = self.stream_git(process, args, on_line, None)?;
         self.settle(out, true)
     }
 
@@ -495,7 +505,7 @@ impl Streamed<'_> {
         on_line: impl FnMut(&str),
         silence: Duration,
     ) -> Result<GitOutput> {
-        let (out, _) = self.stream_git(process, args, on_line, silence)?;
+        let (out, _) = self.stream_git(process, args, on_line, Some(silence))?;
         self.settle(out.clone(), true)?;
         Ok(out)
     }
@@ -509,7 +519,7 @@ impl Streamed<'_> {
         on_line: impl FnMut(&str),
         silence: Duration,
     ) -> Result<String> {
-        let (out, stdout) = self.stream_git(process, args, on_line, silence)?;
+        let (out, stdout) = self.stream_git(process, args, on_line, Some(silence))?;
         self.settle(out, false)?;
         Ok(stdout)
     }
@@ -535,7 +545,7 @@ impl Streamed<'_> {
         mut process: std::process::Command,
         args: &[&str],
         mut on_line: impl FnMut(&str),
-        silence: Duration,
+        silence: Option<Duration>,
     ) -> Result<(GitOutput, String)> {
         let command = crate::redact_command(args);
         if self.cancelled() {
@@ -554,17 +564,21 @@ impl Streamed<'_> {
         let stop = self.stop.cloned().unwrap_or_default();
         stop.hold(child.id());
 
-        let heard = Arc::new(AtomicU64::new(0));
-        let (finished, watching) = std::sync::mpsc::channel::<()>();
-        let watchdog = {
-            let (heard, stop) = (Arc::clone(&heard), stop.clone());
-            std::thread::spawn(move || watch(&stop, started, &heard, silence, &watching))
-        };
+        let watchdog = silence.map(|silence| {
+            let heard = Arc::new(AtomicU64::new(0));
+            let (finished, watching) = std::sync::mpsc::channel::<()>();
+            let (child_heard, stop) = (Arc::clone(&heard), stop.clone());
+            let thread =
+                std::thread::spawn(move || watch(&stop, started, &child_heard, silence, &watching));
+            (heard, finished, thread)
+        });
         // The end of the command is git's exit, not the end of its pipes: a hook's
         // background process keeps them open for as long as it lives (GR-04).
         let (mut stdout, mut stderr) = (Vec::new(), Progress::default());
         let status = crate::children::collect(child, Some(&stop), |is_stderr, chunk| {
-            mark(&heard, started);
+            if let Some((heard, ..)) = &watchdog {
+                mark(heard, started);
+            }
             if is_stderr {
                 stderr.feed(chunk, &mut on_line);
             } else {
@@ -572,8 +586,10 @@ impl Streamed<'_> {
             }
         });
         let stderr_text = stderr.finish(&mut on_line);
-        drop(finished);
-        let stopped = watchdog.join().unwrap_or(false);
+        let stopped = watchdog.is_some_and(|(_, finished, thread)| {
+            drop(finished);
+            thread.join().unwrap_or(false)
+        });
         let status = status?;
         let stdout = crate::output_text::decode(&stdout);
 
@@ -589,7 +605,7 @@ impl Streamed<'_> {
         if result.exit_code != Some(0) && self.cancelled() {
             result.summary = "Canceled by the user".to_owned();
             result.severity = crate::Severity::Warning;
-        } else if stopped {
+        } else if let Some(silence) = silence.filter(|_| stopped) {
             result.summary = format!(
                 "Stopped after {} s with no output from git\nIf the remote uses SSH, it may be waiting for a host key confirmation or a key passphrase: connect once from a terminal or add the key to ssh-agent",
                 silence.as_secs()

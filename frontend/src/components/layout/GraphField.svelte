@@ -3,6 +3,7 @@
   import Icon from "$components/common/Icon.svelte";
   import Checkbox from "$components/common/Checkbox.svelte";
   import Radio from "$components/common/Radio.svelte";
+  import SettingsSlider from "$components/layout/SettingsSlider.svelte";
   import {
     COLUMN_LABELS,
     moveColumn,
@@ -16,7 +17,7 @@
   import { COLORING_LABELS, GRAPH_COLORINGS } from "$lib/graph-coloring";
   import { forget } from "$lib/filter-patterns";
   import { fieldDisabled, type Field } from "$lib/preferences";
-  import { LONG_LINK_ROWS_MAX, type Settings } from "$lib/settings";
+  import type { Settings } from "$lib/settings";
   import { pointerDrag } from "$lib/pointer-drag";
 
   /** One graph setting of Preferences ▸ Graph & History (#23). Applied as it changes. */
@@ -24,9 +25,10 @@
     field: Field;
     value: Settings;
     onset: <K extends keyof Settings>(key: K, next: Settings[K]) => void;
+    sliderReset: number;
   }
 
-  let { field, value, onset }: Props = $props();
+  let { field, value, onset, sliderReset }: Props = $props();
 
   type BooleanKey = { [K in keyof Settings]: Settings[K] extends boolean ? K : never }[keyof Settings];
 
@@ -221,19 +223,11 @@
     {/if}
   </div>
 {:else if field.key === "graphLongLinkRows"}
-  <label class="row">
+  <div class="row link-limit">
     <span>{field.label}</span>
-    <span class="slider">
-      <input
-        type="range"
-        min="0"
-        max="200"
-        value={Math.min(value.graphLongLinkRows, 200)}
-        oninput={(e) => onset("graphLongLinkRows", Math.min(e.currentTarget.valueAsNumber, LONG_LINK_ROWS_MAX))}
-      />
-      <output>{value.graphLongLinkRows === 0 ? "never" : `${value.graphLongLinkRows} rows`}</output>
-    </span>
-  </label>
+    <SettingsSlider label={field.label} min={0} max={200} unit="rows" reset={sliderReset}
+      value={value.graphLongLinkRows} onchange={(next) => onset("graphLongLinkRows", next)} />
+  </div>
   {#if value.graphLongLinkRows === 0}
     <p class="why">
       Every link is drawn whole, so memory grows with the commits times the lines open at once. A history of
@@ -402,11 +396,14 @@
     color: var(--text-primary);
   }
 
-  .slider {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-4);
+  .link-limit > :global(div) {
     justify-self: stretch;
+  }
+
+  @container (max-width: 440px) {
+    .link-limit {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
 
   .why {

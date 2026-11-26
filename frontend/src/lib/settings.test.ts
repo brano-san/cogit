@@ -129,6 +129,13 @@ describe("themes", () => {
     for (const [id] of THEMES) expect(merge({ theme: id }).theme).toBe(id);
   });
 
+  it("stores valid accents only for known fixed themes", () => {
+    const themeAccents = { dark: "#0088CC", lightGrey: "#208060", light: "red", system: "#112233" };
+    expect(merge({ themeAccents } as never).themeAccents).toEqual({ lightGrey: "#208060", dark: "#0088cc" });
+    expect(merge({ theme: "light" }).themeAccents).toEqual({});
+    expect(merge({ themeAccents: null } as never).themeAccents).toEqual({});
+  });
+
   it("gives every theme its own file in themes/", () => {
     expect(Object.keys(THEME_FILES)).toEqual(THEMES.map(([id]) => id).filter((id) => id !== "system"));
   });
@@ -142,7 +149,7 @@ describe("graph display settings (#23)", () => {
     expect(DEFAULT_SETTINGS.graphStripes).toBe(true);
     expect(DEFAULT_SETTINGS.graphShowNotes).toBe(true);
     expect(DEFAULT_SETTINGS.graphHighlightChecked).toBe(true);
-    expect(DEFAULT_SETTINGS.graphLongLinkRows).toBe(40);
+    expect(DEFAULT_SETTINGS.graphLongLinkRows).toBe(100);
   });
 
   it("starts every graph mode off", () => {
@@ -227,7 +234,7 @@ describe("graph display settings (#23)", () => {
 
   it("does not clamp a link threshold out of range: it goes back to the default", () => {
     for (const bad of [-1, 1001, 12.5]) {
-      expect(merge({ graphLongLinkRows: bad }).graphLongLinkRows).toBe(40);
+      expect(merge({ graphLongLinkRows: bad }).graphLongLinkRows).toBe(100);
     }
     expect(merge({ graphLongLinkRows: 0 }).graphLongLinkRows).toBe(0);
     expect(merge({ graphLongLinkRows: 120 }).graphLongLinkRows).toBe(120);

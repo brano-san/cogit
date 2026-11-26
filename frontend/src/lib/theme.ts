@@ -110,6 +110,66 @@ function mergeUser(
   }
 }
 
+const channels = (hex: string) => [1, 3, 5].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16));
+
+function mix(from: string, to: string, weight: number): string {
+  const target = channels(to);
+  const mixed = channels(from).map((channel, i) => Math.round(channel + (target[i]! - channel) * weight));
+  return `#${mixed.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function luminance(hex: string): number {
+  const weights = [0.2126, 0.7152, 0.0722];
+  return channels(hex).reduce((sum, channel, i) => {
+    const srgb = channel / 255;
+    const linear = srgb <= 0.04045 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4;
+    return sum + linear * weights[i]!;
+  }, 0);
+}
+
+function readable(color: string, backgrounds: string[], toward: string, min: number): string {
+  const levels = backgrounds.map(luminance);
+  const fits = (hex: string) => {
+    const level = luminance(hex);
+    return levels.every((background) => (Math.max(level, background) + 0.05) / (Math.min(level, background) + 0.05) >= min);
+  };
+  if (fits(color)) return color;
+  let lo = 0;
+  let hi = 1;
+  for (let step = 0; step < 8; step++) {
+    const weight = (lo + hi) / 2;
+    if (fits(mix(color, toward, weight))) hi = weight;
+    else lo = weight;
+  }
+  return mix(color, toward, hi);
+}
+
+/** Recolor accents while preserving the status palette and legible text on small controls. */
+export function applyAccent(tokens: TokenMap, color: string, theme: FixedTheme): void {
+  const dark = isDarkTheme(theme);
+  const defaults = THEME_FILES[theme].tokens;
+  const builtin = (name: string) => defaults[name]!;
+  const token = (name: string) => tokens[name] ?? builtin(name);
+  const ink = builtin("fg.primary");
+  const panel = token("bg.panel");
+  const selection = mix(panel, color, dark ? 0.16 : 0.11);
+  const accent = readable(color, [panel, token("bg.app"), token("bg.editor"), token("bg.hover"),
+    token("bg.elevated"), token("bg.input"), token("fg.onAccent"), selection], ink, 4.5);
+  const solid = readable(color, [token("fg.onAccentSolid")], THEME_FILES.light.tokens["fg.primary"]!, 5.3);
+  Object.assign(tokens, {
+    accent,
+    "accent.hover": mix(accent, ink, 0.15),
+    "accent.solid": solid,
+    "bg.selected": selection,
+    "selected.bar": accent,
+    "panel.activeHeader": accent,
+    "focus.ring": `${accent}${dark ? "80" : "66"}`,
+    "toggle.on.bg": selection,
+    "toggle.on.fg": accent,
+    "toggle.on.border": accent,
+  });
+}
+
 /** The custom properties of a token map; a `string` token is not a CSS value. */
 export function cssVariables(
   tokens: TokenMap,

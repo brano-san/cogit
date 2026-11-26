@@ -1,6 +1,6 @@
 use crate::{GitError, RepoHandle, Result};
 use gix::status::index_worktree::Item as WorktreeItem;
-use gix::status::plumbing::index_as_worktree::EntryStatus;
+use gix::status::plumbing::index_as_worktree::{Change as WorktreeChange, EntryStatus};
 use gix::status::{Item, UntrackedFiles};
 use serde::{Deserialize, Serialize};
 
@@ -49,6 +49,7 @@ impl RepoHandle {
     fn working_state_reading(&self, skip_submodules: bool) -> Result<WorkingState> {
         let mut status = RepoStatus::default();
         let mut conflicted = Vec::new();
+        let mut missing = false;
         for item in self.status_items(skip_submodules)? {
             let item = item.map_err(|err| GitError::Internal(format!("status failed: {err}")))?;
             status.dirty_submodules += u32::from(crate::worktree::changed_submodule(&item));
@@ -66,7 +67,11 @@ impl RepoHandle {
                         status.conflicted += 1;
                         conflicted.push(rela_path.to_string());
                     }
-                    EntryStatus::Change(_) | EntryStatus::IntentToAdd => status.unstaged += 1,
+                    EntryStatus::Change(change) => {
+                        status.unstaged += 1;
+                        missing |= matches!(change, WorktreeChange::Removed);
+                    }
+                    EntryStatus::IntentToAdd => status.unstaged += 1,
                     EntryStatus::NeedsUpdate(_) => {}
                 },
                 Item::IndexWorktree(WorktreeItem::DirectoryContents { entry, .. }) => {
@@ -76,6 +81,11 @@ impl RepoHandle {
                 }
                 Item::IndexWorktree(_) => {}
             }
+        }
+        if missing && status.untracked > 0 {
+            return self
+                .files_with(crate::WorktreeView::default(), skip_submodules)
+                .map(|files| files.state);
         }
         conflicted.sort();
         conflicted.dedup();
@@ -143,8 +153,7 @@ impl RepoHandle {
         Ok(false)
     }
 
-    /// Changed paths (staged or not, each once) and untracked entries, folders collapsed as
-    /// in Files. A full walk: unlike `has_changes` it cannot stop at the first change.
+    /// Changed paths (staged or not, each once) and untracked entries, as in Files.
     pub fn change_counts(&self) -> Result<(u32, u32)> {
         // Not `is_bare()`: a linked worktree of a bare repository reads `core.bare = true`.
         if self.repo.workdir().is_none() {
@@ -156,6 +165,7 @@ impl RepoHandle {
     fn change_counts_reading(&self, skip_submodules: bool) -> Result<(u32, u32)> {
         let mut changed = std::collections::HashSet::new();
         let mut untracked = 0;
+        let mut missing = false;
         for item in self.status_items(skip_submodules)? {
             let item = item.map_err(|err| GitError::Internal(format!("status failed: {err}")))?;
             if crate::worktree::inert(&item) {
@@ -170,7 +180,10 @@ impl RepoHandle {
                 Item::TreeIndex(change) => {
                     changed.insert(staged_location(change));
                 }
-                Item::IndexWorktree(WorktreeItem::Modification { rela_path, .. }) => {
+                Item::IndexWorktree(WorktreeItem::Modification {
+                    rela_path, status, ..
+                }) => {
+                    missing |= matches!(status, EntryStatus::Change(WorktreeChange::Removed));
                     changed.insert(rela_path);
                 }
                 Item::IndexWorktree(WorktreeItem::DirectoryContents { entry, .. })
@@ -181,11 +194,15 @@ impl RepoHandle {
                 Item::IndexWorktree(_) => {}
             }
         }
+        if missing && untracked > 0 && !self.repo.is_bare() {
+            return self
+                .files_with(crate::WorktreeView::default(), skip_submodules)
+                .map(|files| files.change_counts());
+        }
         Ok((u32::try_from(changed.len()).unwrap_or(u32::MAX), untracked))
     }
 
-    /// Collapsed, like the Files list: a folder of new files is one entry in both, so the
-    /// header counts and the list agree and one walk can serve both (R-316).
+    /// Untracked files are listed individually, like the Files list.
     fn status_items(&self, skip_submodules: bool) -> Result<gix::status::Iter> {
         let mut platform = self
             .status_platform()?

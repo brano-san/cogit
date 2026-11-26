@@ -53,6 +53,7 @@ export interface ActivityInput {
   bulk?: BulkProgress;
   network?: string;
   networkProgress?: string;
+  maintenance?: string;
   /** Hooks git runs inside the step on screen (D4). */
   hooks?: string;
   opening: boolean;
@@ -88,6 +89,7 @@ export function activity(input: ActivityInput): Activity {
     (input.bulk === undefined ? null : describeBulk(input.bulk)) ??
     input.networkProgress ??
     (input.network === undefined ? null : `${input.network}…`) ??
+    input.maintenance ??
     busyLabel(input.operations) ??
     (input.starting?.length ? `Starting ${input.starting.join(", ")}…` : null) ??
     (input.opening ? "Opening repository…" : null);

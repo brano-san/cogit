@@ -86,10 +86,10 @@ impl AppState {
         if files.is_empty() {
             return Ok(());
         }
-        let paths = files.as_slice();
+        let paths = &handle.with_unstaged_rename_sources(&files)?;
         if matches!(handle.head()?, git_engine::Head::Unborn { .. }) {
             let kept = handle
-                .keep_files(paths)
+                .keep_files(&files)
                 .map_err(|err| backup_failed("discarding", &err))?;
             handle.discard(paths)?;
             let left = handle.file_hashes(paths)?;
@@ -97,7 +97,7 @@ impl AppState {
                 repo,
                 format!("Discard {}", named(paths)),
                 Recovery::Discarded {
-                    kept: paths.iter().cloned().zip(kept).collect(),
+                    kept: files.into_iter().zip(kept).collect(),
                     left: paths.iter().cloned().zip(left).collect(),
                 },
             );

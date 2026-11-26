@@ -252,7 +252,7 @@ export function branchesBranchMenu(
     SEPARATOR,
     offer(id("delete"), "Delete", deleteBlocked(ref)),
     SEPARATOR,
-    offer(id("copy-name"), "Copy", null),
+    offer(id("copy-name"), "Copy Name", null),
     SEPARATOR,
     offer(id("toggle"), "Toggle", at.untickable),
   ]);

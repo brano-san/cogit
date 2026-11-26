@@ -242,7 +242,7 @@ impl RepoHandle {
     /// What keeps a commit from being lost: every ref but Cogit's own Undo pins (branches,
     /// remotes, tags, `stash`, notes, `refs/pull/*`…) and the HEAD of every worktree, detached ones included. Reflogs
     /// do not keep a commit: they are how a lost one is found (R-622).
-    fn keeping_tips(&self) -> Result<Vec<gix::ObjectId>> {
+    pub(crate) fn keeping_tips(&self) -> Result<Vec<gix::ObjectId>> {
         let repo = self.repo.main_repo().unwrap_or_else(|_| self.repo.clone());
         let mut tips = Vec::new();
         let mut heads = vec![repo.clone()];
@@ -343,7 +343,7 @@ impl RepoHandle {
     }
 
     /// Ids only: nothing here needs a message or an author decoded.
-    fn reachable_from(&self, tips: &[gix::ObjectId]) -> Result<HashSet<gix::ObjectId>> {
+    pub(crate) fn reachable_from(&self, tips: &[gix::ObjectId]) -> Result<HashSet<gix::ObjectId>> {
         let walk = self
             .repo
             .rev_walk(tips.iter().copied())

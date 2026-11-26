@@ -1,7 +1,7 @@
 import { readUserTheme } from "$lib/ipc";
 import { setNativeTheme } from "$lib/ipc/file-menus";
-import type { Theme } from "$lib/settings";
-import { applyVariables, cssVariables, isDarkTheme, isTheme, resolveTheme, THEME_CACHE_KEY } from "$lib/theme";
+import type { FixedTheme, Theme, ThemeAccents } from "$lib/settings";
+import { applyAccent, applyVariables, cssVariables, isDarkTheme, isTheme, resolveTheme, THEME_CACHE_KEY } from "$lib/theme";
 import { SYSTEM_THEME_QUERY } from "$lib/theme-cache";
 import { resetTokenColors } from "$lib/theme-colors";
 import { trace } from "$lib/trace";
@@ -11,15 +11,19 @@ import { trace } from "$lib/trace";
 class ThemeStore {
   /** Bumped by every swap: a canvas that read colors from the page redraws on it. */
   version = $state(0);
+  resolved = $state<FixedTheme>("light");
+  defaultAccent = $state(resolveTheme("light").tokens.accent!);
   #id: Theme = "system";
+  #accents: ThemeAccents = {};
   #media: MediaQueryList | undefined;
   #systemChanged = () => this.#paint();
   #user: unknown = undefined;
   #warned = new Set<string>();
   #swaps = 0;
 
-  apply(id: Theme): void {
+  apply(id: Theme, accents: ThemeAccents = {}): void {
     this.#id = id;
+    this.#accents = { ...accents };
     if (id === "system" && typeof matchMedia === "function") {
       if (!this.#media) {
         this.#media = matchMedia(SYSTEM_THEME_QUERY);
@@ -36,6 +40,10 @@ class ThemeStore {
     const choice = this.#id;
     const id = choice === "system" ? (this.#media?.matches ? "dark" : "light") : choice;
     const { tokens, warnings } = resolveTheme(id, this.#user);
+    this.resolved = id;
+    this.defaultAccent = tokens.accent!;
+    const accent = this.#accents[id];
+    if (accent !== undefined) applyAccent(tokens, accent, id);
     for (const warning of warnings) {
       if (this.#warned.has(warning)) continue;
       this.#warned.add(warning);
@@ -67,7 +75,7 @@ class ThemeStore {
     }
     if (JSON.stringify(user) === JSON.stringify(this.#user)) return;
     this.#user = user;
-    this.apply(this.#id);
+    this.#paint();
   }
 }
 

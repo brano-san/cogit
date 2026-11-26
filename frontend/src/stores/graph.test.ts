@@ -482,12 +482,13 @@ describe("long links", () => {
   it("asks for them to be cut with every load", async () => {
     await loaded(A, ["a"]);
 
-    expect(sent()?.longLinkRows).toBe(graph.longLinkRows);
+    expect(sent()?.longLinkRows).toBe(100);
   });
 
   it("lays the history out again when the threshold changes, and only then", async () => {
     await loaded(A, ["a", "b"]);
     const before = commands.loadCommits.mock.calls.length;
+    const rows = graph.longLinkRows;
 
     graph.setLongLinkRows(graph.longLinkRows);
     expect(commands.loadCommits.mock.calls.length).toBe(before);
@@ -495,7 +496,7 @@ describe("long links", () => {
     graph.setLongLinkRows(0);
     expect(commands.loadCommits.mock.calls.length).toBe(before + 1);
     expect(sent()?.longLinkRows).toBe(0);
-    graph.setLongLinkRows(40);
+    graph.setLongLinkRows(rows);
   });
 });
 

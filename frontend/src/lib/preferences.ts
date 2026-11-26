@@ -65,7 +65,7 @@ export const CATEGORIES: Category[] = [
           {
             key: "backgroundFetchMinutes",
             label: "Fetch from the remotes in the background",
-            hint: "Fetches every remote quietly at this interval, so remote branches and the pull arrows in Repositories stay current. Never asks for credentials; a remote that cannot be reached shows ? instead.",
+            hint: "Fetches every remote quietly at this interval, so remote branches and the pull arrows in Repositories stay current. Use 0 to turn it off. Never asks for credentials; a remote that cannot be reached shows ? instead.",
             keywords: ["fetch", "background", "interval", "remote", "pull", "arrow"],
           },
         ],
@@ -231,6 +231,7 @@ export const CATEGORIES: Category[] = [
         title: "Appearance",
         fields: [
           { key: "theme", label: "Theme", hint: "System follows the operating system's light or dark appearance.", keywords: ["system", "dark", "light", "grey", "gray"] },
+          { key: "themeAccents", label: "Accent color", hint: "Stored for the current theme. With System selected, it applies to the active Light or Dark theme.", keywords: ["colour", "highlight", "selection"] },
           { key: "showRepositoryTabs", label: "Show repository tabs", keywords: ["tab bar", "repositories", "window"] },
           {
             key: "fontFamily",
