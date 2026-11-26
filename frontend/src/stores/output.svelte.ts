@@ -9,6 +9,8 @@ import {
 } from "$lib/ipc";
 import { notices } from "$stores/notices.svelte";
 
+type OutputWarning = CommandNotice & { unmergedBranch?: string };
+
 export function isFailure(entry: CommandRow): boolean {
   return entry.exitCode !== 0;
 }
@@ -33,13 +35,14 @@ class OutputStore {
       failure is announced in the notification window, not here (doc/12-risks.md, R-178). */
   shown = $state.raw<GitOutput | null>(null);
   /** The one warning worth a toast; a second replaces it rather than stacking. */
-  warning = $state.raw<CommandNotice | null>(null);
+  warning = $state.raw<OutputWarning | null>(null);
 
   /** Reads run side by side and answer in any order: only the newest may write, and Clear
       retires every read begun before it finished. */
   #logRead = 0;
   #countRead = 0;
   #recordRead = 0;
+  #warningRead = 0;
 
   async refreshProblems(): Promise<void> {
     const asked = ++this.#countRead;
@@ -77,7 +80,15 @@ class OutputStore {
 
     if (event.answered) return;
     if (event.severity === "failure") await notices.command(event);
-    else if (event.severity === "warning") this.warning = event;
+    else if (event.severity === "warning") {
+      const asked = ++this.#warningRead;
+      const record = event.operation === "Delete Branch"
+        ? await commandOutcome(event.id).catch(() => null)
+        : null;
+      // Git reports the name on the first line, before the upstream and HEAD on the next.
+      const branch = record?.stderr.match(/^warning: deleting branch '(.+)' that has been merged to\s+'[^\r\n]+', but not yet merged to HEAD\s*$/m)?.[1];
+      if (asked === this.#warningRead) this.warning = branch ? { ...event, unmergedBranch: branch } : event;
+    }
   }
 
   /** A record that has rotated out of the journal leaves the window closed. */
@@ -90,11 +101,12 @@ class OutputStore {
   async showWarning(): Promise<void> {
     if (this.warning === null) return;
     const wanted = this.warning;
-    this.warning = null;
+    this.dismissWarning();
     await this.openRecord(wanted.id);
   }
 
   dismissWarning(): void {
+    this.#warningRead += 1;
     this.warning = null;
   }
 

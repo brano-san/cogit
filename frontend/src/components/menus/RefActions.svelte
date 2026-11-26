@@ -58,6 +58,7 @@
   import {
     REF_MENU_PREFIX,
     branchesBranchMenu,
+    branchesOtherRefMenu,
     branchesStashMenu,
     branchesTagMenu,
     commitFacts,
@@ -224,7 +225,7 @@
 
   export function prefetchNode(node: RefNode) {
     const summary = repository.current;
-    if (!summary || !claims(node)) return;
+    if (!summary || !claims(node) || node.kind === "other") return;
     const found = nodeTarget(node, summary.tags);
     prefetch(summary.repo, found ? found.oid : node.oid);
   }
@@ -345,7 +346,7 @@
 
   /** The Branches rows this component has a menu for. */
   export function claims(node: RefNode): boolean {
-    return node.kind === "local" || node.kind === "remote" || node.kind === "tag" || node.kind === "stash";
+    return node.kind === "local" || node.kind === "remote" || node.kind === "tag" || node.kind === "stash" || node.kind === "other";
   }
 
   export async function branchesContext(node: RefNode, x: number, y: number) {
@@ -353,6 +354,19 @@
     const summary = repository.current;
     if (!id || !summary || !claims(node)) return;
     const token = ++asked;
+    if (node.kind === "other") {
+      const oid = node.oid ?? null;
+      const head = summary.head;
+      const hasHead = head !== null && head.kind !== "unborn";
+      const facts = {
+        ...NO_COMMIT,
+        isHeadCommit: hasHead && head.oid === oid,
+        detachedHere: head?.kind === "detached" && head.oid === oid,
+      };
+      const at = { selected: commit.oid, oid, untickable: node.disabled ?? null };
+      await show({ ...blank(), node, oid, facts }, branchesOtherRefMenu(facts, at, hasHead), x, y);
+      return;
+    }
     const found = nodeTarget(node, summary.tags);
     const tag = found?.tag ?? undefined;
     const oid = found ? found.oid : (node.oid ?? null);
@@ -601,7 +615,7 @@
       case "rename":
         return renameTarget(id, at);
       case "copy-name":
-        return copy(at.ref?.name ?? "");
+        return copy(at.node?.kind === "other" ? (at.node.rev ?? at.node.label) : (at.ref?.name ?? ""));
       case "copy-message":
         return copy(at.details ? fullMessage(at.details) : "");
       case "save-patch":
@@ -617,7 +631,9 @@
         return;
       case "compare-head": {
         const head = repository.current?.head;
-        if (oid && head && head.kind !== "unborn") await compare(id, head.oid, oid, null);
+        if (oid && head && head.kind !== "unborn") {
+          await compare(id, head.oid, oid, at.node?.kind === "other" ? at.node : null);
+        }
         return;
       }
       case "compare-selected":

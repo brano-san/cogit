@@ -201,11 +201,11 @@ export interface BranchesContext {
   untickable: string | null;
 }
 
-function compareRows(at: BranchesContext, facts: CommitFacts): ContextItem[] {
+function compareRows(at: BranchesContext, facts: Pick<CommitFacts, "isHeadCommit">, headBlocked: string | null = null): ContextItem[] {
   const none = at.oid === null ? "not a commit" : null;
   return [
     offer(id("reveal"), "Reveal in Graph", none ?? at.untickable),
-    offer(id("compare-head"), "Compare with HEAD", none ?? (facts.isHeadCommit ? "same as HEAD" : null)),
+    offer(id("compare-head"), "Compare with HEAD", none ?? headBlocked ?? (facts.isHeadCommit ? "same as HEAD" : null)),
     offer(
       id("compare-selected"),
       "Compare with Selected Commit",
@@ -217,6 +217,27 @@ function compareRows(at: BranchesContext, facts: CommitFacts): ContextItem[] {
             : null),
     ),
   ];
+}
+
+export function branchesOtherRefMenu(
+  facts: Pick<CommitFacts, "isHeadCommit" | "detachedHere">,
+  at: BranchesContext,
+  hasHead: boolean,
+): ContextItem[] {
+  const noCommit = at.oid === null ? "not a commit" : null;
+  return tidy([
+    offer(id("checkout"), "Check Out", noCommit ?? (facts.detachedHere ? "already checked out" : null)),
+    SEPARATOR,
+    ...compareRows(at, facts, hasHead ? null : "no HEAD commit"),
+    SEPARATOR,
+    offer(id("add-branch"), "Add Branch", noCommit),
+    offer(id("add-tag"), "Add Tag", noCommit),
+    SEPARATOR,
+    offer(id("copy-name"), "Copy Ref Name", null),
+    offer(id("copy-id"), "Copy ID", noCommit),
+    SEPARATOR,
+    offer(id("toggle"), "Toggle", noCommit ?? at.untickable),
+  ]);
 }
 
 function resetRows(at: BranchesContext, facts: CommitFacts): ContextItem[] {

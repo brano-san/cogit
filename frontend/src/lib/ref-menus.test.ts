@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Branch, ContextItem, Tag } from "./ipc";
 import {
   branchesBranchMenu,
+  branchesOtherRefMenu,
   branchesStashMenu,
   branchesTagMenu,
   commitFacts,
@@ -49,6 +50,25 @@ const pushed: CommitFacts = { ...older, published: true };
 const elsewhere: CommitFacts = { ...older, onHead: false };
 const branch: RefTarget = { kind: "branch", name: "topic", isHead: false };
 const rows: BranchesContext = { selected: "sel", oid: "abc", untickable: null };
+
+describe("Other Refs menu", () => {
+  it("offers actions on the tip and copies the ref name or commit ID", () => {
+    const menu = branchesOtherRefMenu(elsewhere, rows, true);
+    expect(shape(menu)).toEqual([
+      "Check Out", "—", "Reveal in Graph", "Compare with HEAD", "Compare with Selected Commit",
+      "—", "Add Branch", "Add Tag", "—", "Copy Ref Name", "Copy ID", "—", "Toggle",
+    ]);
+    wellFormed(menu);
+  });
+
+  it("disables comparisons with the same commit and a checkout already detached there", () => {
+    const menu = branchesOtherRefMenu({ ...older, isHeadCommit: true, detachedHere: true }, { ...rows, selected: rows.oid }, true);
+    expect(find(menu, "Check Out").enabled).toBe(false);
+    expect(find(menu, "Compare with HEAD").enabled).toBe(false);
+    expect(find(menu, "Compare with Selected Commit").enabled).toBe(false);
+    expect(find(branchesOtherRefMenu(elsewhere, rows, false), "Compare with HEAD").enabled).toBe(false);
+  });
+});
 
 describe("graphCommitMenu (#38)", () => {
   it("lists the items in the order and groups of the task", () => {

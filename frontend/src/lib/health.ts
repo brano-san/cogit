@@ -66,9 +66,17 @@ export const BLOCKED_BY_COMMIT_GRAPH_LOCK =
 
 const LOCKED_BY_COMMIT_GRAPH: readonly string[] = [RUN_GC, WRITE_COMMIT_GRAPH];
 
-export function maintenanceBlocker(actionId: string, warnings: readonly HealthWarning[]): HealthAction | null {
+export function maintenanceBlocker(
+  actionId: string,
+  warnings: readonly HealthWarning[],
+  targets?: readonly string[],
+): HealthAction | null {
   if (!LOCKED_BY_COMMIT_GRAPH.includes(actionId)) return null;
-  return warnings.find((warning) => warning.action?.id === CLEAR_COMMIT_GRAPH_LOCK)?.action ?? null;
+  const lock = warnings.find((warning) => warning.action?.id === CLEAR_COMMIT_GRAPH_LOCK)?.action;
+  if (!lock) return null;
+  if (targets === undefined) return lock;
+  const affected = lock.targets.filter((path) => targets.includes(path));
+  return affected.length > 0 ? { ...lock, targets: affected } : null;
 }
 
 /** Git's own default first; anything shorter asks again before it runs. */

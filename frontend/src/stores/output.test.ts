@@ -115,6 +115,28 @@ describe("output store", () => {
     expect(output.warning?.summary).toBe("summary 3");
   });
 
+  it("uses the full Git warning to display a readable branch name and keeps the raw Details", async () => {
+    const name = `feature/${"x".repeat(200)}'s-work`;
+    const stderr = `warning: deleting branch '${name}' that has been merged to\n         'refs/remotes/origin/topic', but not yet merged to HEAD\n`;
+    commands.commandOutcome.mockResolvedValue({ ...record(3), stderr });
+
+    await output.notice({ ...notice(3, "warning"), operation: "Delete Branch", summary: "'refs/remotes/origin/topic', but not yet merged to HEAD" });
+
+    expect(output.warning).toMatchObject({ unmergedBranch: name });
+    await output.showWarning();
+    expect(output.shown?.stderr).toBe(stderr);
+  });
+
+  it("keeps a newer warning when the older branch warning is still reading its details", async () => {
+    let answer: (value: unknown) => void = () => {};
+    commands.commandOutcome.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+    const earlier = output.notice({ ...notice(3, "warning"), operation: "Delete Branch", summary: "warning: deleting branch 'topic'" });
+    await output.notice(notice(4, "warning"));
+    answer(record(3));
+    await earlier;
+    expect(output.warning?.id).toBe(4);
+  });
+
   it("says nothing at all about a command that worked", async () => {
     await output.notice(notice(4, "success"));
 

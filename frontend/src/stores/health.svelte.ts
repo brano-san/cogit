@@ -14,6 +14,11 @@ class HealthStore {
   #later = $state.raw<ReadonlyMap<string, { repo: RepoId; ids: ReadonlySet<string> }>>(new Map());
   #root = $state<string | null>(null);
   #checked: { repo: RepoId; name: string } | null = null;
+  #read = 0;
+
+  get checkedRepo(): RepoId | null {
+    return this.#checked?.repo ?? null;
+  }
 
   get all(): readonly HealthWarning[] {
     return this.#all;
@@ -43,11 +48,11 @@ class HealthStore {
   /** After a fix: the same repository asked again, with what was put off still put off. */
   async recheck(): Promise<void> {
     const checked = this.#checked;
-    const root = this.#root;
-    if (!checked || root === null) return;
+    if (!checked) return;
+    const asked = ++this.#read;
     try {
       const findings = await repositoryHealth(checked.repo);
-      if (this.#root === root) this.#all = groupFindings(findings, checked.name);
+      if (this.#checked === checked && this.#read === asked) this.#all = groupFindings(findings, checked.name);
     } catch {
       // A check that cannot run has nothing to warn about; the open itself succeeded.
     }

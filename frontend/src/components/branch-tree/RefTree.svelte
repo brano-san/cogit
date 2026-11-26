@@ -126,7 +126,7 @@
     event.preventDefault();
     sel = rightClickItem(sel, node.id);
     const group = sel.ids.size > 1 ? selectedNodes(nodes, sel.ids) : [];
-    if (group.length > 1 && ongroupcontext) ongroupcontext(group, event.clientX, event.clientY);
+    if (node.kind !== "other" && group.length > 1 && ongroupcontext) ongroupcontext(group, event.clientX, event.clientY);
     else oncontext?.(node, event.clientX, event.clientY);
   }
 

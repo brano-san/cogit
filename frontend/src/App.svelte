@@ -1907,9 +1907,12 @@ ${event.error}`,
     }
     const maintenance = MAINTENANCE[action.id];
     if (maintenance) {
-      const blocker = maintenanceBlocker(action.id, health.all);
+      const graphTask = maintenance.task === "commitGraph" || maintenance.task === "clearCommitGraphLock";
+      const fromHealth = graphTask && action.targets.length > 0;
+      const targets = fromHealth ? action.targets : [""];
+      const blocker = maintenanceBlocker(action.id, health.all, fromHealth ? targets : undefined);
       if (blocker) return runNoticeAction(blocker, BLOCKED_BY_COMMIT_GRAPH_LOCK);
-      const id = repository.current?.repo;
+      const id = fromHealth ? health.checkedRepo : repository.current?.repo;
       if (!id) return;
       const title = action.label.replace("…", "");
       const gc = maintenance.task === "gc";
@@ -1930,9 +1933,12 @@ ${event.error}`,
       let succeeded = false;
       let reporting = true;
       try {
-        await runMaintenance(id, maintenance.task, options, (line) => {
-          if (reporting) maintenanceProgress = new Map(maintenanceProgress).set(operation, line);
-        });
+        for (const path of targets) {
+          const target = path === "" ? id : (await openSubmodule(id, path)).repo;
+          await runMaintenance(target, maintenance.task, options, (line) => {
+            if (reporting) maintenanceProgress = new Map(maintenanceProgress).set(operation, line);
+          });
+        }
         succeeded = true;
         successToast.show(maintenance.done);
       } catch (err) {
@@ -1943,15 +1949,15 @@ ${event.error}`,
         remaining.delete(operation);
         maintenanceProgress = remaining;
       }
-      if (repository.current?.repo.valueOf() !== id.valueOf()) return;
+      const current = fromHealth ? health.checkedRepo : repository.current?.repo;
+      if (current?.valueOf() !== id.valueOf()) return;
       const refreshed = await Promise.allSettled([
         health.recheck(),
         ...(gc ? [stashes.refresh(id), recovery.refresh(id), safety.refresh()] : []),
       ]);
       const failed = refreshed.find((result) => result.status === "rejected");
       if (failed) errors.report(failed.reason, "Could not refresh after maintenance");
-      // Fixed: the warning is gone with the recheck; if the recheck could not run, close it.
-      if (succeeded && notices.current?.action?.id === action.id) notices.dismiss();
+      if (succeeded && !fromHealth && notices.current?.action?.id === action.id) notices.dismiss();
       return;
     }
     if (action.id === TRUST_DIRECTORY) {
@@ -5294,7 +5300,19 @@ ${event.error}`,
     />
   {/if}
 
-  {#if output.warning}
+  {#if output.warning?.unmergedBranch}
+    <div class="toast branch-warning" role="status" aria-label="Delete Branch">
+      <span class="warning-icon"><Icon name="warning" /></span>
+      <span class="what">Delete Branch</span>
+      <button type="button" class="dismiss" onclick={() => output.dismissWarning()} aria-label="Dismiss" title="Dismiss">
+        <Icon name="close" />
+      </button>
+      <p class="said">Branch '<span class="branch-name">{output.warning.unmergedBranch}</span>' has not been fully merged. Deleting it may result in losing unmerged commits.</p>
+      <div class="warning-actions">
+        <button type="button" onclick={() => void output.showWarning()}>Details</button>
+      </div>
+    </div>
+  {:else if output.warning}
     <div class="toast" role="status">
       <span class="what">{output.warning.operation}</span>
       <span class="said truncate">{output.warning.summary}</span>
@@ -5397,6 +5415,58 @@ ${event.error}`,
     border: 1px solid var(--field-border);
     border-radius: var(--r-sm);
     font-size: var(--fs-dense);
+  }
+
+  .branch-warning {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    width: min(460px, calc(100% - 2 * var(--sp-5)));
+    max-width: none;
+    max-height: min(320px, calc(100% - var(--h-statusbar) - 2 * var(--sp-4)));
+  }
+
+  .branch-warning .what {
+    white-space: nowrap;
+  }
+
+  .branch-warning .warning-icon {
+    display: flex;
+    color: var(--status-modify);
+  }
+
+  .branch-warning .dismiss {
+    display: grid;
+    place-items: center;
+    width: var(--h-button-sm);
+    padding: 0;
+    background: none;
+    border-color: transparent;
+    color: var(--text-secondary);
+  }
+
+  .branch-warning .dismiss:hover {
+    background: var(--state-hover);
+    color: var(--text-primary);
+  }
+
+  .branch-warning .said,
+  .branch-warning .warning-actions {
+    grid-column: 2 / -1;
+  }
+
+  .branch-warning .said {
+    align-self: stretch;
+    min-height: 0;
+    margin: 0;
+    overflow: auto;
+    overflow-wrap: anywhere;
+    line-height: 1.45;
+    color: var(--text-primary);
+  }
+
+  .branch-warning .branch-name {
+    word-break: break-all;
   }
 
   .drop-hint {

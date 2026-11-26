@@ -47,3 +47,21 @@ describe("Remind me later", () => {
     expect(health.warnings).toHaveLength(1);
   });
 });
+
+it("does not restore a commit-graph warning from a scan that began before the write", async () => {
+  const missing = { module: "vendor/lib", issue: { kind: "noCommitGraph" } };
+  commands.repositoryHealth.mockReset();
+  commands.repositoryHealth.mockResolvedValueOnce({ status: "ok", data: [missing] });
+  await health.check(10, "C:/repos/nested", "nested");
+  expect(health.warnings[0]?.action?.targets).toEqual(["vendor/lib"]);
+
+  let answerOld: (value: unknown) => void = () => {};
+  commands.repositoryHealth.mockImplementationOnce(() => new Promise((resolve) => (answerOld = resolve)));
+  const old = health.recheck();
+  commands.repositoryHealth.mockResolvedValueOnce({ status: "ok", data: [] });
+  await health.recheck();
+  answerOld({ status: "ok", data: [missing] });
+  await old;
+
+  expect(health.warnings).toEqual([]);
+});

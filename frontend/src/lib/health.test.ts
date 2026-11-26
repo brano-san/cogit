@@ -177,4 +177,11 @@ describe("the stale commit-graph lock", () => {
     expect(maintenanceBlocker(CLEAR_COMMIT_GRAPH_LOCK, warnings)).toBeNull();
     expect(maintenanceBlocker(RUN_GC, [])).toBeNull();
   });
+
+  it("only sends commit-graph writers to locks in the repositories they will write", () => {
+    const warnings = groupFindings([locked, { ...locked, module: "vendor/locked" }], "cogit");
+    expect(maintenanceBlocker(WRITE_COMMIT_GRAPH, warnings, ["vendor/ready"])).toBeNull();
+    expect(maintenanceBlocker(WRITE_COMMIT_GRAPH, warnings, ["vendor/locked", "vendor/ready"])?.targets)
+      .toEqual(["vendor/locked"]);
+  });
 });
