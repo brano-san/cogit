@@ -28,6 +28,7 @@ fn request(source: &str, target: &Path) -> CloneRequest {
         submodules: true,
         all_branches: true,
         branch: None,
+        depth: None,
         skip_larger_than: None,
     }
 }
@@ -135,6 +136,58 @@ fn a_clone_of_one_branch_checks_it_out_and_fetches_no_other() {
 
     assert_eq!(git_in(&target, &["branch", "--show-current"]), "dev");
     assert_eq!(tracking_refs(&target), ["origin/dev"]);
+}
+
+fn request_at_depth(source: &str, target: &Path, all_branches: bool, depth: u32) -> CloneRequest {
+    let mut request = serde_json::to_value(request(source, target)).unwrap();
+    request["allBranches"] = all_branches.into();
+    request["depth"] = depth.into();
+    serde_json::from_value(request).unwrap()
+}
+
+#[test]
+fn shallow_local_clone_limits_the_checked_out_branch_to_one_commit() {
+    let f = server();
+    let parent = tempfile::tempdir().unwrap();
+    let target = parent.path().join("shallow");
+    let request = request_at_depth(&source_of(&f), &target, false, 1);
+
+    clone(&request).unwrap();
+
+    assert_eq!(
+        git_in(&target, &["rev-parse", "--is-shallow-repository"]),
+        "true"
+    );
+    assert_eq!(git_in(&target, &["rev-list", "--count", "HEAD"]), "1");
+    assert!(!tracking_refs(&target).contains(&"origin/dev".to_owned()));
+}
+
+#[test]
+fn a_shallow_clone_can_include_other_branches() {
+    let f = server();
+    let parent = tempfile::tempdir().unwrap();
+    let target = parent.path().join("shallow");
+    let request = request_at_depth(&source_of(&f), &target, true, 1);
+
+    clone(&request).unwrap();
+
+    assert_eq!(git_in(&target, &["rev-list", "--count", "origin/dev"]), "1");
+    assert_eq!(
+        git_in(&target, &["rev-list", "--count", "origin/main"]),
+        "1"
+    );
+}
+
+#[test]
+fn out_of_range_depths_are_rejected_before_clone() {
+    let f = server();
+    let parent = tempfile::tempdir().unwrap();
+    let target = parent.path().join("shallow");
+    for depth in [0, i32::MAX as u32 + 1] {
+        let request = request_at_depth(&source_of(&f), &target, false, depth);
+        assert!(matches!(clone(&request), Err(GitError::InvalidState(_))));
+        assert!(!target.exists());
+    }
 }
 
 #[test]

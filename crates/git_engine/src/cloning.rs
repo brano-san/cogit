@@ -29,6 +29,8 @@ pub struct CloneRequest {
     pub all_branches: bool,
     /// `None` checks out what the server's HEAD names.
     pub branch: Option<String>,
+    /// Limit the history available from each fetched branch. No limit for `None`.
+    pub depth: Option<u32>,
     /// A partial clone: files larger than this stay on the server. Git's own size
     /// spelling, whole number and `k`, `m` or `g` (`1m`); anything else is refused.
     pub skip_larger_than: Option<String>,
@@ -159,6 +161,13 @@ pub fn clone_repository(
             target.display()
         )));
     }
+    if let Some(depth) = request.depth
+        && (depth == 0 || i32::try_from(depth).is_err())
+    {
+        return Err(GitError::InvalidState(
+            "clone depth must be between 1 and 2147483647".to_owned(),
+        ));
+    }
     if let Some(limit) = request
         .skip_larger_than
         .as_deref()
@@ -211,6 +220,15 @@ fn clone_args(request: &CloneRequest, source: &str, target: &str) -> Vec<String>
     let mut args: Vec<String> = vec!["clone".to_owned(), "--progress".to_owned()];
     if !request.all_branches {
         args.push("--single-branch".to_owned());
+    } else if request.depth.is_some() {
+        args.push("--no-single-branch".to_owned());
+    }
+    if let Some(depth) = request.depth {
+        args.push(format!("--depth={depth}"));
+        // Git's local copy optimization ignores --depth for a plain folder path.
+        if Path::new(source).is_absolute() {
+            args.push("--no-local".to_owned());
+        }
     }
     if let Some(branch) = request
         .branch
@@ -338,6 +356,7 @@ mod tests {
             submodules: true,
             all_branches: true,
             branch: None,
+            depth: None,
             skip_larger_than: None,
         }
     }

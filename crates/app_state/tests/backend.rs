@@ -503,6 +503,7 @@ fn a_repository_in_wsl_opens_through_its_agent() {
         submodules: false,
         all_branches: true,
         branch: None,
+        depth: None,
         skip_larger_than: None,
     };
     let mut lines = 0;

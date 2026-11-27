@@ -149,6 +149,7 @@ describe("the request Finish sends", () => {
     allBranches: true,
     branch: "main",
     listing: { defaultBranch: "main", branches: ["dev", "main"] },
+    depth: null,
     skipLarge: false,
     limitValue: "1",
     limitUnit: "MB",
@@ -163,6 +164,7 @@ describe("the request Finish sends", () => {
       submodules: true,
       allBranches: true,
       branch: null,
+      depth: null,
       skipLargerThan: null,
     });
     expect(cloneRequest({ ...choices, branch: "dev" }).branch).toBe("dev");
@@ -182,6 +184,7 @@ describe("running the clone", () => {
     allBranches: true,
     branch: null,
     listing: null,
+    depth: null,
     skipLarge: false,
     limitValue: "1",
     limitUnit: "MB",

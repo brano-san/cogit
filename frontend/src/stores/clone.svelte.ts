@@ -1,6 +1,7 @@
 import {
   DEFAULT_LIMIT,
   branchOptions,
+  cloneDepth,
   cloneRequest,
   destinationToAsk,
   directoryProblem,
@@ -39,7 +40,10 @@ export class CloneWizard {
   source = $state("");
   check = $state.raw<CloneCheck>({ state: "idle" });
   submodules = $state(true);
-  allBranches = $state(true);
+  shallow = $state(false);
+  depthValue = $state("1");
+  #fullAllBranches = $state(true);
+  #shallowAllBranches = $state(false);
   skipLarge = $state(false);
   limitValue = $state(DEFAULT_LIMIT.value);
   limitUnit = $state<LimitUnit>(DEFAULT_LIMIT.unit);
@@ -62,7 +66,10 @@ export class CloneWizard {
     this.source = "";
     this.check = { state: "idle" };
     this.submodules = true;
-    this.allBranches = true;
+    this.shallow = false;
+    this.depthValue = "1";
+    this.#fullAllBranches = true;
+    this.#shallowAllBranches = false;
     this.skipLarge = false;
     this.limitValue = DEFAULT_LIMIT.value;
     this.limitUnit = DEFAULT_LIMIT.unit;
@@ -103,6 +110,23 @@ export class CloneWizard {
     void this.#ask();
   }
 
+  get allBranches(): boolean {
+    return this.shallow ? this.#shallowAllBranches : this.#fullAllBranches;
+  }
+
+  set allBranches(on: boolean) {
+    if (this.shallow) this.#shallowAllBranches = on;
+    else this.#fullAllBranches = on;
+  }
+
+  get depth(): number | null {
+    return this.shallow ? cloneDepth(this.depthValue) : null;
+  }
+
+  get depthProblem(): string | null {
+    return this.shallow && this.depth === null ? "Enter a whole number of commits from 1 to 2,147,483,647" : null;
+  }
+
   get listing(): RemoteBranches | null {
     return this.check.state === "passed" ? this.check.listing : null;
   }
@@ -127,7 +151,7 @@ export class CloneWizard {
           (this.check.state === "checking" ? "Checking access to the repository…" : null)
         );
       case "selection":
-        return limitProblem(this.skipLarge, this.limitValue);
+        return this.depthProblem ?? limitProblem(this.skipLarge, this.limitValue);
       case "directory":
         return directoryProblem({ parent: this.parent, name: this.name, seen: this.seen });
     }
@@ -175,6 +199,7 @@ export class CloneWizard {
       allBranches: this.allBranches,
       branch: this.branch,
       listing: this.listing,
+      depth: this.depth,
       skipLarge: this.skipLarge,
       limitValue: this.limitValue,
       limitUnit: this.limitUnit,

@@ -27,6 +27,7 @@ fn request(source: &Path, target: &Path) -> CloneRequest {
         submodules: true,
         all_branches: true,
         branch: None,
+        depth: None,
         skip_larger_than: None,
     }
 }

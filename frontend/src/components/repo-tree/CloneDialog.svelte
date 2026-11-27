@@ -16,6 +16,8 @@
   }
 
   let { wizard, onbrowse, onfinish, onclose }: Props = $props();
+  const id = $props.id();
+  const depthHint = id + "-depth-note";
 
   let form: HTMLDivElement | undefined = $state();
   const last = $derived(wizard.page === "directory");
@@ -89,9 +91,30 @@
       {/if}
     {:else if wizard.page === "selection"}
       <Checkbox checked={wizard.submodules} label="Include submodules" onchange={(on) => (wizard.submodules = on)} />
+      <div class="nested">
+        <Checkbox checked={wizard.shallow} label="Limit history (shallow clone)" onchange={(on) => (wizard.shallow = on)} />
+        {#if wizard.shallow}
+          <label class="limit">
+            <span class="limit-label">Commits per branch</span>
+            <input
+              type="text"
+              class="size"
+              inputmode="numeric"
+              aria-describedby={depthHint}
+              aria-invalid={wizard.depthProblem !== null}
+              bind:value={wizard.depthValue}
+            />
+          </label>
+          {#if wizard.depthProblem}
+            <span class="limit-note problem-text" id={depthHint} role="alert">{wizard.depthProblem}</span>
+          {:else}
+            <span class="limit-note mono" id={depthHint}>--depth={wizard.depth}</span>
+          {/if}
+        {/if}
+      </div>
       <Checkbox
         checked={wizard.allBranches}
-        label="Fetch all heads and tags"
+        label={wizard.shallow ? "Fetch all branches" : "Fetch all heads and tags"}
         onchange={(on) => (wizard.allBranches = on)}
       />
       <div class="nested">

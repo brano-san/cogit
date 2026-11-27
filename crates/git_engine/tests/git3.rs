@@ -122,6 +122,7 @@ fn a_clone_is_a_repository_cogit_can_read_whatever_the_defaults() {
         submodules: false,
         all_branches: true,
         branch: None,
+        depth: None,
         skip_larger_than: None,
     };
 

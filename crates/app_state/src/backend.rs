@@ -705,6 +705,11 @@ pub(crate) enum Request {
         request: git_engine::CloneRequest,
         sign_in: Option<crate::SignIn>,
     },
+    // A separate request keeps an older agent from ignoring depth and doing a full clone.
+    ShallowClone {
+        request: git_engine::CloneRequest,
+        sign_in: Option<crate::SignIn>,
+    },
     Init {
         path: String,
     },
@@ -785,7 +790,7 @@ pub fn serve_agent(
         } => answer(state.save_config_file(Some(repo), scope, &text, crlf)),
         Request::Close { repo } => answer(Ok(state.close_repository(repo))),
         Request::SafetyLog => answer(Ok(state.safety_log())),
-        Request::Clone { request, sign_in } => answer(
+        Request::Clone { request, sign_in } | Request::ShallowClone { request, sign_in } => answer(
             state
                 .clone_repository(&request, sign_in.as_ref(), call.stop(), |line| {
                     call.chunk(to_raw(&line));
@@ -1042,15 +1047,18 @@ impl AppState {
         mut on_line: impl FnMut(&str),
     ) -> Result<PathBuf, GitError> {
         let agent = self.agent(host)?;
-        let request = Request::Clone {
-            request: git_engine::CloneRequest {
-                source: host.source_path(request.source.trim()),
-                target: host.agent_path(Path::new(request.target.trim())),
-                ..request.clone()
-            },
-            sign_in: sign_in
-                .filter(|_| !matches!(host, Host::Ssh { .. }))
-                .cloned(),
+        let request = git_engine::CloneRequest {
+            source: host.source_path(request.source.trim()),
+            target: host.agent_path(Path::new(request.target.trim())),
+            ..request.clone()
+        };
+        let sign_in = sign_in
+            .filter(|_| !matches!(host, Host::Ssh { .. }))
+            .cloned();
+        let request = if request.depth.is_some() {
+            Request::ShallowClone { request, sign_in }
+        } else {
+            Request::Clone { request, sign_in }
         };
         let done: String = agent.stream(&request, &|| stop.is_stopped(), &mut |chunk| {
             if let Ok(line) = serde_json::from_str::<String>(chunk.get()) {

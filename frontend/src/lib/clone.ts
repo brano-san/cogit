@@ -30,6 +30,13 @@ export function sourceProblem(source: string): string | null {
   return null;
 }
 
+/** Git parses the depth as a positive signed integer. */
+export function cloneDepth(value: string): number | null {
+  const text = value.trim();
+  const depth = Number(text);
+  return /^[0-9]+$/.test(text) && depth >= 1 && depth <= 2_147_483_647 ? depth : null;
+}
+
 /** Git's size suffixes: `k`, `m`, `g`, each 1024 times the one before. */
 export const LIMIT_UNITS = [
   ["KB", "KB"],
@@ -149,6 +156,7 @@ export interface CloneChoices {
   branch: string | null;
   /** `null` when the check was skipped: the server's HEAD decides. */
   listing: RemoteBranches | null;
+  depth: number | null;
   skipLarge: boolean;
   limitValue: string;
   limitUnit: LimitUnit;
@@ -169,6 +177,7 @@ export function cloneRequest(choices: CloneChoices): CloneRequest {
     submodules: choices.submodules,
     allBranches: choices.allBranches,
     branch,
+    depth: choices.depth,
     skipLargerThan: choices.skipLarge ? limitSpec(choices.limitValue, choices.limitUnit) : null,
   };
 }

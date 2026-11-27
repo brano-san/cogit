@@ -179,9 +179,41 @@ describe("the last page", () => {
 
     expect(wizard.page).toBe("directory");
     expect(wizard.problem).toBeNull();
-    expect(wizard.finish()).toMatchObject({ source: "https://host/app.git", target: "D:\\src\\app" });
+    expect(wizard.finish()).toMatchObject({ source: "https://host/app.git", target: "D:\\src\\app", depth: null });
   });
 
+  it("limits history to the selected branch by default and carries the depth through Finish", async () => {
+    const wizard = new CloneWizard();
+    await wizard.start("D:\\src");
+    wizard.setSource("https://host/app.git");
+    await wizard.next();
+
+    expect(wizard.allBranches).toBe(true);
+    wizard.allBranches = false;
+    wizard.shallow = true;
+    expect(wizard.allBranches).toBe(false);
+    wizard.depthValue = "0";
+    await wizard.next();
+    expect(wizard.page).toBe("selection");
+    expect(wizard.problem).not.toBeNull();
+    wizard.depthValue = "2147483648";
+    expect(wizard.problem).not.toBeNull();
+
+    wizard.depthValue = "2";
+    wizard.allBranches = true;
+    wizard.shallow = false;
+    expect(wizard.allBranches).toBe(false);
+    wizard.allBranches = false;
+    wizard.shallow = true;
+    await wizard.next();
+    await settled();
+    expect(wizard.finish()).toMatchObject({ depth: 2, allBranches: true });
+
+    await wizard.start("D:\\src");
+    expect(wizard.shallow).toBe(false);
+    expect(wizard.allBranches).toBe(true);
+    expect(wizard.depthValue).toBe("1");
+  });
   it("keeps Finish inactive on a folder that is not empty, and says so", async () => {
     backend.kinds.set("D:\\src\\taken", "notEmpty");
     const wizard = new CloneWizard();

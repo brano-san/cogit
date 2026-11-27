@@ -1280,6 +1280,8 @@ export type CloneRequest = {
 	allBranches: boolean,
 	/**  `None` checks out what the server's HEAD names. */
 	branch: string | null,
+	/**  Limit the history available from each fetched branch. No limit for `None`. */
+	depth: number | null,
 	/**
 	 *  A partial clone: files larger than this stay on the server. Git's own size
 	 *  spelling, whole number and `k`, `m` or `g` (`1m`); anything else is refused.
