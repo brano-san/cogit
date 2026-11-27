@@ -1,13 +1,10 @@
 <script lang="ts">
-  import { containsFilter } from "$lib/filter-case";
-  import { settings } from "$stores/settings.svelte";
-  import Checkbox from "$components/common/Checkbox.svelte";
   import Dialog from "$components/common/Dialog.svelte";
-  import Disclosure from "$components/common/Disclosure.svelte";
+  import Icon from "$components/common/Icon.svelte";
+  import { scanFilter, scanRows, scanSections, type ScanLayout } from "$lib/scan-groups";
   import { scan } from "$stores/scan.svelte";
-  import { scanSections, type ScanLayout } from "$lib/scan-groups";
-  import type { ScanHit } from "$lib/ipc";
-  import type { CheckState } from "$lib/ref-nodes";
+  import { settings } from "$stores/settings.svelte";
+  import ScanResults from "./ScanResults.svelte";
 
   interface Props {
     busy: boolean;
@@ -18,45 +15,38 @@
 
   let { busy, onbrowse, onopen, onclose }: Props = $props();
 
+  let input: HTMLInputElement | undefined = $state();
   let filter = $state("");
   let layout = $state<ScanLayout>("folders");
-  /** Groups the user folded, by title; every group starts open, in both layouts. */
-  let folded = $state.raw<ReadonlySet<string>>(new Set());
+  let expansion = $state.raw<ReadonlyMap<string, boolean>>(new Map());
+  let searchExpansion = $state.raw<ReadonlyMap<string, boolean>>(new Map());
 
-  function fold(title: string) {
-    const next = new Set(folded);
-    if (!next.delete(title)) next.add(title);
-    folded = next;
-  }
-
-  const matchesFilter = $derived(containsFilter(filter, settings.current.filterCase));
-  const shown = $derived(scan.hits.filter((hit) => matchesFilter(`${hit.name} ${hit.root}`)));
-  const sections = $derived(scanSections(shown, layout, scan.folder ?? ""));
+  const search = $derived(scanFilter(filter, settings.current.filterCase));
+  const sections = $derived(scanSections(scan.hits, layout));
+  const shown = $derived(search.active
+    ? sections.map((section) => ({ ...section, hits: section.hits.filter(search.matches) }))
+      .filter((section) => section.hits.length > 0)
+    : sections);
+  const matches = $derived(shown.reduce((sum, section) => sum + section.hits.length, 0));
+  const rows = $derived(scanRows(shown, search.active ? searchExpansion : expansion, search.active));
+  const scope = $derived(shown.flatMap((section) =>
+    section.hits.filter((hit) => !hit.alreadyOpen).map((hit) => hit.root)));
+  const allSelected = $derived(scope.length > 0 && scope.every((root) => scan.chosen.has(root)));
   const chosen = $derived(scan.selected);
-  const shownOpenable = $derived(shown.filter((hit) => !hit.alreadyOpen));
 
-  /** "Open 0 Selected" reads like a broken button; with nothing ticked the button says
-      what it is waiting for instead. */
-  const openLabel = $derived(
-    busy
-      ? "Opening…"
-      : chosen.length === 0
-        ? "Open Selected"
-        : chosen.length === 1
-          ? "Open 1 Repository"
-          : `Open ${chosen.length} Repositories`,
-  );
-
-  /** A group's box: on when every repository it can open is ticked, mixed when some are. */
-  function groupState(hits: readonly ScanHit[]): CheckState {
-    const roots = hits.filter((hit) => !hit.alreadyOpen).map((hit) => hit.root);
-    const ticked = roots.filter((root) => scan.chosen.has(root)).length;
-    return ticked === 0 ? "off" : ticked === roots.length ? "on" : "mixed";
+  function setFilter(value: string) {
+    if (value.trim() !== filter.trim()) searchExpansion = new Map();
+    filter = value;
   }
 
-  function toggleGroup(hits: readonly ScanHit[]): CheckState {
-    scan.toggleAll(hits.map((hit) => hit.root));
-    return groupState(hits);
+  function clearFilter() {
+    setFilter("");
+    input?.focus();
+  }
+
+  function expand(group: string, expanded: boolean) {
+    if (search.active) searchExpansion = new Map(searchExpansion).set(group, expanded);
+    else expansion = new Map(expansion).set(group, expanded);
   }
 
   function open() {
@@ -64,256 +54,267 @@
   }
 </script>
 
-{#snippet row(hit: ScanHit)}
-  <div class="row" class:disabled={hit.alreadyOpen}>
-    <Checkbox wide checked={scan.chosen.has(hit.root)} disabled={hit.alreadyOpen} onchange={() => scan.toggle(hit.root)}>
-      <span class="name">{hit.name}</span>
-      <span class="path">{hit.root}</span>
-    </Checkbox>
-  </div>
-{/snippet}
-
-<Dialog
-  title="Search for repositories"
-  width="min(720px, 92vw)"
-  flush
-  {onclose}
-  onconfirm={open}
->
-  <div class="bar">
-    <button class="btn" type="button" onclick={onbrowse}>Choose Folder…</button>
-    <span class="folder truncate" title={scan.folder ?? ""}>{scan.folder ?? "No folder chosen"}</span>
-  </div>
-
-  {#if scan.folder}
-    <div class="bar">
-      <input
-        type="search"
-        bind:value={filter}
-        placeholder="Filter by name or path"
-        aria-label="Filter results"
-      />
-      <button
-        class="btn"
-        type="button"
-        onclick={() => scan.toggleAll(shown.map((hit) => hit.root))}
-        disabled={shownOpenable.length === 0}
-      >
-        {shownOpenable.every((hit) => scan.chosen.has(hit.root)) ? "Select None" : "Select All"}
+<Dialog title="Search for repositories" width="720px" height="min(520px, 90vh)" flush {onclose} onconfirm={open}>
+  <div class="toolbar">
+    <div class="location">
+      <button class="btn" type="button" onclick={onbrowse} disabled={busy}>
+        <Icon name="folder" />
+        Choose Folder…
       </button>
-      <button class="btn" type="button" onclick={() => (layout = layout === "folders" ? "flat" : "folders")}>
-        {layout === "folders" ? "Flat List" : "Group by Folder"}
-      </button>
+      <span class="location-path truncate" data-tip={scan.folder ?? undefined}>
+        {scan.folder ?? "No folder chosen"}
+      </span>
+    </div>
+
+    <div class="controls">
+      <div class="search">
+        <input
+          type="search"
+          value={filter}
+          placeholder="Search repositories…"
+          aria-label="Search repositories"
+          data-autofocus
+          bind:this={input}
+          oninput={(event) => setFilter(event.currentTarget.value)}
+          onkeydown={(event) => {
+            if (event.key !== "Escape" || !filter || event.isComposing) return;
+            event.preventDefault();
+            clearFilter();
+          }}
+        />
+        {#if filter}
+          <button type="button" class="clear-search" aria-label="Clear search" data-tip="Clear search (Esc)" onclick={clearFilter}>
+            <Icon name="close" />
+          </button>
+        {/if}
+      </div>
+      <div class="actions">
+        <div class="view-switch" role="group" aria-label="Results view">
+          <button type="button" class="btn" aria-pressed={layout === "folders"} onclick={() => (layout = "folders")}>
+            <Icon name="directories" /> Tree
+          </button>
+          <button type="button" class="btn" aria-pressed={layout === "flat"} onclick={() => (layout = "flat")}>
+            <Icon name="flatList" /> List
+          </button>
+        </div>
+        <button class="btn select-all" type="button" onclick={() => scan.toggleAll(scope)} disabled={scope.length === 0}>
+          {allSelected ? "Select None" : "Select All"}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  {#if scan.error}
+    <div class="scan-error" class:standalone={rows.length === 0} role="alert">
+      <Icon name="error" />
+      <div>
+        <strong>Could not complete the scan</strong>
+        <div class="error-detail">{scan.error.message}</div>
+      </div>
     </div>
   {/if}
 
-  <div class="results">
-    {#if scan.error}
-      <p class="message error">{scan.error.message}</p>
-    {:else if scan.hits.length === 0}
-      <div class="empty">
-        <p class="message">
-          {scan.busy
-            ? "Scanning…"
-            : scan.done
-              ? "No repository found."
-              : "Pick a folder and Cogit will look through it for repositories."}
-        </p>
-        {#if !scan.folder && !scan.busy}
-          <button class="btn" type="button" onclick={onbrowse}>Choose Folder…</button>
-        {/if}
-      </div>
-    {:else}
-      <!-- As wide as the longest path: the list scrolls sideways instead of cutting it. -->
-      <div class="rows">
-        {#each sections as section (section.title)}
-          {#if section.title === null}
-            {#each section.hits as hit (hit.root)}{@render row(hit)}{/each}
-          {:else}
-            {@const title = section.title}
-            {@const open = !folded.has(title)}
-            {@const hits = section.hits}
-            <div class="group">
-              <div class="heading">
-                <button type="button" class="fold" aria-expanded={open} onclick={() => fold(title)}>
-                  <Disclosure {open} />
-                </button>
-                <Checkbox
-                  ariaLabel={`Select every repository in ${title}`}
-                  disabled={hits.every((hit) => hit.alreadyOpen)}
-                  tri={{ state: groupState(hits), toggle: () => toggleGroup(hits) }}
-                />
-                <button type="button" class="fold title" onclick={() => fold(title)}>
-                  <span>{title}</span>
-                  <span class="n">{hits.length}</span>
-                </button>
-              </div>
-              {#if open}
-                {#each section.hits as hit (hit.root)}{@render row(hit)}{/each}
-              {/if}
-            </div>
-          {/if}
-        {/each}
-      </div>
-    {/if}
-  </div>
+  {#if rows.length > 0}
+    <ScanResults {rows} {layout} {search} {scope} onexpand={expand} />
+  {:else if !scan.error}
+    <div class="empty" role="status">
+      {#if scan.hits.length > 0}
+        <p>No repositories match your search.</p>
+        <button type="button" class="btn" onclick={clearFilter}>Clear search</button>
+      {:else if scan.busy}
+        <p>Scanning for repositories…</p>
+      {:else if scan.stopped}
+        <p>The scan stopped before finding any repositories.</p>
+      {:else if scan.done}
+        <p>No repositories found in this location.</p>
+      {:else}
+        <p>Choose a folder to search for repositories.</p>
+      {/if}
+    </div>
+  {/if}
 
   {#snippet footer()}
-    <span class="count">
-      {scan.busy ? `${scan.hits.length} found so far…` : `${scan.hits.length} found`}
-    </span>
-    <button class="btn" type="button" onclick={onclose}>Cancel</button>
+    <div class="summary" aria-live="polite" aria-atomic="true">
+      {#if scan.busy}<span>Scanning…</span>{/if}
+      {#if scan.stopped}<span>Scan stopped</span>{/if}
+      <span>{scan.hits.length} found</span>
+      {#if search.active}<span>{matches} matching</span>{/if}
+      <span>{chosen.length} selected</span>
+    </div>
+    {#if chosen.length > 0}
+      <button type="button" class="btn quiet" onclick={() => {
+        scan.clearSelection();
+        input?.focus();
+      }}>Clear selection</button>
+    {/if}
+    {#if scan.busy}
+      <button type="button" class="btn" onclick={() => {
+        scan.stop();
+        input?.focus();
+      }}>Stop scan</button>
+    {/if}
+    <button type="button" class="btn" onclick={onclose}>Cancel</button>
     <button type="button" class="btn primary" disabled={chosen.length === 0 || busy} onclick={open}>
-      {openLabel}
+      {busy ? "Opening…" : "Open (" + chosen.length + ")"}
     </button>
   {/snippet}
 </Dialog>
 
 <style>
-  .bar {
-    display: flex;
-    align-items: center;
+  .toolbar {
+    flex: 0 0 auto;
+    display: grid;
     gap: var(--sp-4);
     padding: var(--sp-4) var(--sp-5);
     border-bottom: 1px solid var(--divider);
   }
 
-  .bar input[type="search"] {
-    flex: 1 1 auto;
+  .location,
+  .controls,
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-4);
     min-width: 0;
   }
 
-  .folder {
+  .location-path {
     flex: 1 1 auto;
-    min-width: 0;
     color: var(--text-secondary);
     font-size: var(--fs-dense);
   }
 
-  .results {
-    flex: 1 1 auto;
-    min-height: 160px;
-    overflow: auto;
-    overflow-wrap: normal;
+  .controls,
+  .actions {
+    flex-wrap: wrap;
   }
 
-  .rows {
-    width: max-content;
-    min-width: 100%;
+  .search {
+    position: relative;
+    flex: 1 1 12rem;
+    min-width: 0;
   }
 
-  /* A group is a block: a frame around its heading and its rows, apart from the next one. */
-  .group {
-    margin: var(--sp-3) var(--sp-5);
-    border: 1px solid var(--divider);
-    border-radius: var(--r-sm);
-    overflow: hidden;
+  .search input {
+    display: block;
   }
 
-  .heading {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-2);
-    width: 100%;
-    /* The checkbox's line box can be taller than a dense row at high display scaling.
-       Keep the standard row as a minimum, but let the heading grow so its square stays
-       inside the group's frame. */
-    min-height: var(--h-row-dense);
-    padding: 0 var(--disclosure-side);
-    background: var(--surface-base);
+  .search input::-webkit-search-cancel-button {
+    display: none;
+  }
+
+  .search:has(.clear-search) input {
+    padding-inline-end: calc(var(--h-button-sm) + var(--sp-4));
+  }
+
+  .clear-search {
+    position: absolute;
+    inset-inline-end: var(--sp-2);
+    top: 50%;
+    transform: translateY(-50%);
+    display: grid;
+    place-content: center;
+    width: var(--h-button-sm);
+    height: var(--h-button-sm);
     color: var(--text-secondary);
-    font-size: var(--fs-header);
-    font-weight: 600;
-    white-space: nowrap;
+    border-radius: var(--r-sm);
   }
 
-  .heading:hover {
+  .clear-search:hover {
+    background: var(--state-hover);
     color: var(--text-primary);
   }
 
-  .fold {
+  .view-switch {
     display: flex;
-    align-items: center;
-    gap: var(--sp-2);
-    padding: 0;
-    background: none;
-    color: inherit;
-    border: 0;
-    font: inherit;
-    cursor: default;
   }
 
-  .fold.title {
+  .view-switch .btn:first-child {
+    border-start-end-radius: 0;
+    border-end-end-radius: 0;
+  }
+
+  .view-switch .btn:last-child {
+    border-start-start-radius: 0;
+    border-end-start-radius: 0;
+    margin-inline-start: -1px;
+  }
+
+  .view-switch .btn:is([aria-pressed="true"], :hover, :focus-visible) {
+    position: relative;
+  }
+
+  .view-switch .btn:focus-visible {
+    z-index: 1;
+  }
+
+  .select-all {
+    min-width: 12ch;
+  }
+
+  .empty,
+  .scan-error {
+    font-size: var(--fs-dense);
+    background: var(--surface-base);
+  }
+
+  .empty,
+  .scan-error.standalone {
     flex: 1 1 auto;
-    height: 100%;
-  }
-
-  .group:has(.row) .heading {
-    border-bottom: 1px solid var(--divider);
-  }
-
-  .heading .n {
-    font-weight: 400;
-  }
-
-  /* Not an empty frame: a folder has to be chosen and the dialog says so and offers it. */
-  .empty {
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
+  }
+
+  .empty {
+    flex-direction: column;
     gap: var(--sp-4);
-    min-height: 160px;
+    padding: var(--sp-5);
     text-align: center;
-  }
-
-  .row {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-3);
-    height: var(--h-row-dense);
-    padding: 0 var(--sp-5);
-    font-size: var(--fs-dense);
-    white-space: nowrap;
-  }
-
-  .row:hover {
-    background: var(--state-hover);
-  }
-
-  .group .row {
-    padding-left: calc(var(--disclosure-side) * 2 + var(--disclosure-glyph));
-  }
-
-  .row.disabled {
     color: var(--text-secondary);
   }
 
-  .name {
-    flex: 0 0 auto;
-  }
-
-  .path {
-    flex: 0 0 auto;
-    color: var(--text-secondary);
-    font-size: var(--fs-header);
-  }
-
-  .message {
+  .empty p {
     margin: 0;
-    padding: var(--sp-6) var(--sp-5);
-    color: var(--text-secondary);
-    font-size: var(--fs-dense);
   }
 
-  .error {
+  .scan-error {
+    display: flex;
+    flex-shrink: 0;
+    align-items: baseline;
+    gap: var(--sp-3);
+    max-height: 40%;
+    overflow: auto;
+    padding: var(--sp-4) var(--sp-5);
     color: var(--status-delete);
-    user-select: text;
   }
 
-  .count {
+  .scan-error.standalone {
+    max-height: none;
+    align-items: flex-start;
+    align-content: center;
+    flex-wrap: wrap;
+  }
+
+  .error-detail {
+    color: var(--text-primary);
+    user-select: text;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .summary {
     flex: 1 1 auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2) var(--sp-4);
     color: var(--text-secondary);
-    font-size: var(--fs-dense);
+    font-size: var(--fs-status);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .quiet {
+    background: transparent;
+    border-color: transparent;
   }
 </style>

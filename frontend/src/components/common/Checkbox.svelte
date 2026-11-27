@@ -6,6 +6,8 @@
       The real input stays underneath for Space, Tab and screen readers. */
   interface Props {
     checked?: boolean;
+    tabindex?: number;
+    onclick?: (event: MouseEvent) => void;
     label?: string;
     disabled?: boolean;
     onchange?: (checked: boolean) => void;
@@ -22,6 +24,8 @@
 
   let {
     checked = $bindable(false),
+    tabindex,
+    onclick,
     label,
     disabled = false,
     onchange,
@@ -35,11 +39,13 @@
 
 <label class="checkbox" class:disabled class:wide {title}>
   {#if tri}
-    <input class="native" type="checkbox" {disabled} aria-label={ariaLabel} use:triState={tri} />
+    <input class="native" type="checkbox" {disabled} {tabindex} aria-label={ariaLabel} use:triState={tri} />
   {:else}
     <input
       class="native"
       type="checkbox"
+      {tabindex}
+      {onclick}
       bind:checked
       {disabled}
       aria-label={ariaLabel}

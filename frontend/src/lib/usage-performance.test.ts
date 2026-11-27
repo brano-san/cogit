@@ -83,7 +83,7 @@ it.skipIf(!process.env.COGIT_USAGE_BENCH)("measures complete data operations for
   const cases: [string, string, () => unknown | Promise<unknown>][] = [
     ["refs.refresh", "1000 local + 2000 remote branches; rebuild Branches", () => buildRefTree({ ...base, branches })],
     ["refs.search", "type five queries over 10000 release tags", () => ["release/v99", "release/v999", "absent", "v1234", "ffff"].map((filter) => buildRefTree({ ...base, tags, filter }))],
-    ["scan.groups", "group 1000 discovered repositories into 250 folders", () => scanSections(hits, "folders", "D:/work")],
+    ["scan.groups", "group 1000 discovered repositories into 250 folders", () => scanSections(hits, "folders")],
     ["repos.list", "refresh 200 saved repositories, 20 pinned", () => listedRepos([], repoList)],
     ["commit.sort", "open Commit window with 1500 changes sorted by name", () => sortedFiles(files, "name", false)],
     ["refs.toggle", "Space on 4000 selected tag rows including their folder", () => toggleSelected(selectionTree, selected, new Set())],

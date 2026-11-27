@@ -11,6 +11,7 @@ class ScanStore {
   chosen = $state.raw<ReadonlySet<string>>(new Set());
   busy = $state(false);
   done = $state(false);
+  stopped = $state(false);
   error = $state<CogitError | null>(null);
 
   /** A second scan started from the dialog must not be joined by the first one's hits. */
@@ -50,9 +51,10 @@ class ScanStore {
     const generation = ++this.#generation;
     this.folder = folder ?? ALL_DRIVES;
     this.hits = [];
-    this.chosen = new Set();
+    this.clearSelection();
     this.error = null;
     this.done = false;
+    this.stopped = false;
     this.busy = true;
 
     try {
@@ -99,21 +101,43 @@ class ScanStore {
     this.chosen = next;
   }
 
-  /** Select All and Select None act on `shown`, the rows a filter leaves; what it hides
-      keeps its tick either way. */
+  /** Both group and toolbar selection preserve the ticks outside the given set. */
   toggleAll(shown: readonly string[] | null = null): void {
-    const visible = shown === null ? null : new Set(shown);
-    const rows: string[] = [];
-    for (const hit of this.hits) {
-      if (!hit.alreadyOpen && (visible === null || visible.has(hit.root))) rows.push(hit.root);
-    }
+    const rows = this.#selectableRoots(shown);
+    this.#applySelection(rows, !rows.every((root) => this.chosen.has(root)));
+  }
+
+  setSelection(shown: readonly string[] | null, checked: boolean): void {
+    this.#applySelection(this.#selectableRoots(shown), checked);
+  }
+
+  #selectableRoots(shown: readonly string[] | null): string[] {
+    if (shown === null) return this.openable.map((hit) => hit.root);
+    const visible = new Set(shown);
+    return this.openable.filter((hit) => visible.has(hit.root)).map((hit) => hit.root);
+  }
+
+  #applySelection(roots: readonly string[], checked: boolean): void {
     const next = new Set(this.chosen);
-    const all = rows.every((root) => next.has(root));
-    for (const root of rows) {
-      if (all) next.delete(root);
-      else next.add(root);
+    for (const root of roots) {
+      if (checked) next.add(root);
+      else next.delete(root);
     }
     this.chosen = next;
+  }
+
+  clearSelection(): void {
+    this.chosen = new Set();
+  }
+
+  /** Leave the current hits available and discard events arriving after the stop. */
+  stop(): void {
+    if (!this.busy) return;
+    this.#generation += 1;
+    this.#stopWalk();
+    this.#flushHits();
+    this.busy = false;
+    this.stopped = true;
   }
 
   clear(): void {
@@ -122,9 +146,10 @@ class ScanStore {
     this.#generation += 1;
     this.folder = null;
     this.hits = [];
-    this.chosen = new Set();
+    this.clearSelection();
     this.busy = false;
     this.done = false;
+    this.stopped = false;
     this.error = null;
   }
 }

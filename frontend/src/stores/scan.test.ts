@@ -220,3 +220,43 @@ describe("selecting everything with a filter on", () => {
     expect(scan.chosen.size).toBe(0);
   });
 });
+describe("stopping and updating a selection", () => {
+  afterEach(() => { scan.clear(); vi.useRealTimers(); });
+
+  it("retains results, selection and the pending batch when discovery is stopped", async () => {
+    vi.useFakeTimers();
+    walksOn(7);
+    void scan.run("/w", 6);
+    const channel = commands.scanForRepositories.mock.calls.at(-1)![2];
+    channel.onmessage({ kind: "found", hit: hit("/w/first") });
+    vi.advanceTimersByTime(16);
+    scan.toggle("/w/first");
+    channel.onmessage({ kind: "found", hit: hit("/w/pending") });
+    scan.stop();
+    channel.onmessage({ kind: "found", hit: hit("/w/late") });
+    expect(commands.cancelOperation).toHaveBeenCalledWith(7);
+    expect(scan.hits.map((found) => found.root)).toEqual(["/w/first", "/w/pending"]);
+    expect(scan.selected).toEqual(["/w/first"]);
+    expect(scan.folder).toBe("/w");
+    expect(scan.stopped).toBe(true);
+    expect(scan.busy).toBe(false);
+    findsBackend([hit("/w/first")]);
+    await scan.run("/w", 6);
+    expect(scan.stopped).toBe(false);
+    expect(scan.selected).toEqual([]);
+  });
+
+  it("sets a range without changing filtered-out choices or selecting already open hits", async () => {
+    findsBackend([hit("/w/hidden"), hit("/w/shown"), hit("/w/open", true)]);
+    await scan.run("/w", 6);
+    scan.toggle("/w/hidden");
+    scan.setSelection(["/w/shown", "/w/open"], true);
+    scan.setSelection(["/w/shown"], true);
+    expect(scan.selected).toEqual(["/w/hidden", "/w/shown"]);
+    scan.setSelection(["/w/shown"], false);
+    expect(scan.selected).toEqual(["/w/hidden"]);
+    scan.clearSelection();
+    expect(scan.selected).toEqual([]);
+    expect(scan.hits).toHaveLength(3);
+  });
+});
